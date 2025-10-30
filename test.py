@@ -13,6 +13,10 @@ try:
 except ImportError:
     from utils.prompt_f2c_output_comparison import *
 
+from dotenv import load_dotenv
+load_dotenv()
+
+
 # Constants
 DEFAULT_MODEL_ID = "gpt-4"
 TIMEOUT_LIMIT = 60  # timeout limit in seconds
@@ -87,6 +91,60 @@ def run_fortran_only(fortran_folder, fortran_code_exe, timeout_seconds=TIMEOUT_L
         mod_files = glob.glob(f'{fortran_folder}/*.mod')
         for file in mod_files:
             os.remove(file)
+
+def programmatic_output_compare(fortran_output: str, cpp_output: str) -> Tuple[bool, str]:
+    """
+    Compare Fortran and C++ outputs programmatically.
+    Returns: (success_bool, comparison_method)
+    """
+    if not fortran_output or not cpp_output:
+        return False, "empty_output"
+
+    # Method 1: Exact string match
+    if fortran_output.strip() == cpp_output.strip():
+        return True, "exact_match"
+
+    # Method 2: Normalize whitespace and compare
+    fortran_normalized = ' '.join(fortran_output.split())
+    cpp_normalized = ' '.join(cpp_output.split())
+    if fortran_normalized == cpp_normalized:
+        return True, "whitespace_normalized"
+
+    # Method 3: Compare numbers (extract and compare floating point values)
+    fortran_numbers = re.findall(r'[-+]?\d*\.\d+(?:[eE][-+]?\d+)?|[-+]?\d+', fortran_output)
+    cpp_numbers = re.findall(r'[-+]?\d*\.\d+(?:[eE][-+]?\d+)?|[-+]?\d+', cpp_output)
+
+    if len(fortran_numbers) == len(cpp_numbers) and len(fortran_numbers) > 0:
+        try:
+            all_close = True
+            for f_num, c_num in zip(fortran_numbers, cpp_numbers):
+                f_val = float(f_num)
+                c_val = float(c_num)
+                # Use relative tolerance for comparison
+                if abs(f_val - c_val) > 1e-6 * max(abs(f_val), abs(c_val), 1.0):
+                    all_close = False
+                    break
+            if all_close:
+                return True, "numeric_comparison"
+        except ValueError:
+            pass
+
+    return False, "no_match"
+
+def generate_str_answer_gpt(prompt: str, max_completion_tokens: int = 512, gpt_model: str = DEFAULT_MODEL_ID) -> str:
+    """
+    Generate a string answer from GPT model.
+    """
+    key = os.getenv('OPENAI_API_KEY', None)
+    base_url = os.getenv('OPENAI_BASE_URL', "https://api.openai.com/v1")
+    client = OpenAI(base_url=base_url, api_key=key)
+
+    response = client.chat.completions.create(
+        model=gpt_model,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=max_completion_tokens
+    )
+    return response.choices[0].message.content
 
 def add_to_json(history, file_path='dialogues.json'):
     """
@@ -445,7 +503,7 @@ class AgentOrchestrator:
             else:
                 logging.info("[Phase B] Simple string comparison shows different outputs")
                 # Try to fix with general modification
-                modification_prompt = ff_ct_further_modification.format(cuda_compile_result=f"C++ Stdout: {cpp_stdout}\nC++ Stderr: {cpp_stderr}") + \
+                modification_prompt = ff_ct_further_modification.format(cuda_compile_result=f"C++ Stdout: {cpp_stdout}") + \
                                       f"\n\nMake the C++ program produce the same output as the Fortran program:\n{fortran_stdout}"
                 self._fur_modification(modification_prompt)
                 reply = self.history[-1]["content"]
@@ -553,14 +611,13 @@ class AgentOrchestrator:
         Returns: (history, success_bool)
         """
         # Run Phase A
-        for i in range(self.turns_limitation):
-            if not self.run_phase_a(fortran_code):
-                return self.history, False
+        if not self.run_phase_a(fortran_code):
+            return self.history, False
 
-        for i in range(self.turns_limitation):
-            if not self.run_phase_b():
-                return self.history, False
-                
+        # Run Phase B
+        if not self.run_phase_b():
+            return self.history, False
+
         return self.history, True
 
 

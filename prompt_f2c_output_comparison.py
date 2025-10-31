@@ -111,5 +111,38 @@ C++ output:
 
 Provide the corrected C++ code in a ```cpp code fence."""
 
+# Assembly comparison analysis prompt
+assembly_comparison_analysis = """Compare the assembly code of the Fortran and C++ programs below and determine if they are equivalent.
+
+Fortran assembly:
+{fortran_assembly}
+
+C++ assembly:
+{cpp_assembly}
+
+Answer with YES if the assembly codes are functionally equivalent (ignoring minor formatting differences like whitespace), or NO if they are different. Start your response with YES or NO on the first line, then explain your reasoning."""
+
+# Assembly mismatch fix prompt
+assembly_mismatch_fix = """The Fortran and C++ programs produce different assembly codes. Please fix the C++ code to match the Fortran assembly.
+
+Fortran code:
+```fortran
+{fortran_code}
+```
+
+C++ code:
+```cpp
+{cpp_code}
+```
+
+Fortran assembly:
+{fortran_assembly}
+
+C++ assembly:
+{cpp_assembly}
+
+Provide the corrected C++ code in a ```cpp code fence."""
+
+
 # End prompt
 end_prompt_ = """Great! The translation is successful. Please provide the final, cleaned-up version of both the Fortran and C++ code in code fences."""

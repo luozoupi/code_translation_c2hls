@@ -7,16 +7,19 @@ import subprocess
 import glob
 from typing import List, Tuple, Dict, Optional
 
+from ollama import chat
+from ollama import ChatResponse
+
 # Import prompts and constants
-try:
-    from prompt_f2c_output_comparison import *
-except ImportError:
-    from utils.prompt_f2c_output_comparison import *
+from prompt_f2c_output_comparison import *
 
 from dotenv import load_dotenv
 load_dotenv()
 
-
+logging.basicConfig(
+    level=logging.INFO,  # Set the minimum level to display
+    format='%(asctime)s - %(filename)s - %(lineno)d - %(levelname)s - %(message)s'
+)
 # Constants
 DEFAULT_MODEL_ID = "gpt-4"
 TIMEOUT_LIMIT = 60  # timeout limit in seconds
@@ -48,6 +51,25 @@ def extract_codes_from_text(text: str) -> Tuple[Optional[str], Optional[str]]:
         elif lang_l in ("cpp", "c++", "cc", "cxx"):
             cpp_code = body.strip()
     return fortran_code, cpp_code
+
+
+
+def get_assembly(fortran_code, cpp_code):
+
+    fortran_assembly = f"{fortran_code}/test.s"
+    cpp_assembly = f"{cpp_code}/test.s"
+    
+    subprocess.run(["gfortran", "-S", "-o", fortran_assembly, f"{fortran_code}/test.f90"])
+    subprocess.run(["g++", "-S", "-o", cpp_assembly, f"{cpp_code}/test.cpp"])   
+   
+    return fortran_assembly, cpp_assembly
+
+
+
+
+
+
+
 
 def run_fortran_only(fortran_folder, fortran_code_exe, timeout_seconds=TIMEOUT_LIMIT):
     """
@@ -274,6 +296,7 @@ class AgentOrchestrator:
         self.turns_limitation = turns_limitation
         self.idx = idx
         self.base_url = os.getenv('OPENAI_BASE_URL', "https://api.openai.com/v1")
+
         self.client = OpenAI(base_url=self.base_url, api_key=self.key)
 
         self.qer_messages = []
@@ -334,7 +357,14 @@ class AgentOrchestrator:
             messages=self.qer_messages,
             max_tokens=self.max_completion_tokens
         )
+
+        # logging.info("=== [Phase A] Initial Fortran code generated (len=%d) ===", len(ansA))
+        logging.info("\n%s\n", ansA.choices[0].message)
+
         ansA = ansA.choices[0].message.content
+
+        logging.info("=== [Phase A] Initial Fortran code generated (len=%d) ===", len(ansA))
+        logging.info("\n%s\n", ansA)
 
         self.qer_messages.append({"role": "assistant", "content": f"{ansA}"})
         self.history.append({"role": "assistant", "content": f"{ansA}"})
@@ -347,6 +377,7 @@ class AgentOrchestrator:
         fortran_code, _ = extract_codes_from_text(ansA)
         if fortran_code:
             logging.info("=== [Phase A] Initial Fortran code extracted (len=%d) ===", len(fortran_code))
+            logging.info("\n%s\n", fortran_code)
         else:
             # Ask for a clean single-file fortran
             prompt = ft_cf_further_modification.format(cpp_compile_result="Return a SINGLE-FILE ```fortran block only.")
@@ -515,8 +546,8 @@ class AgentOrchestrator:
 
     def _debug_and_compare_cpp(self, cpp_code):
         """Debug loop for Phase B - compile, run, and compare C++ code with Fortran baseline."""
-        fortran_folder = f"../sandbox/fortran_{start_sample}"
-        cpp_folder = f"../sandbox/cpp_{start_sample}"
+        fortran_folder = f"./code/fortran_{start_sample}"
+        cpp_folder = f"./code/cpp_{start_sample}"
         os.makedirs(fortran_folder, exist_ok=True)
         os.makedirs(cpp_folder, exist_ok=True)
 
@@ -574,9 +605,9 @@ class AgentOrchestrator:
     def _save_results(self, cpp_code_final):
         """Save the final Fortran and C++ code to files."""
         os.makedirs("F2C-Translator/data/f2c_test", exist_ok=True)
-        with open(f"F2C-Translator/data/f2c_test/fortran_change_gemini_llama_4_scout_{start_sample+self.idx}.f90", "w", encoding="utf-8") as ffortran:
+        with open(f"F2C-Translator/data/f2c_test/fortran_change_qwen3_coder_4_scout_{start_sample+self.idx}.f90", "w", encoding="utf-8") as ffortran:
             ffortran.write(self.fortran_baseline)
-        with open(f"F2C-Translator/data/f2c_test/cpp_change_gemini_llama_4_scout_{start_sample+self.idx}.cpp", "w", encoding="utf-8") as fcpp:
+        with open(f"F2C-Translator/data/f2c_test/cpp_change_qwen3_coder_4_scout_{start_sample+self.idx}.cpp", "w", encoding="utf-8") as fcpp:
             fcpp.write(cpp_code_final or "")
 
     def run_phase_b(self):
@@ -605,6 +636,52 @@ class AgentOrchestrator:
         self.history.append({"role": "system", "content": f"[SUCCESS] idx={self.idx} saved fortran/cpp pair. Phase A & B passed."})
         return True
 
+
+    def _initialize_phase_c(self):
+        """Initialize Phase C: compare assembly code"""
+        fortran_code = f"./code/fortran_{start_sample}"
+        cpp_code = f"./code/cpp_{start_sample}"
+
+        fortran_assembly, cpp_assembly = get_assembly(fortran_code, cpp_code)
+
+        fortran_assembly_code = open(fortran_assembly, 'r').read()
+        cpp_assembly_code = open(cpp_assembly, 'r').read()
+        return fortran_assembly_code, cpp_assembly_code
+        
+    def run_phase_c(self):
+        """
+        Phase C: Assembly comparison (Fortran & C++ frozen).
+        Returns: (success_bool)
+        """
+        fortran_assembly, cpp_assembly = self._initialize_phase_c()
+
+        m_userC = {"role": "user", "content":
+                   assembly_comparison_analysis.format(fortran_assembly=fortran_assembly, cpp_assembly=cpp_assembly)}
+        self.qer_messages.append(m_userC)
+        self.history.append(m_userC)
+
+        # Ask model
+        ansC = self.client.chat.completions.create(
+            model=self.gpt_model,
+            messages=self.qer_messages,
+            max_tokens=self.max_completion_tokens
+        )
+
+        # logging.info("=== [Phase C] Assembly/Compare Summary ===\n")
+        # logging.info("Fortran assembly:\n%s\n", fortran_assembly)
+        # logging.info("C++ assembly:\n%s\n", cpp_assembly)
+
+        ansC = ansC.choices[0].message.content
+
+        self.qer_messages.append({"role": "assistant", "content": f"{ansC}"})
+        self.history.append({"role": "assistant", "content": f"{ansC}"})
+        logging.info("=== [Phase C] Assembly/Compare Summary ===\n%s\n", ansC)
+        if "NO" in ansC:
+            return False
+
+        return True
+
+
     def run(self, fortran_code):
         """
         Main orchestration method that runs both Phase A and Phase B.
@@ -616,6 +693,10 @@ class AgentOrchestrator:
 
         # Run Phase B
         if not self.run_phase_b():
+            return self.history, False
+
+        # Run Phase C
+        if not self.run_phase_c():
             return self.history, False
 
         return self.history, True
@@ -655,5 +736,6 @@ if __name__ == "__main__":
     write(*,*) "Sum of first 10 natural numbers is: ", sum
 end program main
 """
-    output = Ai_chat_with_Ai(key="", fortran_code=fortran_code, max_completion_tokens=1000, gpt_model="llama3:latest", turns_limitation=3, idx=0)
+    output, success = Ai_chat_with_Ai(key="", fortran_code=fortran_code, max_completion_tokens=1000, gpt_model="qwen3-coder-long-ctx:30b", turns_limitation=3, idx=0)
     print(output)
+    print(success)

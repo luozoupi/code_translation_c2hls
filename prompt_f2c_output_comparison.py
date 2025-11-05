@@ -120,7 +120,7 @@ Fortran assembly:
 C++ assembly:
 {cpp_assembly}
 
-Answer with YES if the assembly codes are functionally equivalent (ignoring minor formatting differences like whitespace), or NO if they are different. Start your response with YES or NO on the first line, then explain your reasoning."""
+Answer with YES if the assembly codes are functionally equivalent (focus on the main function body) (ignoring minor formatting differences like whitespace and library calls), or NO if they are different. Start your response with YES or NO on the first line, then explain your reasoning."""
 
 # Assembly mismatch fix prompt
 assembly_mismatch_fix = """The Fortran and C++ programs produce different assembly codes. Please fix the C++ code to match the Fortran assembly.

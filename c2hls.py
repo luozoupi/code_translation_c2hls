@@ -1434,6 +1434,19 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
 
     ground_truth_code = None
     gt_file = meta.get("gold_hls_baseline_file", "hls_baseline.cpp")
+
+    # Use the best (final) optimized variant as ground truth when available.
+    # For benchmarks with multi-step variants, the last variant is the most
+    # optimized and represents the target quality we compare against.
+    variants = meta.get("variants", [])
+    if len(variants) > 1:
+        best_variant = variants[-1]
+        best_file = best_variant["file"]
+        best_path = bench_dir / best_file
+        if best_path.exists():
+            gt_file = best_file
+            logging.info(f"Using best variant '{best_variant['name']}' as ground truth")
+
     gt_path = bench_dir / gt_file
     if gt_path.exists():
         with open(gt_path, "r") as f:

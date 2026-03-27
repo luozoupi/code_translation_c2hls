@@ -120,14 +120,16 @@ def _feasibility_score(gen_report: dict) -> float:
 def _adp_score(gen_report: dict, gt_report: dict) -> float:
     """M5: Area-Delay Product — the standard FPGA efficiency metric.
 
-    ADP = latency_cycles × normalised_area
+    ADP = latency_ns × normalised_area
     where normalised_area = Σ (weight_i × resource_i / device_limit_i)
 
+    Using latency_ns accounts for both cycle count and clock frequency,
+    so a design running at a higher Fmax is properly credited.
     Lower ADP is better — a design that is 2× faster but uses 2× resources
     has the same ADP (neutral trade-off). Better designs reduce ADP.
     """
-    gen_lat = _try_int(gen_report.get("latency_cycles"))
-    gt_lat = _try_int(gt_report.get("latency_cycles"))
+    gen_lat = _try_float(gen_report.get("latency_ns")) or _try_int(gen_report.get("latency_cycles"))
+    gt_lat = _try_float(gt_report.get("latency_ns")) or _try_int(gt_report.get("latency_cycles"))
     if gen_lat is None or gt_lat is None or gt_lat == 0:
         return 50.0
 
@@ -205,9 +207,11 @@ class StepScore:
     cosim_passed: bool = False
     cosim_score: float = 0.0
 
-    # M4: Latency
-    gen_latency: Optional[int] = None
-    gt_latency: Optional[int] = None
+    # M4: Latency (ns — accounts for both cycle count and clock frequency)
+    gen_latency: Optional[float] = None     # latency_ns
+    gt_latency: Optional[float] = None      # latency_ns
+    gen_latency_cycles: Optional[int] = None
+    gt_latency_cycles: Optional[int] = None
     latency_ratio: Optional[float] = None
     latency_score: float = 0.0
 
@@ -302,9 +306,16 @@ def score_step(step_name: str, gen_report: dict, gt_report: dict,
         ss.cosim_passed = cosim_result.get("passed", False)
         ss.cosim_score = 100.0 if ss.cosim_passed else 0.0
 
-    # M4: Latency
-    ss.gen_latency = _try_int(gen_report.get("latency_cycles"))
-    ss.gt_latency = _try_int(gt_report.get("latency_cycles"))
+    # M4: Latency — use latency_ns (accounts for cycle count × clock period)
+    ss.gen_latency = _try_float(gen_report.get("latency_ns"))
+    ss.gt_latency = _try_float(gt_report.get("latency_ns"))
+    ss.gen_latency_cycles = _try_int(gen_report.get("latency_cycles"))
+    ss.gt_latency_cycles = _try_int(gt_report.get("latency_cycles"))
+    # Fall back to cycles if ns not available
+    if ss.gen_latency is None and ss.gen_latency_cycles is not None:
+        ss.gen_latency = float(ss.gen_latency_cycles)
+    if ss.gt_latency is None and ss.gt_latency_cycles is not None:
+        ss.gt_latency = float(ss.gt_latency_cycles)
     ss.latency_ratio = _safe_ratio(ss.gen_latency, ss.gt_latency)
     ss.latency_score = _ratio_score(ss.latency_ratio) if ss.latency_ratio else 0.0
 
@@ -325,7 +336,7 @@ def score_step(step_name: str, gen_report: dict, gt_report: dict,
         ss.throughput_score = _ratio_score(ss.ii_ratio, lower_is_better=True)
     elif ss.gen_ii is not None:
         # No GT II — score based on whether II == latency (no pipeline) vs II < latency (pipelined)
-        if ss.gen_latency and ss.gen_ii < ss.gen_latency:
+        if ss.gen_latency_cycles and ss.gen_ii < ss.gen_latency_cycles:
             ss.throughput_score = 75.0  # pipelined is good
         else:
             ss.throughput_score = 50.0  # neutral
@@ -464,7 +475,7 @@ def format_report(benchmarks: list, title: str = "FPGA Synthesis Quality Rubric"
             syn = " OK" if s.synthesised else "FAIL"
             csim_s = "PASS" if s.csim_passed else ("FAIL" if s.csim_ran else "  — ")
             cosim_s = "PASS" if s.cosim_passed else ("FAIL" if s.cosim_ran else "  — ")
-            lat_cyc = f"{s.gen_latency:,}" if s.gen_latency else "—"
+            lat_cyc = f"{s.gen_latency_cycles:,}" if s.gen_latency_cycles else "—"
             lat_r = f"{s.latency_ratio:.2f}" if s.latency_ratio else "—"
             fmax_v = f"{s.gen_fmax:.1f}" if s.gen_fmax else "—"
             fmx_r = f"{s.fmax_ratio:.2f}" if s.fmax_ratio else "—"
@@ -651,8 +662,10 @@ def main():
                         "cosim_ran": s.cosim_ran,
                         "cosim_passed": s.cosim_passed,
                         "cosim_score": s.cosim_score,
-                        "latency_cycles": s.gen_latency,
-                        "gt_latency_cycles": s.gt_latency,
+                        "latency_ns": s.gen_latency,
+                        "gt_latency_ns": s.gt_latency,
+                        "latency_cycles": s.gen_latency_cycles,
+                        "gt_latency_cycles": s.gt_latency_cycles,
                         "latency_ratio": s.latency_ratio,
                         "latency_score": s.latency_score,
                         "fmax_mhz": s.gen_fmax,

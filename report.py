@@ -272,21 +272,21 @@ footer {{ text-align:center; color:var(--muted); font-size:12px; margin-top:40px
     h.append('<h2>Performance Comparison</h2>')
     h.append('<div class="metric-grid">')
 
-    # Latency card
-    h.append('<div class="metric-card"><h3>Latency (cycles)</h3><table>'
+    # Latency card (ns — accounts for both cycles and clock frequency)
+    h.append('<div class="metric-card"><h3>Latency (ns)</h3><table>'
              '<tr><th>Benchmark</th><th>Generated</th><th>GT</th><th>Ratio</th><th>Speedup</th></tr>')
     for b in sorted(rubric_data, key=lambda x: -x["composite"]):
         if b["synthesis_rate"] < 100 or not b["steps"]:
             continue
         s = b["steps"][0]
-        gen_lat = s.get("latency_cycles")
-        gt_lat = s.get("gt_latency_cycles")
+        gen_lat = s.get("latency_ns") or s.get("latency_cycles")
+        gt_lat = s.get("gt_latency_ns") or s.get("gt_latency_cycles")
         ratio = s.get("latency_ratio")
         if gen_lat and gt_lat:
             speedup = gt_lat / gen_lat if gen_lat else 0
             color = "#22c55e" if ratio and ratio <= 1 else "#ef4444"
             h.append(f'<tr><td>{escape(b["benchmark"])}</td>'
-                     f'<td>{gen_lat:,}</td><td>{gt_lat:,}</td>'
+                     f'<td>{gen_lat:,.0f}</td><td>{gt_lat:,.0f}</td>'
                      f'<td style="color:{color}">{_fmt(ratio, 2)}x</td>'
                      f'<td>{_fmt(speedup, 2)}x</td></tr>')
     h.append('</table></div>')

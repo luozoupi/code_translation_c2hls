@@ -1,0 +1,53 @@
+{
+  "benchmark": "spmv_crs",
+  "source_repo": "ML4Accel-Dataset",
+  "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/hlsyn/sources/spmv-crs_kernel.c",
+  "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "spmv.cpp",
+  "header_file": "spmv.h",
+  "baseline_variant": "spmv_crs_0_baseline",
+  "variants": [
+    {
+      "name": "spmv_crs_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "spmv_crs_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "spmv",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {
+    "val": 1666,
+    "cols": 1666,
+    "rowDelimiters": 495,
+    "vec": 494,
+    "out": 494
+  },
+  "strip_report": {
+    "removed_hls_pragmas": 11,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "8bfcec6ee4965c875be3ba5a61256db7e67ec9191859e2262c139c953bd92633",
+    "gold_hls_baseline_sha256": "8bfcec6ee4965c875be3ba5a61256db7e67ec9191859e2262c139c953bd92633",
+    "plain_c_sha256": "65c236c8186d9ccea0382c1938bf0227f82b2db232614f39fd8749f8d4bf7bb7",
+    "plain_derived_from_gold_hls": true
+  }
+}

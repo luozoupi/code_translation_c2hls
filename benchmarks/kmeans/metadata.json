@@ -1,0 +1,83 @@
+{
+  "benchmark": "kmeans",
+  "source_repo": "rodinia-hls",
+  "algorithm_source_path": null,
+  "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_0_baseline/src/kmeans.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "kmeans.cpp",
+  "header_file": "kmeans.h",
+  "baseline_variant": "kmeans_0_baseline",
+  "variants": [
+    {
+      "name": "kmeans_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_0_baseline/src/kmeans.cpp"
+    },
+    {
+      "name": "kmeans_1_tiling",
+      "file": "hls_kmeans_1_tiling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_1_tiling/src/kmeans.cpp"
+    },
+    {
+      "name": "kmeans_2_pipeline",
+      "file": "hls_kmeans_2_pipeline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_2_pipeline/src/kmeans.cpp"
+    },
+    {
+      "name": "kmeans_3_unroll",
+      "file": "hls_kmeans_3_unroll.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_3_unroll/src/kmeans.cpp"
+    },
+    {
+      "name": "kmeans_4_doublebuffer",
+      "file": "hls_kmeans_4_doublebuffer.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_4_doublebuffer/src/kmeans.cpp"
+    },
+    {
+      "name": "kmeans_5_coalescing",
+      "file": "hls_kmeans_5_coalescing.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_5_coalescing/src/kmeans.cpp"
+    },
+    {
+      "name": "kmeans_6_multiddr",
+      "file": "hls_kmeans_6_multiddr.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_6_multiddr/src/kmeans.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "kmeans_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_0_baseline/src/kmeans.cpp",
+    "kmeans_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_1_tiling/src/kmeans.cpp",
+    "kmeans_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_2_pipeline/src/kmeans.cpp",
+    "kmeans_3_unroll": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_3_unroll/src/kmeans.cpp",
+    "kmeans_4_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_4_doublebuffer/src/kmeans.cpp",
+    "kmeans_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_5_coalescing/src/kmeans.cpp",
+    "kmeans_6_multiddr": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_6_multiddr/src/kmeans.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": null,
+  "kernel_top": "workload",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": false,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 7,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "fe00bb5da83cabb1fc3de78b636b0471137c7ab829b3749c0b23b2935d4415df",
+    "gold_hls_baseline_sha256": "fe00bb5da83cabb1fc3de78b636b0471137c7ab829b3749c0b23b2935d4415df",
+    "plain_c_sha256": "7469e546f9e01ea6e7dc6226e714963c03eff1ce67c5515ac42305dca4b2bacd",
+    "plain_derived_from_gold_hls": true
+  }
+}

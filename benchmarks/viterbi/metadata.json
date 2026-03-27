@@ -1,0 +1,47 @@
+{
+  "benchmark": "viterbi",
+  "source_repo": "ML4Accel-Dataset",
+  "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/machsuite/viterbi/viterbi.c",
+  "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "viterbi.cpp",
+  "header_file": "viterbi.h",
+  "baseline_variant": "viterbi_0_baseline",
+  "variants": [
+    {
+      "name": "viterbi_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "viterbi_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "viterbi",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 11,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "8adf654efc890471fc66d4f7856f174e95a65f9f9197c3c090f4f99c057e03d5",
+    "gold_hls_baseline_sha256": "8adf654efc890471fc66d4f7856f174e95a65f9f9197c3c090f4f99c057e03d5",
+    "plain_c_sha256": "baa4d09aac22e6f3322388552d445f7b8e3f925b8134519ed5d969088f62dc4c",
+    "plain_derived_from_gold_hls": true
+  }
+}

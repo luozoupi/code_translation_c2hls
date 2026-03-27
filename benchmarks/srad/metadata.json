@@ -1,0 +1,76 @@
+{
+  "benchmark": "srad",
+  "source_repo": "rodinia-hls",
+  "algorithm_source_path": null,
+  "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_0_baseline/src/srad.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "srad.cpp",
+  "header_file": "srad.h",
+  "baseline_variant": "srad_0_baseline",
+  "variants": [
+    {
+      "name": "srad_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_0_baseline/src/srad.cpp"
+    },
+    {
+      "name": "srad_1_tiling",
+      "file": "hls_srad_1_tiling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_1_tiling/src/srad.cpp"
+    },
+    {
+      "name": "srad_2_pipeline",
+      "file": "hls_srad_2_pipeline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_2_pipeline/src/srad.cpp"
+    },
+    {
+      "name": "srad_4_double_buffer",
+      "file": "hls_srad_4_double_buffer.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_4_double_buffer/src/srad.cpp"
+    },
+    {
+      "name": "srad_5_coalescing",
+      "file": "hls_srad_5_coalescing.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_5_coalescing/src/srad.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "srad_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_0_baseline/src/srad.cpp",
+    "srad_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_1_tiling/src/srad.cpp",
+    "srad_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_2_pipeline/src/srad.cpp",
+    "srad_4_double_buffer": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_4_double_buffer/src/srad.cpp",
+    "srad_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_5_coalescing/src/srad.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": null,
+  "kernel_top": "srad_kernel1",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [
+    "support/common/mars_wide_bus.h",
+    "support/common/mars_wide_bus_2d.h",
+    "support/common/mars_wide_bus_4d.h",
+    "support/common/mc.h"
+  ],
+  "include_dirs": [],
+  "supports_csim": false,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 5,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 1,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 2,
+    "plain_contains_hls_pragmas": true,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": true
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "3a6b0287f822775b947a577e22c52d39f9c87e54d21ca19ba51cc720d56c8130",
+    "gold_hls_baseline_sha256": "2a6a58abdd5cf61dcad1bbb9c6845c2ddc710401cc4f6beba9c7cf20594681b2",
+    "plain_c_sha256": "5aa94d058101056d867ad744d6589699320ceb17229f1647add23b1531cfcfaf",
+    "plain_derived_from_gold_hls": true
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "benchmark": "nw",
+  "source_repo": "rodinia-hls",
+  "algorithm_source_path": null,
+  "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_0_baseline/src/nw.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "nw.cpp",
+  "header_file": "nw.h",
+  "baseline_variant": "nw_0_baseline",
+  "variants": [
+    {
+      "name": "nw_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_0_baseline/src/nw.cpp"
+    },
+    {
+      "name": "nw_1_tiling",
+      "file": "hls_nw_1_tiling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_1_tiling/src/nw.cpp"
+    },
+    {
+      "name": "nw_2_pipeline",
+      "file": "hls_nw_2_pipeline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_2_pipeline/src/nw.cpp"
+    },
+    {
+      "name": "nw_3_unroll",
+      "file": "hls_nw_3_unroll.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_3_unroll/src/nw.cpp"
+    },
+    {
+      "name": "nw_4_doublebuffer",
+      "file": "hls_nw_4_doublebuffer.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_4_doublebuffer/src/nw.cpp"
+    },
+    {
+      "name": "nw_5_coalescing",
+      "file": "hls_nw_5_coalescing.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_5_coalescing/src/nw.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "nw_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_0_baseline/src/nw.cpp",
+    "nw_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_1_tiling/src/nw.cpp",
+    "nw_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_2_pipeline/src/nw.cpp",
+    "nw_3_unroll": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_3_unroll/src/nw.cpp",
+    "nw_4_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_4_doublebuffer/src/nw.cpp",
+    "nw_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_5_coalescing/src/nw.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "needwun",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {
+    "SEQA": 128,
+    "SEQB": 128,
+    "alignedA": 256,
+    "alignedB": 256
+  },
+  "strip_report": {
+    "removed_hls_pragmas": 10,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "029b26102e1392335fb533f0bf6da131df8d4271f3a984d2d74d4bf35f3cb33d",
+    "gold_hls_baseline_sha256": "029b26102e1392335fb533f0bf6da131df8d4271f3a984d2d74d4bf35f3cb33d",
+    "plain_c_sha256": "22a722df9f6ea74d7e4c1c853187ed3d793605e6fa987ce75f309e0fca6e7942",
+    "plain_derived_from_gold_hls": true
+  }
+}

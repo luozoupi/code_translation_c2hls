@@ -1,0 +1,71 @@
+{
+  "benchmark": "StreamCluster",
+  "source_repo": "rodinia-hls",
+  "algorithm_source_path": null,
+  "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_0_baseline/src/streamcluster.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "streamcluster.cpp",
+  "header_file": "streamcluster.h",
+  "baseline_variant": "streamcluster_0_baseline",
+  "variants": [
+    {
+      "name": "streamcluster_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_0_baseline/src/streamcluster.cpp"
+    },
+    {
+      "name": "streamcluster_1_tiling",
+      "file": "hls_streamcluster_1_tiling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_1_tiling/src/streamcluster.cpp"
+    },
+    {
+      "name": "streamcluster_2_pipeline",
+      "file": "hls_streamcluster_2_pipeline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_2_pipeline/src/streamcluster.cpp"
+    },
+    {
+      "name": "streamcluster_3_doublebuffer",
+      "file": "hls_streamcluster_3_doublebuffer.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_3_doublebuffer/src/streamcluster.cpp"
+    },
+    {
+      "name": "streamcluster_4_coalescing",
+      "file": "hls_streamcluster_4_coalescing.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_4_coalescing/src/streamcluster.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "streamcluster_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_0_baseline/src/streamcluster.cpp",
+    "streamcluster_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_1_tiling/src/streamcluster.cpp",
+    "streamcluster_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_2_pipeline/src/streamcluster.cpp",
+    "streamcluster_3_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_3_doublebuffer/src/streamcluster.cpp",
+    "streamcluster_4_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_4_coalescing/src/streamcluster.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": null,
+  "kernel_top": "workload",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": false,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 21,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "e219c8dcf655dd0e0fa1538ca7aad82e0be1e2a26d28db77d0d02cedc384361b",
+    "gold_hls_baseline_sha256": "e219c8dcf655dd0e0fa1538ca7aad82e0be1e2a26d28db77d0d02cedc384361b",
+    "plain_c_sha256": "8e7442ab6a125d1de5a1764d9456d56a5669a5ec02099fa10e9b15b65b32a833",
+    "plain_derived_from_gold_hls": true
+  }
+}

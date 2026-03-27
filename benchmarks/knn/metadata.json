@@ -1,0 +1,77 @@
+{
+  "benchmark": "knn",
+  "source_repo": "rodinia-hls",
+  "algorithm_source_path": null,
+  "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_0_baseline/src/knn.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "knn.cpp",
+  "header_file": "knn.h",
+  "baseline_variant": "knn_0_baseline",
+  "variants": [
+    {
+      "name": "knn_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_0_baseline/src/knn.cpp"
+    },
+    {
+      "name": "knn_1_tiling",
+      "file": "hls_knn_1_tiling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_1_tiling/src/knn.cpp"
+    },
+    {
+      "name": "knn_2_pipeline",
+      "file": "hls_knn_2_pipeline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_2_pipeline/src/knn.cpp"
+    },
+    {
+      "name": "knn_3_unroll",
+      "file": "hls_knn_3_unroll.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_3_unroll/src/knn.cpp"
+    },
+    {
+      "name": "knn_4_doublebuffer",
+      "file": "hls_knn_4_doublebuffer.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_4_doublebuffer/src/knn.cpp"
+    },
+    {
+      "name": "knn_5_coalescing",
+      "file": "hls_knn_5_coalescing.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_5_coalescing/src/knn.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "knn_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_0_baseline/src/knn.cpp",
+    "knn_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_1_tiling/src/knn.cpp",
+    "knn_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_2_pipeline/src/knn.cpp",
+    "knn_3_unroll": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_3_unroll/src/knn.cpp",
+    "knn_4_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_4_doublebuffer/src/knn.cpp",
+    "knn_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_5_coalescing/src/knn.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": null,
+  "kernel_top": "workload",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": false,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 7,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "d1c36f0057e398345fc7000afbf8010d2977fd74553e8c13c8b04dcc4c369ff4",
+    "gold_hls_baseline_sha256": "d1c36f0057e398345fc7000afbf8010d2977fd74553e8c13c8b04dcc4c369ff4",
+    "plain_c_sha256": "54eac171f9614c0603fb084dedd549090cbddaf82affc442ec14456e1d8e520e",
+    "plain_derived_from_gold_hls": true
+  }
+}

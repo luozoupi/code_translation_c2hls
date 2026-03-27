@@ -1,0 +1,76 @@
+{
+  "benchmark": "pathfinder",
+  "source_repo": "rodinia-hls",
+  "algorithm_source_path": null,
+  "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_0_baseline/src/pathfinder.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "pathfinder.cpp",
+  "header_file": "pathfinder.h",
+  "baseline_variant": "pathfinder_0_baseline",
+  "variants": [
+    {
+      "name": "pathfinder_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_0_baseline/src/pathfinder.cpp"
+    },
+    {
+      "name": "pathfinder_1_tiling",
+      "file": "hls_pathfinder_1_tiling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_1_tiling/src/pathfinder.cpp"
+    },
+    {
+      "name": "pathfinder_3_unroll",
+      "file": "hls_pathfinder_3_unroll.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_3_unroll/src/pathfinder.cpp"
+    },
+    {
+      "name": "pathfinder_4_doublebuffer",
+      "file": "hls_pathfinder_4_doublebuffer.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_4_doublebuffer/src/pathfinder.cpp"
+    },
+    {
+      "name": "pathfinder_5_coalescing",
+      "file": "hls_pathfinder_5_coalescing.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_5_coalescing/src/pathfinder.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "pathfinder_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_0_baseline/src/pathfinder.cpp",
+    "pathfinder_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_1_tiling/src/pathfinder.cpp",
+    "pathfinder_3_unroll": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_3_unroll/src/pathfinder.cpp",
+    "pathfinder_4_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_4_doublebuffer/src/pathfinder.cpp",
+    "pathfinder_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_5_coalescing/src/pathfinder.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": null,
+  "kernel_top": "pathfinder_kernel",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [
+    "support/common/mars_wide_bus.h",
+    "support/common/mars_wide_bus_2d.h",
+    "support/common/mars_wide_bus_4d.h",
+    "support/common/mc.h"
+  ],
+  "include_dirs": [],
+  "supports_csim": false,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 5,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 1,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "b0ada63610629d943a8c7fa1b7db5b74d7ebe934250d901edb944093c297dbe2",
+    "gold_hls_baseline_sha256": "6414fd57325e1e14cab87e77d90ac36f31230e7e34bbf3a2baae63d55e9f50df",
+    "plain_c_sha256": "715e253eceef98f9c198e36be32332b2c10c5c430b7d7e0174a95ec9fa10041c",
+    "plain_derived_from_gold_hls": true
+  }
+}

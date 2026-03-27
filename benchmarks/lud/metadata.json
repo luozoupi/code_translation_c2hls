@@ -1,0 +1,65 @@
+{
+  "benchmark": "lud",
+  "source_repo": "rodinia-hls",
+  "algorithm_source_path": null,
+  "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_0_baseline/src/lud.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "lud.cpp",
+  "header_file": "lud.h",
+  "baseline_variant": "lud_0_baseline",
+  "variants": [
+    {
+      "name": "lud_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_0_baseline/src/lud.cpp"
+    },
+    {
+      "name": "lud_1_tiling",
+      "file": "hls_lud_1_tiling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_1_tiling/src/lud.cpp"
+    },
+    {
+      "name": "lud_2_coalescing",
+      "file": "hls_lud_2_coalescing.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_2_coalescing/src/lud.cpp"
+    },
+    {
+      "name": "lud_3_unrolling",
+      "file": "hls_lud_3_unrolling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_3_unrolling/src/lud.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "lud_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_0_baseline/src/lud.cpp",
+    "lud_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_1_tiling/src/lud.cpp",
+    "lud_2_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_2_coalescing/src/lud.cpp",
+    "lud_3_unrolling": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_3_unrolling/src/lud.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": null,
+  "kernel_top": "lud",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": false,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 3,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "ae25dbca3b615803afec8fa0b2269dcb49d702246cb915d00fa7b46416189770",
+    "gold_hls_baseline_sha256": "ae25dbca3b615803afec8fa0b2269dcb49d702246cb915d00fa7b46416189770",
+    "plain_c_sha256": "fde0bb15897ec3b4d1e8ce4d247dcc9d8dd24dfa704aee55cf540d87f8512dc2",
+    "plain_derived_from_gold_hls": true
+  }
+}

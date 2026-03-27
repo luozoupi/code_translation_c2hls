@@ -1,0 +1,47 @@
+{
+  "benchmark": "aes",
+  "source_repo": "ML4Accel-Dataset",
+  "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/hlsyn/sources/aes_kernel.c",
+  "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "aes.cpp",
+  "header_file": "aes.h",
+  "baseline_variant": "aes_0_baseline",
+  "variants": [
+    {
+      "name": "aes_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "aes_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "aes256_encrypt_ecb",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 5,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "9a624e3ad753240f580d162680acd7fa86c3156dfb284a92482e0724d7a1a33c",
+    "gold_hls_baseline_sha256": "9a624e3ad753240f580d162680acd7fa86c3156dfb284a92482e0724d7a1a33c",
+    "plain_c_sha256": "51667227735fefcb8d43fe3fbec88ed1406454978d1161f3af9930560bfaed13",
+    "plain_derived_from_gold_hls": true
+  }
+}

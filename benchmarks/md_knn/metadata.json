@@ -1,0 +1,47 @@
+{
+  "benchmark": "md_knn",
+  "source_repo": "ML4Accel-Dataset",
+  "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/hlsyn/sources/md_kernel.c",
+  "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "md.cpp",
+  "header_file": "md.h",
+  "baseline_variant": "md_knn_0_baseline",
+  "variants": [
+    {
+      "name": "md_knn_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "md_knn_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "md_kernel",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 15,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "593132bd62d853ffd7e45e5211e6cf5bde8db2bda39bd86749a4590bcbc69011",
+    "gold_hls_baseline_sha256": "593132bd62d853ffd7e45e5211e6cf5bde8db2bda39bd86749a4590bcbc69011",
+    "plain_c_sha256": "5163a56a8951f8109f3d5c722febb06c58354ca337addadd92e678acd5083cb4",
+    "plain_derived_from_gold_hls": true
+  }
+}

@@ -1,0 +1,1074 @@
+[
+  {
+    "benchmark": "StreamCluster",
+    "source_repo": "rodinia-hls",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_0_baseline/src/streamcluster.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "streamcluster.cpp",
+    "header_file": "streamcluster.h",
+    "baseline_variant": "streamcluster_0_baseline",
+    "variants": [
+      {
+        "name": "streamcluster_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_0_baseline/src/streamcluster.cpp"
+      },
+      {
+        "name": "streamcluster_1_tiling",
+        "file": "hls_streamcluster_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_1_tiling/src/streamcluster.cpp"
+      },
+      {
+        "name": "streamcluster_2_pipeline",
+        "file": "hls_streamcluster_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_2_pipeline/src/streamcluster.cpp"
+      },
+      {
+        "name": "streamcluster_3_doublebuffer",
+        "file": "hls_streamcluster_3_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_3_doublebuffer/src/streamcluster.cpp"
+      },
+      {
+        "name": "streamcluster_4_coalescing",
+        "file": "hls_streamcluster_4_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_4_coalescing/src/streamcluster.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "streamcluster_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_0_baseline/src/streamcluster.cpp",
+      "streamcluster_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_1_tiling/src/streamcluster.cpp",
+      "streamcluster_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_2_pipeline/src/streamcluster.cpp",
+      "streamcluster_3_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_3_doublebuffer/src/streamcluster.cpp",
+      "streamcluster_4_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_4_coalescing/src/streamcluster.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": null,
+    "kernel_top": "workload",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": false,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 21,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "e219c8dcf655dd0e0fa1538ca7aad82e0be1e2a26d28db77d0d02cedc384361b",
+      "gold_hls_baseline_sha256": "e219c8dcf655dd0e0fa1538ca7aad82e0be1e2a26d28db77d0d02cedc384361b",
+      "plain_c_sha256": "8e7442ab6a125d1de5a1764d9456d56a5669a5ec02099fa10e9b15b65b32a833",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "hotspot",
+    "source_repo": "rodinia-hls",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_0_baseline/src/hotspot.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "hotspot.cpp",
+    "header_file": "hotspot.h",
+    "baseline_variant": "hotspot_0_baseline",
+    "variants": [
+      {
+        "name": "hotspot_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_0_baseline/src/hotspot.cpp"
+      },
+      {
+        "name": "hotspot_1_tiling",
+        "file": "hls_hotspot_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_1_tiling/src/hotspot.cpp"
+      },
+      {
+        "name": "hotspot_2_pipeline",
+        "file": "hls_hotspot_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_2_pipeline/src/hotspot.cpp"
+      },
+      {
+        "name": "hotspot_3_unrolll",
+        "file": "hls_hotspot_3_unrolll.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_3_unrolll/src/hotspot.cpp"
+      },
+      {
+        "name": "hotspot_4_doublebuffer",
+        "file": "hls_hotspot_4_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_4_doublebuffer/src/hotspot.cpp"
+      },
+      {
+        "name": "hotspot_5_coalescing",
+        "file": "hls_hotspot_5_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_5_coalescing/src/hotspot.cpp"
+      },
+      {
+        "name": "hotspot_6_multiddr",
+        "file": "hls_hotspot_6_multiddr.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_6_multiddr/src/hotspot.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "hotspot_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_0_baseline/src/hotspot.cpp",
+      "hotspot_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_1_tiling/src/hotspot.cpp",
+      "hotspot_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_2_pipeline/src/hotspot.cpp",
+      "hotspot_3_unrolll": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_3_unrolll/src/hotspot.cpp",
+      "hotspot_4_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_4_doublebuffer/src/hotspot.cpp",
+      "hotspot_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_5_coalescing/src/hotspot.cpp",
+      "hotspot_6_multiddr": "/home/luo00466/rodinia-hls/Benchmarks/hotspot/hotspot_6_multiddr/src/hotspot.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": null,
+    "kernel_top": "hotspot",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": false,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 7,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "f153e6fc0f44d2ed3d890b6eb299755362f200f888825ce96241f52a96d96fd8",
+      "gold_hls_baseline_sha256": "f153e6fc0f44d2ed3d890b6eb299755362f200f888825ce96241f52a96d96fd8",
+      "plain_c_sha256": "5d4f235540ff88dc315c194475b8b4ba82dcbbd612e82c9f0a1cd6fa16a5a5e1",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "kmeans",
+    "source_repo": "rodinia-hls",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_0_baseline/src/kmeans.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "kmeans.cpp",
+    "header_file": "kmeans.h",
+    "baseline_variant": "kmeans_0_baseline",
+    "variants": [
+      {
+        "name": "kmeans_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_0_baseline/src/kmeans.cpp"
+      },
+      {
+        "name": "kmeans_1_tiling",
+        "file": "hls_kmeans_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_1_tiling/src/kmeans.cpp"
+      },
+      {
+        "name": "kmeans_2_pipeline",
+        "file": "hls_kmeans_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_2_pipeline/src/kmeans.cpp"
+      },
+      {
+        "name": "kmeans_3_unroll",
+        "file": "hls_kmeans_3_unroll.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_3_unroll/src/kmeans.cpp"
+      },
+      {
+        "name": "kmeans_4_doublebuffer",
+        "file": "hls_kmeans_4_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_4_doublebuffer/src/kmeans.cpp"
+      },
+      {
+        "name": "kmeans_5_coalescing",
+        "file": "hls_kmeans_5_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_5_coalescing/src/kmeans.cpp"
+      },
+      {
+        "name": "kmeans_6_multiddr",
+        "file": "hls_kmeans_6_multiddr.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_6_multiddr/src/kmeans.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "kmeans_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_0_baseline/src/kmeans.cpp",
+      "kmeans_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_1_tiling/src/kmeans.cpp",
+      "kmeans_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_2_pipeline/src/kmeans.cpp",
+      "kmeans_3_unroll": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_3_unroll/src/kmeans.cpp",
+      "kmeans_4_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_4_doublebuffer/src/kmeans.cpp",
+      "kmeans_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_5_coalescing/src/kmeans.cpp",
+      "kmeans_6_multiddr": "/home/luo00466/rodinia-hls/Benchmarks/kmeans/kmeans_6_multiddr/src/kmeans.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": null,
+    "kernel_top": "workload",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": false,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 7,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "fe00bb5da83cabb1fc3de78b636b0471137c7ab829b3749c0b23b2935d4415df",
+      "gold_hls_baseline_sha256": "fe00bb5da83cabb1fc3de78b636b0471137c7ab829b3749c0b23b2935d4415df",
+      "plain_c_sha256": "7469e546f9e01ea6e7dc6226e714963c03eff1ce67c5515ac42305dca4b2bacd",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "knn",
+    "source_repo": "rodinia-hls",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_0_baseline/src/knn.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "knn.cpp",
+    "header_file": "knn.h",
+    "baseline_variant": "knn_0_baseline",
+    "variants": [
+      {
+        "name": "knn_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_0_baseline/src/knn.cpp"
+      },
+      {
+        "name": "knn_1_tiling",
+        "file": "hls_knn_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_1_tiling/src/knn.cpp"
+      },
+      {
+        "name": "knn_2_pipeline",
+        "file": "hls_knn_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_2_pipeline/src/knn.cpp"
+      },
+      {
+        "name": "knn_3_unroll",
+        "file": "hls_knn_3_unroll.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_3_unroll/src/knn.cpp"
+      },
+      {
+        "name": "knn_4_doublebuffer",
+        "file": "hls_knn_4_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_4_doublebuffer/src/knn.cpp"
+      },
+      {
+        "name": "knn_5_coalescing",
+        "file": "hls_knn_5_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_5_coalescing/src/knn.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "knn_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_0_baseline/src/knn.cpp",
+      "knn_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_1_tiling/src/knn.cpp",
+      "knn_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_2_pipeline/src/knn.cpp",
+      "knn_3_unroll": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_3_unroll/src/knn.cpp",
+      "knn_4_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_4_doublebuffer/src/knn.cpp",
+      "knn_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/knn/knn_5_coalescing/src/knn.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": null,
+    "kernel_top": "workload",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": false,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 7,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "d1c36f0057e398345fc7000afbf8010d2977fd74553e8c13c8b04dcc4c369ff4",
+      "gold_hls_baseline_sha256": "d1c36f0057e398345fc7000afbf8010d2977fd74553e8c13c8b04dcc4c369ff4",
+      "plain_c_sha256": "54eac171f9614c0603fb084dedd549090cbddaf82affc442ec14456e1d8e520e",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "lavaMD",
+    "source_repo": "rodinia-hls",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_0_baseline/src/lavaMD.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "lavaMD.cpp",
+    "header_file": "lavaMD.h",
+    "baseline_variant": "lavaMD_0_baseline",
+    "variants": [
+      {
+        "name": "lavaMD_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_0_baseline/src/lavaMD.cpp"
+      },
+      {
+        "name": "lavaMD_1_tiling",
+        "file": "hls_lavaMD_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_1_tiling/src/lavaMD.cpp"
+      },
+      {
+        "name": "lavaMD_2_pipeline",
+        "file": "hls_lavaMD_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_2_pipeline/src/lavaMD.cpp"
+      },
+      {
+        "name": "lavaMD_3_unroll",
+        "file": "hls_lavaMD_3_unroll.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_3_unroll/src/lavaMD.cpp"
+      },
+      {
+        "name": "lavaMD_4_doublebuffer",
+        "file": "hls_lavaMD_4_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_4_doublebuffer/src/lavaMD.cpp"
+      },
+      {
+        "name": "lavaMD_5_coalescing",
+        "file": "hls_lavaMD_5_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_5_coalescing/src/lavaMD.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "lavaMD_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_0_baseline/src/lavaMD.cpp",
+      "lavaMD_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_1_tiling/src/lavaMD.cpp",
+      "lavaMD_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_2_pipeline/src/lavaMD.cpp",
+      "lavaMD_3_unroll": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_3_unroll/src/lavaMD.cpp",
+      "lavaMD_4_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_4_doublebuffer/src/lavaMD.cpp",
+      "lavaMD_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_5_coalescing/src/lavaMD.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": null,
+    "kernel_top": "lavaMD_baseline_padded",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": false,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 7,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "94632cc7f88695f313f63cf7c89382a64e05a602ca91f24d18913db688bde785",
+      "gold_hls_baseline_sha256": "94632cc7f88695f313f63cf7c89382a64e05a602ca91f24d18913db688bde785",
+      "plain_c_sha256": "df770f793970a58a277b9a7ae2cdfe53d1aa3fb996f222de5197f99144752ea4",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "lud",
+    "source_repo": "rodinia-hls",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_0_baseline/src/lud.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "lud.cpp",
+    "header_file": "lud.h",
+    "baseline_variant": "lud_0_baseline",
+    "variants": [
+      {
+        "name": "lud_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_0_baseline/src/lud.cpp"
+      },
+      {
+        "name": "lud_1_tiling",
+        "file": "hls_lud_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_1_tiling/src/lud.cpp"
+      },
+      {
+        "name": "lud_2_coalescing",
+        "file": "hls_lud_2_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_2_coalescing/src/lud.cpp"
+      },
+      {
+        "name": "lud_3_unrolling",
+        "file": "hls_lud_3_unrolling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_3_unrolling/src/lud.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "lud_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_0_baseline/src/lud.cpp",
+      "lud_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_1_tiling/src/lud.cpp",
+      "lud_2_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_2_coalescing/src/lud.cpp",
+      "lud_3_unrolling": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_3_unrolling/src/lud.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": null,
+    "kernel_top": "lud",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": false,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 3,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "ae25dbca3b615803afec8fa0b2269dcb49d702246cb915d00fa7b46416189770",
+      "gold_hls_baseline_sha256": "ae25dbca3b615803afec8fa0b2269dcb49d702246cb915d00fa7b46416189770",
+      "plain_c_sha256": "fde0bb15897ec3b4d1e8ce4d247dcc9d8dd24dfa704aee55cf540d87f8512dc2",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "nw",
+    "source_repo": "rodinia-hls",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_0_baseline/src/nw.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "nw.cpp",
+    "header_file": "nw.h",
+    "baseline_variant": "nw_0_baseline",
+    "variants": [
+      {
+        "name": "nw_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_0_baseline/src/nw.cpp"
+      },
+      {
+        "name": "nw_1_tiling",
+        "file": "hls_nw_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_1_tiling/src/nw.cpp"
+      },
+      {
+        "name": "nw_2_pipeline",
+        "file": "hls_nw_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_2_pipeline/src/nw.cpp"
+      },
+      {
+        "name": "nw_3_unroll",
+        "file": "hls_nw_3_unroll.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_3_unroll/src/nw.cpp"
+      },
+      {
+        "name": "nw_4_doublebuffer",
+        "file": "hls_nw_4_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_4_doublebuffer/src/nw.cpp"
+      },
+      {
+        "name": "nw_5_coalescing",
+        "file": "hls_nw_5_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_5_coalescing/src/nw.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "nw_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_0_baseline/src/nw.cpp",
+      "nw_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_1_tiling/src/nw.cpp",
+      "nw_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_2_pipeline/src/nw.cpp",
+      "nw_3_unroll": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_3_unroll/src/nw.cpp",
+      "nw_4_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_4_doublebuffer/src/nw.cpp",
+      "nw_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/nw/nw_5_coalescing/src/nw.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": "testbench.cpp",
+    "kernel_top": "needwun",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": true,
+    "supports_cosim": true,
+    "cosim_depths": {
+      "SEQA": 128,
+      "SEQB": 128,
+      "alignedA": 256,
+      "alignedB": 256
+    },
+    "strip_report": {
+      "removed_hls_pragmas": 10,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "029b26102e1392335fb533f0bf6da131df8d4271f3a984d2d74d4bf35f3cb33d",
+      "gold_hls_baseline_sha256": "029b26102e1392335fb533f0bf6da131df8d4271f3a984d2d74d4bf35f3cb33d",
+      "plain_c_sha256": "22a722df9f6ea74d7e4c1c853187ed3d793605e6fa987ce75f309e0fca6e7942",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "pathfinder",
+    "source_repo": "rodinia-hls",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_0_baseline/src/pathfinder.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "pathfinder.cpp",
+    "header_file": "pathfinder.h",
+    "baseline_variant": "pathfinder_0_baseline",
+    "variants": [
+      {
+        "name": "pathfinder_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_0_baseline/src/pathfinder.cpp"
+      },
+      {
+        "name": "pathfinder_1_tiling",
+        "file": "hls_pathfinder_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_1_tiling/src/pathfinder.cpp"
+      },
+      {
+        "name": "pathfinder_3_unroll",
+        "file": "hls_pathfinder_3_unroll.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_3_unroll/src/pathfinder.cpp"
+      },
+      {
+        "name": "pathfinder_4_doublebuffer",
+        "file": "hls_pathfinder_4_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_4_doublebuffer/src/pathfinder.cpp"
+      },
+      {
+        "name": "pathfinder_5_coalescing",
+        "file": "hls_pathfinder_5_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_5_coalescing/src/pathfinder.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "pathfinder_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_0_baseline/src/pathfinder.cpp",
+      "pathfinder_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_1_tiling/src/pathfinder.cpp",
+      "pathfinder_3_unroll": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_3_unroll/src/pathfinder.cpp",
+      "pathfinder_4_doublebuffer": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_4_doublebuffer/src/pathfinder.cpp",
+      "pathfinder_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_5_coalescing/src/pathfinder.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": null,
+    "kernel_top": "pathfinder_kernel",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [
+      "support/common/mars_wide_bus.h",
+      "support/common/mars_wide_bus_2d.h",
+      "support/common/mars_wide_bus_4d.h",
+      "support/common/mc.h"
+    ],
+    "include_dirs": [],
+    "supports_csim": false,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 5,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 1,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "b0ada63610629d943a8c7fa1b7db5b74d7ebe934250d901edb944093c297dbe2",
+      "gold_hls_baseline_sha256": "6414fd57325e1e14cab87e77d90ac36f31230e7e34bbf3a2baae63d55e9f50df",
+      "plain_c_sha256": "715e253eceef98f9c198e36be32332b2c10c5c430b7d7e0174a95ec9fa10041c",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "srad",
+    "source_repo": "rodinia-hls",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_0_baseline/src/srad.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "srad.cpp",
+    "header_file": "srad.h",
+    "baseline_variant": "srad_0_baseline",
+    "variants": [
+      {
+        "name": "srad_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_0_baseline/src/srad.cpp"
+      },
+      {
+        "name": "srad_1_tiling",
+        "file": "hls_srad_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_1_tiling/src/srad.cpp"
+      },
+      {
+        "name": "srad_2_pipeline",
+        "file": "hls_srad_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_2_pipeline/src/srad.cpp"
+      },
+      {
+        "name": "srad_4_double_buffer",
+        "file": "hls_srad_4_double_buffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_4_double_buffer/src/srad.cpp"
+      },
+      {
+        "name": "srad_5_coalescing",
+        "file": "hls_srad_5_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_5_coalescing/src/srad.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "srad_0_baseline": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_0_baseline/src/srad.cpp",
+      "srad_1_tiling": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_1_tiling/src/srad.cpp",
+      "srad_2_pipeline": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_2_pipeline/src/srad.cpp",
+      "srad_4_double_buffer": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_4_double_buffer/src/srad.cpp",
+      "srad_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_5_coalescing/src/srad.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": null,
+    "kernel_top": "srad_kernel1",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [
+      "support/common/mars_wide_bus.h",
+      "support/common/mars_wide_bus_2d.h",
+      "support/common/mars_wide_bus_4d.h",
+      "support/common/mc.h"
+    ],
+    "include_dirs": [],
+    "supports_csim": false,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 5,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 1,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 2,
+      "plain_contains_hls_pragmas": true,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": true
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "3a6b0287f822775b947a577e22c52d39f9c87e54d21ca19ba51cc720d56c8130",
+      "gold_hls_baseline_sha256": "2a6a58abdd5cf61dcad1bbb9c6845c2ddc710401cc4f6beba9c7cf20594681b2",
+      "plain_c_sha256": "5aa94d058101056d867ad744d6589699320ceb17229f1647add23b1531cfcfaf",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "gemm_ncubed",
+    "source_repo": "ML4Accel-Dataset",
+    "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/hlsyn/sources/gemm-ncubed_kernel.c",
+    "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "gemm.cpp",
+    "header_file": "gemm.h",
+    "baseline_variant": "gemm_ncubed_0_baseline",
+    "variants": [
+      {
+        "name": "gemm_ncubed_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "gemm_ncubed_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": "testbench.cpp",
+    "kernel_top": "gemm",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": true,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 7,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "3dd50843d2e766edb027e895f022c1e6a8e6b297c9540ff9fed30aa9f0ba47ba",
+      "gold_hls_baseline_sha256": "3dd50843d2e766edb027e895f022c1e6a8e6b297c9540ff9fed30aa9f0ba47ba",
+      "plain_c_sha256": "e09b2536a9b14ea09381feae37b12d70d3077dcf57d6e2eb97c1447362ad2078",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "stencil2D",
+    "source_repo": "ML4Accel-Dataset",
+    "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/hlsyn/sources/stencil_stencil2d_kernel.c",
+    "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "stencil.cpp",
+    "header_file": "stencil.h",
+    "baseline_variant": "stencil2D_0_baseline",
+    "variants": [
+      {
+        "name": "stencil2D_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "stencil2D_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": "testbench.cpp",
+    "kernel_top": "stencil",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": true,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 7,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "c1341a8f995c1d082cb35f77b8471b0de39bc37764731205cf9ff7ca3c9c7626",
+      "gold_hls_baseline_sha256": "c1341a8f995c1d082cb35f77b8471b0de39bc37764731205cf9ff7ca3c9c7626",
+      "plain_c_sha256": "eb3b03796fe1cc2eb73ffa0fb5adbde81b49786f1bd090b8e212ce0275ccf874",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "spmv_crs",
+    "source_repo": "ML4Accel-Dataset",
+    "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/hlsyn/sources/spmv-crs_kernel.c",
+    "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "spmv.cpp",
+    "header_file": "spmv.h",
+    "baseline_variant": "spmv_crs_0_baseline",
+    "variants": [
+      {
+        "name": "spmv_crs_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "spmv_crs_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": "testbench.cpp",
+    "kernel_top": "spmv",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": true,
+    "supports_cosim": true,
+    "cosim_depths": {
+      "val": 1666,
+      "cols": 1666,
+      "rowDelimiters": 495,
+      "vec": 494,
+      "out": 494
+    },
+    "strip_report": {
+      "removed_hls_pragmas": 11,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "8bfcec6ee4965c875be3ba5a61256db7e67ec9191859e2262c139c953bd92633",
+      "gold_hls_baseline_sha256": "8bfcec6ee4965c875be3ba5a61256db7e67ec9191859e2262c139c953bd92633",
+      "plain_c_sha256": "65c236c8186d9ccea0382c1938bf0227f82b2db232614f39fd8749f8d4bf7bb7",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "aes",
+    "source_repo": "ML4Accel-Dataset",
+    "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/hlsyn/sources/aes_kernel.c",
+    "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "aes.cpp",
+    "header_file": "aes.h",
+    "baseline_variant": "aes_0_baseline",
+    "variants": [
+      {
+        "name": "aes_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "aes_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": "testbench.cpp",
+    "kernel_top": "aes256_encrypt_ecb",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": true,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 5,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "9a624e3ad753240f580d162680acd7fa86c3156dfb284a92482e0724d7a1a33c",
+      "gold_hls_baseline_sha256": "9a624e3ad753240f580d162680acd7fa86c3156dfb284a92482e0724d7a1a33c",
+      "plain_c_sha256": "51667227735fefcb8d43fe3fbec88ed1406454978d1161f3af9930560bfaed13",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "sort_merge",
+    "source_repo": "ML4Accel-Dataset",
+    "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/machsuite/sort_merge/sort.c",
+    "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "sort.cpp",
+    "header_file": "sort.h",
+    "baseline_variant": "sort_merge_0_baseline",
+    "variants": [
+      {
+        "name": "sort_merge_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "sort_merge_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": "testbench.cpp",
+    "kernel_top": "ms_mergesort",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": true,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 3,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "be7431065657ba9a9702c6973996c9e265460b03e5b4f9e76e445117829abd76",
+      "gold_hls_baseline_sha256": "be7431065657ba9a9702c6973996c9e265460b03e5b4f9e76e445117829abd76",
+      "plain_c_sha256": "0816a8eb2ff13960aa5339f96d440daf5fc63de35a29089ff288f488181470b3",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "viterbi",
+    "source_repo": "ML4Accel-Dataset",
+    "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/machsuite/viterbi/viterbi.c",
+    "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "viterbi.cpp",
+    "header_file": "viterbi.h",
+    "baseline_variant": "viterbi_0_baseline",
+    "variants": [
+      {
+        "name": "viterbi_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "viterbi_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": "testbench.cpp",
+    "kernel_top": "viterbi",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": true,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 11,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "8adf654efc890471fc66d4f7856f174e95a65f9f9197c3c090f4f99c057e03d5",
+      "gold_hls_baseline_sha256": "8adf654efc890471fc66d4f7856f174e95a65f9f9197c3c090f4f99c057e03d5",
+      "plain_c_sha256": "baa4d09aac22e6f3322388552d445f7b8e3f925b8134519ed5d969088f62dc4c",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "md_knn",
+    "source_repo": "ML4Accel-Dataset",
+    "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/hlsyn/sources/md_kernel.c",
+    "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "md.cpp",
+    "header_file": "md.h",
+    "baseline_variant": "md_knn_0_baseline",
+    "variants": [
+      {
+        "name": "md_knn_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "md_knn_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": "testbench.cpp",
+    "kernel_top": "md_kernel",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": true,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 15,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "593132bd62d853ffd7e45e5211e6cf5bde8db2bda39bd86749a4590bcbc69011",
+      "gold_hls_baseline_sha256": "593132bd62d853ffd7e45e5211e6cf5bde8db2bda39bd86749a4590bcbc69011",
+      "plain_c_sha256": "5163a56a8951f8109f3d5c722febb06c58354ca337addadd92e678acd5083cb4",
+      "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "fft",
+    "source_repo": "ML4Accel-Dataset",
+    "algorithm_source_path": "/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset/machsuite/fft_transpose/fft.c",
+    "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "fft.cpp",
+    "header_file": "fft.h",
+    "baseline_variant": "fft_0_baseline",
+    "variants": [
+      {
+        "name": "fft_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp"
+      }
+    ],
+    "variant_source_paths": {
+      "fft_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp"
+    },
+    "plain_c_file": "plain.cpp",
+    "testbench_file": "testbench.cpp",
+    "kernel_top": "fft1D_512",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "support_files": [],
+    "include_dirs": [],
+    "supports_csim": true,
+    "supports_cosim": false,
+    "cosim_depths": {},
+    "strip_report": {
+      "removed_hls_pragmas": 5,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "provenance": {
+      "gold_hls_source_sha256": "0d0eb45c354702a607a22bc2b650d355b8b9f2e50ddd1ac0b1b06d77b55ca39c",
+      "gold_hls_baseline_sha256": "0d0eb45c354702a607a22bc2b650d355b8b9f2e50ddd1ac0b1b06d77b55ca39c",
+      "plain_c_sha256": "84d6aee7a6c8b9b4b09e2c501916bf56bc7d1b5ef27df3e1ed1494d0579d598c",
+      "plain_derived_from_gold_hls": true
+    }
+  }
+]

@@ -19,17 +19,19 @@ gold_hls_source.cpp   ──(strip pragmas)──>   plain.cpp   ──(LLM)─�
 3. [Benchmark Preparation](#benchmark-preparation)
 4. [Running Translations](#running-translations)
 5. [Evaluation & Scoring](#evaluation--scoring)
-6. [Pipeline Architecture](#pipeline-architecture)
-7. [Benchmark Corpus](#benchmark-corpus)
-8. [File Reference](#file-reference)
-9. [Troubleshooting](#troubleshooting)
+6. [HTML Report Generation](#html-report-generation)
+7. [Pipeline Architecture](#pipeline-architecture)
+8. [Benchmark Corpus](#benchmark-corpus)
+9. [File Reference](#file-reference)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Prerequisites
 
-- **Vitis HLS 2025.2** installed at `/mnt/data/luo00466/Xilinx/2025.2/`
-- **Conda** with the `py310_2` environment
+- **Xilinx Vitis HLS 2025.2** (or compatible version)
+- **Python 3.10+** with pip
+- **g++** (for C/C++ compilation checks)
 - **LLM backend** — one of:
   - Anthropic API key (for Claude models)
   - OpenAI API key (for GPT models)
@@ -39,66 +41,139 @@ gold_hls_source.cpp   ──(strip pragmas)──>   plain.cpp   ──(LLM)─�
 
 ## Environment Setup
 
-### Step 1: Source Vitis HLS
+### Step 1: Install Vitis HLS (headless / no-GUI)
+
+If Vitis HLS is not already installed, download the **Vitis Unified Installer** from
+[Xilinx Downloads](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vitis.html) (requires a free AMD account).
+
+For headless (CLI-only) installation on a Linux server:
 
 ```bash
-source /mnt/data/luo00466/Xilinx/2025.2/Vitis/settings64.sh
+# Download the installer (example for 2025.2; adjust version as needed)
+chmod +x Xilinx_Unified_2025.2_XXXX_Lin64.bin
+
+# Run headless install — select "Vitis HLS" only to save disk space (~15 GB vs ~100 GB full)
+./Xilinx_Unified_2025.2_XXXX_Lin64.bin -- --batch ConfigGen
+# Edit ~/.Xilinx/install_config.txt to set:
+#   Destination  : /opt/Xilinx/2025.2   (or your preferred path)
+#   Modules      : Vitis HLS:1           (enable only HLS)
+./Xilinx_Unified_2025.2_XXXX_Lin64.bin -- --batch Install --agree XilinxEULA,3rdPartyEULA --config ~/.Xilinx/install_config.txt
 ```
 
-This makes `vitis_hls` available in your PATH. Required for synthesis (Phase B) and ground-truth report generation.
+After installation, verify:
+```bash
+source <XILINX_INSTALL_DIR>/Vitis/settings64.sh
+which vitis_hls   # should print the path to the vitis_hls binary
+```
 
-### Step 2: Activate conda environment
+### Step 2: Source Vitis HLS in your shell
+
+Add this to your `.bashrc` or run before each session:
 
 ```bash
-conda activate py310_2
+source <XILINX_INSTALL_DIR>/Vitis/settings64.sh
 ```
 
-### Step 3: Install Python dependencies (if needed)
+Replace `<XILINX_INSTALL_DIR>` with your actual installation path (e.g., `/opt/Xilinx/2025.2`).
+
+> **Important:** You must also update `VITIS_SETTINGS` in `hls_eval.py` to match your installation path:
+> ```python
+> VITIS_SETTINGS = "<XILINX_INSTALL_DIR>/Vitis/settings64.sh"
+> ```
+
+### Step 3: Set up Python environment
+
+```bash
+# Option A: conda
+conda create -n c2hls python=3.10 -y
+conda activate c2hls
+
+# Option B: venv
+python3 -m venv .venv && source .venv/bin/activate
+```
+
+### Step 4: Install Python dependencies
 
 ```bash
 pip install openai anthropic python-dotenv
 ```
 
-### Step 4: Configure LLM access
+### Step 5: Configure LLM access
 
 The pipeline auto-detects the backend from the `--model` argument:
 
 | Model prefix | Backend | Configuration |
 |---|---|---|
-| `claude-*` | Anthropic API | Set `ANTHROPIC_API_KEY` env var, or place key in `/home/luo00466/claude-api-key.txt` |
-| `gpt-*`, `o1-*`, `o3-*`, `o4-*` | OpenAI API | Set `OPENAI_API_KEY` env var, or place key in `/home/luo00466/gpt-key.txt` |
+| `claude-*` | Anthropic API | Set `ANTHROPIC_API_KEY` env var or create a `.env` file |
+| `gpt-*`, `o1-*`, `o3-*`, `o4-*` | OpenAI API | Set `OPENAI_API_KEY` env var or create a `.env` file |
 | Everything else | vLLM (local) | Set `OPENAI_BASE_URL` (default: `http://127.0.0.1:8000/v1`) |
 
-**Example — using Claude Haiku:**
+Create a `.env` file in the project root (git-ignored):
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
+# For Anthropic Claude models
+ANTHROPIC_API_KEY=sk-ant-...
+
+# For OpenAI models
+OPENAI_API_KEY=sk-...
+
+# For local vLLM (optional, these are the defaults)
+OPENAI_BASE_URL=http://127.0.0.1:8000/v1
+OPENAI_API_KEY=EMPTY
 ```
 
 **Example — using a local vLLM server:**
 ```bash
-# Start vLLM (in a separate terminal / tmux)
-# vllm serve Qwen/Qwen3.5-35B-A3B --port 8000
+# Start vLLM in a separate terminal
+vllm serve Qwen/Qwen3.5-35B-A3B --port 8000
 
-export OPENAI_API_KEY=EMPTY
-export OPENAI_BASE_URL=http://127.0.0.1:8000/v1
+# The pipeline will auto-detect non-Claude/GPT model names as vLLM
+python c2hls.py --bench aes --model Qwen/Qwen3.5-35B-A3B
 ```
+
+### Step 6: Configure project paths
+
+Several paths in the codebase need to match your environment. Update these before first use:
+
+| File | Variable | Description |
+|---|---|---|
+| `hls_eval.py` | `VITIS_SETTINGS` | Path to Vitis `settings64.sh` |
+| `prepare_benchmarks.py` | `ROOT` | Project root directory |
+| `prepare_benchmarks.py` | `RODINIA_DIR` | Path to rodinia-hls benchmark repo |
+| `prepare_benchmarks.py` | `ML4ACCEL_DIR` | Path to ML4Accel-Dataset repo |
+
+If you only use the pre-built benchmarks in `benchmarks/` (already included in this repo), you can skip configuring `prepare_benchmarks.py`.
 
 ---
 
 ## Benchmark Preparation
 
-### Step 5: Generate benchmark data
+### Using pre-built benchmarks (recommended)
 
-```bash
-python prepare_benchmarks.py
-```
+The `benchmarks/` directory is included in this repository with all 17 pre-processed benchmarks. **No preparation step is needed** — skip to [Running Translations](#running-translations).
 
-This reads gold HLS sources from two upstream repos and creates a clean benchmark corpus in `benchmarks/`:
+### Regenerating benchmarks from source (optional)
 
-- **rodinia-hls** (9 benchmarks): StreamCluster, hotspot, kmeans, knn, lavaMD, lud, nw, pathfinder, srad
-- **ML4Accel-Dataset** (8 benchmarks): aes, fft, gemm_ncubed, md_knn, sort_merge, spmv_crs, stencil2D, viterbi
+If you want to regenerate from the upstream repos:
 
-For each benchmark, three files are produced:
+1. Clone the upstream benchmark repos:
+   ```bash
+   git clone https://github.com/UCLA-VAST/rodinia-hls.git /path/to/rodinia-hls
+   git clone https://github.com/UIUC-ChenLab/ML4Accel-Dataset.git /path/to/ML4Accel-Dataset
+   ```
+
+2. Update paths in `prepare_benchmarks.py`:
+   ```python
+   ROOT = Path("/path/to/this/project")
+   RODINIA_DIR = Path("/path/to/rodinia-hls/Benchmarks")
+   ML4ACCEL_DIR = Path("/path/to/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset")
+   ```
+
+3. Run the preparation script:
+   ```bash
+   python prepare_benchmarks.py
+   ```
+
+This reads gold HLS sources and creates three versions per benchmark:
 
 | File | Description |
 |---|---|
@@ -138,7 +213,7 @@ Expected output confirms all pragmas were removed:
 
 ## Running Translations
 
-### Step 6: Run a single benchmark (single-shot mode)
+### Run a single benchmark (single-shot mode)
 
 ```bash
 python c2hls.py --bench aes --model claude-haiku-4-5-20251001 --turns 3
@@ -151,7 +226,7 @@ This runs the full three-phase pipeline on one benchmark:
 
 Results are saved to `results/<benchmark>/`.
 
-### Step 7: Run all benchmarks
+### Run all benchmarks
 
 ```bash
 python c2hls.py --all --model claude-haiku-4-5-20251001 --turns 3
@@ -159,10 +234,10 @@ python c2hls.py --all --model claude-haiku-4-5-20251001 --turns 3
 
 Runs all 17 benchmarks sequentially. Results are saved per-benchmark under `results/`, plus a combined `results/all_results.json`.
 
-### Step 8: Run multi-step incremental optimization
+### Run multi-step incremental optimization
 
 ```bash
-# All optimization steps (default order: tiling → pipeline → unroll → doublebuffer → coalescing)
+# All optimization steps (default order: tiling -> pipeline -> unroll -> doublebuffer -> coalescing)
 python c2hls.py --bench nw --multistep --model claude-haiku-4-5-20251001
 
 # Specific steps only
@@ -198,7 +273,7 @@ python c2hls.py [-h]
 
 ## Evaluation & Scoring
 
-### Step 9: Score results with the rubric
+### Score results with the rubric
 
 ```bash
 # Score single-shot results
@@ -224,7 +299,7 @@ The rubric evaluates generated HLS code across 9 weighted metrics against the gr
 | M5. Clock Frequency | 8% | Fmax / timing closure quality (higher = better) |
 | M6. Throughput / II | 7% | Initiation interval vs GT (lower = better) |
 | M7. Resource Efficiency | 17% | BRAM/DSP/FF/LUT vs GT, weighted by scarcity |
-| M8. Area-Delay Product | 13% | Combined latency × normalized area efficiency |
+| M8. Area-Delay Product | 13% | Combined latency x normalized area efficiency |
 | M9. Device Feasibility | 10% | Hard resource pressure vs Artix-7 100T limits |
 
 **Target device:** xc7a100t-csg324-1 (Artix-7 100T) — BRAM=270, DSP=240, FF=126800, LUT=63400
@@ -234,11 +309,35 @@ The rubric evaluates generated HLS code across 9 weighted metrics against the gr
 
 | Grade | Score | Meaning |
 |---|---|---|
-| A | 90–100 | Excellent — matches or improves on GT |
-| B | 75–89 | Good — close to GT with minor overhead |
-| C | 60–74 | Acceptable — functional but notable gaps |
-| D | 40–59 | Below average — large overhead or timing issues |
-| F | 0–39 | Poor — synthesis failure, infeasible, or extreme overhead |
+| A | 90-100 | Excellent — matches or improves on GT |
+| B | 75-89 | Good — close to GT with minor overhead |
+| C | 60-74 | Acceptable — functional but notable gaps |
+| D | 40-59 | Below average — large overhead or timing issues |
+| F | 0-39 | Poor — synthesis failure, infeasible, or extreme overhead |
+
+---
+
+## HTML Report Generation
+
+Generate an interactive HTML report from your results:
+
+```bash
+# From single-shot results
+python report.py --results results --output report.html
+
+# From multi-step results
+python report.py --results results --multistep --output report_multistep.html
+```
+
+The report includes:
+- Overall summary with grade distribution and pass rates
+- Per-benchmark score breakdown with bar charts
+- Resource usage comparison (Generated vs Ground Truth)
+- Latency and Fmax ratio visualizations
+- Device utilization heatmap
+- Detailed per-benchmark drill-down tables
+
+Open the generated `.html` file in any browser — it is fully self-contained (no external dependencies).
 
 ---
 
@@ -308,40 +407,40 @@ The LLM is instructed to:
 
 ```
 benchmarks/
-├── index.json                   # Corpus manifest
-├── aes/
-│   ├── aes.h                    # Shared header
-│   ├── gold_hls_source.cpp      # Original HLS code (with pragmas)
-│   ├── hls_baseline.cpp         # Localized ground truth (≈ identical to gold)
-│   ├── plain.cpp                # Stripped C code (LLM input)
-│   ├── testbench.cpp            # C-simulation testbench
-│   └── metadata.json            # Provenance + strip report
-├── nw/
-│   ├── nw.h
-│   ├── gold_hls_source.cpp
-│   ├── hls_baseline.cpp
-│   ├── plain.cpp
-│   ├── testbench.cpp
-│   ├── hls_nw_1_tiling.cpp      # Multi-step GT variants
-│   ├── hls_nw_2_pipeline.cpp
-│   ├── hls_nw_3_unroll.cpp
-│   ├── hls_nw_4_doublebuffer.cpp
-│   ├── hls_nw_5_coalescing.cpp
-│   └── metadata.json
-└── ...
++-- index.json                   # Corpus manifest
++-- aes/
+|   +-- aes.h                    # Shared header
+|   +-- gold_hls_source.cpp      # Original HLS code (with pragmas)
+|   +-- hls_baseline.cpp         # Localized ground truth (= identical to gold)
+|   +-- plain.cpp                # Stripped C code (LLM input)
+|   +-- testbench.cpp            # C-simulation testbench
+|   +-- metadata.json            # Provenance + strip report
++-- nw/
+|   +-- nw.h
+|   +-- gold_hls_source.cpp
+|   +-- hls_baseline.cpp
+|   +-- plain.cpp
+|   +-- testbench.cpp
+|   +-- hls_nw_1_tiling.cpp      # Multi-step GT variants
+|   +-- hls_nw_2_pipeline.cpp
+|   +-- hls_nw_3_unroll.cpp
+|   +-- hls_nw_4_doublebuffer.cpp
+|   +-- hls_nw_5_coalescing.cpp
+|   +-- metadata.json
++-- ...
 ```
 
 ### Results directory structure
 
 ```
 results/
-├── all_results.json             # Combined results from --all runs
-├── aes/
-│   ├── aes_generated.cpp        # LLM-generated HLS code
-│   ├── aes_synth_report.json    # Vitis HLS synthesis report
-│   ├── aes_results.json         # Phase C comparison + metadata
-│   └── aes_history.json         # LLM conversation history
-└── ...
++-- all_results.json             # Combined results from --all runs
++-- aes/
+|   +-- aes_generated.cpp        # LLM-generated HLS code
+|   +-- aes_synth_report.json    # Vitis HLS synthesis report
+|   +-- aes_results.json         # Phase C comparison + metadata
+|   +-- aes_history.json         # LLM conversation history
++-- ...
 ```
 
 ---
@@ -355,6 +454,7 @@ results/
 | `prompt_c2hls.py` | All LLM prompts — system instruction, Phase A/B repair prompts, per-optimization-step prompts |
 | `prepare_benchmarks.py` | Generates `benchmarks/` from rodinia-hls and ML4Accel-Dataset upstream repos |
 | `rubric.py` | 9-metric scoring rubric — compares generated vs GT synthesis reports |
+| `report.py` | HTML report generator — produces self-contained interactive reports |
 | `benchmarks/` | Prepared benchmark data (plain C input + HLS ground truth + testbenches) |
 | `results/` | Pipeline output (generated HLS code, synthesis reports, comparisons) |
 
@@ -362,13 +462,24 @@ results/
 
 ## Troubleshooting
 
+### Vitis HLS not found
+
+```
+vitis_hls: command not found
+```
+
+Ensure you have sourced the Vitis settings file and that `VITIS_SETTINGS` in `hls_eval.py` points to the correct path:
+```bash
+source <XILINX_INSTALL_DIR>/Vitis/settings64.sh
+```
+
 ### Synthesis timeout (600s)
 
 Some benchmarks (e.g., viterbi) produce code that is too complex for Vitis HLS to synthesize within the 600-second timeout. This typically happens when the LLM aggressively partitions large arrays. Try a stronger model or reduce array sizes in the prompt.
 
 ### kmeans Phase A failure
 
-The kmeans benchmark references `../../../common/mc.h` in its header. If this path is unresolvable, Phase A compilation will fail. Ensure the rodinia-hls common directory is accessible.
+The kmeans benchmark references `../../../common/mc.h` in its header. If this path is unresolvable, Phase A compilation will fail. Ensure the support files in the benchmark directory are intact.
 
 ### "undef" latency in reports
 
@@ -385,7 +496,7 @@ Qwen models require `enable_thinking: false` passed via `extra_body` in the Open
 ### API key not found
 
 ```
-AssertionError: Missing Anthropic API key. Set ANTHROPIC_API_KEY or populate /home/luo00466/claude-api-key.txt.
+AssertionError: Missing Anthropic API key. Set ANTHROPIC_API_KEY env var or create a .env file.
 ```
 
-Set the appropriate environment variable or create the key file for your chosen backend.
+Set the appropriate environment variable or create a `.env` file in the project root.

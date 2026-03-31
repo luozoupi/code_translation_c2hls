@@ -1,0 +1,562 @@
+{
+  "phase": "complete",
+  "hls_code": "#include \"spmv.h\"\n\nvoid spmv(TYPE val[NNZ], int32_t cols[NNZ], int32_t rowDelimiters[N + 1],\n          TYPE vec[N], TYPE out[N]) {\n    int i, j;\n    TYPE sum, Si;\n\n    spmv_1: for (i = 0; i < N; i++) {\n        #pragma HLS PIPELINE II=1\n        sum = 0; Si = 0;\n        int tmp_begin = rowDelimiters[i];\n        int tmp_end = rowDelimiters[i + 1];\n        spmv_2: for (j = tmp_begin; j < tmp_end; j++) {\n            Si = val[j] * vec[cols[j]];\n            sum = sum + Si;\n        }\n        out[i] = sum;\n    }\n}\n\n\nextern \"C\" {\nvoid workload(TYPE* val, int32_t* cols, int32_t* rowDelimiters,\n              TYPE* vec, TYPE* out) {\n    #pragma HLS INTERFACE m_axi port=val offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=cols offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=rowDelimiters offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=vec offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem\n    #pragma HLS INTERFACE s_axilite port=val bundle=control\n    #pragma HLS INTERFACE s_axilite port=cols bundle=control\n    #pragma HLS INTERFACE s_axilite port=rowDelimiters bundle=control\n    #pragma HLS INTERFACE s_axilite port=vec bundle=control\n    #pragma HLS INTERFACE s_axilite port=out bundle=control\n    #pragma HLS INTERFACE s_axilite port=return bundle=control\n\n    TYPE l_val[NNZ];\n    int32_t l_cols[NNZ];\n    int32_t l_rowDelimiters[N + 1];\n    TYPE l_vec[N];\n    TYPE l_out[N];\n    int i;\n\n    #pragma HLS ARRAY_PARTITION variable=l_vec cyclic factor=4 dim=1\n\n    for (i = 0; i < NNZ; i++) { \n        l_val[i] = val[i]; \n        l_cols[i] = cols[i]; \n    }\n    for (i = 0; i < N + 1; i++) {\n        l_rowDelimiters[i] = rowDelimiters[i];\n    }\n    for (i = 0; i < N; i++) {\n        l_vec[i] = vec[i];\n    }\n\n    spmv(l_val, l_cols, l_rowDelimiters, l_vec, l_out);\n\n    for (i = 0; i < N; i++) {\n        out[i] = l_out[i];\n    }\n}\n}",
+  "synth_report": {
+    "latency_cycles": 3352,
+    "latency_ns": 13410.0,
+    "bram": "24",
+    "dsp": "14",
+    "ff": "7755",
+    "lut": "5478",
+    "uram": "0",
+    "fmax_mhz": 265.6,
+    "interval": null,
+    "estimated_clock_period_ns": 3.765,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": 0.235,
+    "work_dir": "/tmp/hls_synth_eosyvj_n"
+  },
+  "comparison": {
+    "success": true,
+    "valid_reference": true,
+    "invalid_reference": false,
+    "generated_report": {
+      "latency_cycles": 3352,
+      "latency_ns": 13410.0,
+      "bram": "24",
+      "dsp": "14",
+      "ff": "7755",
+      "lut": "5478",
+      "uram": "0",
+      "fmax_mhz": 265.6,
+      "interval": null,
+      "estimated_clock_period_ns": 3.765,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": 0.235,
+      "work_dir": "/tmp/hls_synth_eosyvj_n"
+    },
+    "ground_truth_report": {
+      "latency_cycles": 3335,
+      "latency_ns": 13340.0,
+      "bram": "25",
+      "dsp": "14",
+      "ff": "6395",
+      "lut": "6247",
+      "uram": "0",
+      "fmax_mhz": 199.88,
+      "interval": null,
+      "estimated_clock_period_ns": 5.003,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -1.003,
+      "work_dir": "/tmp/hls_synth_jfvun2wt"
+    },
+    "comparison": {
+      "latency_cycles": {
+        "generated": 3352.0,
+        "ground_truth": 3335.0,
+        "ratio": 1.005
+      },
+      "latency_ns": {
+        "generated": 13410.0,
+        "ground_truth": 13340.0,
+        "ratio": 1.005
+      },
+      "bram": {
+        "generated": 24.0,
+        "ground_truth": 25.0,
+        "ratio": 0.96
+      },
+      "dsp": {
+        "generated": 14.0,
+        "ground_truth": 14.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 7755.0,
+        "ground_truth": 6395.0,
+        "ratio": 1.213
+      },
+      "lut": {
+        "generated": 5478.0,
+        "ground_truth": 6247.0,
+        "ratio": 0.877
+      },
+      "fmax_mhz": {
+        "generated": 265.6,
+        "ground_truth": 199.88,
+        "ratio": 1.329
+      }
+    }
+  },
+  "csim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "cosim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "quality_repair": {
+    "attempted": true,
+    "applied": true,
+    "attempts": [
+      {
+        "turn": 0,
+        "focus": "timing",
+        "score_before": 206.725,
+        "candidate_score": 27.501,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 3352.0,
+            "ground_truth": 3335.0,
+            "ratio": 1.005
+          },
+          "latency_ns": {
+            "generated": 13410.0,
+            "ground_truth": 13340.0,
+            "ratio": 1.005
+          },
+          "bram": {
+            "generated": 19.0,
+            "ground_truth": 25.0,
+            "ratio": 0.76
+          },
+          "dsp": {
+            "generated": 14.0,
+            "ground_truth": 14.0,
+            "ratio": 1.0
+          },
+          "ff": {
+            "generated": 7327.0,
+            "ground_truth": 6395.0,
+            "ratio": 1.146
+          },
+          "lut": {
+            "generated": 5376.0,
+            "ground_truth": 6247.0,
+            "ratio": 0.861
+          },
+          "fmax_mhz": {
+            "generated": 199.88,
+            "ground_truth": 199.88,
+            "ratio": 1.0
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "accepted"
+      },
+      {
+        "turn": 1,
+        "focus": "timing",
+        "score_before": 27.501,
+        "candidate_score": 3.673,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 3352.0,
+            "ground_truth": 3335.0,
+            "ratio": 1.005
+          },
+          "latency_ns": {
+            "generated": 13410.0,
+            "ground_truth": 13340.0,
+            "ratio": 1.005
+          },
+          "bram": {
+            "generated": 24.0,
+            "ground_truth": 25.0,
+            "ratio": 0.96
+          },
+          "dsp": {
+            "generated": 14.0,
+            "ground_truth": 14.0,
+            "ratio": 1.0
+          },
+          "ff": {
+            "generated": 7755.0,
+            "ground_truth": 6395.0,
+            "ratio": 1.213
+          },
+          "lut": {
+            "generated": 5478.0,
+            "ground_truth": 6247.0,
+            "ratio": 0.877
+          },
+          "fmax_mhz": {
+            "generated": 265.6,
+            "ground_truth": 199.88,
+            "ratio": 1.329
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "accepted"
+      }
+    ],
+    "initial_score": 206.725,
+    "initial_comparison": {
+      "latency_cycles": {
+        "generated": 3352.0,
+        "ground_truth": 3335.0,
+        "ratio": 1.005
+      },
+      "latency_ns": {
+        "generated": 13410.0,
+        "ground_truth": 13340.0,
+        "ratio": 1.005
+      },
+      "bram": {
+        "generated": 14.0,
+        "ground_truth": 25.0,
+        "ratio": 0.56
+      },
+      "dsp": {
+        "generated": 14.0,
+        "ground_truth": 14.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 70301.0,
+        "ground_truth": 6395.0,
+        "ratio": 10.993
+      },
+      "lut": {
+        "generated": 10448.0,
+        "ground_truth": 6247.0,
+        "ratio": 1.672
+      },
+      "fmax_mhz": {
+        "generated": 187.3,
+        "ground_truth": 199.88,
+        "ratio": 0.937
+      }
+    },
+    "final_score": 3.673,
+    "final_comparison": {
+      "latency_cycles": {
+        "generated": 3352.0,
+        "ground_truth": 3335.0,
+        "ratio": 1.005
+      },
+      "latency_ns": {
+        "generated": 13410.0,
+        "ground_truth": 13340.0,
+        "ratio": 1.005
+      },
+      "bram": {
+        "generated": 24.0,
+        "ground_truth": 25.0,
+        "ratio": 0.96
+      },
+      "dsp": {
+        "generated": 14.0,
+        "ground_truth": 14.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 7755.0,
+        "ground_truth": 6395.0,
+        "ratio": 1.213
+      },
+      "lut": {
+        "generated": 5478.0,
+        "ground_truth": 6247.0,
+        "ratio": 0.877
+      },
+      "fmax_mhz": {
+        "generated": 265.6,
+        "ground_truth": 199.88,
+        "ratio": 1.329
+      }
+    }
+  },
+  "turn_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 3352,
+        "latency_ns": 13410.0,
+        "bram": "14",
+        "dsp": "14",
+        "ff": "70301",
+        "lut": "10448",
+        "uram": "0",
+        "fmax_mhz": 187.3,
+        "interval": null,
+        "estimated_clock_period_ns": 5.339,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.339,
+        "work_dir": "/tmp/hls_synth_beexrfn_"
+      },
+      "error": ""
+    }
+  ],
+  "benchmark": "spmv_crs",
+  "success": true,
+  "reference_validation": {
+    "benchmark_ready": true,
+    "invalid_reason": "",
+    "top_function": "workload",
+    "synthesis": {
+      "status": "passed",
+      "ran": true,
+      "success": true,
+      "error": "",
+      "report": {
+        "latency_cycles": 3335,
+        "latency_ns": 13340.0,
+        "bram": "25",
+        "dsp": "14",
+        "ff": "6395",
+        "lut": "6247",
+        "uram": "0",
+        "fmax_mhz": 199.88,
+        "interval": null,
+        "estimated_clock_period_ns": 5.003,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.003,
+        "work_dir": "/tmp/hls_synth_jfvun2wt"
+      },
+      "work_dir": "/tmp/hls_synth_jfvun2wt"
+    },
+    "csim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "cosim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "report": {
+      "latency_cycles": 3335,
+      "latency_ns": 13340.0,
+      "bram": "25",
+      "dsp": "14",
+      "ff": "6395",
+      "lut": "6247",
+      "uram": "0",
+      "fmax_mhz": 199.88,
+      "interval": null,
+      "estimated_clock_period_ns": 5.003,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -1.003,
+      "work_dir": "/tmp/hls_synth_jfvun2wt"
+    },
+    "workflow": [
+      {
+        "variant_name": "spmv_crs_0_baseline",
+        "file": "hls_baseline.cpp",
+        "step_name": "0_baseline",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+        "benchmark_ready": true,
+        "invalid_reason": "",
+        "synthesis": {
+          "status": "passed",
+          "ran": true,
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 3335,
+            "latency_ns": 13340.0,
+            "bram": "25",
+            "dsp": "14",
+            "ff": "6395",
+            "lut": "6247",
+            "uram": "0",
+            "fmax_mhz": 199.88,
+            "interval": null,
+            "estimated_clock_period_ns": 5.003,
+            "requested_clock_period_ns": 4.0,
+            "slack_ns": -1.003,
+            "work_dir": "/tmp/hls_synth_jfvun2wt"
+          },
+          "work_dir": "/tmp/hls_synth_jfvun2wt"
+        },
+        "csim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "cosim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "report": {
+          "latency_cycles": 3335,
+          "latency_ns": 13340.0,
+          "bram": "25",
+          "dsp": "14",
+          "ff": "6395",
+          "lut": "6247",
+          "uram": "0",
+          "fmax_mhz": 199.88,
+          "interval": null,
+          "estimated_clock_period_ns": 5.003,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -1.003,
+          "work_dir": "/tmp/hls_synth_jfvun2wt"
+        },
+        "selected": true
+      }
+    ],
+    "selected_variant_name": "spmv_crs_0_baseline",
+    "selected_variant_file": "hls_baseline.cpp",
+    "selected_variant_step": "0_baseline",
+    "selection_reason": "selected preferred validated variant `hls_baseline.cpp`"
+  },
+  "ground_truth_status": "valid",
+  "baseline_status": "passed",
+  "invalid_reference_reason": "",
+  "generated_status": "passed",
+  "csim_status": {
+    "ground_truth": "failed",
+    "generated": "passed"
+  },
+  "cosim_status": {
+    "ground_truth": "failed",
+    "generated": "passed"
+  },
+  "coverage": {
+    "ground_truth_csim_available": true,
+    "ground_truth_csim_ran": false,
+    "ground_truth_cosim_available": true,
+    "ground_truth_cosim_ran": false,
+    "generated_csim_available": true,
+    "generated_csim_ran": true,
+    "generated_cosim_available": true,
+    "generated_cosim_ran": true
+  },
+  "optimization_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 3352,
+        "latency_ns": 13410.0,
+        "bram": "14",
+        "dsp": "14",
+        "ff": "70301",
+        "lut": "10448",
+        "uram": "0",
+        "fmax_mhz": 187.3,
+        "interval": null,
+        "estimated_clock_period_ns": 5.339,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.339,
+        "work_dir": "/tmp/hls_synth_beexrfn_"
+      },
+      "error": ""
+    }
+  ],
+  "ground_truth_variant": {
+    "name": "spmv_crs_0_baseline",
+    "file": "hls_baseline.cpp",
+    "step": "0_baseline",
+    "selection_reason": "selected preferred validated variant `hls_baseline.cpp`"
+  },
+  "ground_truth_workflow": [
+    {
+      "variant_name": "spmv_crs_0_baseline",
+      "file": "hls_baseline.cpp",
+      "step_name": "0_baseline",
+      "source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+      "benchmark_ready": true,
+      "invalid_reason": "",
+      "synthesis": {
+        "status": "passed",
+        "ran": true,
+        "success": true,
+        "error": "",
+        "report": {
+          "latency_cycles": 3335,
+          "latency_ns": 13340.0,
+          "bram": "25",
+          "dsp": "14",
+          "ff": "6395",
+          "lut": "6247",
+          "uram": "0",
+          "fmax_mhz": 199.88,
+          "interval": null,
+          "estimated_clock_period_ns": 5.003,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -1.003,
+          "work_dir": "/tmp/hls_synth_jfvun2wt"
+        },
+        "work_dir": "/tmp/hls_synth_jfvun2wt"
+      },
+      "csim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "cosim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "report": {
+        "latency_cycles": 3335,
+        "latency_ns": 13340.0,
+        "bram": "25",
+        "dsp": "14",
+        "ff": "6395",
+        "lut": "6247",
+        "uram": "0",
+        "fmax_mhz": 199.88,
+        "interval": null,
+        "estimated_clock_period_ns": 5.003,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.003,
+        "work_dir": "/tmp/hls_synth_jfvun2wt"
+      },
+      "selected": true
+    }
+  ],
+  "ground_truth_report": {
+    "latency_cycles": 3335,
+    "latency_ns": 13340.0,
+    "bram": "25",
+    "dsp": "14",
+    "ff": "6395",
+    "lut": "6247",
+    "uram": "0",
+    "fmax_mhz": 199.88,
+    "interval": null,
+    "estimated_clock_period_ns": 5.003,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -1.003,
+    "work_dir": "/tmp/hls_synth_jfvun2wt"
+  }
+}

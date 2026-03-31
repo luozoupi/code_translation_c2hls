@@ -1,0 +1,580 @@
+{
+  "phase": "complete",
+  "hls_code": "#include \"lavaMD.h\"\n\nvoid lavaMD_baseline_padded(TYPE pos_i[N_PADDED*POS_DIM], TYPE q_i[N_PADDED], TYPE pos_o[N*POS_DIM])\n{\n    int i, j, k;\n    int x, y, z;\n    int l, m, n;\n    int x_n, y_n, z_n;\n    int A_idx, B_idx, C_idx, A_idx_j, B_idx_k, C_idx_j;\n    int remainder;\n\n    TYPE r2;\n    TYPE u2;\n    TYPE fs;\n    TYPE vij;\n    TYPE fxij, fyij, fzij;\n    TYPE d[POS_DIM];\n    #pragma HLS ARRAY_PARTITION variable=d complete\n\n    int neighborOffset[FULL_NEIGHBOR_COUNT][3] = {{-1,-1,-1}, { 0,-1,-1}, { 1,-1,-1},\n                                                  {-1, 0,-1}, { 0, 0,-1}, { 1, 0,-1},\n                                                  {-1, 1,-1}, { 0, 1,-1}, { 1, 1,-1},\n                                                  {-1,-1, 0}, { 0,-1, 0}, { 1,-1, 0},\n                                                  {-1, 0, 0}, { 0, 0, 0}, { 1, 0, 0},\n                                                  {-1, 1, 0}, { 0, 1, 0}, { 1, 1, 0},\n                                                  {-1,-1, 1}, { 0,-1, 1}, { 1,-1, 1},\n                                                  {-1, 0, 1}, { 0, 0, 1}, { 1, 0, 1},\n                                                  {-1, 1, 1}, { 0, 1, 1}, { 1, 1, 1}};\n    //iterate through all boxes in the 3D space\n    BOXES: for(i=0; i<DIMENSION_3D; i++){\n        #pragma HLS LOOP_TRIPCOUNT min=8 max=8 avg=8\n        //index of the output array\n        C_idx = i * NUMBER_PAR_PER_BOX;\n        //convert from 1D-index to 3D-index\n        z = i / DIMENSION_2D;\n        remainder = i % DIMENSION_2D;\n        y = remainder / DIMENSION_1D;\n        x = remainder % DIMENSION_1D;\n\n        //pos of the input_A array\n        x_n = x + 1;\n        y_n = y + 1;\n        z_n = z + 1;\n        //convert from 3D-index to 1D-index\n        A_idx = z_n*DIMENSION_2D_PADDED + y_n*DIMENSION_1D_PADDED + x_n;\n        A_idx = A_idx * NUMBER_PAR_PER_BOX;\n\n        NEIGHBORS: for (l=0; l<FULL_NEIGHBOR_COUNT; ++l){\n            #pragma HLS LOOP_TRIPCOUNT min=27 max=27 avg=27\n            //pos of the neighbor - input_B array\n            x = x_n + neighborOffset[l][0];\n            y = y_n + neighborOffset[l][1];\n            z = z_n + neighborOffset[l][2];\n            //convert from 3D-index to 1D-index\n            B_idx = z*DIMENSION_2D_PADDED + y*DIMENSION_1D_PADDED + x;\n            B_idx = B_idx * NUMBER_PAR_PER_BOX;\n\n            //calculate the accumulated effects from all neighboring particles\n            PARTICLES_A: for(j=0; j<NUMBER_PAR_PER_BOX; ++j){\n                #pragma HLS UNROLL factor=5\n                #pragma HLS LOOP_TRIPCOUNT min=100 max=100 avg=100\n                A_idx_j = A_idx + j;\n                C_idx_j = C_idx + j;\n                PARTICLES_B: for(k=0; k<NUMBER_PAR_PER_BOX; ++k){\n                    #pragma HLS PIPELINE II=4\n                    #pragma HLS LOOP_TRIPCOUNT min=100 max=100 avg=100\n                    B_idx_k = B_idx + k;\n                    // coefficients - DOT(pos_i[A_idx_j], pos_i[B_idx_k]);\n                    r2 = pos_i[A_idx_j*POS_DIM+V] + pos_i[B_idx_k*POS_DIM+V] -\n                        (pos_i[A_idx_j*POS_DIM+X] * pos_i[B_idx_k*POS_DIM+X] +\n                         pos_i[A_idx_j*POS_DIM+Y] * pos_i[B_idx_k*POS_DIM+Y] +\n                         pos_i[A_idx_j*POS_DIM+Z] * pos_i[B_idx_k*POS_DIM+Z]);\n                    u2 = A2 * r2;\n                    //Below line equivalent as -> vij = exp(-u2);\n                    u2 = u2 * -1.0;\n                    vij = 1.0 + (u2) + 0.5*((u2)*(u2)) +\n                            0.16666*((u2)*(u2)*(u2)) +\n                            0.041666*((u2)*(u2)*(u2)*(u2));\n                    fs = 2. * vij;\n                    d[X] = pos_i[A_idx_j*POS_DIM+X] - pos_i[B_idx_k*POS_DIM+X];\n                    d[Y] = pos_i[A_idx_j*POS_DIM+Y] - pos_i[B_idx_k*POS_DIM+Y];\n                    d[Z] = pos_i[A_idx_j*POS_DIM+Z] - pos_i[B_idx_k*POS_DIM+Z];\n                    fxij = fs * d[X];\n                    fyij = fs * d[Y];\n                    fzij = fs * d[Z];\n                    // forces\n                    pos_o[C_idx_j*POS_DIM+V] += q_i[B_idx_k] * vij;\n                    pos_o[C_idx_j*POS_DIM+X] += q_i[B_idx_k] * fxij;\n                    pos_o[C_idx_j*POS_DIM+Y] += q_i[B_idx_k] * fyij;\n                    pos_o[C_idx_j*POS_DIM+Z] += q_i[B_idx_k] * fzij;\n                }\n            }\n        }\n    }\n}\n\n\nextern \"C\" {\n\nvoid workload(TYPE pos_i[N_PADDED*POS_DIM], TYPE q_i[N_PADDED], TYPE pos_o[N*POS_DIM])\n{\n    #pragma HLS INTERFACE m_axi port=pos_i offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=q_i offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=pos_o offset=slave bundle=gmem\n    #pragma HLS INTERFACE s_axilite port=return bundle=control\n\n    lavaMD_baseline_padded(pos_i, q_i, pos_o);\n\n    return;\n}\n\n}",
+  "synth_report": {
+    "latency_cycles": 14988706,
+    "latency_ns": 148000000.0,
+    "bram": "2",
+    "dsp": "26",
+    "ff": "33558",
+    "lut": "16488",
+    "uram": "0",
+    "fmax_mhz": 101.29,
+    "interval": 14988707,
+    "estimated_clock_period_ns": 9.873,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -5.873,
+    "work_dir": "/tmp/hls_synth_31uh16w7"
+  },
+  "comparison": {
+    "success": true,
+    "valid_reference": true,
+    "invalid_reference": false,
+    "generated_report": {
+      "latency_cycles": 14988706,
+      "latency_ns": 148000000.0,
+      "bram": "2",
+      "dsp": "26",
+      "ff": "33558",
+      "lut": "16488",
+      "uram": "0",
+      "fmax_mhz": 101.29,
+      "interval": 14988707,
+      "estimated_clock_period_ns": 9.873,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -5.873,
+      "work_dir": "/tmp/hls_synth_31uh16w7"
+    },
+    "ground_truth_report": {
+      "latency_cycles": 3412362,
+      "latency_ns": 17734000.0,
+      "bram": "8",
+      "dsp": "62",
+      "ff": "181807",
+      "lut": "52111",
+      "uram": "0",
+      "fmax_mhz": 192.42,
+      "interval": 3412363,
+      "estimated_clock_period_ns": 5.197,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -1.197,
+      "work_dir": "/tmp/hls_synth_8b355hha"
+    },
+    "comparison": {
+      "latency_cycles": {
+        "generated": 14988706.0,
+        "ground_truth": 3412362.0,
+        "ratio": 4.392
+      },
+      "latency_ns": {
+        "generated": 148000000.0,
+        "ground_truth": 17734000.0,
+        "ratio": 8.346
+      },
+      "interval": {
+        "generated": 14988707.0,
+        "ground_truth": 3412363.0,
+        "ratio": 4.392
+      },
+      "bram": {
+        "generated": 2.0,
+        "ground_truth": 8.0,
+        "ratio": 0.25
+      },
+      "dsp": {
+        "generated": 26.0,
+        "ground_truth": 62.0,
+        "ratio": 0.419
+      },
+      "ff": {
+        "generated": 33558.0,
+        "ground_truth": 181807.0,
+        "ratio": 0.185
+      },
+      "lut": {
+        "generated": 16488.0,
+        "ground_truth": 52111.0,
+        "ratio": 0.316
+      },
+      "fmax_mhz": {
+        "generated": 101.29,
+        "ground_truth": 192.42,
+        "ratio": 0.526
+      }
+    }
+  },
+  "csim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "cosim": null,
+  "quality_repair": {
+    "attempted": true,
+    "applied": true,
+    "attempts": [
+      {
+        "turn": 0,
+        "focus": "general",
+        "score_before": 509.079,
+        "candidate_score": 457.708,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 15533026.0,
+            "ground_truth": 3524498.0,
+            "ratio": 4.407
+          },
+          "latency_ns": {
+            "generated": 276000000.0,
+            "ground_truth": 23276000.0,
+            "ratio": 11.858
+          },
+          "interval": {
+            "generated": 15533027.0,
+            "ground_truth": 3524499.0,
+            "ratio": 4.407
+          },
+          "bram": {
+            "generated": 10.0,
+            "ground_truth": 2.0,
+            "ratio": 5.0
+          },
+          "dsp": {
+            "generated": 26.0,
+            "ground_truth": 64.0,
+            "ratio": 0.406
+          },
+          "ff": {
+            "generated": 12940.0,
+            "ground_truth": 298576.0,
+            "ratio": 0.043
+          },
+          "lut": {
+            "generated": 6727.0,
+            "ground_truth": 108882.0,
+            "ratio": 0.062
+          },
+          "fmax_mhz": {
+            "generated": 56.2,
+            "ground_truth": 151.42,
+            "ratio": 0.371
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "accepted"
+      },
+      {
+        "turn": 1,
+        "focus": "general",
+        "score_before": 457.708,
+        "candidate_score": 205.607,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 14988706.0,
+            "ground_truth": 3524498.0,
+            "ratio": 4.253
+          },
+          "latency_ns": {
+            "generated": 148000000.0,
+            "ground_truth": 23276000.0,
+            "ratio": 6.358
+          },
+          "interval": {
+            "generated": 14988707.0,
+            "ground_truth": 3524499.0,
+            "ratio": 4.253
+          },
+          "bram": {
+            "generated": 2.0,
+            "ground_truth": 2.0,
+            "ratio": 1.0
+          },
+          "dsp": {
+            "generated": 26.0,
+            "ground_truth": 64.0,
+            "ratio": 0.406
+          },
+          "ff": {
+            "generated": 33558.0,
+            "ground_truth": 298576.0,
+            "ratio": 0.112
+          },
+          "lut": {
+            "generated": 16488.0,
+            "ground_truth": 108882.0,
+            "ratio": 0.151
+          },
+          "fmax_mhz": {
+            "generated": 101.29,
+            "ground_truth": 151.42,
+            "ratio": 0.669
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "accepted"
+      }
+    ],
+    "initial_score": 509.079,
+    "initial_comparison": {
+      "latency_cycles": {
+        "generated": 15511426.0,
+        "ground_truth": 3524498.0,
+        "ratio": 4.401
+      },
+      "latency_ns": {
+        "generated": 331000000.0,
+        "ground_truth": 23276000.0,
+        "ratio": 14.221
+      },
+      "interval": {
+        "generated": 15511427.0,
+        "ground_truth": 3524499.0,
+        "ratio": 4.401
+      },
+      "bram": {
+        "generated": 2.0,
+        "ground_truth": 2.0,
+        "ratio": 1.0
+      },
+      "dsp": {
+        "generated": 26.0,
+        "ground_truth": 64.0,
+        "ratio": 0.406
+      },
+      "ff": {
+        "generated": 12874.0,
+        "ground_truth": 298576.0,
+        "ratio": 0.043
+      },
+      "lut": {
+        "generated": 6727.0,
+        "ground_truth": 108882.0,
+        "ratio": 0.062
+      },
+      "fmax_mhz": {
+        "generated": 46.83,
+        "ground_truth": 151.42,
+        "ratio": 0.309
+      }
+    },
+    "final_score": 205.607,
+    "final_comparison": {
+      "latency_cycles": {
+        "generated": 14988706.0,
+        "ground_truth": 3524498.0,
+        "ratio": 4.253
+      },
+      "latency_ns": {
+        "generated": 148000000.0,
+        "ground_truth": 23276000.0,
+        "ratio": 6.358
+      },
+      "interval": {
+        "generated": 14988707.0,
+        "ground_truth": 3524499.0,
+        "ratio": 4.253
+      },
+      "bram": {
+        "generated": 2.0,
+        "ground_truth": 2.0,
+        "ratio": 1.0
+      },
+      "dsp": {
+        "generated": 26.0,
+        "ground_truth": 64.0,
+        "ratio": 0.406
+      },
+      "ff": {
+        "generated": 33558.0,
+        "ground_truth": 298576.0,
+        "ratio": 0.112
+      },
+      "lut": {
+        "generated": 16488.0,
+        "ground_truth": 108882.0,
+        "ratio": 0.151
+      },
+      "fmax_mhz": {
+        "generated": 101.29,
+        "ground_truth": 151.42,
+        "ratio": 0.669
+      }
+    }
+  },
+  "turn_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 15511426,
+        "latency_ns": 331000000.0,
+        "bram": "2",
+        "dsp": "26",
+        "ff": "12874",
+        "lut": "6727",
+        "uram": "0",
+        "fmax_mhz": 46.83,
+        "interval": 15511427,
+        "estimated_clock_period_ns": 21.353,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -17.353,
+        "work_dir": "/tmp/hls_synth_gco5s6j1"
+      },
+      "error": ""
+    }
+  ],
+  "benchmark": "lavaMD",
+  "success": true,
+  "reference_validation": {
+    "benchmark_ready": true,
+    "invalid_reason": "",
+    "top_function": "workload",
+    "synthesis": {
+      "status": "passed",
+      "ran": true,
+      "success": true,
+      "error": "",
+      "report": {
+        "latency_cycles": 3412362,
+        "latency_ns": 17734000.0,
+        "bram": "8",
+        "dsp": "62",
+        "ff": "181807",
+        "lut": "52111",
+        "uram": "0",
+        "fmax_mhz": 192.42,
+        "interval": 3412363,
+        "estimated_clock_period_ns": 5.197,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.197,
+        "work_dir": "/tmp/hls_synth_8b355hha"
+      },
+      "work_dir": "/tmp/hls_synth_8b355hha"
+    },
+    "csim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "cosim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "report": {
+      "latency_cycles": 3412362,
+      "latency_ns": 17734000.0,
+      "bram": "8",
+      "dsp": "62",
+      "ff": "181807",
+      "lut": "52111",
+      "uram": "0",
+      "fmax_mhz": 192.42,
+      "interval": 3412363,
+      "estimated_clock_period_ns": 5.197,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -1.197,
+      "work_dir": "/tmp/hls_synth_8b355hha"
+    },
+    "workflow": [
+      {
+        "variant_name": "lavaMD_5_coalescing",
+        "file": "hls_lavaMD_5_coalescing.cpp",
+        "step_name": "coalescing",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_5_coalescing/src/lavaMD.cpp",
+        "benchmark_ready": true,
+        "invalid_reason": "",
+        "synthesis": {
+          "status": "passed",
+          "ran": true,
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 3412362,
+            "latency_ns": 17734000.0,
+            "bram": "8",
+            "dsp": "62",
+            "ff": "181807",
+            "lut": "52111",
+            "uram": "0",
+            "fmax_mhz": 192.42,
+            "interval": 3412363,
+            "estimated_clock_period_ns": 5.197,
+            "requested_clock_period_ns": 4.0,
+            "slack_ns": -1.197,
+            "work_dir": "/tmp/hls_synth_8b355hha"
+          },
+          "work_dir": "/tmp/hls_synth_8b355hha"
+        },
+        "csim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "cosim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "report": {
+          "latency_cycles": 3412362,
+          "latency_ns": 17734000.0,
+          "bram": "8",
+          "dsp": "62",
+          "ff": "181807",
+          "lut": "52111",
+          "uram": "0",
+          "fmax_mhz": 192.42,
+          "interval": 3412363,
+          "estimated_clock_period_ns": 5.197,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -1.197,
+          "work_dir": "/tmp/hls_synth_8b355hha"
+        },
+        "selected": true
+      }
+    ],
+    "selected_variant_name": "lavaMD_5_coalescing",
+    "selected_variant_file": "hls_lavaMD_5_coalescing.cpp",
+    "selected_variant_step": "coalescing",
+    "selection_reason": "selected preferred validated variant `hls_lavaMD_5_coalescing.cpp`"
+  },
+  "ground_truth_status": "valid",
+  "baseline_status": "passed",
+  "invalid_reference_reason": "",
+  "generated_status": "passed",
+  "csim_status": {
+    "ground_truth": "failed",
+    "generated": "passed"
+  },
+  "cosim_status": {
+    "ground_truth": "failed",
+    "generated": "failed"
+  },
+  "coverage": {
+    "ground_truth_csim_available": true,
+    "ground_truth_csim_ran": false,
+    "ground_truth_cosim_available": false,
+    "ground_truth_cosim_ran": false,
+    "generated_csim_available": true,
+    "generated_csim_ran": true,
+    "generated_cosim_available": false,
+    "generated_cosim_ran": false
+  },
+  "optimization_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 15511426,
+        "latency_ns": 331000000.0,
+        "bram": "2",
+        "dsp": "26",
+        "ff": "12874",
+        "lut": "6727",
+        "uram": "0",
+        "fmax_mhz": 46.83,
+        "interval": 15511427,
+        "estimated_clock_period_ns": 21.353,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -17.353,
+        "work_dir": "/tmp/hls_synth_gco5s6j1"
+      },
+      "error": ""
+    }
+  ],
+  "ground_truth_variant": {
+    "name": "lavaMD_5_coalescing",
+    "file": "hls_lavaMD_5_coalescing.cpp",
+    "step": "coalescing",
+    "selection_reason": "selected preferred validated variant `hls_lavaMD_5_coalescing.cpp`"
+  },
+  "ground_truth_workflow": [
+    {
+      "variant_name": "lavaMD_5_coalescing",
+      "file": "hls_lavaMD_5_coalescing.cpp",
+      "step_name": "coalescing",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lavaMD/lavaMD_5_coalescing/src/lavaMD.cpp",
+      "benchmark_ready": true,
+      "invalid_reason": "",
+      "synthesis": {
+        "status": "passed",
+        "ran": true,
+        "success": true,
+        "error": "",
+        "report": {
+          "latency_cycles": 3412362,
+          "latency_ns": 17734000.0,
+          "bram": "8",
+          "dsp": "62",
+          "ff": "181807",
+          "lut": "52111",
+          "uram": "0",
+          "fmax_mhz": 192.42,
+          "interval": 3412363,
+          "estimated_clock_period_ns": 5.197,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -1.197,
+          "work_dir": "/tmp/hls_synth_8b355hha"
+        },
+        "work_dir": "/tmp/hls_synth_8b355hha"
+      },
+      "csim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "cosim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "report": {
+        "latency_cycles": 3412362,
+        "latency_ns": 17734000.0,
+        "bram": "8",
+        "dsp": "62",
+        "ff": "181807",
+        "lut": "52111",
+        "uram": "0",
+        "fmax_mhz": 192.42,
+        "interval": 3412363,
+        "estimated_clock_period_ns": 5.197,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.197,
+        "work_dir": "/tmp/hls_synth_8b355hha"
+      },
+      "selected": true
+    }
+  ],
+  "ground_truth_report": {
+    "latency_cycles": 3412362,
+    "latency_ns": 17734000.0,
+    "bram": "8",
+    "dsp": "62",
+    "ff": "181807",
+    "lut": "52111",
+    "uram": "0",
+    "fmax_mhz": 192.42,
+    "interval": 3412363,
+    "estimated_clock_period_ns": 5.197,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -1.197,
+    "work_dir": "/tmp/hls_synth_8b355hha"
+  }
+}

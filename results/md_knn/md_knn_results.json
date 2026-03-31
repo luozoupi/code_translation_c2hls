@@ -1,0 +1,582 @@
+{
+  "phase": "complete",
+  "hls_code": "#include \"md.h\"\n\nvoid md_kernel(TYPE force_x[nAtoms], TYPE force_y[nAtoms], TYPE force_z[nAtoms],\n               TYPE position_x[nAtoms], TYPE position_y[nAtoms], TYPE position_z[nAtoms],\n               int32_t NL[nAtoms * maxNeighbors]) {\n    TYPE delx, dely, delz, r2inv;\n    TYPE r6inv, potential, force, j_x, j_y, j_z;\n    TYPE i_x, i_y, i_z, fx, fy, fz;\n    int32_t i, j, jidx;\n\n    loop_i: for (i = 0; i < nAtoms; i++) {\n        #pragma HLS PIPELINE II=1\n        i_x = position_x[i];\n        i_y = position_y[i];\n        i_z = position_z[i];\n        fx = 0;\n        fy = 0;\n        fz = 0;\n        loop_j: for (j = 0; j < maxNeighbors; j++) {\n            #pragma HLS UNROLL\n            jidx = NL[i * maxNeighbors + j];\n            j_x = position_x[jidx];\n            j_y = position_y[jidx];\n            j_z = position_z[jidx];\n            delx = i_x - j_x;\n            dely = i_y - j_y;\n            delz = i_z - j_z;\n            r2inv = 1.0 / (delx * delx + dely * dely + delz * delz);\n            r6inv = r2inv * r2inv * r2inv;\n            potential = r6inv * (lj1 * r6inv - lj2);\n            force = r2inv * potential;\n            fx += delx * force;\n            fy += dely * force;\n            fz += delz * force;\n        }\n        force_x[i] = fx;\n        force_y[i] = fy;\n        force_z[i] = fz;\n    }\n}\n\nextern \"C\" {\n\nvoid workload(TYPE* force_x, TYPE* force_y, TYPE* force_z,\n              TYPE* position_x, TYPE* position_y, TYPE* position_z,\n              int32_t* NL) {\n    #pragma HLS INTERFACE m_axi port=force_x offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=force_y offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=force_z offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=position_x offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=position_y offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=position_z offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=NL offset=slave bundle=gmem\n    #pragma HLS INTERFACE s_axilite port=return bundle=control\n\n    TYPE l_fx[nAtoms], l_fy[nAtoms], l_fz[nAtoms];\n    TYPE l_px[nAtoms], l_py[nAtoms], l_pz[nAtoms];\n    int32_t l_NL[nAtoms * maxNeighbors];\n    int i;\n\n    #pragma HLS ARRAY_PARTITION variable=l_fx complete dim=1\n    #pragma HLS ARRAY_PARTITION variable=l_fy complete dim=1\n    #pragma HLS ARRAY_PARTITION variable=l_fz complete dim=1\n    #pragma HLS ARRAY_PARTITION variable=l_px complete dim=1\n    #pragma HLS ARRAY_PARTITION variable=l_py complete dim=1\n    #pragma HLS ARRAY_PARTITION variable=l_pz complete dim=1\n    #pragma HLS ARRAY_PARTITION variable=l_NL cyclic factor=16 dim=1\n\n    load_pos_x: for (i = 0; i < nAtoms; i++) {\n        #pragma HLS PIPELINE II=1\n        l_px[i] = position_x[i];\n    }\n    load_pos_y: for (i = 0; i < nAtoms; i++) {\n        #pragma HLS PIPELINE II=1\n        l_py[i] = position_y[i];\n    }\n    load_pos_z: for (i = 0; i < nAtoms; i++) {\n        #pragma HLS PIPELINE II=1\n        l_pz[i] = position_z[i];\n    }\n    load_nl: for (i = 0; i < nAtoms * maxNeighbors; i++) {\n        #pragma HLS PIPELINE II=1\n        l_NL[i] = NL[i];\n    }\n\n    md_kernel(l_fx, l_fy, l_fz, l_px, l_py, l_pz, l_NL);\n\n    store_fx: for (i = 0; i < nAtoms; i++) {\n        #pragma HLS PIPELINE II=1\n        force_x[i] = l_fx[i];\n    }\n    store_fy: for (i = 0; i < nAtoms; i++) {\n        #pragma HLS PIPELINE II=1\n        force_y[i] = l_fy[i];\n    }\n    store_fz: for (i = 0; i < nAtoms; i++) {\n        #pragma HLS PIPELINE II=1\n        force_z[i] = l_fz[i];\n    }\n}\n\n}",
+  "synth_report": {
+    "latency_cycles": 6465,
+    "latency_ns": 34616.0,
+    "bram": "20",
+    "dsp": "2368",
+    "ff": "396149",
+    "lut": "241477",
+    "uram": "0",
+    "fmax_mhz": 186.78,
+    "interval": 6466,
+    "estimated_clock_period_ns": 5.354,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -1.354,
+    "work_dir": "/tmp/hls_synth_7wyud_ud"
+  },
+  "comparison": {
+    "success": true,
+    "valid_reference": true,
+    "invalid_reference": false,
+    "generated_report": {
+      "latency_cycles": 6465,
+      "latency_ns": 34616.0,
+      "bram": "20",
+      "dsp": "2368",
+      "ff": "396149",
+      "lut": "241477",
+      "uram": "0",
+      "fmax_mhz": 186.78,
+      "interval": 6466,
+      "estimated_clock_period_ns": 5.354,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -1.354,
+      "work_dir": "/tmp/hls_synth_7wyud_ud"
+    },
+    "ground_truth_report": {
+      "latency_cycles": 9991,
+      "latency_ns": 48716.0,
+      "bram": "122",
+      "dsp": "1184",
+      "ff": "171970",
+      "lut": "96505",
+      "uram": "0",
+      "fmax_mhz": 205.09,
+      "interval": 9992,
+      "estimated_clock_period_ns": 4.876,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -0.876,
+      "work_dir": "/tmp/hls_synth_i7o6br19"
+    },
+    "comparison": {
+      "latency_cycles": {
+        "generated": 6465.0,
+        "ground_truth": 9991.0,
+        "ratio": 0.647
+      },
+      "latency_ns": {
+        "generated": 34616.0,
+        "ground_truth": 48716.0,
+        "ratio": 0.711
+      },
+      "interval": {
+        "generated": 6466.0,
+        "ground_truth": 9992.0,
+        "ratio": 0.647
+      },
+      "bram": {
+        "generated": 20.0,
+        "ground_truth": 122.0,
+        "ratio": 0.164
+      },
+      "dsp": {
+        "generated": 2368.0,
+        "ground_truth": 1184.0,
+        "ratio": 2.0
+      },
+      "ff": {
+        "generated": 396149.0,
+        "ground_truth": 171970.0,
+        "ratio": 2.304
+      },
+      "lut": {
+        "generated": 241477.0,
+        "ground_truth": 96505.0,
+        "ratio": 2.502
+      },
+      "fmax_mhz": {
+        "generated": 186.78,
+        "ground_truth": 205.09,
+        "ratio": 0.911
+      }
+    }
+  },
+  "csim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "cosim": null,
+  "quality_repair": {
+    "attempted": true,
+    "applied": false,
+    "attempts": [
+      {
+        "turn": 0,
+        "focus": "general",
+        "score_before": 62.246,
+        "candidate_score": 230.752,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 137800.0,
+            "ground_truth": 9991.0,
+            "ratio": 13.792
+          },
+          "latency_ns": {
+            "generated": 738000.0,
+            "ground_truth": 48716.0,
+            "ratio": 15.149
+          },
+          "interval": {
+            "generated": 137801.0,
+            "ground_truth": 9992.0,
+            "ratio": 13.791
+          },
+          "bram": {
+            "generated": 296.0,
+            "ground_truth": 122.0,
+            "ratio": 2.426
+          },
+          "dsp": {
+            "generated": 32.0,
+            "ground_truth": 1184.0,
+            "ratio": 0.027
+          },
+          "ff": {
+            "generated": 38025.0,
+            "ground_truth": 171970.0,
+            "ratio": 0.221
+          },
+          "lut": {
+            "generated": 18402.0,
+            "ground_truth": 96505.0,
+            "ratio": 0.191
+          },
+          "fmax_mhz": {
+            "generated": 186.78,
+            "ground_truth": 205.09,
+            "ratio": 0.911
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "rejected",
+        "rejection_reason": "Quality score did not improve enough (230.752 vs 62.246)"
+      },
+      {
+        "turn": 1,
+        "focus": "general",
+        "score_before": 62.246,
+        "candidate_score": 214.364,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 136280.0,
+            "ground_truth": 9991.0,
+            "ratio": 13.64
+          },
+          "latency_ns": {
+            "generated": 730000.0,
+            "ground_truth": 48716.0,
+            "ratio": 14.985
+          },
+          "interval": {
+            "generated": 136281.0,
+            "ground_truth": 9992.0,
+            "ratio": 13.639
+          },
+          "bram": {
+            "generated": 24.0,
+            "ground_truth": 122.0,
+            "ratio": 0.197
+          },
+          "dsp": {
+            "generated": 14.0,
+            "ground_truth": 1184.0,
+            "ratio": 0.012
+          },
+          "ff": {
+            "generated": 9472.0,
+            "ground_truth": 171970.0,
+            "ratio": 0.055
+          },
+          "lut": {
+            "generated": 6020.0,
+            "ground_truth": 96505.0,
+            "ratio": 0.062
+          },
+          "fmax_mhz": {
+            "generated": 186.78,
+            "ground_truth": 205.09,
+            "ratio": 0.911
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "rejected",
+        "rejection_reason": "Quality score did not improve enough (214.364 vs 62.246)"
+      }
+    ],
+    "initial_score": 62.246,
+    "initial_comparison": {
+      "latency_cycles": {
+        "generated": 6465.0,
+        "ground_truth": 9991.0,
+        "ratio": 0.647
+      },
+      "latency_ns": {
+        "generated": 34616.0,
+        "ground_truth": 48716.0,
+        "ratio": 0.711
+      },
+      "interval": {
+        "generated": 6466.0,
+        "ground_truth": 9992.0,
+        "ratio": 0.647
+      },
+      "bram": {
+        "generated": 20.0,
+        "ground_truth": 122.0,
+        "ratio": 0.164
+      },
+      "dsp": {
+        "generated": 2368.0,
+        "ground_truth": 1184.0,
+        "ratio": 2.0
+      },
+      "ff": {
+        "generated": 396149.0,
+        "ground_truth": 171970.0,
+        "ratio": 2.304
+      },
+      "lut": {
+        "generated": 241477.0,
+        "ground_truth": 96505.0,
+        "ratio": 2.502
+      },
+      "fmax_mhz": {
+        "generated": 186.78,
+        "ground_truth": 205.09,
+        "ratio": 0.911
+      }
+    },
+    "final_score": 62.246,
+    "final_comparison": {
+      "latency_cycles": {
+        "generated": 6465.0,
+        "ground_truth": 9991.0,
+        "ratio": 0.647
+      },
+      "latency_ns": {
+        "generated": 34616.0,
+        "ground_truth": 48716.0,
+        "ratio": 0.711
+      },
+      "interval": {
+        "generated": 6466.0,
+        "ground_truth": 9992.0,
+        "ratio": 0.647
+      },
+      "bram": {
+        "generated": 20.0,
+        "ground_truth": 122.0,
+        "ratio": 0.164
+      },
+      "dsp": {
+        "generated": 2368.0,
+        "ground_truth": 1184.0,
+        "ratio": 2.0
+      },
+      "ff": {
+        "generated": 396149.0,
+        "ground_truth": 171970.0,
+        "ratio": 2.304
+      },
+      "lut": {
+        "generated": 241477.0,
+        "ground_truth": 96505.0,
+        "ratio": 2.502
+      },
+      "fmax_mhz": {
+        "generated": 186.78,
+        "ground_truth": 205.09,
+        "ratio": 0.911
+      }
+    }
+  },
+  "turn_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 6465,
+        "latency_ns": 34616.0,
+        "bram": "20",
+        "dsp": "2368",
+        "ff": "396149",
+        "lut": "241477",
+        "uram": "0",
+        "fmax_mhz": 186.78,
+        "interval": 6466,
+        "estimated_clock_period_ns": 5.354,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.354,
+        "work_dir": "/tmp/hls_synth_7wyud_ud"
+      },
+      "error": ""
+    }
+  ],
+  "benchmark": "md_knn",
+  "success": true,
+  "reference_validation": {
+    "benchmark_ready": true,
+    "invalid_reason": "",
+    "top_function": "workload",
+    "synthesis": {
+      "status": "passed",
+      "ran": true,
+      "success": true,
+      "error": "",
+      "report": {
+        "latency_cycles": 9991,
+        "latency_ns": 48716.0,
+        "bram": "122",
+        "dsp": "1184",
+        "ff": "171970",
+        "lut": "96505",
+        "uram": "0",
+        "fmax_mhz": 205.09,
+        "interval": 9992,
+        "estimated_clock_period_ns": 4.876,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -0.876,
+        "work_dir": "/tmp/hls_synth_i7o6br19"
+      },
+      "work_dir": "/tmp/hls_synth_i7o6br19"
+    },
+    "csim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "cosim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "report": {
+      "latency_cycles": 9991,
+      "latency_ns": 48716.0,
+      "bram": "122",
+      "dsp": "1184",
+      "ff": "171970",
+      "lut": "96505",
+      "uram": "0",
+      "fmax_mhz": 205.09,
+      "interval": 9992,
+      "estimated_clock_period_ns": 4.876,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -0.876,
+      "work_dir": "/tmp/hls_synth_i7o6br19"
+    },
+    "workflow": [
+      {
+        "variant_name": "md_knn_0_baseline",
+        "file": "hls_baseline.cpp",
+        "step_name": "0_baseline",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+        "benchmark_ready": true,
+        "invalid_reason": "",
+        "synthesis": {
+          "status": "passed",
+          "ran": true,
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 9991,
+            "latency_ns": 48716.0,
+            "bram": "122",
+            "dsp": "1184",
+            "ff": "171970",
+            "lut": "96505",
+            "uram": "0",
+            "fmax_mhz": 205.09,
+            "interval": 9992,
+            "estimated_clock_period_ns": 4.876,
+            "requested_clock_period_ns": 4.0,
+            "slack_ns": -0.876,
+            "work_dir": "/tmp/hls_synth_i7o6br19"
+          },
+          "work_dir": "/tmp/hls_synth_i7o6br19"
+        },
+        "csim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "cosim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "report": {
+          "latency_cycles": 9991,
+          "latency_ns": 48716.0,
+          "bram": "122",
+          "dsp": "1184",
+          "ff": "171970",
+          "lut": "96505",
+          "uram": "0",
+          "fmax_mhz": 205.09,
+          "interval": 9992,
+          "estimated_clock_period_ns": 4.876,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -0.876,
+          "work_dir": "/tmp/hls_synth_i7o6br19"
+        },
+        "selected": true
+      }
+    ],
+    "selected_variant_name": "md_knn_0_baseline",
+    "selected_variant_file": "hls_baseline.cpp",
+    "selected_variant_step": "0_baseline",
+    "selection_reason": "selected preferred validated variant `hls_baseline.cpp`"
+  },
+  "ground_truth_status": "valid",
+  "baseline_status": "passed",
+  "invalid_reference_reason": "",
+  "generated_status": "passed",
+  "csim_status": {
+    "ground_truth": "failed",
+    "generated": "passed"
+  },
+  "cosim_status": {
+    "ground_truth": "failed",
+    "generated": "failed"
+  },
+  "coverage": {
+    "ground_truth_csim_available": true,
+    "ground_truth_csim_ran": false,
+    "ground_truth_cosim_available": false,
+    "ground_truth_cosim_ran": false,
+    "generated_csim_available": true,
+    "generated_csim_ran": true,
+    "generated_cosim_available": false,
+    "generated_cosim_ran": false
+  },
+  "optimization_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 6465,
+        "latency_ns": 34616.0,
+        "bram": "20",
+        "dsp": "2368",
+        "ff": "396149",
+        "lut": "241477",
+        "uram": "0",
+        "fmax_mhz": 186.78,
+        "interval": 6466,
+        "estimated_clock_period_ns": 5.354,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.354,
+        "work_dir": "/tmp/hls_synth_7wyud_ud"
+      },
+      "error": ""
+    }
+  ],
+  "ground_truth_variant": {
+    "name": "md_knn_0_baseline",
+    "file": "hls_baseline.cpp",
+    "step": "0_baseline",
+    "selection_reason": "selected preferred validated variant `hls_baseline.cpp`"
+  },
+  "ground_truth_workflow": [
+    {
+      "variant_name": "md_knn_0_baseline",
+      "file": "hls_baseline.cpp",
+      "step_name": "0_baseline",
+      "source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+      "benchmark_ready": true,
+      "invalid_reason": "",
+      "synthesis": {
+        "status": "passed",
+        "ran": true,
+        "success": true,
+        "error": "",
+        "report": {
+          "latency_cycles": 9991,
+          "latency_ns": 48716.0,
+          "bram": "122",
+          "dsp": "1184",
+          "ff": "171970",
+          "lut": "96505",
+          "uram": "0",
+          "fmax_mhz": 205.09,
+          "interval": 9992,
+          "estimated_clock_period_ns": 4.876,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -0.876,
+          "work_dir": "/tmp/hls_synth_i7o6br19"
+        },
+        "work_dir": "/tmp/hls_synth_i7o6br19"
+      },
+      "csim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "cosim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "report": {
+        "latency_cycles": 9991,
+        "latency_ns": 48716.0,
+        "bram": "122",
+        "dsp": "1184",
+        "ff": "171970",
+        "lut": "96505",
+        "uram": "0",
+        "fmax_mhz": 205.09,
+        "interval": 9992,
+        "estimated_clock_period_ns": 4.876,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -0.876,
+        "work_dir": "/tmp/hls_synth_i7o6br19"
+      },
+      "selected": true
+    }
+  ],
+  "ground_truth_report": {
+    "latency_cycles": 9991,
+    "latency_ns": 48716.0,
+    "bram": "122",
+    "dsp": "1184",
+    "ff": "171970",
+    "lut": "96505",
+    "uram": "0",
+    "fmax_mhz": 205.09,
+    "interval": 9992,
+    "estimated_clock_period_ns": 4.876,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -0.876,
+    "work_dir": "/tmp/hls_synth_i7o6br19"
+  }
+}

@@ -7,7 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#ifdef __SYNTHESIS__
 #include "support/common/mc.h"
+#endif
 
 #define FLT_MAX 3.40282347e+38
 

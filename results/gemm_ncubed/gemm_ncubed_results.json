@@ -1,0 +1,581 @@
+{
+  "phase": "complete",
+  "hls_code": "#include \"gemm.h\"\n\nvoid gemm(TYPE m1[N], TYPE m2[N], TYPE prod[N]) {\n    int i, j, k;\n    int k_col, i_col;\n    TYPE mult;\n\n    outer: for (i = 0; i < row_size; i++) {\n        #pragma HLS LOOP_TRIPCOUNT min=64 max=64\n        middle: for (j = 0; j < col_size; j++) {\n            #pragma HLS LOOP_TRIPCOUNT min=64 max=64\n            i_col = i * col_size;\n            TYPE sum = 0;\n            inner: for (k = 0; k < row_size; k++) {\n                #pragma HLS LOOP_TRIPCOUNT min=64 max=64\n                k_col = k * col_size;\n                mult = m1[i_col + k] * m2[k_col + j];\n                sum += mult;\n            }\n            prod[i_col + j] = sum;\n        }\n    }\n}\n\n\nextern \"C\" {\nvoid workload(TYPE* m1, TYPE* m2, TYPE* prod) {\n    #pragma HLS INTERFACE m_axi port=m1 offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=m2 offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=prod offset=slave bundle=gmem\n    #pragma HLS INTERFACE s_axilite port=m1 bundle=control\n    #pragma HLS INTERFACE s_axilite port=m2 bundle=control\n    #pragma HLS INTERFACE s_axilite port=prod bundle=control\n    #pragma HLS INTERFACE s_axilite port=return bundle=control\n\n    gemm(m1, m2, prod);\n}\n}",
+  "synth_report": {
+    "latency_cycles": 525226,
+    "latency_ns": 2546000.0,
+    "bram": "4",
+    "dsp": "14",
+    "ff": "56445",
+    "lut": "15757",
+    "uram": "0",
+    "fmax_mhz": 206.27,
+    "interval": 524288,
+    "estimated_clock_period_ns": 4.848,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -0.848,
+    "work_dir": "/tmp/hls_synth_p2vvg26r"
+  },
+  "comparison": {
+    "success": true,
+    "valid_reference": true,
+    "invalid_reference": false,
+    "generated_report": {
+      "latency_cycles": 525226,
+      "latency_ns": 2546000.0,
+      "bram": "4",
+      "dsp": "14",
+      "ff": "56445",
+      "lut": "15757",
+      "uram": "0",
+      "fmax_mhz": 206.27,
+      "interval": 524288,
+      "estimated_clock_period_ns": 4.848,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -0.848,
+      "work_dir": "/tmp/hls_synth_p2vvg26r"
+    },
+    "ground_truth_report": {
+      "latency_cycles": 525226,
+      "latency_ns": 2546000.0,
+      "bram": "4",
+      "dsp": "14",
+      "ff": "56445",
+      "lut": "15757",
+      "uram": "0",
+      "fmax_mhz": 206.27,
+      "interval": 524288,
+      "estimated_clock_period_ns": 4.848,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -0.848,
+      "work_dir": "/tmp/hls_synth_0yo1jfpo"
+    },
+    "comparison": {
+      "latency_cycles": {
+        "generated": 525226.0,
+        "ground_truth": 525226.0,
+        "ratio": 1.0
+      },
+      "latency_ns": {
+        "generated": 2546000.0,
+        "ground_truth": 2546000.0,
+        "ratio": 1.0
+      },
+      "interval": {
+        "generated": 524288.0,
+        "ground_truth": 524288.0,
+        "ratio": 1.0
+      },
+      "bram": {
+        "generated": 4.0,
+        "ground_truth": 4.0,
+        "ratio": 1.0
+      },
+      "dsp": {
+        "generated": 14.0,
+        "ground_truth": 14.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 56445.0,
+        "ground_truth": 56445.0,
+        "ratio": 1.0
+      },
+      "lut": {
+        "generated": 15757.0,
+        "ground_truth": 15757.0,
+        "ratio": 1.0
+      },
+      "fmax_mhz": {
+        "generated": 206.27,
+        "ground_truth": 206.27,
+        "ratio": 1.0
+      }
+    }
+  },
+  "csim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "cosim": null,
+  "quality_repair": {
+    "attempted": true,
+    "applied": true,
+    "attempts": [
+      {
+        "turn": 0,
+        "focus": "general",
+        "score_before": 30.398,
+        "candidate_score": 349.632,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 13631489.0,
+            "ground_truth": 525226.0,
+            "ratio": 25.954
+          },
+          "latency_ns": {
+            "generated": 54526000.0,
+            "ground_truth": 2546000.0,
+            "ratio": 21.416
+          },
+          "interval": {
+            "generated": 13631488.0,
+            "ground_truth": 524288.0,
+            "ratio": 26.0
+          },
+          "bram": {
+            "generated": 4.0,
+            "ground_truth": 4.0,
+            "ratio": 1.0
+          },
+          "dsp": {
+            "generated": 14.0,
+            "ground_truth": 14.0,
+            "ratio": 1.0
+          },
+          "ff": {
+            "generated": 4619.0,
+            "ground_truth": 56445.0,
+            "ratio": 0.082
+          },
+          "lut": {
+            "generated": 3296.0,
+            "ground_truth": 15757.0,
+            "ratio": 0.209
+          },
+          "fmax_mhz": {
+            "generated": 265.6,
+            "ground_truth": 206.27,
+            "ratio": 1.288
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "rejected",
+        "rejection_reason": "Quality score did not improve enough (349.632 vs 30.398)"
+      },
+      {
+        "turn": 1,
+        "focus": "general",
+        "score_before": 30.398,
+        "candidate_score": 21.2,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 525226.0,
+            "ground_truth": 525226.0,
+            "ratio": 1.0
+          },
+          "latency_ns": {
+            "generated": 2546000.0,
+            "ground_truth": 2546000.0,
+            "ratio": 1.0
+          },
+          "interval": {
+            "generated": 524288.0,
+            "ground_truth": 524288.0,
+            "ratio": 1.0
+          },
+          "bram": {
+            "generated": 4.0,
+            "ground_truth": 4.0,
+            "ratio": 1.0
+          },
+          "dsp": {
+            "generated": 14.0,
+            "ground_truth": 14.0,
+            "ratio": 1.0
+          },
+          "ff": {
+            "generated": 56445.0,
+            "ground_truth": 56445.0,
+            "ratio": 1.0
+          },
+          "lut": {
+            "generated": 15757.0,
+            "ground_truth": 15757.0,
+            "ratio": 1.0
+          },
+          "fmax_mhz": {
+            "generated": 206.27,
+            "ground_truth": 206.27,
+            "ratio": 1.0
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "accepted"
+      }
+    ],
+    "initial_score": 30.398,
+    "initial_comparison": {
+      "latency_cycles": {
+        "generated": 331273.0,
+        "ground_truth": 525226.0,
+        "ratio": 0.631
+      },
+      "latency_ns": {
+        "generated": 1606000.0,
+        "ground_truth": 2546000.0,
+        "ratio": 0.631
+      },
+      "interval": {
+        "generated": 331274.0,
+        "ground_truth": 524288.0,
+        "ratio": 0.632
+      },
+      "bram": {
+        "generated": 4.0,
+        "ground_truth": 4.0,
+        "ratio": 1.0
+      },
+      "dsp": {
+        "generated": 14.0,
+        "ground_truth": 14.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 112551.0,
+        "ground_truth": 56445.0,
+        "ratio": 1.994
+      },
+      "lut": {
+        "generated": 24245.0,
+        "ground_truth": 15757.0,
+        "ratio": 1.539
+      },
+      "fmax_mhz": {
+        "generated": 206.27,
+        "ground_truth": 206.27,
+        "ratio": 1.0
+      }
+    },
+    "final_score": 21.2,
+    "final_comparison": {
+      "latency_cycles": {
+        "generated": 525226.0,
+        "ground_truth": 525226.0,
+        "ratio": 1.0
+      },
+      "latency_ns": {
+        "generated": 2546000.0,
+        "ground_truth": 2546000.0,
+        "ratio": 1.0
+      },
+      "interval": {
+        "generated": 524288.0,
+        "ground_truth": 524288.0,
+        "ratio": 1.0
+      },
+      "bram": {
+        "generated": 4.0,
+        "ground_truth": 4.0,
+        "ratio": 1.0
+      },
+      "dsp": {
+        "generated": 14.0,
+        "ground_truth": 14.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 56445.0,
+        "ground_truth": 56445.0,
+        "ratio": 1.0
+      },
+      "lut": {
+        "generated": 15757.0,
+        "ground_truth": 15757.0,
+        "ratio": 1.0
+      },
+      "fmax_mhz": {
+        "generated": 206.27,
+        "ground_truth": 206.27,
+        "ratio": 1.0
+      }
+    }
+  },
+  "turn_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 331273,
+        "latency_ns": 1606000.0,
+        "bram": "4",
+        "dsp": "14",
+        "ff": "112551",
+        "lut": "24245",
+        "uram": "0",
+        "fmax_mhz": 206.27,
+        "interval": 331274,
+        "estimated_clock_period_ns": 4.848,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -0.848,
+        "work_dir": "/tmp/hls_synth_qoxl1z77"
+      },
+      "error": ""
+    }
+  ],
+  "benchmark": "gemm_ncubed",
+  "success": true,
+  "reference_validation": {
+    "benchmark_ready": true,
+    "invalid_reason": "",
+    "top_function": "workload",
+    "synthesis": {
+      "status": "passed",
+      "ran": true,
+      "success": true,
+      "error": "",
+      "report": {
+        "latency_cycles": 525226,
+        "latency_ns": 2546000.0,
+        "bram": "4",
+        "dsp": "14",
+        "ff": "56445",
+        "lut": "15757",
+        "uram": "0",
+        "fmax_mhz": 206.27,
+        "interval": 524288,
+        "estimated_clock_period_ns": 4.848,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -0.848,
+        "work_dir": "/tmp/hls_synth_0yo1jfpo"
+      },
+      "work_dir": "/tmp/hls_synth_0yo1jfpo"
+    },
+    "csim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "cosim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "report": {
+      "latency_cycles": 525226,
+      "latency_ns": 2546000.0,
+      "bram": "4",
+      "dsp": "14",
+      "ff": "56445",
+      "lut": "15757",
+      "uram": "0",
+      "fmax_mhz": 206.27,
+      "interval": 524288,
+      "estimated_clock_period_ns": 4.848,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -0.848,
+      "work_dir": "/tmp/hls_synth_0yo1jfpo"
+    },
+    "workflow": [
+      {
+        "variant_name": "gemm_ncubed_0_baseline",
+        "file": "hls_baseline.cpp",
+        "step_name": "0_baseline",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+        "benchmark_ready": true,
+        "invalid_reason": "",
+        "synthesis": {
+          "status": "passed",
+          "ran": true,
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 525226,
+            "latency_ns": 2546000.0,
+            "bram": "4",
+            "dsp": "14",
+            "ff": "56445",
+            "lut": "15757",
+            "uram": "0",
+            "fmax_mhz": 206.27,
+            "interval": 524288,
+            "estimated_clock_period_ns": 4.848,
+            "requested_clock_period_ns": 4.0,
+            "slack_ns": -0.848,
+            "work_dir": "/tmp/hls_synth_0yo1jfpo"
+          },
+          "work_dir": "/tmp/hls_synth_0yo1jfpo"
+        },
+        "csim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "cosim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "report": {
+          "latency_cycles": 525226,
+          "latency_ns": 2546000.0,
+          "bram": "4",
+          "dsp": "14",
+          "ff": "56445",
+          "lut": "15757",
+          "uram": "0",
+          "fmax_mhz": 206.27,
+          "interval": 524288,
+          "estimated_clock_period_ns": 4.848,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -0.848,
+          "work_dir": "/tmp/hls_synth_0yo1jfpo"
+        },
+        "selected": true
+      }
+    ],
+    "selected_variant_name": "gemm_ncubed_0_baseline",
+    "selected_variant_file": "hls_baseline.cpp",
+    "selected_variant_step": "0_baseline",
+    "selection_reason": "selected preferred validated variant `hls_baseline.cpp`"
+  },
+  "ground_truth_status": "valid",
+  "baseline_status": "passed",
+  "invalid_reference_reason": "",
+  "generated_status": "passed",
+  "csim_status": {
+    "ground_truth": "failed",
+    "generated": "passed"
+  },
+  "cosim_status": {
+    "ground_truth": "failed",
+    "generated": "failed"
+  },
+  "coverage": {
+    "ground_truth_csim_available": true,
+    "ground_truth_csim_ran": false,
+    "ground_truth_cosim_available": false,
+    "ground_truth_cosim_ran": false,
+    "generated_csim_available": true,
+    "generated_csim_ran": true,
+    "generated_cosim_available": false,
+    "generated_cosim_ran": false
+  },
+  "optimization_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 331273,
+        "latency_ns": 1606000.0,
+        "bram": "4",
+        "dsp": "14",
+        "ff": "112551",
+        "lut": "24245",
+        "uram": "0",
+        "fmax_mhz": 206.27,
+        "interval": 331274,
+        "estimated_clock_period_ns": 4.848,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -0.848,
+        "work_dir": "/tmp/hls_synth_qoxl1z77"
+      },
+      "error": ""
+    }
+  ],
+  "ground_truth_variant": {
+    "name": "gemm_ncubed_0_baseline",
+    "file": "hls_baseline.cpp",
+    "step": "0_baseline",
+    "selection_reason": "selected preferred validated variant `hls_baseline.cpp`"
+  },
+  "ground_truth_workflow": [
+    {
+      "variant_name": "gemm_ncubed_0_baseline",
+      "file": "hls_baseline.cpp",
+      "step_name": "0_baseline",
+      "source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+      "benchmark_ready": true,
+      "invalid_reason": "",
+      "synthesis": {
+        "status": "passed",
+        "ran": true,
+        "success": true,
+        "error": "",
+        "report": {
+          "latency_cycles": 525226,
+          "latency_ns": 2546000.0,
+          "bram": "4",
+          "dsp": "14",
+          "ff": "56445",
+          "lut": "15757",
+          "uram": "0",
+          "fmax_mhz": 206.27,
+          "interval": 524288,
+          "estimated_clock_period_ns": 4.848,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -0.848,
+          "work_dir": "/tmp/hls_synth_0yo1jfpo"
+        },
+        "work_dir": "/tmp/hls_synth_0yo1jfpo"
+      },
+      "csim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "cosim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "report": {
+        "latency_cycles": 525226,
+        "latency_ns": 2546000.0,
+        "bram": "4",
+        "dsp": "14",
+        "ff": "56445",
+        "lut": "15757",
+        "uram": "0",
+        "fmax_mhz": 206.27,
+        "interval": 524288,
+        "estimated_clock_period_ns": 4.848,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -0.848,
+        "work_dir": "/tmp/hls_synth_0yo1jfpo"
+      },
+      "selected": true
+    }
+  ],
+  "ground_truth_report": {
+    "latency_cycles": 525226,
+    "latency_ns": 2546000.0,
+    "bram": "4",
+    "dsp": "14",
+    "ff": "56445",
+    "lut": "15757",
+    "uram": "0",
+    "fmax_mhz": 206.27,
+    "interval": 524288,
+    "estimated_clock_period_ns": 4.848,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -0.848,
+    "work_dir": "/tmp/hls_synth_0yo1jfpo"
+  }
+}

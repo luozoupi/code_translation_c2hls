@@ -7,15 +7,14 @@ that reflect real FPGA engineering concerns:
   M1. Synthesis Success       ( 5%)  — did the code synthesise at all?
   M2. Csim (Functional)       (10%)  — C-simulation pass/fail (correctness vs testbench)
   M3. Cosim (RTL)             (10%)  — co-simulation pass/fail (RTL matches C behaviour)
-  M4. Latency                 (20%)  — cycle count vs GT (lower is better)
-  M5. Clock Frequency / Fmax  ( 8%)  — timing closure quality (higher is better)
-  M6. Throughput / II         ( 7%)  — initiation interval vs GT (lower is better)
-  M7. Resource Efficiency     (17%)  — BRAM/DSP/FF/LUT vs GT, weighted by scarcity
-  M8. Area-Delay Product      (13%)  — combined efficiency: latency × normalised area
-  M9. Device Feasibility      (10%)  — hard resource (BRAM+DSP) pressure vs device limits
+  M4. Latency (ns)            (23%)  — latency in ns vs GT (lower is better)
+  M5. Clock Frequency / Fmax  (10%)  — timing closure quality (higher is better)
+  M6. Resource Efficiency     (17%)  — BRAM/DSP/FF/LUT vs GT, weighted by scarcity
+  M7. Area-Delay Product      (15%)  — combined efficiency: latency × normalised area
+  M8. Device Feasibility      (10%)  — hard resource (BRAM+DSP) pressure vs device limits
 
 Target device: xc7a100t-csg324-1 (Artix-7 100T)
-Clock target: 10 ns (100 MHz)
+Clock target: 4 ns (250 MHz)
 """
 
 import json
@@ -35,7 +34,7 @@ DEVICE_LIMITS = {
     "uram": 0,         # not available on Artix-7
 }
 
-DEFAULT_CLOCK_NS = 10  # target clock period (ns)
+DEFAULT_CLOCK_NS = 4  # target clock period (ns)
 
 # ── Metric weights (sum to 1.0) ──────────────────────────────────────
 
@@ -43,12 +42,11 @@ METRIC_WEIGHTS = {
     "synthesis":   0.05,  # M1: binary pass/fail
     "csim":        0.10,  # M2: C-simulation correctness
     "cosim":       0.10,  # M3: co-simulation RTL correctness
-    "latency":     0.20,  # M4: cycle count vs GT
-    "fmax":        0.08,  # M5: timing closure
-    "throughput":  0.07,  # M6: initiation interval vs GT
-    "resources":   0.17,  # M7: resource usage vs GT
-    "adp":         0.13,  # M8: area-delay product vs GT
-    "feasibility": 0.10,  # M9: hard resource pressure vs device
+    "latency":     0.23,  # M4: latency (ns) vs GT
+    "fmax":        0.10,  # M5: timing closure
+    "resources":   0.17,  # M6: resource usage vs GT
+    "adp":         0.15,  # M7: area-delay product vs GT
+    "feasibility": 0.10,  # M8: hard resource pressure vs device
 }
 
 # Within M4, sub-weights reflect resource scarcity on the target FPGA.
@@ -222,12 +220,6 @@ class StepScore:
     fmax_score: float = 0.0
     timing_slack_ns: Optional[float] = None  # positive = timing met
 
-    # M4: Throughput / Initiation Interval
-    gen_ii: Optional[int] = None
-    gt_ii: Optional[int] = None
-    ii_ratio: Optional[float] = None
-    throughput_score: float = 0.0
-
     # M5: Resources (ratios vs GT)
     resource_ratios: dict = field(default_factory=dict)
     resource_score: float = 0.0
@@ -255,7 +247,6 @@ class BenchmarkScore:
     cosim_coverage: float = 0.0      # 0–100 attempted among synthesised steps
     avg_latency: float = 0.0
     avg_fmax: float = 0.0
-    avg_throughput: float = 0.0
     avg_resources: float = 0.0
     avg_adp: float = 50.0
     avg_feasibility: float = 100.0
@@ -328,22 +319,6 @@ def score_step(step_name: str, gen_report: dict, gt_report: dict,
         estimated_period = 1000.0 / ss.gen_fmax
         ss.timing_slack_ns = round(DEFAULT_CLOCK_NS - estimated_period, 2)
 
-    # M4: Throughput / Initiation Interval
-    ss.gen_ii = _try_int(gen_report.get("interval"))
-    ss.gt_ii = _try_int(gt_report.get("interval"))
-    ss.ii_ratio = _safe_ratio(ss.gen_ii, ss.gt_ii)
-    if ss.ii_ratio is not None:
-        ss.throughput_score = _ratio_score(ss.ii_ratio, lower_is_better=True)
-    elif ss.gen_ii is not None:
-        # No GT II — score based on whether II == latency (no pipeline) vs II < latency (pipelined)
-        if ss.gen_latency_cycles and ss.gen_ii < ss.gen_latency_cycles:
-            ss.throughput_score = 75.0  # pipelined is good
-        else:
-            ss.throughput_score = 50.0  # neutral
-    else:
-        # Neither gen nor GT has II — design not pipelined at top level; score neutral
-        ss.throughput_score = 50.0
-
     # M5: Resource efficiency vs GT
     res_scores = []
     for key, weight in RESOURCE_SUB_WEIGHTS.items():
@@ -371,7 +346,6 @@ def score_step(step_name: str, gen_report: dict, gt_report: dict,
         + METRIC_WEIGHTS["cosim"]     * ss.cosim_score
         + METRIC_WEIGHTS["latency"]   * ss.latency_score
         + METRIC_WEIGHTS["fmax"]      * ss.fmax_score
-        + METRIC_WEIGHTS["throughput"] * ss.throughput_score
         + METRIC_WEIGHTS["resources"] * ss.resource_score
         + METRIC_WEIGHTS["adp"]       * ss.adp_score
         + METRIC_WEIGHTS["feasibility"] * ss.feasibility_score,
@@ -402,7 +376,6 @@ def score_benchmark(benchmark: str, steps: list) -> BenchmarkScore:
         k = len(scored)
         bs.avg_latency = round(sum(s.latency_score for s in scored) / k, 2)
         bs.avg_fmax = round(sum(s.fmax_score for s in scored) / k, 2)
-        bs.avg_throughput = round(sum(s.throughput_score for s in scored) / k, 2)
         bs.avg_resources = round(sum(s.resource_score for s in scored) / k, 2)
         bs.avg_adp = round(sum(s.adp_score for s in scored) / k, 2)
         bs.avg_feasibility = round(sum(s.feasibility_score for s in scored) / k, 2)
@@ -413,7 +386,6 @@ def score_benchmark(benchmark: str, steps: list) -> BenchmarkScore:
         + METRIC_WEIGHTS["cosim"]     * bs.cosim_rate
         + METRIC_WEIGHTS["latency"]   * bs.avg_latency
         + METRIC_WEIGHTS["fmax"]      * bs.avg_fmax
-        + METRIC_WEIGHTS["throughput"] * bs.avg_throughput
         + METRIC_WEIGHTS["resources"] * bs.avg_resources
         + METRIC_WEIGHTS["adp"]       * bs.avg_adp
         + METRIC_WEIGHTS["feasibility"] * bs.avg_feasibility,
@@ -438,7 +410,6 @@ def format_report(benchmarks: list, title: str = "FPGA Synthesis Quality Rubric"
                  f"Cosim={METRIC_WEIGHTS['cosim']:.0%}  "
                  f"Latency={METRIC_WEIGHTS['latency']:.0%}  "
                  f"Fmax={METRIC_WEIGHTS['fmax']:.0%}  "
-                 f"II={METRIC_WEIGHTS['throughput']:.0%}  "
                  f"Resources={METRIC_WEIGHTS['resources']:.0%}  "
                  f"ADP={METRIC_WEIGHTS['adp']:.0%}  "
                  f"Feasibility={METRIC_WEIGHTS['feasibility']:.0%}")
@@ -454,7 +425,6 @@ def format_report(benchmarks: list, title: str = "FPGA Synthesis Quality Rubric"
                      f"Cosim: {bs.cosim_rate:3.0f}%   "
                      f"Lat: {bs.avg_latency:5.1f}   "
                      f"Fmax: {bs.avg_fmax:5.1f}   "
-                     f"II: {bs.avg_throughput:5.1f}   "
                      f"Res: {bs.avg_resources:5.1f}   "
                      f"ADP: {bs.avg_adp:5.1f}   "
                      f"Feasibility: {bs.avg_feasibility:5.1f}")
@@ -462,9 +432,8 @@ def format_report(benchmarks: list, title: str = "FPGA Synthesis Quality Rubric"
 
         # Detailed per-step table
         hdr = (f"    {'Step':<14s} {'Syn':>4s} {'Csim':>4s} {'Cosm':>4s}"
-               f" {'LatCyc':>12s} {'LatR':>6s} {'Lat':>5s}"
+               f" {'LatNs':>12s} {'LatR':>6s} {'Lat':>5s}"
                f" {'Fmax':>6s} {'FmxR':>5s} {'Fmx':>5s} {'Slack':>6s}"
-               f" {'II':>10s} {'IIR':>5s} {'Thr':>5s}"
                f" {'BRAM%':>6s} {'DSP%':>6s} {'FF%':>5s} {'LUT%':>5s} {'Res':>5s}"
                f" {'ADP':>5s} {'Feas':>5s}"
                f" {'Total':>5s}")
@@ -473,15 +442,13 @@ def format_report(benchmarks: list, title: str = "FPGA Synthesis Quality Rubric"
 
         for s in bs.steps:
             syn = " OK" if s.synthesised else "FAIL"
-            csim_s = "PASS" if s.csim_passed else ("FAIL" if s.csim_ran else "  — ")
-            cosim_s = "PASS" if s.cosim_passed else ("FAIL" if s.cosim_ran else "  — ")
-            lat_cyc = f"{s.gen_latency_cycles:,}" if s.gen_latency_cycles else "—"
+            csim_s = "PASS" if s.csim_passed else "FAIL"
+            cosim_s = "PASS" if s.cosim_passed else "FAIL"
+            lat_ns = f"{s.gen_latency:,.0f}" if s.gen_latency else "—"
             lat_r = f"{s.latency_ratio:.2f}" if s.latency_ratio else "—"
             fmax_v = f"{s.gen_fmax:.1f}" if s.gen_fmax else "—"
             fmx_r = f"{s.fmax_ratio:.2f}" if s.fmax_ratio else "—"
             slack = f"{s.timing_slack_ns:+.1f}" if s.timing_slack_ns is not None else "—"
-            ii_v = f"{s.gen_ii:,}" if s.gen_ii else "—"
-            ii_r = f"{s.ii_ratio:.2f}" if s.ii_ratio else "—"
 
             bram_u = f"{s.util_pct.get('bram', 0):.1f}" if s.synthesised else "—"
             dsp_u = f"{s.util_pct.get('dsp', 0):.1f}" if s.synthesised else "—"
@@ -489,9 +456,8 @@ def format_report(benchmarks: list, title: str = "FPGA Synthesis Quality Rubric"
             lut_u = f"{s.util_pct.get('lut', 0):.1f}" if s.synthesised else "—"
 
             row = (f"    {s.step_name:<14s} {syn:>4s} {csim_s:>4s} {cosim_s:>4s}"
-                   f" {lat_cyc:>12s} {lat_r:>6s} {s.latency_score:>5.1f}"
+                   f" {lat_ns:>12s} {lat_r:>6s} {s.latency_score:>5.1f}"
                    f" {fmax_v:>6s} {fmx_r:>5s} {s.fmax_score:>5.1f} {slack:>6s}"
-                   f" {ii_v:>10s} {ii_r:>5s} {s.throughput_score:>5.1f}"
                    f" {bram_u:>6s} {dsp_u:>6s} {ff_u:>5s} {lut_u:>5s} {s.resource_score:>5.1f}"
                    f" {s.adp_score:>5.1f} {s.feasibility_score:>5.1f}"
                    f" {s.composite:>5.1f}")
@@ -648,7 +614,8 @@ def main():
                 "cosim_rate": bs.cosim_rate,
                 "avg_latency": bs.avg_latency,
                 "avg_fmax": bs.avg_fmax,
-                "avg_throughput": bs.avg_throughput,
+
+
                 "avg_resources": bs.avg_resources,
                 "avg_adp": bs.avg_adp,
                 "avg_feasibility": bs.avg_feasibility,
@@ -673,10 +640,8 @@ def main():
                         "fmax_ratio": s.fmax_ratio,
                         "fmax_score": s.fmax_score,
                         "timing_slack_ns": s.timing_slack_ns,
-                        "ii": s.gen_ii,
-                        "gt_ii": s.gt_ii,
-                        "ii_ratio": s.ii_ratio,
-                        "throughput_score": s.throughput_score,
+
+
                         "resource_ratios": s.resource_ratios,
                         "resource_score": s.resource_score,
                         "device_util_pct": s.util_pct,

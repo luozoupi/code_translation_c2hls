@@ -18,7 +18,7 @@ logging.basicConfig(
 
 VITIS_SETTINGS = "/mnt/data/luo00466/Xilinx/2025.2/Vitis/settings64.sh"
 DEFAULT_PART = "xc7a100t-csg324-1"
-DEFAULT_CLOCK_NS = 10
+DEFAULT_CLOCK_NS = 4
 SYNTH_TIMEOUT = 600  # 10 minutes
 CSIM_TIMEOUT = 120   # 2 minutes
 COSIM_TIMEOUT = 600  # 10 minutes

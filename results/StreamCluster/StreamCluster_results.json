@@ -1,0 +1,413 @@
+{
+  "phase": "complete",
+  "hls_code": "#include \"streamcluster.h\"\n\nextern \"C\" {\n\nvoid workload(    \n    float* coord,                      \n    float* weight,                      \n    float* cost, \n    float* target,\n    int* assign,\n    int* center_table,\n    char* switch_membership,\n    float* work_mem,\n    int num,\n    float* cost_of_opening_x,\n    int numcenter            \n)\n{\n#pragma HLS INTERFACE m_axi port=coord offset=slave bundle=gmem\n#pragma HLS INTERFACE m_axi port=weight offset=slave bundle=gmem\n#pragma HLS INTERFACE m_axi port=cost offset=slave bundle=gmem\n#pragma HLS INTERFACE m_axi port=target offset=slave bundle=gmem\n#pragma HLS INTERFACE m_axi port=assign offset=slave bundle=gmem\n#pragma HLS INTERFACE m_axi port=center_table offset=slave bundle=gmem\n#pragma HLS INTERFACE m_axi port=switch_membership offset=slave bundle=gmem\n#pragma HLS INTERFACE m_axi port=work_mem offset=slave bundle=gmem\n#pragma HLS INTERFACE m_axi port=cost_of_opening_x offset=slave bundle=gmem\n#pragma HLS INTERFACE s_axilite port=num bundle=control\n#pragma HLS INTERFACE s_axilite port=numcenter bundle=control\n#pragma HLS INTERFACE s_axilite port=return bundle=control\n\n    int i, j;\n    for( i = 0; i < BATCH_SIZE; i++ ) {\n#pragma HLS LOOP_TRIPCOUNT min=1024 max=1024 avg=1024\n        float sum = 0;\n        for( j = 0; j < DIM; j++ ) {\n#pragma HLS UNROLL factor=4\n            float a = coord[i * DIM + j] - target[j];\n            sum += a * a;\n        }\n        float current_cost = sum * weight[i] - cost[i];\n        int local_center_index = center_table[assign[i]];\n        if (current_cost < 0) {\n\n            // point i would save cost just by switching to x\n            // (note that i cannot be a median, \n            // or else dist(p[i], p[x]) would be 0)\n      \n            switch_membership[i] = 1;\n            cost_of_opening_x[0] += current_cost;\n\n        } \n        else {\n\n            // cost of assigning i to x is at least current assignment cost of i\n\n            // consider the savings that i's **current** median would realize\n            // if we reassigned that median and all its members to x;\n            // note we've already accounted for the fact that the median\n            // would save z by closing; now we have to subtract from the savings\n            // the extra cost of reassigning that median and its members \n            work_mem[local_center_index] -= current_cost;\n        }\n    }\n    \n    return;\n}\n\n}",
+  "synth_report": {
+    "latency_cycles": 2987009,
+    "latency_ns": 14215000.0,
+    "bram": "2",
+    "dsp": "3",
+    "ff": "11597",
+    "lut": "5719",
+    "uram": "0",
+    "fmax_mhz": 210.13,
+    "interval": 2987010,
+    "estimated_clock_period_ns": 4.759,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -0.759,
+    "work_dir": "/tmp/hls_synth_i4tpybom"
+  },
+  "comparison": {
+    "success": false,
+    "valid_reference": false,
+    "invalid_reference": true,
+    "error": "Gold HLS synthesis failed: Synthesis timed out after 1800s"
+  },
+  "csim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "cosim": null,
+  "quality_repair": {
+    "attempted": true,
+    "applied": false,
+    "attempts": [
+      {
+        "turn": 0,
+        "focus": "timing_dsp",
+        "score_before": 30.327,
+        "candidate_score": 20.655,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 2984961.0,
+            "ground_truth": 2976769.0,
+            "ratio": 1.003
+          },
+          "latency_ns": {
+            "generated": 14205000.0,
+            "ground_truth": 14166000.0,
+            "ratio": 1.003
+          },
+          "interval": {
+            "generated": 2984962.0,
+            "ground_truth": 2976770.0,
+            "ratio": 1.003
+          },
+          "bram": {
+            "generated": 2.0,
+            "ground_truth": 4.0,
+            "ratio": 0.5
+          },
+          "dsp": {
+            "generated": 3.0,
+            "ground_truth": 3.0,
+            "ratio": 1.0
+          },
+          "ff": {
+            "generated": 8592.0,
+            "ground_truth": 8082.0,
+            "ratio": 1.063
+          },
+          "lut": {
+            "generated": 5012.0,
+            "ground_truth": 5872.0,
+            "ratio": 0.854
+          },
+          "fmax_mhz": {
+            "generated": 210.13,
+            "ground_truth": 210.13,
+            "ratio": 1.0
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": false,
+        "status": "rejected",
+        "rejection_reason": "Candidate did not improve the active timing_dsp focus"
+      },
+      {
+        "turn": 1,
+        "focus": "timing_dsp",
+        "score_before": 30.327,
+        "candidate_score": 19.003,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 2983937.0,
+            "ground_truth": 2976769.0,
+            "ratio": 1.002
+          },
+          "latency_ns": {
+            "generated": 14201000.0,
+            "ground_truth": 14166000.0,
+            "ratio": 1.002
+          },
+          "interval": {
+            "generated": 2983938.0,
+            "ground_truth": 2976770.0,
+            "ratio": 1.002
+          },
+          "bram": {
+            "generated": 2.0,
+            "ground_truth": 4.0,
+            "ratio": 0.5
+          },
+          "dsp": {
+            "generated": 3.0,
+            "ground_truth": 3.0,
+            "ratio": 1.0
+          },
+          "ff": {
+            "generated": 7083.0,
+            "ground_truth": 8082.0,
+            "ratio": 0.876
+          },
+          "lut": {
+            "generated": 4628.0,
+            "ground_truth": 5872.0,
+            "ratio": 0.788
+          },
+          "fmax_mhz": {
+            "generated": 210.13,
+            "ground_truth": 210.13,
+            "ratio": 1.0
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": false,
+        "status": "rejected",
+        "rejection_reason": "Candidate did not improve the active timing_dsp focus"
+      }
+    ],
+    "initial_score": 30.327,
+    "initial_comparison": {
+      "latency_cycles": {
+        "generated": 2987009.0,
+        "ground_truth": 2976769.0,
+        "ratio": 1.003
+      },
+      "latency_ns": {
+        "generated": 14215000.0,
+        "ground_truth": 14166000.0,
+        "ratio": 1.003
+      },
+      "interval": {
+        "generated": 2987010.0,
+        "ground_truth": 2976770.0,
+        "ratio": 1.003
+      },
+      "bram": {
+        "generated": 2.0,
+        "ground_truth": 4.0,
+        "ratio": 0.5
+      },
+      "dsp": {
+        "generated": 3.0,
+        "ground_truth": 3.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 11597.0,
+        "ground_truth": 8082.0,
+        "ratio": 1.435
+      },
+      "lut": {
+        "generated": 5719.0,
+        "ground_truth": 5872.0,
+        "ratio": 0.974
+      },
+      "fmax_mhz": {
+        "generated": 210.13,
+        "ground_truth": 210.13,
+        "ratio": 1.0
+      }
+    },
+    "final_score": 30.327,
+    "final_comparison": {
+      "latency_cycles": {
+        "generated": 2987009.0,
+        "ground_truth": 2976769.0,
+        "ratio": 1.003
+      },
+      "latency_ns": {
+        "generated": 14215000.0,
+        "ground_truth": 14166000.0,
+        "ratio": 1.003
+      },
+      "interval": {
+        "generated": 2987010.0,
+        "ground_truth": 2976770.0,
+        "ratio": 1.003
+      },
+      "bram": {
+        "generated": 2.0,
+        "ground_truth": 4.0,
+        "ratio": 0.5
+      },
+      "dsp": {
+        "generated": 3.0,
+        "ground_truth": 3.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 11597.0,
+        "ground_truth": 8082.0,
+        "ratio": 1.435
+      },
+      "lut": {
+        "generated": 5719.0,
+        "ground_truth": 5872.0,
+        "ratio": 0.974
+      },
+      "fmax_mhz": {
+        "generated": 210.13,
+        "ground_truth": 210.13,
+        "ratio": 1.0
+      }
+    }
+  },
+  "turn_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 2987009,
+        "latency_ns": 14215000.0,
+        "bram": "2",
+        "dsp": "3",
+        "ff": "11597",
+        "lut": "5719",
+        "uram": "0",
+        "fmax_mhz": 210.13,
+        "interval": 2987010,
+        "estimated_clock_period_ns": 4.759,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -0.759,
+        "work_dir": "/tmp/hls_synth_i4tpybom"
+      },
+      "error": ""
+    }
+  ],
+  "benchmark": "StreamCluster",
+  "success": false,
+  "reference_validation": {
+    "benchmark_ready": false,
+    "invalid_reason": "Gold HLS synthesis failed: Synthesis timed out after 1800s",
+    "top_function": "workload",
+    "synthesis": {
+      "status": "failed",
+      "ran": true,
+      "success": false,
+      "error": "Synthesis timed out after 1800s",
+      "report": {},
+      "work_dir": ""
+    },
+    "csim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "cosim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "report": {},
+    "workflow": [
+      {
+        "variant_name": "streamcluster_4_coalescing",
+        "file": "hls_streamcluster_4_coalescing.cpp",
+        "step_name": "coalescing",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_4_coalescing/src/streamcluster.cpp",
+        "benchmark_ready": false,
+        "invalid_reason": "Gold HLS synthesis failed: Synthesis timed out after 1800s",
+        "synthesis": {
+          "status": "failed",
+          "ran": true,
+          "success": false,
+          "error": "Synthesis timed out after 1800s",
+          "report": {},
+          "work_dir": ""
+        },
+        "csim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "cosim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "report": {},
+        "selected": true
+      }
+    ],
+    "selected_variant_name": "streamcluster_4_coalescing",
+    "selected_variant_file": "hls_streamcluster_4_coalescing.cpp",
+    "selected_variant_step": "coalescing",
+    "selection_reason": "selected preferred validated variant `hls_streamcluster_4_coalescing.cpp`"
+  },
+  "ground_truth_status": "invalid",
+  "baseline_status": "failed",
+  "invalid_reference_reason": "Gold HLS synthesis failed: Synthesis timed out after 1800s",
+  "generated_status": "passed",
+  "csim_status": {
+    "ground_truth": "failed",
+    "generated": "passed"
+  },
+  "cosim_status": {
+    "ground_truth": "failed",
+    "generated": "failed"
+  },
+  "coverage": {
+    "ground_truth_csim_available": true,
+    "ground_truth_csim_ran": false,
+    "ground_truth_cosim_available": false,
+    "ground_truth_cosim_ran": false,
+    "generated_csim_available": true,
+    "generated_csim_ran": true,
+    "generated_cosim_available": false,
+    "generated_cosim_ran": false
+  },
+  "optimization_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 2987009,
+        "latency_ns": 14215000.0,
+        "bram": "2",
+        "dsp": "3",
+        "ff": "11597",
+        "lut": "5719",
+        "uram": "0",
+        "fmax_mhz": 210.13,
+        "interval": 2987010,
+        "estimated_clock_period_ns": 4.759,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -0.759,
+        "work_dir": "/tmp/hls_synth_i4tpybom"
+      },
+      "error": ""
+    }
+  ],
+  "ground_truth_variant": {
+    "name": "streamcluster_4_coalescing",
+    "file": "hls_streamcluster_4_coalescing.cpp",
+    "step": "coalescing",
+    "selection_reason": "selected preferred validated variant `hls_streamcluster_4_coalescing.cpp`"
+  },
+  "ground_truth_workflow": [
+    {
+      "variant_name": "streamcluster_4_coalescing",
+      "file": "hls_streamcluster_4_coalescing.cpp",
+      "step_name": "coalescing",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/StreamCluster/streamcluster_4_coalescing/src/streamcluster.cpp",
+      "benchmark_ready": false,
+      "invalid_reason": "Gold HLS synthesis failed: Synthesis timed out after 1800s",
+      "synthesis": {
+        "status": "failed",
+        "ran": true,
+        "success": false,
+        "error": "Synthesis timed out after 1800s",
+        "report": {},
+        "work_dir": ""
+      },
+      "csim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "cosim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "report": {},
+      "selected": true
+    }
+  ],
+  "ground_truth_report": {}
+}

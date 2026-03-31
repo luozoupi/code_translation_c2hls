@@ -233,18 +233,24 @@ def _ml4accel_spec(bench_name: str, template_files: dict[str, str]) -> dict:
     current_meta = json.loads(meta_text) if meta_text else {}
     header_file = current_meta.get("header_file", "")
     kernel_file = current_meta.get("kernel_file", bench_name + ".cpp")
+    gold_source_path = ML4ACCEL_ALGO_SOURCES[bench_name].resolve()
+    source_header_path = None
+    if header_file:
+        candidate_header = gold_source_path.parent / header_file
+        if candidate_header.exists():
+            source_header_path = str(candidate_header)
     return {
         "benchmark": bench_name,
         "source_repo": "ML4Accel-Dataset",
-        "algorithm_source_path": str(ML4ACCEL_ALGO_SOURCES[bench_name].resolve()),
-        "gold_hls_source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
-        "header_source_path": "CURATED_TEMPLATE::" + header_file if header_file else None,
+        "algorithm_source_path": str(gold_source_path),
+        "gold_hls_source_path": str(gold_source_path),
+        "header_source_path": source_header_path,
         "kernel_file": kernel_file,
         "header_file": header_file or None,
         "baseline_variant": f"{bench_name}_0_baseline",
         "variant_names": [f"{bench_name}_0_baseline"],
         "variant_source_paths": {
-            f"{bench_name}_0_baseline": "CURATED_TEMPLATE::hls_baseline.cpp",
+            f"{bench_name}_0_baseline": str(gold_source_path),
         },
         "template_files": template_files,
     }
@@ -268,6 +274,18 @@ def _variant_output_name(variant_name: str) -> str:
     if variant_name.endswith("_0_baseline"):
         return "hls_baseline.cpp"
     return f"hls_{variant_name}.cpp"
+
+
+def _preferred_rodinia_variant_file(variant_names: list[str]) -> str | None:
+    if not variant_names:
+        return None
+    coalescing = [name for name in variant_names if "coalescing" in name]
+    if coalescing:
+        return _variant_output_name(coalescing[-1])
+    optimized = [name for name in variant_names if "baseline" not in name]
+    if optimized:
+        return _variant_output_name(optimized[-1])
+    return _variant_output_name(variant_names[-1])
 
 
 def _prepare_single_benchmark(bench_name: str) -> dict:
@@ -325,6 +343,10 @@ def _prepare_single_benchmark(bench_name: str) -> dict:
     for variant_file, variant_text in variant_outputs.items():
         _write_text(out_dir / variant_file, variant_text)
 
+    preferred_gt_file = None
+    if spec["source_repo"] == "rodinia-hls":
+        preferred_gt_file = _preferred_rodinia_variant_file(spec["variant_names"])
+
     metadata = {
         "benchmark": bench_name,
         "source_repo": spec["source_repo"],
@@ -354,6 +376,7 @@ def _prepare_single_benchmark(bench_name: str) -> dict:
             "plain_c_sha256": _sha256(plain_code),
             "plain_derived_from_gold_hls": True,
         },
+        "preferred_gt_file": preferred_gt_file,
     }
 
     _write_text(out_dir / "metadata.json", json.dumps(metadata, indent=2) + "\n")

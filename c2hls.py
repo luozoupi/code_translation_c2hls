@@ -171,20 +171,25 @@ def compile_check_cpp(
         return False, "Compilation timed out"
 
 
+def _binary_status(passed: bool) -> str:
+    return "passed" if passed else "failed"
+
+
 def _summarize_synth_result(result: Optional[dict]) -> dict:
     if result is None:
         return {
-            "status": "not_run",
+            "status": "failed",
             "ran": False,
             "success": False,
             "error": "",
             "report": {},
         }
     report = dict(result.get("report", {}) or {})
+    passed = bool(result.get("success", False))
     return {
-        "status": "passed" if result.get("success") else "failed",
+        "status": _binary_status(passed),
         "ran": True,
-        "success": bool(result.get("success", False)),
+        "success": passed,
         "error": result.get("error", ""),
         "report": report,
         "work_dir": report.get("work_dir", ""),
@@ -194,7 +199,7 @@ def _summarize_synth_result(result: Optional[dict]) -> dict:
 def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
     if not supported:
         return {
-            "status": "not_supported",
+            "status": "failed",
             "supported": False,
             "ran": False,
             "success": False,
@@ -203,7 +208,7 @@ def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
         }
     if result is None:
         return {
-            "status": "not_run",
+            "status": "failed",
             "supported": True,
             "ran": False,
             "success": False,
@@ -212,7 +217,7 @@ def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
         }
     passed = bool(result.get("passed", False))
     return {
-        "status": "passed" if passed else "failed",
+        "status": _binary_status(passed),
         "supported": True,
         "ran": True,
         "success": bool(result.get("success", False)),
@@ -238,8 +243,8 @@ def _default_output_dir(bench_dir: str, bench_name: str, multistep: bool = False
 def _build_coverage(meta: dict, reference_validation: dict, generated_csim: Optional[dict], generated_cosim: Optional[dict]) -> dict:
     gt_csim = reference_validation.get("csim", {})
     gt_cosim = reference_validation.get("cosim", {})
-    gen_csim = generated_csim or {"status": "not_run", "ran": False}
-    gen_cosim = generated_cosim or {"status": "not_run", "ran": False}
+    gen_csim = generated_csim or {"status": "failed", "ran": False}
+    gen_cosim = generated_cosim or {"status": "failed", "ran": False}
     return {
         "ground_truth_csim_available": bool(meta.get("supports_csim") and meta.get("testbench_file")),
         "ground_truth_csim_ran": bool(gt_csim.get("ran", False)),
@@ -394,9 +399,9 @@ def _build_quality_guidance(benchmark_name: str, report: dict, ground_truth_repo
     if fmax_ratio is not None and fmax_ratio < 0.8:
         issues.append(f"Current Fmax is only {fmax_ratio:.3f}x the gold baseline; improve clock frequency without breaking functionality.")
 
-    latency_ratio = _comparison_ratio(comparison, "latency_cycles")
+    latency_ratio = _comparison_ratio(comparison, "latency_ns")
     if latency_ratio is not None and latency_ratio > 2.0:
-        issues.append(f"Latency is {latency_ratio:.3f}x the gold baseline; reduce unnecessary serialization or buffering if possible.")
+        issues.append(f"Latency is {latency_ratio:.3f}x the gold baseline in ns; reduce unnecessary serialization or buffering if possible.")
 
     for key, label, threshold in [
         ("bram", "BRAM", 1.15),
@@ -447,8 +452,7 @@ def _quality_score(benchmark_name: str, report: dict, comparison: dict) -> float
         score += (1.0 - fmax_ratio) * 40.0
 
     for key, weight in [
-        ("latency_cycles", 8.0),
-        ("interval", 6.0),
+        ("latency_ns", 12.0),
         ("bram", 10.0),
         ("dsp", 8.0),
         ("ff", 6.0),
@@ -466,10 +470,10 @@ def _quality_score(benchmark_name: str, report: dict, comparison: dict) -> float
     elif bench == "spmv_crs":
         latency_focus = (slack is None or slack >= 0) and (fmax_ratio is None or fmax_ratio >= 1.0)
         if latency_focus:
-            latency_ratio = _comparison_ratio(comparison, "latency_cycles")
+            latency_ratio = _comparison_ratio(comparison, "latency_ns")
             if latency_ratio is not None and latency_ratio > 1.0:
                 score += (latency_ratio - 1.0) * 35.0
-        for key, weight in [("bram", 20.0), ("ff", 10.0), ("lut", 10.0), ("latency_cycles", 10.0)]:
+        for key, weight in [("bram", 20.0), ("ff", 10.0), ("lut", 10.0), ("latency_ns", 14.0)]:
             ratio = _comparison_ratio(comparison, key)
             if ratio is not None and ratio > 1.0:
                 score += (ratio - 1.0) * weight
@@ -494,7 +498,7 @@ def _quality_focus(benchmark_name: str, report: dict, comparison: dict) -> str:
     bench = benchmark_name or ""
     slack = _as_float((report or {}).get("slack_ns"))
     fmax_ratio = _comparison_ratio(comparison, "fmax_mhz")
-    latency_ratio = _comparison_ratio(comparison, "latency_cycles")
+    latency_ratio = _comparison_ratio(comparison, "latency_ns")
     dsp_ratio = _comparison_ratio(comparison, "dsp")
 
     if bench == "spmv_crs":
@@ -525,8 +529,8 @@ def _quality_focus_improved(benchmark_name: str, focus: str, current_report: dic
     candidate_slack = _as_float((candidate_report or {}).get("slack_ns"))
     current_fmax = _comparison_ratio(current_comparison, "fmax_mhz") or 0.0
     candidate_fmax = _comparison_ratio(candidate_comparison, "fmax_mhz") or 0.0
-    current_latency = _comparison_ratio(current_comparison, "latency_cycles") or float("inf")
-    candidate_latency = _comparison_ratio(candidate_comparison, "latency_cycles") or float("inf")
+    current_latency = _comparison_ratio(current_comparison, "latency_ns") or float("inf")
+    candidate_latency = _comparison_ratio(candidate_comparison, "latency_ns") or float("inf")
     current_dsp = _comparison_ratio(current_comparison, "dsp") or 1.0
     candidate_dsp = _comparison_ratio(candidate_comparison, "dsp") or 1.0
 
@@ -595,6 +599,7 @@ class C2HLSOrchestrator:
         self.generated_cosim = None
         self.benchmark_name = ""
         self.benchmark_context = ""
+        self.turn_results = []  # tracks each synthesis attempt: {turn, phase, success, report, error}
         self.quality_repair_result = {
             "attempted": False,
             "applied": False,
@@ -1009,6 +1014,14 @@ class C2HLSOrchestrator:
                 extra_files=self.extra_files,
             )
 
+            self.turn_results.append({
+                "turn": turn,
+                "phase": "B",
+                "success": result["success"],
+                "report": result.get("report", {}),
+                "error": result.get("error", ""),
+            })
+
             if result["success"]:
                 self.synth_report = result["report"]
                 logging.info("[Phase B] Synthesis SUCCESS!\n%s", format_report_summary(result["report"]))
@@ -1336,6 +1349,17 @@ class C2HLSOrchestrator:
             "baseline_cosim": self.generated_cosim,
             "final_report": self.synth_report,
             "steps": step_results,
+            "generated_step_history": [
+                {
+                    "step_name": "baseline",
+                    "success": True,
+                    "report": baseline_report,
+                    "comparison": baseline_comparison,
+                    "csim": self.generated_csim,
+                    "cosim": self.generated_cosim,
+                },
+                *step_results,
+            ],
             "hls_code": self.hls_code,
         }
 
@@ -1411,6 +1435,7 @@ class C2HLSOrchestrator:
             "csim": self.generated_csim,
             "cosim": self.generated_cosim,
             "quality_repair": quality_repair,
+            "turn_history": self.turn_results,
         }
 
 
@@ -1435,17 +1460,35 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
     ground_truth_code = None
     gt_file = meta.get("gold_hls_baseline_file", "hls_baseline.cpp")
 
-    # Use the best (final) optimized variant as ground truth when available.
-    # For benchmarks with multi-step variants, the last variant is the most
-    # optimized and represents the target quality we compare against.
-    variants = meta.get("variants", [])
-    if len(variants) > 1:
-        best_variant = variants[-1]
-        best_file = best_variant["file"]
-        best_path = bench_dir / best_file
-        if best_path.exists():
-            gt_file = best_file
-            logging.info(f"Using best variant '{best_variant['name']}' as ground truth")
+    # Use preferred GT variant if explicitly set in metadata (pre-validated).
+    preferred = meta.get("preferred_gt_file")
+    if preferred and (bench_dir / preferred).exists():
+        gt_file = preferred
+        logging.info(f"Using preferred GT variant '{preferred}'")
+    else:
+        # Fall back: try from best to worst; skip variants that don't compile.
+        extra_files_for_check = []
+        for rel_path in meta.get("support_files", []):
+            fp = bench_dir / rel_path
+            if fp.exists():
+                extra_files_for_check.append({"path": rel_path, "content": fp.read_text()})
+
+        variants = meta.get("variants", [])
+        if len(variants) > 1:
+            for variant in reversed(variants):
+                vfile = variant["file"]
+                vpath = bench_dir / vfile
+                if not vpath.exists():
+                    continue
+                vcode = vpath.read_text()
+                ok, err = compile_check_cpp(vcode, header_code, header_name,
+                                            extra_files=extra_files_for_check)
+                if ok:
+                    gt_file = vfile
+                    logging.info(f"Using best variant '{variant['name']}' as ground truth")
+                    break
+                else:
+                    logging.debug(f"Variant '{variant['name']}' failed compile check: {err[:120]}")
 
     gt_path = bench_dir / gt_file
     if gt_path.exists():
@@ -1482,10 +1525,23 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
             testbench_code = f.read()
 
     extra_files = []
+    extra_file_paths = set()
     for rel_path in meta.get("support_files", []):
         file_path = bench_dir / rel_path
         if file_path.exists():
             extra_files.append({"path": rel_path, "content": file_path.read_text()})
+            extra_file_paths.add(rel_path)
+
+    support_dir = bench_dir / "support"
+    if support_dir.exists():
+        for file_path in sorted(support_dir.rglob("*")):
+            if not file_path.is_file():
+                continue
+            rel_path = str(file_path.relative_to(bench_dir))
+            if rel_path in extra_file_paths:
+                continue
+            extra_files.append({"path": rel_path, "content": file_path.read_text()})
+            extra_file_paths.add(rel_path)
 
     benchmark_context = _build_benchmark_context(
         meta,
@@ -1511,27 +1567,110 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
     }
 
 
-def validate_gold_reference(inputs: dict) -> dict:
+def _normalize_variant_step_name(variant_name: str) -> str:
+    parts = (variant_name or "").split("_", 2)
+    step_name = parts[2] if len(parts) >= 3 else (variant_name or "baseline")
+    step_name = step_name.replace("double_buffer", "doublebuffer")
+    step_name = step_name.replace("doublebuffer", "doublebuffer")
+    step_name = step_name.replace("unrolll", "unroll")
+    step_name = step_name.replace("unrolling", "unroll")
+    return step_name or "baseline"
+
+
+def _rewrite_source_includes_for_local_support(code: str, bench_dir: Path) -> str:
+    support_common = bench_dir / "support" / "common"
+    if not support_common.exists():
+        return code
+
+    def _replace(match: re.Match) -> str:
+        rel_name = match.group(1)
+        if (support_common / rel_name).exists():
+            return f'#include "support/common/{rel_name}"'
+        return match.group(0)
+
+    return re.sub(r'#include\s+"(?:\.\./)+common/([^"]+)"', _replace, code)
+
+
+def _ground_truth_candidates(inputs: dict) -> list[dict]:
     meta = inputs["meta"]
+    bench_dir = Path(inputs["bench_dir"])
+    candidates = []
+    seen_files = set()
+    default_header_name = meta.get("header_file") or inputs.get("header_name") or "kernel.h"
+    default_header_code = inputs.get("header_code", "")
+
+    for variant in meta.get("variants", []):
+        variant_file = variant.get("file")
+        if not variant_file or variant_file in seen_files:
+            continue
+        variant_path = bench_dir / variant_file
+        if not variant_path.exists():
+            continue
+        source_path = variant.get("source_path", "")
+        header_code = default_header_code
+        if source_path:
+            source_header = Path(source_path).with_name(default_header_name)
+            if source_header.exists():
+                header_code = _rewrite_source_includes_for_local_support(source_header.read_text(), bench_dir)
+        candidates.append(
+            {
+                "variant_name": variant.get("name", Path(variant_file).stem),
+                "file": variant_file,
+                "step_name": _normalize_variant_step_name(variant.get("name", variant_file)),
+                "source_path": source_path,
+                "header_name": default_header_name,
+                "header_code": header_code,
+                "code": variant_path.read_text(),
+            }
+        )
+        seen_files.add(variant_file)
+
+    if candidates:
+        return candidates
+
     hls_code = inputs.get("ground_truth_code")
-    supports_csim = bool(meta.get("supports_csim") and inputs.get("testbench_code"))
-    supports_cosim = bool(meta.get("supports_cosim") and inputs.get("testbench_code"))
+    if hls_code:
+        source_path = inputs["meta"].get("gold_hls_source_path", "")
+        header_code = default_header_code
+        if source_path:
+            source_header = Path(source_path).with_name(default_header_name)
+            if source_header.exists():
+                header_code = _rewrite_source_includes_for_local_support(source_header.read_text(), bench_dir)
+        return [
+            {
+                "variant_name": "baseline",
+                "file": inputs["meta"].get("gold_hls_baseline_file", "hls_baseline.cpp"),
+                "step_name": "baseline",
+                "source_path": source_path,
+                "header_name": default_header_name,
+                "header_code": header_code,
+                "code": hls_code,
+            }
+        ]
+    return []
 
-    if not hls_code:
-        return {
-            "benchmark_ready": False,
-            "invalid_reason": "Missing gold HLS baseline code",
-            "synthesis": _summarize_synth_result(None),
-            "csim": _summarize_test_result(None, supports_csim),
-            "cosim": _summarize_test_result(None, supports_cosim),
-            "report": {},
-            "top_function": meta.get("hls_top", "workload"),
-        }
 
+def _preferred_reference_file(meta: dict, workflow: list[dict]) -> str:
+    if meta.get("source_repo") == "rodinia-hls":
+        for entry in reversed(workflow):
+            if entry.get("step_name") == "coalescing":
+                return entry.get("file", "")
+        optimized = [entry.get("file", "") for entry in workflow if entry.get("step_name") != "baseline"]
+        if optimized:
+            return optimized[-1]
+    return meta.get("preferred_gt_file", "")
+
+
+def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
+                                     supports_csim: bool, supports_cosim: bool) -> dict:
+    meta = inputs["meta"]
+    hls_code = candidate["code"]
+    header_name = candidate.get("header_name") or inputs.get("header_name") or "kernel.h"
+    header_code = candidate.get("header_code", inputs.get("header_code", ""))
     synth_result = run_hls_synthesis(
         hls_code,
-        inputs.get("header_code", ""),
-        header_name=inputs.get("header_name") or "kernel.h",
+        header_code,
+        header_name=header_name,
         top_function=meta.get("hls_top", "workload"),
         part=meta.get("part", DEFAULT_PART),
         clock_ns=meta.get("clock_ns", DEFAULT_CLOCK_NS),
@@ -1544,8 +1683,8 @@ def validate_gold_reference(inputs: dict) -> dict:
         csim_result = run_csim(
             hls_code,
             inputs.get("testbench_code", ""),
-            inputs.get("header_code", ""),
-            header_name=inputs.get("header_name") or "kernel.h",
+            header_code,
+            header_name=header_name,
             top_function=meta.get("hls_top", "workload"),
             part=meta.get("part", DEFAULT_PART),
             clock_ns=meta.get("clock_ns", DEFAULT_CLOCK_NS),
@@ -1558,8 +1697,8 @@ def validate_gold_reference(inputs: dict) -> dict:
         cosim_result = run_cosim(
             hls_code,
             inputs.get("testbench_code", ""),
-            inputs.get("header_code", ""),
-            header_name=inputs.get("header_name") or "kernel.h",
+            header_code,
+            header_name=header_name,
             top_function=meta.get("hls_top", "workload"),
             part=meta.get("part", DEFAULT_PART),
             clock_ns=meta.get("clock_ns", DEFAULT_CLOCK_NS),
@@ -1577,13 +1716,113 @@ def validate_gold_reference(inputs: dict) -> dict:
         invalid_reason = f"Gold HLS csim failed: {csim_summary.get('error', '') or 'testbench did not pass'}"
 
     return {
+        "variant_name": candidate.get("variant_name", "baseline"),
+        "file": candidate.get("file", ""),
+        "step_name": candidate.get("step_name", "baseline"),
+        "source_path": candidate.get("source_path", ""),
         "benchmark_ready": benchmark_ready,
         "invalid_reason": invalid_reason,
-        "top_function": meta.get("hls_top", "workload"),
         "synthesis": synth_summary,
         "csim": csim_summary,
         "cosim": cosim_summary,
         "report": synth_summary.get("report", {}),
+        "selected": False,
+    }
+
+
+def validate_gold_reference(inputs: dict) -> dict:
+    meta = inputs["meta"]
+    supports_csim = bool(meta.get("supports_csim") and inputs.get("testbench_code"))
+    supports_cosim = bool(meta.get("supports_cosim") and inputs.get("testbench_code"))
+    candidates = _ground_truth_candidates(inputs)
+
+    if not candidates:
+        return {
+            "benchmark_ready": False,
+            "invalid_reason": "Missing gold HLS workflow code",
+            "synthesis": _summarize_synth_result(None),
+            "csim": _summarize_test_result(None, supports_csim),
+            "cosim": _summarize_test_result(None, supports_cosim),
+            "report": {},
+            "top_function": meta.get("hls_top", "workload"),
+            "workflow": [],
+            "selected_variant_name": "",
+            "selected_variant_file": "",
+            "selected_variant_step": "",
+            "selection_reason": "",
+        }
+
+    workflow = [
+        _validate_ground_truth_candidate(candidate, inputs, supports_csim, supports_cosim)
+        for candidate in candidates
+    ]
+
+    baseline_report = None
+    previous_valid_report = None
+    for entry in workflow:
+        report = entry.get("report", {})
+        if entry.get("benchmark_ready") and entry.get("step_name") == "baseline" and baseline_report is None:
+            baseline_report = report
+        if report and previous_valid_report is not None:
+            entry["vs_previous_valid"] = compare_reports(report, previous_valid_report)
+        if report and baseline_report is not None and entry.get("step_name") != "baseline":
+            entry["vs_baseline"] = compare_reports(report, baseline_report)
+        if entry.get("benchmark_ready"):
+            previous_valid_report = report
+
+    preferred_file = _preferred_reference_file(meta, workflow)
+    selected = None
+    selection_reason = ""
+    if preferred_file:
+        for entry in workflow:
+            if entry.get("file") == preferred_file and entry.get("benchmark_ready"):
+                selected = entry
+                selection_reason = f"selected preferred validated variant `{preferred_file}`"
+                break
+
+    if selected is None:
+        valid_entries = [entry for entry in workflow if entry.get("benchmark_ready")]
+        optimized_entries = [entry for entry in valid_entries if entry.get("step_name") != "baseline"]
+        if optimized_entries:
+            selected = optimized_entries[-1]
+            selection_reason = "selected latest validated optimized variant"
+        elif valid_entries:
+            selected = valid_entries[-1]
+            selection_reason = "selected latest validated baseline-only variant"
+
+    for entry in workflow:
+        entry["selected"] = bool(selected and entry.get("file") == selected.get("file"))
+
+    if not selected:
+        last_error = workflow[-1].get("invalid_reason") if workflow else "Missing valid ground-truth workflow"
+        return {
+            "benchmark_ready": False,
+            "invalid_reason": last_error or "Missing valid ground-truth workflow",
+            "top_function": meta.get("hls_top", "workload"),
+            "synthesis": workflow[-1]["synthesis"] if workflow else _summarize_synth_result(None),
+            "csim": workflow[-1]["csim"] if workflow else _summarize_test_result(None, supports_csim),
+            "cosim": workflow[-1]["cosim"] if workflow else _summarize_test_result(None, supports_cosim),
+            "report": workflow[-1].get("report", {}) if workflow else {},
+            "workflow": workflow,
+            "selected_variant_name": "",
+            "selected_variant_file": "",
+            "selected_variant_step": "",
+            "selection_reason": "",
+        }
+
+    return {
+        "benchmark_ready": True,
+        "invalid_reason": "",
+        "top_function": meta.get("hls_top", "workload"),
+        "synthesis": selected["synthesis"],
+        "csim": selected["csim"],
+        "cosim": selected["cosim"],
+        "report": selected.get("report", {}),
+        "workflow": workflow,
+        "selected_variant_name": selected.get("variant_name", ""),
+        "selected_variant_file": selected.get("file", ""),
+        "selected_variant_step": selected.get("step_name", ""),
+        "selection_reason": selection_reason,
     }
 
 
@@ -1593,26 +1832,33 @@ def _finalize_singleshot_results(bench_name: str, meta: dict, success: bool,
     output["benchmark"] = bench_name
     output["success"] = success
     output["reference_validation"] = reference_validation
+    output["ground_truth_report"] = reference_validation.get("report", {})
     output["ground_truth_status"] = "valid" if reference_validation.get("benchmark_ready") else "invalid"
-    output["baseline_status"] = reference_validation.get("synthesis", {}).get("status", "not_run")
+    output["baseline_status"] = reference_validation.get("synthesis", {}).get("status", "failed")
     output["invalid_reference_reason"] = reference_validation.get("invalid_reason", "")
+    output["ground_truth_variant"] = {
+        "name": reference_validation.get("selected_variant_name", ""),
+        "file": reference_validation.get("selected_variant_file", ""),
+        "step": reference_validation.get("selected_variant_step", ""),
+        "selection_reason": reference_validation.get("selection_reason", ""),
+    }
+    output["ground_truth_workflow"] = reference_validation.get("workflow", [])
+    output["optimization_history"] = output.get("turn_history", [])
 
     if output.get("phase") == "complete" and output.get("synth_report"):
         output["generated_status"] = "passed"
-    elif output.get("phase") in {"A", "B"}:
-        output["generated_status"] = "failed"
     else:
-        output["generated_status"] = "not_run"
+        output["generated_status"] = "failed"
 
     generated_csim = output.get("csim")
     generated_cosim = output.get("cosim")
     output["csim_status"] = {
-        "ground_truth": reference_validation.get("csim", {}).get("status", "not_run"),
-        "generated": (generated_csim or {}).get("status", "not_run"),
+        "ground_truth": reference_validation.get("csim", {}).get("status", "failed"),
+        "generated": (generated_csim or {}).get("status", "failed"),
     }
     output["cosim_status"] = {
-        "ground_truth": reference_validation.get("cosim", {}).get("status", "not_run"),
-        "generated": (generated_cosim or {}).get("status", "not_run"),
+        "ground_truth": reference_validation.get("cosim", {}).get("status", "failed"),
+        "generated": (generated_cosim or {}).get("status", "failed"),
     }
     output["coverage"] = _build_coverage(meta, reference_validation, generated_csim, generated_cosim)
 
@@ -1657,6 +1903,7 @@ def run_benchmark(bench_dir: str, output_dir: str = None,
     )
 
     reference_validation = validate_gold_reference(inputs)
+
     if not reference_validation.get("benchmark_ready"):
         results = _finalize_singleshot_results(
             bench_name,
@@ -1740,7 +1987,7 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
             "error": reference_validation.get("invalid_reason") or "Gold HLS reference invalid",
             "reference_validation": reference_validation,
             "ground_truth_status": "invalid",
-            "baseline_status": reference_validation.get("synthesis", {}).get("status", "not_run"),
+            "baseline_status": reference_validation.get("synthesis", {}).get("status", "failed"),
             "invalid_reference_reason": reference_validation.get("invalid_reason", ""),
         }
 
@@ -1753,19 +2000,27 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
         reference_report=reference_validation.get("report", {}),
     )
 
-    orchestrator.save_multistep_results(output_dir, bench_name, results)
     results["benchmark"] = bench_name
     results["success"] = success
     results["reference_validation"] = reference_validation
     results["ground_truth_status"] = "valid"
-    results["baseline_status"] = reference_validation.get("synthesis", {}).get("status", "not_run")
+    results["baseline_status"] = reference_validation.get("synthesis", {}).get("status", "failed")
     results["invalid_reference_reason"] = ""
+    results["ground_truth_variant"] = {
+        "name": reference_validation.get("selected_variant_name", ""),
+        "file": reference_validation.get("selected_variant_file", ""),
+        "step": reference_validation.get("selected_variant_step", ""),
+        "selection_reason": reference_validation.get("selection_reason", ""),
+    }
+    results["ground_truth_workflow"] = reference_validation.get("workflow", [])
+    results["optimization_history"] = results.get("generated_step_history", [])
     results["coverage"] = _build_coverage(
         inputs["meta"],
         reference_validation,
         results.get("baseline_csim"),
         results.get("baseline_cosim"),
     )
+    orchestrator.save_multistep_results(output_dir, bench_name, results)
     return results
 
 
@@ -1778,8 +2033,7 @@ def _print_multistep_summary(results: dict):
     baseline = results.get("baseline_report", {})
     if baseline:
         print(
-            f"\n  Baseline: lat={baseline.get('latency_cycles', '?')} cycles, "
-            f"II={baseline.get('interval', '?')}, "
+            f"\n  Baseline: lat={baseline.get('latency_ns', '?')} ns, "
             f"BRAM={baseline.get('bram', '?')}, DSP={baseline.get('dsp', '?')}, "
             f"FF={baseline.get('ff', '?')}, LUT={baseline.get('lut', '?')}, "
             f"Fmax={baseline.get('fmax_mhz', '?')} MHz"
@@ -1792,8 +2046,7 @@ def _print_multistep_summary(results: dict):
         print(f"\n  [{name}] {status}")
         if report:
             print(
-                f"    lat={report.get('latency_cycles', '?')} cycles, "
-                f"II={report.get('interval', '?')}, "
+                f"    lat={report.get('latency_ns', '?')} ns, "
                 f"BRAM={report.get('bram', '?')}, DSP={report.get('dsp', '?')}, "
                 f"FF={report.get('ff', '?')}, LUT={report.get('lut', '?')}, "
                 f"Fmax={report.get('fmax_mhz', '?')} MHz"
@@ -1802,7 +2055,7 @@ def _print_multistep_summary(results: dict):
     final = results.get("final_report", {})
     if final and baseline:
         print("\n  Final vs Baseline:")
-        for key in ["latency_cycles", "interval", "bram", "dsp", "ff", "lut"]:
+        for key in ["latency_ns", "bram", "dsp", "ff", "lut"]:
             final_value = final.get(key)
             baseline_value = baseline.get(key)
             if final_value is None or baseline_value is None:

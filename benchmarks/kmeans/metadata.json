@@ -59,7 +59,12 @@
   "kernel_top": "workload",
   "hls_top": "workload",
   "translated_hls_top": "workload",
-  "support_files": [],
+  "support_files": [
+    "support/common/mars_wide_bus.h",
+    "support/common/mars_wide_bus_2d.h",
+    "support/common/mars_wide_bus_4d.h",
+    "support/common/mc.h"
+  ],
   "include_dirs": [],
   "supports_csim": true,
   "supports_cosim": false,
@@ -79,5 +84,6 @@
     "gold_hls_baseline_sha256": "fe00bb5da83cabb1fc3de78b636b0471137c7ab829b3749c0b23b2935d4415df",
     "plain_c_sha256": "7469e546f9e01ea6e7dc6226e714963c03eff1ce67c5515ac42305dca4b2bacd",
     "plain_derived_from_gold_hls": true
-  }
+  },
+  "preferred_gt_file": "hls_kmeans_5_coalescing.cpp"
 }

@@ -1,0 +1,581 @@
+{
+  "phase": "complete",
+  "hls_code": "#include \"fft.h\"\n\n#define THREADS 64\n#define cmplx_M_x(a_x, a_y, b_x, b_y) (a_x*b_x - a_y*b_y)\n#define cmplx_M_y(a_x, a_y, b_x, b_y) (a_x*b_y + a_y*b_x)\n#define cmplx_mul_x(a_x, a_y, b_x, b_y) (a_x*b_x - a_y*b_y)\n#define cmplx_mul_y(a_x, a_y, b_x, b_y) (a_x*b_y + a_y*b_x)\n#define cmplx_add_x(a_x, b_x) (a_x + b_x)\n#define cmplx_add_y(a_y, b_y) (a_y + b_y)\n#define cmplx_sub_x(a_x, b_x) (a_x - b_x)\n#define cmplx_sub_y(a_y, b_y) (a_y - b_y)\n#define cm_fl_mul_x(a_x, b) (b*a_x)\n#define cm_fl_mul_y(a_y, b) (b*a_y)\n\nvoid twiddles8(TYPE a_x[8], TYPE a_y[8], int i, int n) {\n    int reversed8[8] = {0,4,2,6,1,5,3,7};\n    int j;\n    TYPE phi, tmp, phi_x, phi_y;\n    twiddles: for (j = 1; j < 8; j++) {\n        phi = ((-2*PI*reversed8[j]/n)*i);\n        phi_x = cos(phi);\n        phi_y = sin(phi);\n        tmp = a_x[j];\n        a_x[j] = cmplx_M_x(a_x[j], a_y[j], phi_x, phi_y);\n        a_y[j] = cmplx_M_y(tmp, a_y[j], phi_x, phi_y);\n    }\n}\n\n#define FF2(a0_x, a0_y, a1_x, a1_y){ \\\n    TYPE c0_x = *a0_x; TYPE c0_y = *a0_y; \\\n    *a0_x = cmplx_add_x(c0_x, *a1_x); *a0_y = cmplx_add_y(c0_y, *a1_y); \\\n    *a1_x = cmplx_sub_x(c0_x, *a1_x); *a1_y = cmplx_sub_y(c0_y, *a1_y); \\\n}\n\n#define FFT4(a0_x, a0_y, a1_x, a1_y, a2_x, a2_y, a3_x, a3_y){ \\\n    TYPE exp_1_44_x, exp_1_44_y, tmp; \\\n    exp_1_44_x = 0.0; exp_1_44_y = -1.0; \\\n    FF2(a0_x, a0_y, a2_x, a2_y); FF2(a1_x, a1_y, a3_x, a3_y); \\\n    tmp = *a3_x; *a3_x = *a3_x*exp_1_44_x-*a3_y*exp_1_44_y; \\\n    *a3_y = tmp*exp_1_44_y - *a3_y*exp_1_44_x; \\\n    FF2(a0_x, a0_y, a1_x, a1_y); FF2(a2_x, a2_y, a3_x, a3_y); \\\n}\n\n#define FFT8(a_x, a_y) { \\\n    TYPE exp_1_8_x=1, exp_1_4_x=0, exp_3_8_x=-1; \\\n    TYPE exp_1_8_y=-1, exp_1_4_y=-1, exp_3_8_y=-1; \\\n    TYPE tmp_1; \\\n    FF2(&a_x[0],&a_y[0],&a_x[4],&a_y[4]); FF2(&a_x[1],&a_y[1],&a_x[5],&a_y[5]); \\\n    FF2(&a_x[2],&a_y[2],&a_x[6],&a_y[6]); FF2(&a_x[3],&a_y[3],&a_x[7],&a_y[7]); \\\n    tmp_1=a_x[5]; a_x[5]=cm_fl_mul_x(cmplx_mul_x(a_x[5],a_y[5],exp_1_8_x,exp_1_8_y),M_SQRT1_2); \\\n    a_y[5]=cm_fl_mul_y(cmplx_mul_y(tmp_1,a_y[5],exp_1_8_x,exp_1_8_y),M_SQRT1_2); \\\n    tmp_1=a_x[6]; a_x[6]=cmplx_mul_x(a_x[6],a_y[6],exp_1_4_x,exp_1_4_y); \\\n    a_y[6]=cmplx_mul_y(tmp_1,a_y[6],exp_1_4_x,exp_1_4_y); \\\n    tmp_1=a_x[7]; a_x[7]=cm_fl_mul_x(cmplx_mul_x(a_x[7],a_y[7],exp_3_8_x,exp_3_8_y),M_SQRT1_2); \\\n    a_y[7]=cm_fl_mul_y(cmplx_mul_y(tmp_1,a_y[7],exp_3_8_x,exp_3_8_y),M_SQRT1_2); \\\n    FFT4(&a_x[0],&a_y[0],&a_x[1],&a_y[1],&a_x[2],&a_y[2],&a_x[3],&a_y[3]); \\\n    FFT4(&a_x[4],&a_y[4],&a_x[5],&a_y[5],&a_x[6],&a_y[6],&a_x[7],&a_y[7]); \\\n}\n\nvoid loady8(TYPE a_y[], TYPE x[], int offset, int sx) {\n    for (int k = 0; k < 8; k++) {\n        a_y[k] = x[k*sx+offset];\n    }\n}\n\nvoid fft1D_512(TYPE work_x[512], TYPE work_y[512]) {\n    int tid, hi, lo, stride;\n    int reversed[] = {0,4,2,6,1,5,3,7};\n    TYPE DATA_x[THREADS*8], DATA_y[THREADS*8];\n    TYPE data_x[8], data_y[8];\n    #pragma HLS ARRAY_PARTITION variable=data_x complete dim=1\n    #pragma HLS ARRAY_PARTITION variable=data_y complete dim=1\n    \n    TYPE smem[8*8*9];\n    stride = THREADS;\n\n    loop1: for (tid = 0; tid < THREADS; tid++) {\n        for (int k = 0; k < 8; k++) {\n            data_x[k] = work_x[k*stride+tid];\n            data_y[k] = work_y[k*stride+tid];\n        }\n        FFT8(data_x, data_y);\n        twiddles8(data_x, data_y, tid, 512);\n        for (int k = 0; k < 8; k++) {\n            DATA_x[tid*8+k] = data_x[k];\n            DATA_y[tid*8+k] = data_y[k];\n        }\n    }\n    \n    int sx, offset;\n    sx = 66;\n    loop2: for (tid = 0; tid < 64; tid++) {\n        hi=tid>>3; lo=tid&7; offset=hi*8+lo;\n        smem[0*sx+offset]=DATA_x[tid*8+0]; smem[4*sx+offset]=DATA_x[tid*8+1];\n        smem[1*sx+offset]=DATA_x[tid*8+4]; smem[5*sx+offset]=DATA_x[tid*8+5];\n        smem[2*sx+offset]=DATA_x[tid*8+2]; smem[6*sx+offset]=DATA_x[tid*8+3];\n        smem[3*sx+offset]=DATA_x[tid*8+6]; smem[7*sx+offset]=DATA_x[tid*8+7];\n    }\n    \n    sx = 8;\n    loop3: for (tid = 0; tid < 64; tid++) {\n        hi=tid>>3; lo=tid&7; offset=lo*66+hi;\n        DATA_x[tid*8+0]=smem[0*sx+offset]; DATA_x[tid*8+4]=smem[4*sx+offset];\n        DATA_x[tid*8+1]=smem[1*sx+offset]; DATA_x[tid*8+5]=smem[5*sx+offset];\n        DATA_x[tid*8+2]=smem[2*sx+offset]; DATA_x[tid*8+6]=smem[6*sx+offset];\n        DATA_x[tid*8+3]=smem[3*sx+offset]; DATA_x[tid*8+7]=smem[7*sx+offset];\n    }\n    \n    sx = 66;\n    loop4: for (tid = 0; tid < 64; tid++) {\n        hi=tid>>3; lo=tid&7; offset=hi*8+lo;\n        smem[0*sx+offset]=DATA_y[tid*8+0]; smem[4*sx+offset]=DATA_y[tid*8+1];\n        smem[1*sx+offset]=DATA_y[tid*8+4]; smem[5*sx+offset]=DATA_y[tid*8+5];\n        smem[2*sx+offset]=DATA_y[tid*8+2]; smem[6*sx+offset]=DATA_y[tid*8+3];\n        smem[3*sx+offset]=DATA_y[tid*8+6]; smem[7*sx+offset]=DATA_y[tid*8+7];\n    }\n    \n    loop5: for (tid = 0; tid < 64; tid++) {\n        hi=tid>>3; lo=tid&7;\n        loady8(data_y, smem, lo*66+hi, 8);\n        for (int k = 0; k < 8; k++) {\n            DATA_y[tid*8+k] = data_y[k];\n        }\n    }\n    \n    loop6: for (tid = 0; tid < 64; tid++) {\n        for (int k = 0; k < 8; k++) {\n            data_x[k]=DATA_x[tid*8+k];\n            data_y[k]=DATA_y[tid*8+k];\n        }\n        FFT8(data_x, data_y);\n        hi=tid>>3;\n        twiddles8(data_x, data_y, hi, 64);\n        for (int k = 0; k < 8; k++) {\n            DATA_x[tid*8+k]=data_x[k];\n            DATA_y[tid*8+k]=data_y[k];\n        }\n    }\n    \n    sx = 72;\n    loop7: for (tid = 0; tid < 64; tid++) {\n        hi=tid>>3; lo=tid&7; offset=hi*8+lo;\n        smem[0*sx+offset]=DATA_x[tid*8+0]; smem[4*sx+offset]=DATA_x[tid*8+1];\n        smem[1*sx+offset]=DATA_x[tid*8+4]; smem[5*sx+offset]=DATA_x[tid*8+5];\n        smem[2*sx+offset]=DATA_x[tid*8+2]; smem[6*sx+offset]=DATA_x[tid*8+3];\n        smem[3*sx+offset]=DATA_x[tid*8+6]; smem[7*sx+offset]=DATA_x[tid*8+7];\n    }\n    \n    sx = 8;\n    loop8: for (tid = 0; tid < 64; tid++) {\n        hi=tid>>3; lo=tid&7; offset=hi*72+lo;\n        DATA_x[tid*8+0]=smem[0*sx+offset]; DATA_x[tid*8+4]=smem[4*sx+offset];\n        DATA_x[tid*8+1]=smem[1*sx+offset]; DATA_x[tid*8+5]=smem[5*sx+offset];\n        DATA_x[tid*8+2]=smem[2*sx+offset]; DATA_x[tid*8+6]=smem[6*sx+offset];\n        DATA_x[tid*8+3]=smem[3*sx+offset]; DATA_x[tid*8+7]=smem[7*sx+offset];\n    }\n    \n    sx = 72;\n    loop9: for (tid = 0; tid < 64; tid++) {\n        hi=tid>>3; lo=tid&7; offset=hi*8+lo;\n        smem[0*sx+offset]=DATA_y[tid*8+0]; smem[4*sx+offset]=DATA_y[tid*8+1];\n        smem[1*sx+offset]=DATA_y[tid*8+4]; smem[5*sx+offset]=DATA_y[tid*8+5];\n        smem[2*sx+offset]=DATA_y[tid*8+2]; smem[6*sx+offset]=DATA_y[tid*8+3];\n        smem[3*sx+offset]=DATA_y[tid*8+6]; smem[7*sx+offset]=DATA_y[tid*8+7];\n    }\n    \n    loop10: for (tid = 0; tid < 64; tid++) {\n        hi=tid>>3; lo=tid&7;\n        loady8(data_y, smem, hi*72+lo, 8);\n        for (int k = 0; k < 8; k++) {\n            DATA_y[tid*8+k] = data_y[k];\n        }\n    }\n    \n    loop11: for (tid = 0; tid < 64; tid++) {\n        for (int k = 0; k < 8; k++) {\n            data_x[k]=DATA_x[tid*8+k];\n            data_y[k]=DATA_y[tid*8+k];\n        }\n        FFT8(data_x, data_y);\n        for (int k = 0; k < 8; k++) {\n            work_x[k*stride+tid]=data_x[reversed[k]];\n            work_y[k*stride+tid]=data_y[reversed[k]];\n        }\n    }\n}\n\nextern \"C\" {\nvoid workload(TYPE* work_x, TYPE* work_y) {\n    #pragma HLS INTERFACE m_axi port=work_x offset=slave bundle=gmem\n    #pragma HLS INTERFACE m_axi port=work_y offset=slave bundle=gmem\n    #pragma HLS INTERFACE s_axilite port=work_x bundle=control\n    #pragma HLS INTERFACE s_axilite port=work_y bundle=control\n    #pragma HLS INTERFACE s_axilite port=return bundle=control\n\n    TYPE l_x[512], l_y[512];\n    \n    int i;\n    copy_in: for (i = 0; i < 512; i++) {\n        l_x[i] = work_x[i];\n        l_y[i] = work_y[i];\n    }\n    \n    fft1D_512(l_x, l_y);\n    \n    copy_out: for (i = 0; i < 512; i++) {\n        work_x[i] = l_x[i];\n        work_y[i] = l_y[i];\n    }\n}\n}",
+  "synth_report": {
+    "latency_cycles": 221395,
+    "latency_ns": 1525000.0,
+    "bram": "280",
+    "dsp": "375",
+    "ff": "146612",
+    "lut": "83175",
+    "uram": "0",
+    "fmax_mhz": 145.14,
+    "interval": 221396,
+    "estimated_clock_period_ns": 6.89,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -2.89,
+    "work_dir": "/tmp/hls_synth_gjyljg0a"
+  },
+  "comparison": {
+    "success": true,
+    "valid_reference": true,
+    "invalid_reference": false,
+    "generated_report": {
+      "latency_cycles": 221395,
+      "latency_ns": 1525000.0,
+      "bram": "280",
+      "dsp": "375",
+      "ff": "146612",
+      "lut": "83175",
+      "uram": "0",
+      "fmax_mhz": 145.14,
+      "interval": 221396,
+      "estimated_clock_period_ns": 6.89,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -2.89,
+      "work_dir": "/tmp/hls_synth_gjyljg0a"
+    },
+    "ground_truth_report": {
+      "latency_cycles": 221395,
+      "latency_ns": 1525000.0,
+      "bram": "284",
+      "dsp": "375",
+      "ff": "145702",
+      "lut": "83998",
+      "uram": "0",
+      "fmax_mhz": 145.14,
+      "interval": 221396,
+      "estimated_clock_period_ns": 6.89,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -2.89,
+      "work_dir": "/tmp/hls_synth_hkph4vwn"
+    },
+    "comparison": {
+      "latency_cycles": {
+        "generated": 221395.0,
+        "ground_truth": 221395.0,
+        "ratio": 1.0
+      },
+      "latency_ns": {
+        "generated": 1525000.0,
+        "ground_truth": 1525000.0,
+        "ratio": 1.0
+      },
+      "interval": {
+        "generated": 221396.0,
+        "ground_truth": 221396.0,
+        "ratio": 1.0
+      },
+      "bram": {
+        "generated": 280.0,
+        "ground_truth": 284.0,
+        "ratio": 0.986
+      },
+      "dsp": {
+        "generated": 375.0,
+        "ground_truth": 375.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 146612.0,
+        "ground_truth": 145702.0,
+        "ratio": 1.006
+      },
+      "lut": {
+        "generated": 83175.0,
+        "ground_truth": 83998.0,
+        "ratio": 0.99
+      },
+      "fmax_mhz": {
+        "generated": 145.14,
+        "ground_truth": 145.14,
+        "ratio": 1.0
+      }
+    }
+  },
+  "csim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "cosim": null,
+  "quality_repair": {
+    "attempted": true,
+    "applied": true,
+    "attempts": [
+      {
+        "turn": 0,
+        "focus": "general",
+        "score_before": 130.242,
+        "candidate_score": 72.286,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 221395.0,
+            "ground_truth": 221395.0,
+            "ratio": 1.0
+          },
+          "latency_ns": {
+            "generated": 1525000.0,
+            "ground_truth": 1525000.0,
+            "ratio": 1.0
+          },
+          "interval": {
+            "generated": 221396.0,
+            "ground_truth": 221396.0,
+            "ratio": 1.0
+          },
+          "bram": {
+            "generated": 280.0,
+            "ground_truth": 284.0,
+            "ratio": 0.986
+          },
+          "dsp": {
+            "generated": 375.0,
+            "ground_truth": 375.0,
+            "ratio": 1.0
+          },
+          "ff": {
+            "generated": 146612.0,
+            "ground_truth": 145702.0,
+            "ratio": 1.006
+          },
+          "lut": {
+            "generated": 83175.0,
+            "ground_truth": 83998.0,
+            "ratio": 0.99
+          },
+          "fmax_mhz": {
+            "generated": 145.14,
+            "ground_truth": 145.14,
+            "ratio": 1.0
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "accepted"
+      },
+      {
+        "turn": 1,
+        "focus": "general",
+        "score_before": 72.286,
+        "candidate_score": 72.25,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 4651.0,
+            "ground_truth": 221395.0,
+            "ratio": 0.021
+          },
+          "latency_ns": {
+            "generated": 32045.0,
+            "ground_truth": 1525000.0,
+            "ratio": 0.021
+          },
+          "interval": {
+            "generated": 4652.0,
+            "ground_truth": 221396.0,
+            "ratio": 0.021
+          },
+          "bram": {
+            "generated": 86.0,
+            "ground_truth": 284.0,
+            "ratio": 0.303
+          },
+          "dsp": {
+            "generated": 346.0,
+            "ground_truth": 375.0,
+            "ratio": 0.923
+          },
+          "ff": {
+            "generated": 98042.0,
+            "ground_truth": 145702.0,
+            "ratio": 0.673
+          },
+          "lut": {
+            "generated": 57590.0,
+            "ground_truth": 83998.0,
+            "ratio": 0.686
+          },
+          "fmax_mhz": {
+            "generated": 145.14,
+            "ground_truth": 145.14,
+            "ratio": 1.0
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "rejected",
+        "rejection_reason": "Quality score did not improve enough (72.250 vs 72.286)"
+      }
+    ],
+    "initial_score": 130.242,
+    "initial_comparison": {
+      "latency_cycles": {
+        "generated": 4934.0,
+        "ground_truth": 221395.0,
+        "ratio": 0.022
+      },
+      "latency_ns": {
+        "generated": 33995.0,
+        "ground_truth": 1525000.0,
+        "ratio": 0.022
+      },
+      "interval": {
+        "generated": 4935.0,
+        "ground_truth": 221396.0,
+        "ratio": 0.022
+      },
+      "bram": {
+        "generated": 276.0,
+        "ground_truth": 284.0,
+        "ratio": 0.972
+      },
+      "dsp": {
+        "generated": 2027.0,
+        "ground_truth": 375.0,
+        "ratio": 5.405
+      },
+      "ff": {
+        "generated": 412190.0,
+        "ground_truth": 145702.0,
+        "ratio": 2.829
+      },
+      "lut": {
+        "generated": 248855.0,
+        "ground_truth": 83998.0,
+        "ratio": 2.963
+      },
+      "fmax_mhz": {
+        "generated": 145.14,
+        "ground_truth": 145.14,
+        "ratio": 1.0
+      }
+    },
+    "final_score": 72.286,
+    "final_comparison": {
+      "latency_cycles": {
+        "generated": 221395.0,
+        "ground_truth": 221395.0,
+        "ratio": 1.0
+      },
+      "latency_ns": {
+        "generated": 1525000.0,
+        "ground_truth": 1525000.0,
+        "ratio": 1.0
+      },
+      "interval": {
+        "generated": 221396.0,
+        "ground_truth": 221396.0,
+        "ratio": 1.0
+      },
+      "bram": {
+        "generated": 280.0,
+        "ground_truth": 284.0,
+        "ratio": 0.986
+      },
+      "dsp": {
+        "generated": 375.0,
+        "ground_truth": 375.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 146612.0,
+        "ground_truth": 145702.0,
+        "ratio": 1.006
+      },
+      "lut": {
+        "generated": 83175.0,
+        "ground_truth": 83998.0,
+        "ratio": 0.99
+      },
+      "fmax_mhz": {
+        "generated": 145.14,
+        "ground_truth": 145.14,
+        "ratio": 1.0
+      }
+    }
+  },
+  "turn_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 4934,
+        "latency_ns": 33995.0,
+        "bram": "276",
+        "dsp": "2027",
+        "ff": "412190",
+        "lut": "248855",
+        "uram": "0",
+        "fmax_mhz": 145.14,
+        "interval": 4935,
+        "estimated_clock_period_ns": 6.89,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -2.89,
+        "work_dir": "/tmp/hls_synth_etdr995i"
+      },
+      "error": ""
+    }
+  ],
+  "benchmark": "fft",
+  "success": true,
+  "reference_validation": {
+    "benchmark_ready": true,
+    "invalid_reason": "",
+    "top_function": "workload",
+    "synthesis": {
+      "status": "passed",
+      "ran": true,
+      "success": true,
+      "error": "",
+      "report": {
+        "latency_cycles": 221395,
+        "latency_ns": 1525000.0,
+        "bram": "284",
+        "dsp": "375",
+        "ff": "145702",
+        "lut": "83998",
+        "uram": "0",
+        "fmax_mhz": 145.14,
+        "interval": 221396,
+        "estimated_clock_period_ns": 6.89,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -2.89,
+        "work_dir": "/tmp/hls_synth_hkph4vwn"
+      },
+      "work_dir": "/tmp/hls_synth_hkph4vwn"
+    },
+    "csim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "cosim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "report": {
+      "latency_cycles": 221395,
+      "latency_ns": 1525000.0,
+      "bram": "284",
+      "dsp": "375",
+      "ff": "145702",
+      "lut": "83998",
+      "uram": "0",
+      "fmax_mhz": 145.14,
+      "interval": 221396,
+      "estimated_clock_period_ns": 6.89,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -2.89,
+      "work_dir": "/tmp/hls_synth_hkph4vwn"
+    },
+    "workflow": [
+      {
+        "variant_name": "fft_0_baseline",
+        "file": "hls_baseline.cpp",
+        "step_name": "baseline",
+        "source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+        "benchmark_ready": true,
+        "invalid_reason": "",
+        "synthesis": {
+          "status": "passed",
+          "ran": true,
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 221395,
+            "latency_ns": 1525000.0,
+            "bram": "284",
+            "dsp": "375",
+            "ff": "145702",
+            "lut": "83998",
+            "uram": "0",
+            "fmax_mhz": 145.14,
+            "interval": 221396,
+            "estimated_clock_period_ns": 6.89,
+            "requested_clock_period_ns": 4.0,
+            "slack_ns": -2.89,
+            "work_dir": "/tmp/hls_synth_hkph4vwn"
+          },
+          "work_dir": "/tmp/hls_synth_hkph4vwn"
+        },
+        "csim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "cosim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "report": {
+          "latency_cycles": 221395,
+          "latency_ns": 1525000.0,
+          "bram": "284",
+          "dsp": "375",
+          "ff": "145702",
+          "lut": "83998",
+          "uram": "0",
+          "fmax_mhz": 145.14,
+          "interval": 221396,
+          "estimated_clock_period_ns": 6.89,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -2.89,
+          "work_dir": "/tmp/hls_synth_hkph4vwn"
+        },
+        "selected": true
+      }
+    ],
+    "selected_variant_name": "fft_0_baseline",
+    "selected_variant_file": "hls_baseline.cpp",
+    "selected_variant_step": "baseline",
+    "selection_reason": "selected preferred validated variant `hls_baseline.cpp`"
+  },
+  "ground_truth_status": "valid",
+  "baseline_status": "passed",
+  "invalid_reference_reason": "",
+  "generated_status": "passed",
+  "csim_status": {
+    "ground_truth": "failed",
+    "generated": "passed"
+  },
+  "cosim_status": {
+    "ground_truth": "failed",
+    "generated": "failed"
+  },
+  "coverage": {
+    "ground_truth_csim_available": true,
+    "ground_truth_csim_ran": false,
+    "ground_truth_cosim_available": false,
+    "ground_truth_cosim_ran": false,
+    "generated_csim_available": true,
+    "generated_csim_ran": true,
+    "generated_cosim_available": false,
+    "generated_cosim_ran": false
+  },
+  "optimization_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 4934,
+        "latency_ns": 33995.0,
+        "bram": "276",
+        "dsp": "2027",
+        "ff": "412190",
+        "lut": "248855",
+        "uram": "0",
+        "fmax_mhz": 145.14,
+        "interval": 4935,
+        "estimated_clock_period_ns": 6.89,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -2.89,
+        "work_dir": "/tmp/hls_synth_etdr995i"
+      },
+      "error": ""
+    }
+  ],
+  "ground_truth_variant": {
+    "name": "fft_0_baseline",
+    "file": "hls_baseline.cpp",
+    "step": "baseline",
+    "selection_reason": "selected preferred validated variant `hls_baseline.cpp`"
+  },
+  "ground_truth_workflow": [
+    {
+      "variant_name": "fft_0_baseline",
+      "file": "hls_baseline.cpp",
+      "step_name": "baseline",
+      "source_path": "CURATED_TEMPLATE::hls_baseline.cpp",
+      "benchmark_ready": true,
+      "invalid_reason": "",
+      "synthesis": {
+        "status": "passed",
+        "ran": true,
+        "success": true,
+        "error": "",
+        "report": {
+          "latency_cycles": 221395,
+          "latency_ns": 1525000.0,
+          "bram": "284",
+          "dsp": "375",
+          "ff": "145702",
+          "lut": "83998",
+          "uram": "0",
+          "fmax_mhz": 145.14,
+          "interval": 221396,
+          "estimated_clock_period_ns": 6.89,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -2.89,
+          "work_dir": "/tmp/hls_synth_hkph4vwn"
+        },
+        "work_dir": "/tmp/hls_synth_hkph4vwn"
+      },
+      "csim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "cosim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "report": {
+        "latency_cycles": 221395,
+        "latency_ns": 1525000.0,
+        "bram": "284",
+        "dsp": "375",
+        "ff": "145702",
+        "lut": "83998",
+        "uram": "0",
+        "fmax_mhz": 145.14,
+        "interval": 221396,
+        "estimated_clock_period_ns": 6.89,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -2.89,
+        "work_dir": "/tmp/hls_synth_hkph4vwn"
+      },
+      "selected": true
+    }
+  ],
+  "ground_truth_report": {
+    "latency_cycles": 221395,
+    "latency_ns": 1525000.0,
+    "bram": "284",
+    "dsp": "375",
+    "ff": "145702",
+    "lut": "83998",
+    "uram": "0",
+    "fmax_mhz": 145.14,
+    "interval": 221396,
+    "estimated_clock_period_ns": 6.89,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -2.89,
+    "work_dir": "/tmp/hls_synth_hkph4vwn"
+  }
+}

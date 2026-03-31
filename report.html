@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>C-to-HLS Translation Report</title>
+<style>
+:root { --bg: #f8fafc; --card: #fff; --border: #e2e8f0; --text: #1e293b; --muted: #64748b; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+.container { max-width:1200px; margin:0 auto; padding:24px 16px; }
+h1 { font-size:24px; margin-bottom:4px; }
+h2 { font-size:18px; margin:32px 0 12px; border-bottom:2px solid var(--border); padding-bottom:6px; }
+h3 { font-size:15px; margin:16px 0 8px; }
+.subtitle { color:var(--muted); font-size:14px; margin-bottom:24px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:24px; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:16px; text-align:center; }
+.card .value { font-size:28px; font-weight:700; }
+.card .label { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:16px; font-size:13px; }
+th { background:#f1f5f9; font-weight:600; text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); white-space:nowrap; }
+td { padding:6px 10px; border-bottom:1px solid var(--border); }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:#f8fafc; }
+.grade { display:inline-block; width:28px; height:28px; line-height:28px; text-align:center; border-radius:6px; font-weight:700; font-size:14px; color:#fff; }
+.bar-cell { min-width:120px; }
+.metric-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:16px; }
+.metric-card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:16px; }
+.chip { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+.chip-pass { background:#dcfce7; color:#166534; }
+.chip-fail { background:#fee2e2; color:#991b1b; }
+.chip-na { background:#f3f4f6; color:#6b7280; }
+.legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin:8px 0; }
+.legend span::before { content:''; display:inline-block; width:12px; height:12px; border-radius:2px; margin-right:4px; vertical-align:middle; }
+details { margin-bottom:8px; }
+details summary { cursor:pointer; font-weight:600; padding:8px 0; }
+.resource-row { display:grid; grid-template-columns:70px 1fr 60px 60px 60px; gap:4px; align-items:center; font-size:12px; padding:2px 0; }
+footer { text-align:center; color:var(--muted); font-size:12px; margin-top:40px; padding:16px 0; border-top:1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>C-to-HLS Translation Report</h1>
+<div class="subtitle">Single-Shot mode &middot; Generated 2026-03-31 12:40</div>
+
+
+<div class="cards">
+  <div class="card"><div class="value" style="color:#f97316">55.6</div><div class="label">Overall Score</div></div>
+  <div class="card"><div class="value">15/17</div><div class="label">Synthesized</div></div>
+  <div class="card"><div class="value">60.7</div><div class="label">Avg (synth only)</div></div>
+  <div class="card">
+    <div class="value" style="font-size:20px">
+      <span class="grade" style="background:#22c55e;margin:1px">2</span><span class="grade" style="background:#3b82f6;margin:1px">3</span><span class="grade" style="background:#eab308;margin:1px">4</span><span class="grade" style="background:#f97316;margin:1px">3</span><span class="grade" style="background:#ef4444;margin:1px">5</span>
+    </div>
+    <div class="label">Grade Distribution</div>
+  </div>
+</div>
+
+<h2>Benchmark Scoreboard</h2>
+<table>
+<tr>
+  <th>Benchmark</th><th>Grade</th><th>Score</th><th></th>
+  <th>Synth</th><th>Csim</th><th>Cosim</th>
+  <th>Latency</th><th>Fmax</th><th>Resources</th><th>ADP</th><th>Feasibility</th>
+</tr>
+
+<tr>
+  <td><strong>nw</strong></td>
+  <td><span class="grade" style="background:#22c55e">A</span></td>
+  <td><strong>95.2</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#22c55e;border-radius:4px;height:100%;width:95.2%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">95.2%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td>89.5</td>
+  <td>85.0</td>
+  <td>95.3</td>
+  <td>99.8</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>spmv_crs</strong></td>
+  <td><span class="grade" style="background:#22c55e">A</span></td>
+  <td><strong>90.3</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#22c55e;border-radius:4px;height:100%;width:90.3%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">90.3%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td>84.7</td>
+  <td>88.7</td>
+  <td>83.2</td>
+  <td>85.2</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>aes</strong></td>
+  <td><span class="grade" style="background:#3b82f6">B</span></td>
+  <td><strong>80.2</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#3b82f6;border-radius:4px;height:100%;width:80.2%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">80.2%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>85.0</td>
+  <td>85.0</td>
+  <td>85.0</td>
+  <td>85.0</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>gemm_ncubed</strong></td>
+  <td><span class="grade" style="background:#3b82f6">B</span></td>
+  <td><strong>80.2</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#3b82f6;border-radius:4px;height:100%;width:80.2%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">80.2%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>85.0</td>
+  <td>85.0</td>
+  <td>85.0</td>
+  <td>85.0</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>sort_merge</strong></td>
+  <td><span class="grade" style="background:#3b82f6">B</span></td>
+  <td><strong>80.2</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#3b82f6;border-radius:4px;height:100%;width:80.2%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">80.2%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>85.0</td>
+  <td>85.0</td>
+  <td>85.0</td>
+  <td>85.0</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>fft</strong></td>
+  <td><span class="grade" style="background:#eab308">C</span></td>
+  <td><strong>70.3</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#eab308;border-radius:4px;height:100%;width:70.3%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">70.3%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>85.0</td>
+  <td>85.0</td>
+  <td>85.0</td>
+  <td>85.1</td>
+  <td>0.0</td>
+</tr>
+
+<tr>
+  <td><strong>viterbi</strong></td>
+  <td><span class="grade" style="background:#eab308">C</span></td>
+  <td><strong>68.9</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#eab308;border-radius:4px;height:100%;width:68.9%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">68.9%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>81.2</td>
+  <td>85.0</td>
+  <td>85.1</td>
+  <td>81.6</td>
+  <td>0.0</td>
+</tr>
+
+<tr>
+  <td><strong>knn</strong></td>
+  <td><span class="grade" style="background:#eab308">C</span></td>
+  <td><strong>65.4</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#eab308;border-radius:4px;height:100%;width:65.4%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">65.4%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>0.3</td>
+  <td>91.0</td>
+  <td>99.3</td>
+  <td>95.5</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>md_knn</strong></td>
+  <td><span class="grade" style="background:#eab308">C</span></td>
+  <td><strong>62.3</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#eab308;border-radius:4px;height:100%;width:62.3%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">62.3%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>89.3</td>
+  <td>79.4</td>
+  <td>54.7</td>
+  <td>63.5</td>
+  <td>0.0</td>
+</tr>
+
+<tr>
+  <td><strong>kmeans</strong></td>
+  <td><span class="grade" style="background:#f97316">D</span></td>
+  <td><strong>53.5</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#f97316;border-radius:4px;height:100%;width:53.5%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">53.5%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>0.0</td>
+  <td>85.6</td>
+  <td>99.2</td>
+  <td>87.5</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>lavaMD</strong></td>
+  <td><span class="grade" style="background:#f97316">D</span></td>
+  <td><strong>51.5</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#f97316;border-radius:4px;height:100%;width:51.5%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">51.5%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>0.5</td>
+  <td>45.3</td>
+  <td>95.5</td>
+  <td>37.5</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>stencil2D</strong></td>
+  <td><span class="grade" style="background:#f97316">D</span></td>
+  <td><strong>48.4</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#f97316;border-radius:4px;height:100%;width:48.4%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">48.4%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>20.7</td>
+  <td>71.4</td>
+  <td>90.8</td>
+  <td>40.6</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>pathfinder</strong></td>
+  <td><span class="grade" style="background:#ef4444">F</span></td>
+  <td><strong>33.8</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#ef4444;border-radius:4px;height:100%;width:33.8%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">33.8%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>0.0</td>
+  <td>69.4</td>
+  <td>69.6</td>
+  <td>0.0</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>hotspot</strong></td>
+  <td><span class="grade" style="background:#ef4444">F</span></td>
+  <td><strong>17.5</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#ef4444;border-radius:4px;height:100%;width:17.5%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">17.5%</span></div></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>0.0</td>
+  <td>0.0</td>
+  <td>0.0</td>
+  <td>50.0</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>srad</strong></td>
+  <td><span class="grade" style="background:#ef4444">F</span></td>
+  <td><strong>17.5</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#ef4444;border-radius:4px;height:100%;width:17.5%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">17.5%</span></div></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>0.0</td>
+  <td>0.0</td>
+  <td>0.0</td>
+  <td>50.0</td>
+  <td>100.0</td>
+</tr>
+
+<tr>
+  <td><strong>StreamCluster</strong></td>
+  <td><span class="grade" style="background:#ef4444">F</span></td>
+  <td><strong>15.0</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#ef4444;border-radius:4px;height:100%;width:15.0%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">15.0%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>0.0</td>
+  <td>0.0</td>
+  <td>0.0</td>
+  <td>0.0</td>
+  <td>0.0</td>
+</tr>
+
+<tr>
+  <td><strong>lud</strong></td>
+  <td><span class="grade" style="background:#ef4444">F</span></td>
+  <td><strong>15.0</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#ef4444;border-radius:4px;height:100%;width:15.0%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">15.0%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>0.0</td>
+  <td>0.0</td>
+  <td>0.0</td>
+  <td>0.0</td>
+  <td>0.0</td>
+</tr>
+
+</table>
+<h2>Resource Usage: Generated vs Ground Truth</h2>
+<div class="legend"><span style="--c:#3b82f6">&#9632; Generated</span><span style="--c:#94a3b8">&#9632; Ground Truth</span><span style="--c:#ef4444">&#9632; Device Limit</span></div>
+<details><summary>nw <span class="grade" style="background:#22c55e;font-size:11px">A</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:2.1%;margin-bottom:2px" title="Gen: 80"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 3460"></div></div><div style="font-size:11px">80</div><div style="font-size:11px">3460</div><div style="font-size:11px;color:var(--muted)"> (0.02x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.0%;margin-bottom:2px" title="Gen: 0"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">0</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:2.6%;margin-bottom:2px" title="Gen: 8685"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 307344"></div></div><div style="font-size:11px">8685</div><div style="font-size:11px">307344</div><div style="font-size:11px;color:var(--muted)"> (0.03x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.9%;margin-bottom:2px" title="Gen: 5782"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 587990"></div></div><div style="font-size:11px">5782</div><div style="font-size:11px">587990</div><div style="font-size:11px;color:var(--muted)"> (0.01x)</div></div>
+</details>
+<details><summary>spmv_crs <span class="grade" style="background:#22c55e;font-size:11px">A</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:8.1%;margin-bottom:2px" title="Gen: 24"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:8.4%" title="GT: 25"></div></div><div style="font-size:11px">24</div><div style="font-size:11px">25</div><div style="font-size:11px;color:var(--muted)"> (0.96x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:5.3%;margin-bottom:2px" title="Gen: 14"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:5.3%" title="GT: 14"></div></div><div style="font-size:11px">14</div><div style="font-size:11px">14</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:5.6%;margin-bottom:2px" title="Gen: 7755"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:4.6%" title="GT: 6395"></div></div><div style="font-size:11px">7755</div><div style="font-size:11px">6395</div><div style="font-size:11px;color:var(--muted)"> (1.21x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:7.9%;margin-bottom:2px" title="Gen: 5478"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:9.0%" title="GT: 6247"></div></div><div style="font-size:11px">5478</div><div style="font-size:11px">6247</div><div style="font-size:11px;color:var(--muted)"> (0.88x)</div></div>
+</details>
+<details><summary>aes <span class="grade" style="background:#3b82f6;font-size:11px">B</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:2.0%;margin-bottom:2px" title="Gen: 6"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:2.0%" title="GT: 6"></div></div><div style="font-size:11px">6</div><div style="font-size:11px">6</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.0%;margin-bottom:2px" title="Gen: 0"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">0</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:2.8%;margin-bottom:2px" title="Gen: 3840"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:2.8%" title="GT: 3840"></div></div><div style="font-size:11px">3840</div><div style="font-size:11px">3840</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:11.6%;margin-bottom:2px" title="Gen: 8069"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:11.6%" title="GT: 8069"></div></div><div style="font-size:11px">8069</div><div style="font-size:11px">8069</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+</details>
+<details><summary>gemm_ncubed <span class="grade" style="background:#3b82f6;font-size:11px">B</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:1.3%;margin-bottom:2px" title="Gen: 4"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:1.3%" title="GT: 4"></div></div><div style="font-size:11px">4</div><div style="font-size:11px">4</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:5.3%;margin-bottom:2px" title="Gen: 14"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:5.3%" title="GT: 14"></div></div><div style="font-size:11px">14</div><div style="font-size:11px">14</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:40.5%;margin-bottom:2px" title="Gen: 56445"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:40.5%" title="GT: 56445"></div></div><div style="font-size:11px">56445</div><div style="font-size:11px">56445</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:22.6%;margin-bottom:2px" title="Gen: 15757"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:22.6%" title="GT: 15757"></div></div><div style="font-size:11px">15757</div><div style="font-size:11px">15757</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+</details>
+<details><summary>sort_merge <span class="grade" style="background:#3b82f6;font-size:11px">B</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:3.4%;margin-bottom:2px" title="Gen: 10"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:3.4%" title="GT: 10"></div></div><div style="font-size:11px">10</div><div style="font-size:11px">10</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.0%;margin-bottom:2px" title="Gen: 0"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">0</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:1.5%;margin-bottom:2px" title="Gen: 2150"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:1.5%" title="GT: 2150"></div></div><div style="font-size:11px">2150</div><div style="font-size:11px">2150</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:3.7%;margin-bottom:2px" title="Gen: 2557"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:3.7%" title="GT: 2557"></div></div><div style="font-size:11px">2557</div><div style="font-size:11px">2557</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+</details>
+<details><summary>fft <span class="grade" style="background:#eab308;font-size:11px">C</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:89.6%;margin-bottom:2px" title="Gen: 280"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 284"></div></div><div style="font-size:11px">280</div><div style="font-size:11px">284</div><div style="font-size:11px;color:var(--muted)"> (0.99x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:90.9%;margin-bottom:2px" title="Gen: 375"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 375"></div></div><div style="font-size:11px">375</div><div style="font-size:11px">375</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:90.9%;margin-bottom:2px" title="Gen: 146612"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.3%" title="GT: 145702"></div></div><div style="font-size:11px">146612</div><div style="font-size:11px">145702</div><div style="font-size:11px;color:var(--muted)"> (1.01x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:90.0%;margin-bottom:2px" title="Gen: 83175"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 83998"></div></div><div style="font-size:11px">83175</div><div style="font-size:11px">83998</div><div style="font-size:11px;color:var(--muted)"> (0.99x)</div></div>
+</details>
+<details><summary>viterbi <span class="grade" style="background:#eab308;font-size:11px">C</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:89.9%;margin-bottom:2px" title="Gen: 538"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 544"></div></div><div style="font-size:11px">538</div><div style="font-size:11px">544</div><div style="font-size:11px;color:var(--muted)"> (0.99x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:90.9%;margin-bottom:2px" title="Gen: 316"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 316"></div></div><div style="font-size:11px">316</div><div style="font-size:11px">316</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:90.8%;margin-bottom:2px" title="Gen: 229486"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 229710"></div></div><div style="font-size:11px">229486</div><div style="font-size:11px">229710</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:90.0%;margin-bottom:2px" title="Gen: 174691"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 176361"></div></div><div style="font-size:11px">174691</div><div style="font-size:11px">176361</div><div style="font-size:11px;color:var(--muted)"> (0.99x)</div></div>
+</details>
+<details><summary>knn <span class="grade" style="background:#eab308;font-size:11px">C</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.7%;margin-bottom:2px" title="Gen: 2"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:10.1%" title="GT: 30"></div></div><div style="font-size:11px">2</div><div style="font-size:11px">30</div><div style="font-size:11px;color:var(--muted)"> (0.07x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:1.1%;margin-bottom:2px" title="Gen: 3"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:36.4%" title="GT: 96"></div></div><div style="font-size:11px">3</div><div style="font-size:11px">96</div><div style="font-size:11px;color:var(--muted)"> (0.03x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:1.4%;margin-bottom:2px" title="Gen: 3267"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 216659"></div></div><div style="font-size:11px">3267</div><div style="font-size:11px">216659</div><div style="font-size:11px;color:var(--muted)"> (0.01x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:4.2%;margin-bottom:2px" title="Gen: 2908"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:49.4%" title="GT: 34417"></div></div><div style="font-size:11px">2908</div><div style="font-size:11px">34417</div><div style="font-size:11px;color:var(--muted)"> (0.08x)</div></div>
+</details>
+<details><summary>md_knn <span class="grade" style="background:#eab308;font-size:11px">C</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:6.7%;margin-bottom:2px" title="Gen: 20"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:41.1%" title="GT: 122"></div></div><div style="font-size:11px">20</div><div style="font-size:11px">122</div><div style="font-size:11px;color:var(--muted)"> (0.16x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:90.9%;margin-bottom:2px" title="Gen: 2368"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:45.5%" title="GT: 1184"></div></div><div style="font-size:11px">2368</div><div style="font-size:11px">1184</div><div style="font-size:11px;color:var(--muted)"> (2.00x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:90.9%;margin-bottom:2px" title="Gen: 396149"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:39.5%" title="GT: 171970"></div></div><div style="font-size:11px">396149</div><div style="font-size:11px">171970</div><div style="font-size:11px;color:var(--muted)"> (2.30x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:90.9%;margin-bottom:2px" title="Gen: 241477"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:36.3%" title="GT: 96505"></div></div><div style="font-size:11px">241477</div><div style="font-size:11px">96505</div><div style="font-size:11px;color:var(--muted)"> (2.50x)</div></div>
+</details>
+<details><summary>kmeans <span class="grade" style="background:#f97316;font-size:11px">D</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:1.0%;margin-bottom:2px" title="Gen: 10"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 874"></div></div><div style="font-size:11px">10</div><div style="font-size:11px">874</div><div style="font-size:11px;color:var(--muted)"> (0.01x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:2.6%;margin-bottom:2px" title="Gen: 15"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 526"></div></div><div style="font-size:11px">15</div><div style="font-size:11px">526</div><div style="font-size:11px;color:var(--muted)"> (0.03x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:12.4%;margin-bottom:2px" title="Gen: 39883"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 292682"></div></div><div style="font-size:11px">39883</div><div style="font-size:11px">292682</div><div style="font-size:11px;color:var(--muted)"> (0.14x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:7.9%;margin-bottom:2px" title="Gen: 16597"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 191244"></div></div><div style="font-size:11px">16597</div><div style="font-size:11px">191244</div><div style="font-size:11px;color:var(--muted)"> (0.09x)</div></div>
+</details>
+<details><summary>lavaMD <span class="grade" style="background:#f97316;font-size:11px">D</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.7%;margin-bottom:2px" title="Gen: 2"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:2.7%" title="GT: 8"></div></div><div style="font-size:11px">2</div><div style="font-size:11px">8</div><div style="font-size:11px;color:var(--muted)"> (0.25x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:9.8%;margin-bottom:2px" title="Gen: 26"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:23.5%" title="GT: 62"></div></div><div style="font-size:11px">26</div><div style="font-size:11px">62</div><div style="font-size:11px;color:var(--muted)"> (0.42x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:16.8%;margin-bottom:2px" title="Gen: 33558"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 181807"></div></div><div style="font-size:11px">33558</div><div style="font-size:11px">181807</div><div style="font-size:11px;color:var(--muted)"> (0.18x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:23.6%;margin-bottom:2px" title="Gen: 16488"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:74.7%" title="GT: 52111"></div></div><div style="font-size:11px">16488</div><div style="font-size:11px">52111</div><div style="font-size:11px;color:var(--muted)"> (0.32x)</div></div>
+</details>
+<details><summary>stencil2D <span class="grade" style="background:#f97316;font-size:11px">D</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:14.1%;margin-bottom:2px" title="Gen: 42"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:14.1%" title="GT: 42"></div></div><div style="font-size:11px">42</div><div style="font-size:11px">42</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:1.1%;margin-bottom:2px" title="Gen: 3"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:8.3%" title="GT: 22"></div></div><div style="font-size:11px">3</div><div style="font-size:11px">22</div><div style="font-size:11px;color:var(--muted)"> (0.14x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:2.2%;margin-bottom:2px" title="Gen: 3040"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:3.6%" title="GT: 4977"></div></div><div style="font-size:11px">3040</div><div style="font-size:11px">4977</div><div style="font-size:11px;color:var(--muted)"> (0.61x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:3.9%;margin-bottom:2px" title="Gen: 2698"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:5.3%" title="GT: 3675"></div></div><div style="font-size:11px">2698</div><div style="font-size:11px">3675</div><div style="font-size:11px;color:var(--muted)"> (0.73x)</div></div>
+</details>
+<details><summary>pathfinder <span class="grade" style="background:#ef4444;font-size:11px">F</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:3.4%;margin-bottom:2px" title="Gen: 10"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:74.4%" title="GT: 221"></div></div><div style="font-size:11px">10</div><div style="font-size:11px">221</div><div style="font-size:11px;color:var(--muted)"> (0.04x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:8.0%;margin-bottom:2px" title="Gen: 21"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">21</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (10.00x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:2.6%;margin-bottom:2px" title="Gen: 3626"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:42.9%" title="GT: 59851"></div></div><div style="font-size:11px">3626</div><div style="font-size:11px">59851</div><div style="font-size:11px;color:var(--muted)"> (0.06x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:3.1%;margin-bottom:2px" title="Gen: 3097"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:90.9%" title="GT: 91391"></div></div><div style="font-size:11px">3097</div><div style="font-size:11px">91391</div><div style="font-size:11px;color:var(--muted)"> (0.03x)</div></div>
+</details>
+<details><summary>StreamCluster <span class="grade" style="background:#ef4444;font-size:11px">F</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.7%;margin-bottom:2px" title="Gen: 2"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">2</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"></div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:1.1%;margin-bottom:2px" title="Gen: 3"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">3</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"></div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:8.3%;margin-bottom:2px" title="Gen: 11597"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">11597</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"></div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:8.2%;margin-bottom:2px" title="Gen: 5719"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">5719</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"></div></div>
+</details>
+<details><summary>lud <span class="grade" style="background:#ef4444;font-size:11px">F</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.7%;margin-bottom:2px" title="Gen: 2"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">2</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"></div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:1.1%;margin-bottom:2px" title="Gen: 3"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">3</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"></div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:3.6%;margin-bottom:2px" title="Gen: 5018"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">5018</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"></div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:4.6%;margin-bottom:2px" title="Gen: 3200"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">3200</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"></div></div>
+</details>
+<h2>Performance Comparison</h2>
+<div class="metric-grid">
+<div class="metric-card"><h3>Latency (ns)</h3><table><tr><th>Benchmark</th><th>Generated</th><th>GT</th><th>Ratio</th><th>Speedup</th></tr>
+<tr><td>nw</td><td>370,000</td><td>526,400</td><td style="color:#22c55e">0.70x</td><td>1.42x</td></tr>
+<tr><td>spmv_crs</td><td>13,410</td><td>13,340</td><td style="color:#ef4444">1.01x</td><td>0.99x</td></tr>
+<tr><td>aes</td><td>4,460</td><td>4,460</td><td style="color:#22c55e">1.00x</td><td>1.00x</td></tr>
+<tr><td>gemm_ncubed</td><td>2,546,000</td><td>2,546,000</td><td style="color:#22c55e">1.00x</td><td>1.00x</td></tr>
+<tr><td>sort_merge</td><td>16,400</td><td>16,400</td><td style="color:#22c55e">1.00x</td><td>1.00x</td></tr>
+<tr><td>fft</td><td>1,525,000</td><td>1,525,000</td><td style="color:#22c55e">1.00x</td><td>1.00x</td></tr>
+<tr><td>viterbi</td><td>879,000</td><td>825,000</td><td style="color:#ef4444">1.07x</td><td>0.94x</td></tr>
+<tr><td>knn</td><td>8,389,000</td><td>947,000</td><td style="color:#ef4444">8.86x</td><td>0.11x</td></tr>
+<tr><td>md_knn</td><td>34,616</td><td>48,716</td><td style="color:#22c55e">0.71x</td><td>1.41x</td></tr>
+<tr><td>kmeans</td><td>73,682,000</td><td>4,770,000</td><td style="color:#ef4444">15.45x</td><td>0.06x</td></tr>
+<tr><td>lavaMD</td><td>148,000,000</td><td>17,734,000</td><td style="color:#ef4444">8.35x</td><td>0.12x</td></tr>
+<tr><td>stencil2D</td><td>679,000</td><td>225,000</td><td style="color:#ef4444">3.02x</td><td>0.33x</td></tr>
+<tr><td>pathfinder</td><td>29,068,000</td><td>186,000</td><td style="color:#ef4444">156.28x</td><td>0.01x</td></tr>
+</table></div>
+<div class="metric-card"><h3>Clock Frequency (MHz)</h3><table><tr><th>Benchmark</th><th>Generated</th><th>GT</th><th>Ratio</th><th>Slack (ns)</th></tr>
+<tr><td>nw</td><td>230.7</td><td>230.7</td><td>1.00x</td><td style="color:#ef4444">-0.3</td></tr>
+<tr><td>spmv_crs</td><td>265.6</td><td>199.9</td><td>1.33x</td><td style="color:#22c55e">0.2</td></tr>
+<tr><td>aes</td><td>281.2</td><td>281.2</td><td>1.00x</td><td style="color:#22c55e">0.4</td></tr>
+<tr><td>gemm_ncubed</td><td>206.3</td><td>206.3</td><td>1.00x</td><td style="color:#ef4444">-0.8</td></tr>
+<tr><td>sort_merge</td><td>231.9</td><td>231.9</td><td>1.00x</td><td style="color:#ef4444">-0.3</td></tr>
+<tr><td>fft</td><td>145.1</td><td>145.1</td><td>1.00x</td><td style="color:#ef4444">-2.9</td></tr>
+<tr><td>viterbi</td><td>151.4</td><td>151.4</td><td>1.00x</td><td style="color:#ef4444">-2.6</td></tr>
+<tr><td>knn</td><td>317.6</td><td>190.4</td><td>1.67x</td><td style="color:#22c55e">0.8</td></tr>
+<tr><td>md_knn</td><td>186.8</td><td>205.1</td><td>0.91x</td><td style="color:#ef4444">-1.4</td></tr>
+<tr><td>kmeans</td><td>194.6</td><td>186.6</td><td>1.04x</td><td style="color:#ef4444">-1.1</td></tr>
+<tr><td>lavaMD</td><td>101.3</td><td>192.4</td><td>0.53x</td><td style="color:#ef4444">-5.9</td></tr>
+<tr><td>stencil2D</td><td>200.1</td><td>250.0</td><td>0.80x</td><td style="color:#ef4444">-1.0</td></tr>
+<tr><td>pathfinder</td><td>145.1</td><td>187.2</td><td>0.78x</td><td style="color:#ef4444">-2.9</td></tr>
+</table></div>
+</div>
+<h2>Device Utilization (% of Artix-7 100T)</h2>
+<table><tr><th>Benchmark</th><th>BRAM %</th><th>DSP %</th><th>FF %</th><th>LUT %</th><th>Feasible</th></tr>
+<tr><td><strong>StreamCluster</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="chip chip-fail">0%</span></td></tr>
+<tr><td><strong>aes</strong></td><td>2.2%</td><td>0.0%</td><td>3.0%</td><td>12.7%</td><td><span class="chip chip-pass">YES</span></td></tr>
+<tr><td><strong>fft</strong></td><td style="background:#fee2e2;color:#991b1b;font-weight:700">103.7%</td><td style="background:#fee2e2;color:#991b1b;font-weight:700">156.2%</td><td style="background:#fee2e2;color:#991b1b;font-weight:700">115.6%</td><td style="background:#fee2e2;color:#991b1b;font-weight:700">131.2%</td><td><span class="chip chip-fail">0%</span></td></tr>
+<tr><td><strong>gemm_ncubed</strong></td><td>1.5%</td><td>5.8%</td><td>44.5%</td><td>24.9%</td><td><span class="chip chip-pass">YES</span></td></tr>
+<tr><td><strong>kmeans</strong></td><td>3.7%</td><td>6.2%</td><td>31.4%</td><td>26.2%</td><td><span class="chip chip-pass">YES</span></td></tr>
+<tr><td><strong>knn</strong></td><td>0.7%</td><td>1.2%</td><td>2.6%</td><td>4.6%</td><td><span class="chip chip-pass">YES</span></td></tr>
+<tr><td><strong>lavaMD</strong></td><td>0.7%</td><td>10.8%</td><td>26.5%</td><td>26.0%</td><td><span class="chip chip-pass">YES</span></td></tr>
+<tr><td><strong>lud</strong></td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="chip chip-fail">0%</span></td></tr>
+<tr><td><strong>md_knn</strong></td><td>7.4%</td><td style="background:#fee2e2;color:#991b1b;font-weight:700">986.7%</td><td style="background:#fee2e2;color:#991b1b;font-weight:700">312.4%</td><td style="background:#fee2e2;color:#991b1b;font-weight:700">380.9%</td><td><span class="chip chip-fail">0%</span></td></tr>
+<tr><td><strong>nw</strong></td><td>29.6%</td><td>0.0%</td><td>6.8%</td><td>9.1%</td><td><span class="chip chip-pass">YES</span></td></tr>
+<tr><td><strong>pathfinder</strong></td><td>3.7%</td><td>8.8%</td><td>2.9%</td><td>4.9%</td><td><span class="chip chip-pass">YES</span></td></tr>
+<tr><td><strong>sort_merge</strong></td><td>3.7%</td><td>0.0%</td><td>1.7%</td><td>4.0%</td><td><span class="chip chip-pass">YES</span></td></tr>
+<tr><td><strong>spmv_crs</strong></td><td>8.9%</td><td>5.8%</td><td>6.1%</td><td>8.6%</td><td><span class="chip chip-pass">YES</span></td></tr>
+<tr><td><strong>stencil2D</strong></td><td>15.6%</td><td>1.2%</td><td>2.4%</td><td>4.3%</td><td><span class="chip chip-pass">YES</span></td></tr>
+<tr><td><strong>viterbi</strong></td><td style="background:#fee2e2;color:#991b1b;font-weight:700">199.3%</td><td style="background:#fee2e2;color:#991b1b;font-weight:700">131.7%</td><td style="background:#fee2e2;color:#991b1b;font-weight:700">181.0%</td><td style="background:#fee2e2;color:#991b1b;font-weight:700">275.5%</td><td><span class="chip chip-fail">0%</span></td></tr>
+</table>
+<h2>Detailed Benchmark Results</h2>
+<details><summary><span class="grade" style="background:#22c55e">A</span> <strong>nw</strong> &mdash; 95.2/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>370,000</td><td>526,400</td><td><span style="color:#22c55e">0.703</span></td></tr>
+<tr><td>BRAM</td><td>80</td><td>3,460</td><td><span style="color:#22c55e">0.023</span></td></tr>
+<tr><td>DSP</td><td>0</td><td>0</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>FF</td><td>8,685</td><td>307,344</td><td><span style="color:#22c55e">0.028</span></td></tr>
+<tr><td>LUT</td><td>5,782</td><td>587,990</td><td><span style="color:#22c55e">0.010</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>230.73</td><td>230.73</td><td><span style="color:#22c55e">1.000</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> nw_5_coalescing &middot; step=coalescing &middot; selected preferred validated variant `hls_nw_5_coalescing.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>coalescing</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>526,400</td><td>230.73</td><td>3,460</td><td>0</td><td>307,344</td><td>587,990</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Latency</td><td>89.5</td><td>23%</td><td>20.6</td></tr>
+<tr><td>Fmax</td><td>85.0</td><td>10%</td><td>8.5</td></tr>
+<tr><td>Resources</td><td>95.3</td><td>17%</td><td>16.2</td></tr>
+<tr><td>ADP</td><td>99.8</td><td>15%</td><td>15.0</td></tr>
+<tr><td>Feasibility</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>221,500</td><td>88.43</td><td>80</td><td>0</td><td>8,715</td><td>5,845</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#22c55e">A</span> <strong>spmv_crs</strong> &mdash; 90.3/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>13,410</td><td>13,340</td><td><span style="color:#ef4444">1.005</span></td></tr>
+<tr><td>BRAM</td><td>24</td><td>25</td><td><span style="color:#22c55e">0.960</span></td></tr>
+<tr><td>DSP</td><td>14</td><td>14</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>FF</td><td>7,755</td><td>6,395</td><td><span style="color:#ef4444">1.213</span></td></tr>
+<tr><td>LUT</td><td>5,478</td><td>6,247</td><td><span style="color:#22c55e">0.877</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>265.60</td><td>199.88</td><td><span style="color:#22c55e">1.329</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> spmv_crs_0_baseline &middot; step=0_baseline &middot; selected preferred validated variant `hls_baseline.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0_baseline</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>13,340</td><td>199.88</td><td>25</td><td>14</td><td>6,395</td><td>6,247</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Latency</td><td>84.7</td><td>23%</td><td>19.5</td></tr>
+<tr><td>Fmax</td><td>88.7</td><td>10%</td><td>8.9</td></tr>
+<tr><td>Resources</td><td>83.2</td><td>17%</td><td>14.1</td></tr>
+<tr><td>ADP</td><td>85.2</td><td>15%</td><td>12.8</td></tr>
+<tr><td>Feasibility</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>13,410</td><td>187.30</td><td>14</td><td>14</td><td>70,301</td><td>10,448</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#3b82f6">B</span> <strong>aes</strong> &mdash; 80.2/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>4,460</td><td>4,460</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>BRAM</td><td>6</td><td>6</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>DSP</td><td>0</td><td>0</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>FF</td><td>3,840</td><td>3,840</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>LUT</td><td>8,069</td><td>8,069</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>281.21</td><td>281.21</td><td><span style="color:#22c55e">1.000</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> aes_0_baseline &middot; step=baseline &middot; selected preferred validated variant `hls_baseline.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>baseline</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>4,460</td><td>281.21</td><td>6</td><td>0</td><td>3,840</td><td>8,069</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>85.0</td><td>23%</td><td>19.6</td></tr>
+<tr><td>Fmax</td><td>85.0</td><td>10%</td><td>8.5</td></tr>
+<tr><td>Resources</td><td>85.0</td><td>17%</td><td>14.4</td></tr>
+<tr><td>ADP</td><td>85.0</td><td>15%</td><td>12.8</td></tr>
+<tr><td>Feasibility</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>11,484</td><td>193.57</td><td>11</td><td>0</td><td>4,269</td><td>8,853</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#3b82f6">B</span> <strong>gemm_ncubed</strong> &mdash; 80.2/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>2,546,000</td><td>2,546,000</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>BRAM</td><td>4</td><td>4</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>DSP</td><td>14</td><td>14</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>FF</td><td>56,445</td><td>56,445</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>LUT</td><td>15,757</td><td>15,757</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>206.27</td><td>206.27</td><td><span style="color:#22c55e">1.000</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> gemm_ncubed_0_baseline &middot; step=0_baseline &middot; selected preferred validated variant `hls_baseline.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0_baseline</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>2,546,000</td><td>206.27</td><td>4</td><td>14</td><td>56,445</td><td>15,757</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>85.0</td><td>23%</td><td>19.6</td></tr>
+<tr><td>Fmax</td><td>85.0</td><td>10%</td><td>8.5</td></tr>
+<tr><td>Resources</td><td>85.0</td><td>17%</td><td>14.4</td></tr>
+<tr><td>ADP</td><td>85.0</td><td>15%</td><td>12.8</td></tr>
+<tr><td>Feasibility</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>1,606,000</td><td>206.27</td><td>4</td><td>14</td><td>112,551</td><td>24,245</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#3b82f6">B</span> <strong>sort_merge</strong> &mdash; 80.2/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>16,400</td><td>16,400</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>BRAM</td><td>10</td><td>10</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>DSP</td><td>0</td><td>0</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>FF</td><td>2,150</td><td>2,150</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>LUT</td><td>2,557</td><td>2,557</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>231.91</td><td>231.91</td><td><span style="color:#22c55e">1.000</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> sort_merge_0_baseline &middot; step=0_baseline &middot; selected preferred validated variant `hls_baseline.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0_baseline</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>16,400</td><td>231.91</td><td>10</td><td>0</td><td>2,150</td><td>2,557</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>85.0</td><td>23%</td><td>19.6</td></tr>
+<tr><td>Fmax</td><td>85.0</td><td>10%</td><td>8.5</td></tr>
+<tr><td>Resources</td><td>85.0</td><td>17%</td><td>14.4</td></tr>
+<tr><td>ADP</td><td>85.0</td><td>15%</td><td>12.8</td></tr>
+<tr><td>Feasibility</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-fail">FAIL</span></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>1</td><td><span class="chip chip-pass">PASS</span></td><td>16,400</td><td>231.91</td><td>10</td><td>0</td><td>2,150</td><td>2,557</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#eab308">C</span> <strong>fft</strong> &mdash; 70.3/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>1,525,000</td><td>1,525,000</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>BRAM</td><td>280</td><td>284</td><td><span style="color:#22c55e">0.986</span></td></tr>
+<tr><td>DSP</td><td>375</td><td>375</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>FF</td><td>146,612</td><td>145,702</td><td><span style="color:#ef4444">1.006</span></td></tr>
+<tr><td>LUT</td><td>83,175</td><td>83,998</td><td><span style="color:#22c55e">0.990</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>145.14</td><td>145.14</td><td><span style="color:#22c55e">1.000</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> fft_0_baseline &middot; step=baseline &middot; selected preferred validated variant `hls_baseline.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>baseline</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>1,525,000</td><td>145.14</td><td>284</td><td>375</td><td>145,702</td><td>83,998</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>85.0</td><td>23%</td><td>19.6</td></tr>
+<tr><td>Fmax</td><td>85.0</td><td>10%</td><td>8.5</td></tr>
+<tr><td>Resources</td><td>85.0</td><td>17%</td><td>14.5</td></tr>
+<tr><td>ADP</td><td>85.1</td><td>15%</td><td>12.8</td></tr>
+<tr><td>Feasibility</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>33,995</td><td>145.14</td><td>276</td><td>2,027</td><td>412,190</td><td>248,855</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#eab308">C</span> <strong>viterbi</strong> &mdash; 68.9/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>879,000</td><td>825,000</td><td><span style="color:#ef4444">1.065</span></td></tr>
+<tr><td>BRAM</td><td>538</td><td>544</td><td><span style="color:#22c55e">0.989</span></td></tr>
+<tr><td>DSP</td><td>316</td><td>316</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>FF</td><td>229,486</td><td>229,710</td><td><span style="color:#22c55e">0.999</span></td></tr>
+<tr><td>LUT</td><td>174,691</td><td>176,361</td><td><span style="color:#22c55e">0.991</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>151.42</td><td>151.42</td><td><span style="color:#22c55e">1.000</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> viterbi_0_baseline &middot; step=baseline &middot; selected preferred validated variant `hls_baseline.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>baseline</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>825,000</td><td>151.42</td><td>544</td><td>316</td><td>229,710</td><td>176,361</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>81.2</td><td>23%</td><td>18.7</td></tr>
+<tr><td>Fmax</td><td>85.0</td><td>10%</td><td>8.5</td></tr>
+<tr><td>Resources</td><td>85.1</td><td>17%</td><td>14.5</td></tr>
+<tr><td>ADP</td><td>81.6</td><td>15%</td><td>12.2</td></tr>
+<tr><td>Feasibility</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-fail">FAIL</span></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>1</td><td><span class="chip chip-pass">PASS</span></td><td>879,000</td><td>151.42</td><td>538</td><td>316</td><td>229,486</td><td>174,691</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#eab308">C</span> <strong>knn</strong> &mdash; 65.4/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>8,389,000</td><td>947,000</td><td><span style="color:#ef4444">8.859</span></td></tr>
+<tr><td>BRAM</td><td>2</td><td>30</td><td><span style="color:#22c55e">0.067</span></td></tr>
+<tr><td>DSP</td><td>3</td><td>96</td><td><span style="color:#22c55e">0.031</span></td></tr>
+<tr><td>FF</td><td>3,267</td><td>216,659</td><td><span style="color:#22c55e">0.015</span></td></tr>
+<tr><td>LUT</td><td>2,908</td><td>34,417</td><td><span style="color:#22c55e">0.084</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>317.56</td><td>190.44</td><td><span style="color:#22c55e">1.668</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> knn_5_coalescing &middot; step=coalescing &middot; selected preferred validated variant `hls_knn_5_coalescing.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>coalescing</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>947,000</td><td>190.44</td><td>30</td><td>96</td><td>216,659</td><td>34,417</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>0.3</td><td>23%</td><td>0.1</td></tr>
+<tr><td>Fmax</td><td>91.0</td><td>10%</td><td>9.1</td></tr>
+<tr><td>Resources</td><td>99.3</td><td>17%</td><td>16.9</td></tr>
+<tr><td>ADP</td><td>95.5</td><td>15%</td><td>14.3</td></tr>
+<tr><td>Feasibility</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>8,389,000</td><td>317.56</td><td>2</td><td>3</td><td>3,267</td><td>2,908</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#eab308">C</span> <strong>md_knn</strong> &mdash; 62.3/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>34,616</td><td>48,716</td><td><span style="color:#22c55e">0.711</span></td></tr>
+<tr><td>BRAM</td><td>20</td><td>122</td><td><span style="color:#22c55e">0.164</span></td></tr>
+<tr><td>DSP</td><td>2,368</td><td>1,184</td><td><span style="color:#ef4444">2.000</span></td></tr>
+<tr><td>FF</td><td>396,149</td><td>171,970</td><td><span style="color:#ef4444">2.304</span></td></tr>
+<tr><td>LUT</td><td>241,477</td><td>96,505</td><td><span style="color:#ef4444">2.502</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>186.78</td><td>205.09</td><td><span style="color:#ef4444">0.911</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> md_knn_0_baseline &middot; step=0_baseline &middot; selected preferred validated variant `hls_baseline.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0_baseline</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>48,716</td><td>205.09</td><td>122</td><td>1,184</td><td>171,970</td><td>96,505</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>89.3</td><td>23%</td><td>20.5</td></tr>
+<tr><td>Fmax</td><td>79.4</td><td>10%</td><td>7.9</td></tr>
+<tr><td>Resources</td><td>54.7</td><td>17%</td><td>9.3</td></tr>
+<tr><td>ADP</td><td>63.5</td><td>15%</td><td>9.5</td></tr>
+<tr><td>Feasibility</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>34,616</td><td>186.78</td><td>20</td><td>2,368</td><td>396,149</td><td>241,477</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#f97316">D</span> <strong>kmeans</strong> &mdash; 53.5/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>73,682,000</td><td>4,770,000</td><td><span style="color:#ef4444">15.447</span></td></tr>
+<tr><td>BRAM</td><td>10</td><td>874</td><td><span style="color:#22c55e">0.011</span></td></tr>
+<tr><td>DSP</td><td>15</td><td>526</td><td><span style="color:#22c55e">0.029</span></td></tr>
+<tr><td>FF</td><td>39,883</td><td>292,682</td><td><span style="color:#22c55e">0.136</span></td></tr>
+<tr><td>LUT</td><td>16,597</td><td>191,244</td><td><span style="color:#22c55e">0.087</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>194.59</td><td>186.64</td><td><span style="color:#22c55e">1.043</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> kmeans_5_coalescing &middot; step=coalescing &middot; selected preferred validated variant `hls_kmeans_5_coalescing.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>coalescing</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>4,770,000</td><td>186.64</td><td>874</td><td>526</td><td>292,682</td><td>191,244</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>0.0</td><td>23%</td><td>0.0</td></tr>
+<tr><td>Fmax</td><td>85.6</td><td>10%</td><td>8.6</td></tr>
+<tr><td>Resources</td><td>99.2</td><td>17%</td><td>16.9</td></tr>
+<tr><td>ADP</td><td>87.5</td><td>15%</td><td>13.1</td></tr>
+<tr><td>Feasibility</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>4,994,000,000</td><td>43.55</td><td>2</td><td>5</td><td>8,536</td><td>5,746</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#f97316">D</span> <strong>lavaMD</strong> &mdash; 51.5/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>148,000,000</td><td>17,734,000</td><td><span style="color:#ef4444">8.346</span></td></tr>
+<tr><td>BRAM</td><td>2</td><td>8</td><td><span style="color:#22c55e">0.250</span></td></tr>
+<tr><td>DSP</td><td>26</td><td>62</td><td><span style="color:#22c55e">0.419</span></td></tr>
+<tr><td>FF</td><td>33,558</td><td>181,807</td><td><span style="color:#22c55e">0.185</span></td></tr>
+<tr><td>LUT</td><td>16,488</td><td>52,111</td><td><span style="color:#22c55e">0.316</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>101.29</td><td>192.42</td><td><span style="color:#ef4444">0.526</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> lavaMD_5_coalescing &middot; step=coalescing &middot; selected preferred validated variant `hls_lavaMD_5_coalescing.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>coalescing</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>17,734,000</td><td>192.42</td><td>8</td><td>62</td><td>181,807</td><td>52,111</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>0.5</td><td>23%</td><td>0.1</td></tr>
+<tr><td>Fmax</td><td>45.3</td><td>10%</td><td>4.5</td></tr>
+<tr><td>Resources</td><td>95.5</td><td>17%</td><td>16.2</td></tr>
+<tr><td>ADP</td><td>37.5</td><td>15%</td><td>5.6</td></tr>
+<tr><td>Feasibility</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>331,000,000</td><td>46.83</td><td>2</td><td>26</td><td>12,874</td><td>6,727</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#f97316">D</span> <strong>stencil2D</strong> &mdash; 48.4/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>679,000</td><td>225,000</td><td><span style="color:#ef4444">3.018</span></td></tr>
+<tr><td>BRAM</td><td>42</td><td>42</td><td><span style="color:#22c55e">1.000</span></td></tr>
+<tr><td>DSP</td><td>3</td><td>22</td><td><span style="color:#22c55e">0.136</span></td></tr>
+<tr><td>FF</td><td>3,040</td><td>4,977</td><td><span style="color:#22c55e">0.611</span></td></tr>
+<tr><td>LUT</td><td>2,698</td><td>3,675</td><td><span style="color:#22c55e">0.734</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>200.12</td><td>250</td><td><span style="color:#ef4444">0.800</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> stencil2D_0_baseline &middot; step=baseline &middot; selected preferred validated variant `hls_baseline.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>baseline</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>225,000</td><td>250</td><td>42</td><td>22</td><td>4,977</td><td>3,675</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>20.7</td><td>23%</td><td>4.8</td></tr>
+<tr><td>Fmax</td><td>71.4</td><td>10%</td><td>7.1</td></tr>
+<tr><td>Resources</td><td>90.8</td><td>17%</td><td>15.4</td></tr>
+<tr><td>ADP</td><td>40.6</td><td>15%</td><td>6.1</td></tr>
+<tr><td>Feasibility</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>150,000</td><td>162.05</td><td>50</td><td>37</td><td>6,124</td><td>3,703</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#ef4444">F</span> <strong>pathfinder</strong> &mdash; 33.8/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>29,068,000</td><td>186,000</td><td><span style="color:#ef4444">156.280</span></td></tr>
+<tr><td>BRAM</td><td>10</td><td>221</td><td><span style="color:#22c55e">0.045</span></td></tr>
+<tr><td>DSP</td><td>21</td><td>0</td><td><span style="color:#ef4444">inf</span></td></tr>
+<tr><td>FF</td><td>3,626</td><td>59,851</td><td><span style="color:#22c55e">0.061</span></td></tr>
+<tr><td>LUT</td><td>3,097</td><td>91,391</td><td><span style="color:#22c55e">0.034</span></td></tr>
+<tr><td>Fmax (MHz)</td><td>145.14</td><td>187.16</td><td><span style="color:#ef4444">0.775</span></td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> pathfinder_5_coalescing &middot; step=coalescing &middot; selected preferred validated variant `hls_pathfinder_5_coalescing.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>coalescing</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>186,000</td><td>187.16</td><td>221</td><td>0</td><td>59,851</td><td>91,391</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>0.0</td><td>23%</td><td>0.0</td></tr>
+<tr><td>Fmax</td><td>69.4</td><td>10%</td><td>6.9</td></tr>
+<tr><td>Resources</td><td>69.6</td><td>17%</td><td>11.8</td></tr>
+<tr><td>ADP</td><td>0.0</td><td>15%</td><td>0.0</td></tr>
+<tr><td>Feasibility</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-fail">FAIL</span></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>1</td><td><span class="chip chip-pass">PASS</span></td><td>29,068,000</td><td>145.14</td><td>10</td><td>21</td><td>3,626</td><td>3,097</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#ef4444">F</span> <strong>hotspot</strong> &mdash; 17.5/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>-</td><td>50,297,000</td><td>-</td></tr>
+<tr><td>BRAM</td><td>-</td><td>855</td><td>-</td></tr>
+<tr><td>DSP</td><td>-</td><td>192</td><td>-</td></tr>
+<tr><td>FF</td><td>-</td><td>208,079</td><td>-</td></tr>
+<tr><td>LUT</td><td>-</td><td>102,806</td><td>-</td></tr>
+<tr><td>Fmax (MHz)</td><td>-</td><td>186.88</td><td>-</td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> hotspot_5_coalescing &middot; step=coalescing &middot; selected preferred validated variant `hls_hotspot_5_coalescing.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>coalescing</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>50,297,000</td><td>186.88</td><td>855</td><td>192</td><td>208,079</td><td>102,806</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>0.0</td><td>5%</td><td>0.0</td></tr>
+<tr><td>C-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>0.0</td><td>23%</td><td>0.0</td></tr>
+<tr><td>Fmax</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Resources</td><td>0.0</td><td>17%</td><td>0.0</td></tr>
+<tr><td>ADP</td><td>0.0</td><td>15%</td><td>0.0</td></tr>
+<tr><td>Feasibility</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#ef4444">F</span> <strong>srad</strong> &mdash; 17.5/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>-</td><td>542,000</td><td>-</td></tr>
+<tr><td>BRAM</td><td>-</td><td>2,461</td><td>-</td></tr>
+<tr><td>DSP</td><td>-</td><td>1,008</td><td>-</td></tr>
+<tr><td>FF</td><td>-</td><td>295,403</td><td>-</td></tr>
+<tr><td>LUT</td><td>-</td><td>177,141</td><td>-</td></tr>
+<tr><td>Fmax (MHz)</td><td>-</td><td>186.64</td><td>-</td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> srad_5_coalescing &middot; step=coalescing &middot; selected preferred validated variant `hls_srad_5_coalescing.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>coalescing</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-pass">PASS</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>542,000</td><td>186.64</td><td>2,461</td><td>1,008</td><td>295,403</td><td>177,141</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>0.0</td><td>5%</td><td>0.0</td></tr>
+<tr><td>C-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>0.0</td><td>23%</td><td>0.0</td></tr>
+<tr><td>Fmax</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Resources</td><td>0.0</td><td>17%</td><td>0.0</td></tr>
+<tr><td>ADP</td><td>0.0</td><td>15%</td><td>0.0</td></tr>
+<tr><td>Feasibility</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#ef4444">F</span> <strong>StreamCluster</strong> &mdash; 15.0/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>14,215,000</td><td>-</td><td>-</td></tr>
+<tr><td>BRAM</td><td>2</td><td>-</td><td>-</td></tr>
+<tr><td>DSP</td><td>3</td><td>-</td><td>-</td></tr>
+<tr><td>FF</td><td>11,597</td><td>-</td><td>-</td></tr>
+<tr><td>LUT</td><td>5,719</td><td>-</td><td>-</td></tr>
+<tr><td>Fmax (MHz)</td><td>210.13</td><td>-</td><td>-</td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> streamcluster_4_coalescing &middot; step=coalescing &middot; selected preferred validated variant `hls_streamcluster_4_coalescing.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>coalescing</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>0.0</td><td>23%</td><td>0.0</td></tr>
+<tr><td>Fmax</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Resources</td><td>0.0</td><td>17%</td><td>0.0</td></tr>
+<tr><td>ADP</td><td>0.0</td><td>15%</td><td>0.0</td></tr>
+<tr><td>Feasibility</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>14,215,000</td><td>210.13</td><td>2</td><td>3</td><td>11,597</td><td>5,719</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#ef4444">F</span> <strong>lud</strong> &mdash; 15.0/100</summary>
+<table><tr><th>Metric</th><th>Generated</th><th>Ground Truth</th><th>Ratio</th></tr>
+<tr><td>Latency (ns)</td><td>2,261,000,000</td><td>-</td><td>-</td></tr>
+<tr><td>BRAM</td><td>2</td><td>-</td><td>-</td></tr>
+<tr><td>DSP</td><td>3</td><td>-</td><td>-</td></tr>
+<tr><td>FF</td><td>5,018</td><td>-</td><td>-</td></tr>
+<tr><td>LUT</td><td>3,200</td><td>-</td><td>-</td></tr>
+<tr><td>Fmax (MHz)</td><td>210.13</td><td>-</td><td>-</td></tr>
+</table>
+<div style="margin:10px 0 6px;font-size:12px;color:var(--muted)"><strong>Selected GT:</strong> lud_2_coalescing &middot; step=coalescing &middot; selected preferred validated variant `hls_lud_2_coalescing.cpp`</div>
+<h3 style="margin-top:12px;font-size:13px">Ground Truth Optimization Workflow</h3>
+<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>coalescing</td><td><span class="chip chip-pass">YES</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td><span class="chip chip-fail">FAIL</span></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>0.0</td><td>23%</td><td>0.0</td></tr>
+<tr><td>Fmax</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Resources</td><td>0.0</td><td>17%</td><td>0.0</td></tr>
+<tr><td>ADP</td><td>0.0</td><td>15%</td><td>0.0</td></tr>
+<tr><td>Feasibility</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+</table>
+<h3 style="margin-top:12px;font-size:13px">Synthesis Turn History</h3>
+<table><tr><th>Turn</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>0</td><td><span class="chip chip-pass">PASS</span></td><td>4,557,000,000</td><td>317.56</td><td>10</td><td>3</td><td>4,851</td><td>3,166</td></tr>
+</table>
+</details>
+
+<footer>
+  C-to-HLS Translation Pipeline &middot; Report generated 2026-03-31 12:40<br>
+  Target: xc7a100t-csg324-1 (Artix-7 100T) &middot; Clock: 4 ns (250 MHz)
+</footer>
+</div>
+</body>
+</html>

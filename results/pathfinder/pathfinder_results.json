@@ -1,0 +1,596 @@
+{
+  "phase": "complete",
+  "hls_code": "#include \"pathfinder.h\"\n\nvoid pathfinder_kernel(int32_t J[ROWS*COLS], int32_t Jout[COLS]){\n\tint32_t temp;\n\tint32_t i, t, tt, n;\n\tint32_t min, before;\n\n\tKERNEL2: for(t = 0; t < ROWS-1 ;t++){\n\t\tfor(n = 0; n < COLS; n++){\n\t\t\tmin = Jout[n];\n\t\t\t\n\t\t\tif(n > 0){\n\t\t\t\tmin = MIN(min,before);\n\t\t\t}\n\t\n\t\t\tif(n < COLS-1){\n\t\t\t\tmin = MIN(min,Jout[n+1]);\n\t\t\t}\n\t\t\tbefore = Jout[n];\n\t\t\t\n\t\t\tJout[n] = J[(t+1) * COLS + n]+min;\n\t\t}\n\t}\n}\n\n\nvoid workload(int32_t J[ROWS * COLS], int32_t Jout[COLS]) {\n#pragma HLS INTERFACE m_axi port=J offset=slave bundle=gmem\n#pragma HLS INTERFACE m_axi port=Jout offset=slave bundle=gmem\n#pragma HLS INTERFACE s_axilite port=J bundle=control\n#pragma HLS INTERFACE s_axilite port=Jout bundle=control\n#pragma HLS INTERFACE s_axilite port=return bundle=control\n  \n\tint32_t dst[COLS], src[COLS];\n\tint32_t i, t, tt, n;\n\tint32_t min;\n\n\tmemcpy(dst,J,sizeof(int32_t) * COLS);\n\n\tKERNEL_OUTER: for(t = 0; t < ROWS-1 ;t++){\n\t\tKERNEL_INNER: for(n = 0; n < COLS; n++){\n\t\t\tmin = dst[n];\n\t\t\t\n\t\t\tif(n > 0){\n\t\t\t\tmin = MIN(min,dst[n-1]);\n\t\t\t}\n\t\n\t\t\tif(n < COLS-1){\n\t\t\t\tmin = MIN(min,dst[n+1]);\n\t\t\t}\n\t\t\t\n\t\t\tsrc[n] = J[(t+1) * COLS + n]+min;\n\t\t}\n\t\tmemcpy(dst,src,sizeof(int32_t) * COLS);\n\t}  \t\n\tmemcpy(Jout,dst,sizeof(int32_t) * COLS);\n\treturn;\n\t\t\t\t\t\t\t  \n}",
+  "synth_report": {
+    "latency_cycles": 4218897,
+    "latency_ns": 29068000.0,
+    "bram": "10",
+    "dsp": "21",
+    "ff": "3626",
+    "lut": "3097",
+    "uram": "0",
+    "fmax_mhz": 145.14,
+    "interval": 4218898,
+    "estimated_clock_period_ns": 6.89,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -2.89,
+    "work_dir": "/tmp/hls_synth_c51x8kec"
+  },
+  "comparison": {
+    "success": true,
+    "valid_reference": true,
+    "invalid_reference": false,
+    "generated_report": {
+      "latency_cycles": 4218897,
+      "latency_ns": 29068000.0,
+      "bram": "10",
+      "dsp": "21",
+      "ff": "3626",
+      "lut": "3097",
+      "uram": "0",
+      "fmax_mhz": 145.14,
+      "interval": 4218898,
+      "estimated_clock_period_ns": 6.89,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -2.89,
+      "work_dir": "/tmp/hls_synth_c51x8kec"
+    },
+    "ground_truth_report": {
+      "latency_cycles": 34861,
+      "latency_ns": 186000.0,
+      "bram": "221",
+      "dsp": "0",
+      "ff": "59851",
+      "lut": "91391",
+      "uram": "0",
+      "fmax_mhz": 187.16,
+      "interval": 34862,
+      "estimated_clock_period_ns": 5.343,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -1.343,
+      "work_dir": "/tmp/hls_synth_7jhkkk8h"
+    },
+    "comparison": {
+      "latency_cycles": {
+        "generated": 4218897.0,
+        "ground_truth": 34861.0,
+        "ratio": 121.021
+      },
+      "latency_ns": {
+        "generated": 29068000.0,
+        "ground_truth": 186000.0,
+        "ratio": 156.28
+      },
+      "interval": {
+        "generated": 4218898.0,
+        "ground_truth": 34862.0,
+        "ratio": 121.017
+      },
+      "bram": {
+        "generated": 10.0,
+        "ground_truth": 221.0,
+        "ratio": 0.045
+      },
+      "dsp": {
+        "generated": 21.0,
+        "ground_truth": 0.0,
+        "ratio": Infinity
+      },
+      "ff": {
+        "generated": 3626.0,
+        "ground_truth": 59851.0,
+        "ratio": 0.061
+      },
+      "lut": {
+        "generated": 3097.0,
+        "ground_truth": 91391.0,
+        "ratio": 0.034
+      },
+      "fmax_mhz": {
+        "generated": 145.14,
+        "ground_truth": 187.16,
+        "ratio": 0.775
+      }
+    }
+  },
+  "csim": {
+    "status": "failed",
+    "supported": true,
+    "ran": true,
+    "success": false,
+    "passed": false,
+    "error": "Csim failed"
+  },
+  "cosim": null,
+  "quality_repair": {
+    "attempted": true,
+    "applied": false,
+    "attempts": [
+      {
+        "turn": 0,
+        "focus": "general",
+        "score_before": 72.25,
+        "candidate_score": 72.25,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 4218897.0,
+            "ground_truth": 4218897.0,
+            "ratio": 1.0
+          },
+          "latency_ns": {
+            "generated": 29068000.0,
+            "ground_truth": 29068000.0,
+            "ratio": 1.0
+          },
+          "interval": {
+            "generated": 4218898.0,
+            "ground_truth": 4218898.0,
+            "ratio": 1.0
+          },
+          "bram": {
+            "generated": 10.0,
+            "ground_truth": 10.0,
+            "ratio": 1.0
+          },
+          "dsp": {
+            "generated": 21.0,
+            "ground_truth": 21.0,
+            "ratio": 1.0
+          },
+          "ff": {
+            "generated": 3626.0,
+            "ground_truth": 3626.0,
+            "ratio": 1.0
+          },
+          "lut": {
+            "generated": 3097.0,
+            "ground_truth": 3097.0,
+            "ratio": 1.0
+          },
+          "fmax_mhz": {
+            "generated": 145.14,
+            "ground_truth": 145.14,
+            "ratio": 1.0
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "rejected",
+        "rejection_reason": "Quality score did not improve enough (72.250 vs 72.250)"
+      },
+      {
+        "turn": 1,
+        "focus": "general",
+        "score_before": 72.25,
+        "candidate_score": 80.358,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 4218897.0,
+            "ground_truth": 4218897.0,
+            "ratio": 1.0
+          },
+          "latency_ns": {
+            "generated": 29068000.0,
+            "ground_truth": 29068000.0,
+            "ratio": 1.0
+          },
+          "interval": {
+            "generated": 4218898.0,
+            "ground_truth": 4218898.0,
+            "ratio": 1.0
+          },
+          "bram": {
+            "generated": 18.0,
+            "ground_truth": 10.0,
+            "ratio": 1.8
+          },
+          "dsp": {
+            "generated": 21.0,
+            "ground_truth": 21.0,
+            "ratio": 1.0
+          },
+          "ff": {
+            "generated": 3692.0,
+            "ground_truth": 3626.0,
+            "ratio": 1.018
+          },
+          "lut": {
+            "generated": 3097.0,
+            "ground_truth": 3097.0,
+            "ratio": 1.0
+          },
+          "fmax_mhz": {
+            "generated": 145.14,
+            "ground_truth": 145.14,
+            "ratio": 1.0
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "rejected",
+        "rejection_reason": "Quality score did not improve enough (80.358 vs 72.250)"
+      }
+    ],
+    "initial_score": 72.25,
+    "initial_comparison": {
+      "latency_cycles": {
+        "generated": 4218897.0,
+        "ground_truth": 4218897.0,
+        "ratio": 1.0
+      },
+      "latency_ns": {
+        "generated": 29068000.0,
+        "ground_truth": 29068000.0,
+        "ratio": 1.0
+      },
+      "interval": {
+        "generated": 4218898.0,
+        "ground_truth": 4218898.0,
+        "ratio": 1.0
+      },
+      "bram": {
+        "generated": 10.0,
+        "ground_truth": 10.0,
+        "ratio": 1.0
+      },
+      "dsp": {
+        "generated": 21.0,
+        "ground_truth": 21.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 3626.0,
+        "ground_truth": 3626.0,
+        "ratio": 1.0
+      },
+      "lut": {
+        "generated": 3097.0,
+        "ground_truth": 3097.0,
+        "ratio": 1.0
+      },
+      "fmax_mhz": {
+        "generated": 145.14,
+        "ground_truth": 145.14,
+        "ratio": 1.0
+      }
+    },
+    "final_score": 72.25,
+    "final_comparison": {
+      "latency_cycles": {
+        "generated": 4218897.0,
+        "ground_truth": 4218897.0,
+        "ratio": 1.0
+      },
+      "latency_ns": {
+        "generated": 29068000.0,
+        "ground_truth": 29068000.0,
+        "ratio": 1.0
+      },
+      "interval": {
+        "generated": 4218898.0,
+        "ground_truth": 4218898.0,
+        "ratio": 1.0
+      },
+      "bram": {
+        "generated": 10.0,
+        "ground_truth": 10.0,
+        "ratio": 1.0
+      },
+      "dsp": {
+        "generated": 21.0,
+        "ground_truth": 21.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 3626.0,
+        "ground_truth": 3626.0,
+        "ratio": 1.0
+      },
+      "lut": {
+        "generated": 3097.0,
+        "ground_truth": 3097.0,
+        "ratio": 1.0
+      },
+      "fmax_mhz": {
+        "generated": 145.14,
+        "ground_truth": 145.14,
+        "ratio": 1.0
+      }
+    }
+  },
+  "turn_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": false,
+      "report": {},
+      "error": "Synthesis timed out after 600s"
+    },
+    {
+      "turn": 1,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 4218897,
+        "latency_ns": 29068000.0,
+        "bram": "10",
+        "dsp": "21",
+        "ff": "3626",
+        "lut": "3097",
+        "uram": "0",
+        "fmax_mhz": 145.14,
+        "interval": 4218898,
+        "estimated_clock_period_ns": 6.89,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -2.89,
+        "work_dir": "/tmp/hls_synth_c51x8kec"
+      },
+      "error": ""
+    }
+  ],
+  "benchmark": "pathfinder",
+  "success": true,
+  "reference_validation": {
+    "benchmark_ready": true,
+    "invalid_reason": "",
+    "top_function": "workload",
+    "synthesis": {
+      "status": "passed",
+      "ran": true,
+      "success": true,
+      "error": "",
+      "report": {
+        "latency_cycles": 34861,
+        "latency_ns": 186000.0,
+        "bram": "221",
+        "dsp": "0",
+        "ff": "59851",
+        "lut": "91391",
+        "uram": "0",
+        "fmax_mhz": 187.16,
+        "interval": 34862,
+        "estimated_clock_period_ns": 5.343,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.343,
+        "work_dir": "/tmp/hls_synth_7jhkkk8h"
+      },
+      "work_dir": "/tmp/hls_synth_7jhkkk8h"
+    },
+    "csim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "cosim": {
+      "status": "failed",
+      "supported": false,
+      "ran": false,
+      "success": false,
+      "passed": false,
+      "error": ""
+    },
+    "report": {
+      "latency_cycles": 34861,
+      "latency_ns": 186000.0,
+      "bram": "221",
+      "dsp": "0",
+      "ff": "59851",
+      "lut": "91391",
+      "uram": "0",
+      "fmax_mhz": 187.16,
+      "interval": 34862,
+      "estimated_clock_period_ns": 5.343,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -1.343,
+      "work_dir": "/tmp/hls_synth_7jhkkk8h"
+    },
+    "workflow": [
+      {
+        "variant_name": "pathfinder_5_coalescing",
+        "file": "hls_pathfinder_5_coalescing.cpp",
+        "step_name": "coalescing",
+        "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_5_coalescing/src/pathfinder.cpp",
+        "benchmark_ready": true,
+        "invalid_reason": "",
+        "synthesis": {
+          "status": "passed",
+          "ran": true,
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 34861,
+            "latency_ns": 186000.0,
+            "bram": "221",
+            "dsp": "0",
+            "ff": "59851",
+            "lut": "91391",
+            "uram": "0",
+            "fmax_mhz": 187.16,
+            "interval": 34862,
+            "estimated_clock_period_ns": 5.343,
+            "requested_clock_period_ns": 4.0,
+            "slack_ns": -1.343,
+            "work_dir": "/tmp/hls_synth_7jhkkk8h"
+          },
+          "work_dir": "/tmp/hls_synth_7jhkkk8h"
+        },
+        "csim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "cosim": {
+          "status": "failed",
+          "supported": false,
+          "ran": false,
+          "success": false,
+          "passed": false,
+          "error": ""
+        },
+        "report": {
+          "latency_cycles": 34861,
+          "latency_ns": 186000.0,
+          "bram": "221",
+          "dsp": "0",
+          "ff": "59851",
+          "lut": "91391",
+          "uram": "0",
+          "fmax_mhz": 187.16,
+          "interval": 34862,
+          "estimated_clock_period_ns": 5.343,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -1.343,
+          "work_dir": "/tmp/hls_synth_7jhkkk8h"
+        },
+        "selected": true
+      }
+    ],
+    "selected_variant_name": "pathfinder_5_coalescing",
+    "selected_variant_file": "hls_pathfinder_5_coalescing.cpp",
+    "selected_variant_step": "coalescing",
+    "selection_reason": "selected preferred validated variant `hls_pathfinder_5_coalescing.cpp`"
+  },
+  "ground_truth_status": "valid",
+  "baseline_status": "passed",
+  "invalid_reference_reason": "",
+  "generated_status": "passed",
+  "csim_status": {
+    "ground_truth": "failed",
+    "generated": "failed"
+  },
+  "cosim_status": {
+    "ground_truth": "failed",
+    "generated": "failed"
+  },
+  "coverage": {
+    "ground_truth_csim_available": true,
+    "ground_truth_csim_ran": false,
+    "ground_truth_cosim_available": false,
+    "ground_truth_cosim_ran": false,
+    "generated_csim_available": true,
+    "generated_csim_ran": true,
+    "generated_cosim_available": false,
+    "generated_cosim_ran": false
+  },
+  "optimization_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": false,
+      "report": {},
+      "error": "Synthesis timed out after 600s"
+    },
+    {
+      "turn": 1,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 4218897,
+        "latency_ns": 29068000.0,
+        "bram": "10",
+        "dsp": "21",
+        "ff": "3626",
+        "lut": "3097",
+        "uram": "0",
+        "fmax_mhz": 145.14,
+        "interval": 4218898,
+        "estimated_clock_period_ns": 6.89,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -2.89,
+        "work_dir": "/tmp/hls_synth_c51x8kec"
+      },
+      "error": ""
+    }
+  ],
+  "ground_truth_variant": {
+    "name": "pathfinder_5_coalescing",
+    "file": "hls_pathfinder_5_coalescing.cpp",
+    "step": "coalescing",
+    "selection_reason": "selected preferred validated variant `hls_pathfinder_5_coalescing.cpp`"
+  },
+  "ground_truth_workflow": [
+    {
+      "variant_name": "pathfinder_5_coalescing",
+      "file": "hls_pathfinder_5_coalescing.cpp",
+      "step_name": "coalescing",
+      "source_path": "/home/luo00466/rodinia-hls/Benchmarks/pathfinder/pathfinder_5_coalescing/src/pathfinder.cpp",
+      "benchmark_ready": true,
+      "invalid_reason": "",
+      "synthesis": {
+        "status": "passed",
+        "ran": true,
+        "success": true,
+        "error": "",
+        "report": {
+          "latency_cycles": 34861,
+          "latency_ns": 186000.0,
+          "bram": "221",
+          "dsp": "0",
+          "ff": "59851",
+          "lut": "91391",
+          "uram": "0",
+          "fmax_mhz": 187.16,
+          "interval": 34862,
+          "estimated_clock_period_ns": 5.343,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -1.343,
+          "work_dir": "/tmp/hls_synth_7jhkkk8h"
+        },
+        "work_dir": "/tmp/hls_synth_7jhkkk8h"
+      },
+      "csim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "cosim": {
+        "status": "failed",
+        "supported": false,
+        "ran": false,
+        "success": false,
+        "passed": false,
+        "error": ""
+      },
+      "report": {
+        "latency_cycles": 34861,
+        "latency_ns": 186000.0,
+        "bram": "221",
+        "dsp": "0",
+        "ff": "59851",
+        "lut": "91391",
+        "uram": "0",
+        "fmax_mhz": 187.16,
+        "interval": 34862,
+        "estimated_clock_period_ns": 5.343,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.343,
+        "work_dir": "/tmp/hls_synth_7jhkkk8h"
+      },
+      "selected": true
+    }
+  ],
+  "ground_truth_report": {
+    "latency_cycles": 34861,
+    "latency_ns": 186000.0,
+    "bram": "221",
+    "dsp": "0",
+    "ff": "59851",
+    "lut": "91391",
+    "uram": "0",
+    "fmax_mhz": 187.16,
+    "interval": 34862,
+    "estimated_clock_period_ns": 5.343,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -1.343,
+    "work_dir": "/tmp/hls_synth_7jhkkk8h"
+  }
+}

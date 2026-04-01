@@ -74,8 +74,16 @@ def _pct_bar(value: float, max_val: float = 100.0, color: str = "#3b82f6") -> st
             f'</div>')
 
 
-def _status_chip(passed: bool) -> str:
-    return '<span class="chip chip-pass">PASS</span>' if passed else '<span class="chip chip-fail">FAIL</span>'
+def _status_chip(status) -> str:
+    if status is True or status == "passed":
+        return '<span class="chip chip-pass">PASS</span>'
+    if status is False or status == "failed":
+        return '<span class="chip chip-fail">FAIL</span>'
+    if status == "not_run":
+        return '<span class="chip chip-na">SKIP</span>'
+    if status == "not_supported":
+        return '<span class="chip chip-na">N/A</span>'
+    return '<span class="chip chip-na">-</span>'
 
 
 def generate_html(rubric_data: list[dict], bench_results: dict[str, dict],
@@ -386,16 +394,16 @@ footer {{ text-align:center; color:var(--muted); font-size:12px; margin-top:40px
             h.append('<table><tr><th>Stage</th><th>Selected</th><th>Synth</th><th>Csim</th><th>Cosim</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>')
             for stage in gt_workflow:
                 report = stage.get("report", {})
-                synth_pass = (stage.get("synthesis") or {}).get("status") == "passed"
-                csim_pass = (stage.get("csim") or {}).get("status") == "passed"
-                cosim_pass = (stage.get("cosim") or {}).get("status") == "passed"
+                synth_status = (stage.get("synthesis") or {}).get("status", "failed")
+                csim_status = (stage.get("csim") or {}).get("status", "not_run")
+                cosim_status = (stage.get("cosim") or {}).get("status", "not_run")
                 selected_chip = '<span class="chip chip-pass">YES</span>' if stage.get("selected") else '-'
                 h.append(
                     f'<tr><td>{escape(stage.get("step_name", "-"))}</td>'
                     f'<td>{selected_chip}</td>'
-                    f'<td>{_status_chip(synth_pass)}</td>'
-                    f'<td>{_status_chip(csim_pass)}</td>'
-                    f'<td>{_status_chip(cosim_pass)}</td>'
+                    f'<td>{_status_chip(synth_status)}</td>'
+                    f'<td>{_status_chip(csim_status)}</td>'
+                    f'<td>{_status_chip(cosim_status)}</td>'
                     f'<td>{_fmt_val(report.get("latency_ns"))}</td>'
                     f'<td>{_fmt_val(report.get("fmax_mhz"))}</td>'
                     f'<td>{_fmt_val(report.get("bram"))}</td>'

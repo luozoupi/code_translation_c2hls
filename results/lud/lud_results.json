@@ -17,18 +17,88 @@
     "work_dir": "/tmp/hls_synth_keeptjxn"
   },
   "comparison": {
-    "success": false,
-    "valid_reference": false,
-    "invalid_reference": true,
-    "error": "Gold HLS synthesis failed: Synthesis timed out after 1800s"
+    "success": true,
+    "valid_reference": true,
+    "invalid_reference": false,
+    "generated_report": {
+      "latency_cycles": 475185922,
+      "latency_ns": 2261000000.0,
+      "bram": "2",
+      "dsp": "3",
+      "ff": "5018",
+      "lut": "3200",
+      "uram": "0",
+      "fmax_mhz": 210.13,
+      "interval": 475185923,
+      "estimated_clock_period_ns": 4.759,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -0.759,
+      "work_dir": "/tmp/hls_synth_keeptjxn"
+    },
+    "ground_truth_report": {
+      "latency_cycles": 5759057,
+      "latency_ns": 30725000.0,
+      "bram": "317",
+      "dsp": "816",
+      "ff": "821694",
+      "lut": "440457",
+      "uram": "0",
+      "fmax_mhz": 187.44,
+      "interval": 5759058,
+      "estimated_clock_period_ns": 5.335,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -1.335,
+      "work_dir": "/tmp/hls_synth_bz0ctfzz"
+    },
+    "comparison": {
+      "latency_cycles": {
+        "generated": 475185922.0,
+        "ground_truth": 5759057.0,
+        "ratio": 82.511
+      },
+      "latency_ns": {
+        "generated": 2261000000.0,
+        "ground_truth": 30725000.0,
+        "ratio": 73.588
+      },
+      "interval": {
+        "generated": 475185923.0,
+        "ground_truth": 5759058.0,
+        "ratio": 82.511
+      },
+      "bram": {
+        "generated": 2.0,
+        "ground_truth": 317.0,
+        "ratio": 0.006
+      },
+      "dsp": {
+        "generated": 3.0,
+        "ground_truth": 816.0,
+        "ratio": 0.004
+      },
+      "ff": {
+        "generated": 5018.0,
+        "ground_truth": 821694.0,
+        "ratio": 0.006
+      },
+      "lut": {
+        "generated": 3200.0,
+        "ground_truth": 440457.0,
+        "ratio": 0.007
+      },
+      "fmax_mhz": {
+        "generated": 210.13,
+        "ground_truth": 187.44,
+        "ratio": 1.121
+      }
+    }
   },
   "csim": {
     "status": "passed",
     "supported": true,
     "ran": true,
     "success": true,
-    "passed": true,
-    "error": ""
+    "passed": true
   },
   "cosim": null,
   "quality_repair": {
@@ -245,74 +315,125 @@
         "requested_clock_period_ns": 4.0,
         "slack_ns": 0.851,
         "work_dir": "/tmp/hls_synth_i69zoyru"
-      },
-      "error": ""
+      }
     }
   ],
   "benchmark": "lud",
-  "success": false,
+  "success": true,
   "reference_validation": {
-    "benchmark_ready": false,
-    "invalid_reason": "Gold HLS synthesis failed: Synthesis timed out after 1800s",
+    "benchmark_ready": true,
+    "invalid_reason": "",
     "top_function": "workload",
     "synthesis": {
-      "status": "failed",
+      "status": "passed",
       "ran": true,
-      "success": false,
-      "error": "Synthesis timed out after 1800s",
-      "report": {},
-      "work_dir": ""
+      "success": true,
+      "error": "",
+      "report": {
+        "latency_cycles": 5759057,
+        "latency_ns": 30725000.0,
+        "bram": "317",
+        "dsp": "816",
+        "ff": "821694",
+        "lut": "440457",
+        "uram": "0",
+        "fmax_mhz": 187.44,
+        "interval": 5759058,
+        "estimated_clock_period_ns": 5.335,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.335,
+        "work_dir": "/tmp/hls_synth_bz0ctfzz"
+      },
+      "work_dir": "/tmp/hls_synth_bz0ctfzz"
     },
     "csim": {
-      "status": "failed",
-      "supported": false,
+      "status": "not_run",
+      "supported": true,
       "ran": false,
       "success": false,
-      "passed": false,
-      "error": ""
+      "passed": false
     },
     "cosim": {
-      "status": "failed",
+      "status": "not_supported",
       "supported": false,
       "ran": false,
       "success": false,
-      "passed": false,
-      "error": ""
+      "passed": false
     },
-    "report": {},
+    "report": {
+      "latency_cycles": 5759057,
+      "latency_ns": 30725000.0,
+      "bram": "317",
+      "dsp": "816",
+      "ff": "821694",
+      "lut": "440457",
+      "uram": "0",
+      "fmax_mhz": 187.44,
+      "interval": 5759058,
+      "estimated_clock_period_ns": 5.335,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -1.335,
+      "work_dir": "/tmp/hls_synth_bz0ctfzz"
+    },
     "workflow": [
       {
         "variant_name": "lud_2_coalescing",
         "file": "hls_lud_2_coalescing.cpp",
         "step_name": "coalescing",
         "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_2_coalescing/src/lud.cpp",
-        "benchmark_ready": false,
-        "invalid_reason": "Gold HLS synthesis failed: Synthesis timed out after 1800s",
+        "benchmark_ready": true,
+        "invalid_reason": "",
         "synthesis": {
-          "status": "failed",
+          "status": "passed",
           "ran": true,
-          "success": false,
-          "error": "Synthesis timed out after 1800s",
-          "report": {},
-          "work_dir": ""
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 5759057,
+            "latency_ns": 30725000.0,
+            "bram": "317",
+            "dsp": "816",
+            "ff": "821694",
+            "lut": "440457",
+            "uram": "0",
+            "fmax_mhz": 187.44,
+            "interval": 5759058,
+            "estimated_clock_period_ns": 5.335,
+            "requested_clock_period_ns": 4.0,
+            "slack_ns": -1.335,
+            "work_dir": "/tmp/hls_synth_bz0ctfzz"
+          },
+          "work_dir": "/tmp/hls_synth_bz0ctfzz"
         },
         "csim": {
-          "status": "failed",
-          "supported": false,
+          "status": "not_run",
+          "supported": true,
           "ran": false,
           "success": false,
-          "passed": false,
-          "error": ""
+          "passed": false
         },
         "cosim": {
-          "status": "failed",
+          "status": "not_supported",
           "supported": false,
           "ran": false,
           "success": false,
-          "passed": false,
-          "error": ""
+          "passed": false
         },
-        "report": {},
+        "report": {
+          "latency_cycles": 5759057,
+          "latency_ns": 30725000.0,
+          "bram": "317",
+          "dsp": "816",
+          "ff": "821694",
+          "lut": "440457",
+          "uram": "0",
+          "fmax_mhz": 187.44,
+          "interval": 5759058,
+          "estimated_clock_period_ns": 5.335,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -1.335,
+          "work_dir": "/tmp/hls_synth_bz0ctfzz"
+        },
         "selected": true
       }
     ],
@@ -321,17 +442,17 @@
     "selected_variant_step": "coalescing",
     "selection_reason": "selected preferred validated variant `hls_lud_2_coalescing.cpp`"
   },
-  "ground_truth_status": "invalid",
-  "baseline_status": "failed",
-  "invalid_reference_reason": "Gold HLS synthesis failed: Synthesis timed out after 1800s",
+  "ground_truth_status": "valid",
+  "baseline_status": "passed",
+  "invalid_reference_reason": "",
   "generated_status": "passed",
   "csim_status": {
-    "ground_truth": "failed",
+    "ground_truth": "not_run",
     "generated": "passed"
   },
   "cosim_status": {
-    "ground_truth": "failed",
-    "generated": "failed"
+    "ground_truth": "not_supported",
+    "generated": "not_supported"
   },
   "coverage": {
     "ground_truth_csim_available": true,
@@ -362,8 +483,7 @@
         "requested_clock_period_ns": 4.0,
         "slack_ns": 0.851,
         "work_dir": "/tmp/hls_synth_i69zoyru"
-      },
-      "error": ""
+      }
     }
   ],
   "ground_truth_variant": {
@@ -378,35 +498,75 @@
       "file": "hls_lud_2_coalescing.cpp",
       "step_name": "coalescing",
       "source_path": "/home/luo00466/rodinia-hls/Benchmarks/lud/lud_2_coalescing/src/lud.cpp",
-      "benchmark_ready": false,
-      "invalid_reason": "Gold HLS synthesis failed: Synthesis timed out after 1800s",
+      "benchmark_ready": true,
+      "invalid_reason": "",
       "synthesis": {
-        "status": "failed",
+        "status": "passed",
         "ran": true,
-        "success": false,
-        "error": "Synthesis timed out after 1800s",
-        "report": {},
-        "work_dir": ""
+        "success": true,
+        "error": "",
+        "report": {
+          "latency_cycles": 5759057,
+          "latency_ns": 30725000.0,
+          "bram": "317",
+          "dsp": "816",
+          "ff": "821694",
+          "lut": "440457",
+          "uram": "0",
+          "fmax_mhz": 187.44,
+          "interval": 5759058,
+          "estimated_clock_period_ns": 5.335,
+          "requested_clock_period_ns": 4.0,
+          "slack_ns": -1.335,
+          "work_dir": "/tmp/hls_synth_bz0ctfzz"
+        },
+        "work_dir": "/tmp/hls_synth_bz0ctfzz"
       },
       "csim": {
-        "status": "failed",
-        "supported": false,
+        "status": "not_run",
+        "supported": true,
         "ran": false,
         "success": false,
-        "passed": false,
-        "error": ""
+        "passed": false
       },
       "cosim": {
-        "status": "failed",
+        "status": "not_supported",
         "supported": false,
         "ran": false,
         "success": false,
-        "passed": false,
-        "error": ""
+        "passed": false
       },
-      "report": {},
+      "report": {
+        "latency_cycles": 5759057,
+        "latency_ns": 30725000.0,
+        "bram": "317",
+        "dsp": "816",
+        "ff": "821694",
+        "lut": "440457",
+        "uram": "0",
+        "fmax_mhz": 187.44,
+        "interval": 5759058,
+        "estimated_clock_period_ns": 5.335,
+        "requested_clock_period_ns": 4.0,
+        "slack_ns": -1.335,
+        "work_dir": "/tmp/hls_synth_bz0ctfzz"
+      },
       "selected": true
     }
   ],
-  "ground_truth_report": {}
+  "ground_truth_report": {
+    "latency_cycles": 5759057,
+    "latency_ns": 30725000.0,
+    "bram": "317",
+    "dsp": "816",
+    "ff": "821694",
+    "lut": "440457",
+    "uram": "0",
+    "fmax_mhz": 187.44,
+    "interval": 5759058,
+    "estimated_clock_period_ns": 5.335,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -1.335,
+    "work_dir": "/tmp/hls_synth_bz0ctfzz"
+  }
 }

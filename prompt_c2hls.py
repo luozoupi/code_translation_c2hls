@@ -61,6 +61,7 @@ Benchmark-specific guidance:
 Checklist before returning:
 - Include the header exactly once.
 - Reuse existing function names and signatures from the plain input when possible.
+- Match the exact `workload()` argument order and linkage expected by the testbench when benchmark guidance provides it.
 - Preserve the plain-input helper and wrapper structure unless a change is required for valid Vitis HLS pragmas.
 - Prefer minimal edits to the plain input over creative rewrites.
 - Do not redeclare header-owned structs/types like `bench_args_t`.
@@ -113,6 +114,7 @@ Before returning, verify:
 - every identifier you reference is declared
 - every `#pragma HLS` appears inside a function body
 - the wrapper remains `workload()` unless the input already defines it differently
+- the `workload()` signature and `extern "C"` linkage still match the expected testbench-visible declaration
 
 Provide the corrected code in a ```cpp code fence."""
 
@@ -183,6 +185,7 @@ Priorities:
 3. Do not make latency dramatically worse just to save minor area.
 4. Prefer minimal changes such as reducing partition/unroll factors, removing unnecessary complete partitioning, keeping large arrays in memories, and avoiding duplicated logic.
 5. Preserve the plain-input helper and workload wrapper structure unless a smaller safe change is enough.
+6. Do not change the `workload()` argument order or drop `extern "C"` linkage.
 
 Provide the improved code in a ```cpp code fence."""
 
@@ -204,7 +207,8 @@ Here is the current code:
 
 Fix the compilation errors and provide corrected code in a ```cpp code fence.
 Do NOT duplicate declarations from the header file; include the header and remove redundant structs/prototypes/macros from the source.
-Do NOT invent new undeclared buffers or helper arrays; either declare and initialize them properly or use the existing arrays/signatures from the input."""
+Do NOT invent new undeclared buffers or helper arrays; either declare and initialize them properly or use the existing arrays/signatures from the input.
+Preserve the exact `workload()` signature and `extern "C"` linkage expected by the benchmark/testbench."""
 
 # Synthesis report comparison prompt
 synthesis_comparison = """Compare the synthesis reports of the generated HLS code vs the ground truth.

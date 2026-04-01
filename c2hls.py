@@ -175,6 +175,148 @@ def _binary_status(passed: bool) -> str:
     return "passed" if passed else "failed"
 
 
+def _test_status(supported: bool, ran: bool, passed: bool) -> str:
+    if not supported:
+        return "not_supported"
+    if not ran:
+        return "not_run"
+    return _binary_status(passed)
+
+
+def _extract_failure_excerpt(log: str, fallback: str = "") -> str:
+    if not log:
+        return fallback
+    interesting = []
+    for line in log.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        lowered = stripped.lower()
+        if (
+            ("error" in lowered and "0 errors" not in lowered)
+            or "simulation failed" in lowered
+            or "segmentation violation" in lowered
+            or "child killed" in lowered
+            or "undefined symbol" in lowered
+            or "did you mean to declare" in lowered
+            or "ld.lld" in lowered
+            or lowered.startswith("@e ")
+        ):
+            if stripped not in interesting:
+                interesting.append(stripped)
+        if len(interesting) >= 4:
+            break
+    if interesting:
+        return "\n".join(interesting)
+    return fallback
+
+
+def _normalize_signature_text(text: str) -> str:
+    normalized = " ".join((text or "").strip().split())
+    normalized = re.sub(r"\s*([(),\[\]])\s*", r"\1", normalized)
+    normalized = normalized.replace(",", ", ")
+    normalized = re.sub(r"\s*\*\s*", "*", normalized)
+    normalized = re.sub(r"\s*&\s*", "&", normalized)
+    return normalized.strip()
+
+
+def _extract_function_signature(code: str, function_name: str, definitions_only: bool = False) -> Optional[dict]:
+    trailer_pattern = r"\{" if definitions_only else r"[;{]"
+    pattern = re.compile(
+        rf'(^|\n)(?P<indent>\s*)(?P<extern>extern\s*"C"\s+)?'
+        rf'(?P<ret>[A-Za-z_][\w:\s\*&<>\[\]]*?)\b(?P<name>{re.escape(function_name)})\s*'
+        rf'\((?P<params>.*?)\)\s*(?P<trailer>{trailer_pattern})',
+        re.MULTILINE | re.DOTALL,
+    )
+    match = pattern.search(code or "")
+    if not match:
+        return None
+    signature_start = match.start("extern") if match.group("extern") else match.start("ret")
+    signature_end = match.start("trailer")
+    return {
+        "name": match.group("name"),
+        "return_type": match.group("ret").strip(),
+        "params": match.group("params").strip(),
+        "extern_c": bool(match.group("extern")),
+        "signature_start": signature_start,
+        "signature_end": signature_end,
+    }
+
+
+def _canonical_function_signature(signature: Optional[dict]) -> str:
+    if not signature:
+        return ""
+    return_type = _normalize_signature_text(signature.get("return_type", ""))
+    params = _normalize_signature_text(signature.get("params", ""))
+    return f"{return_type} {signature.get('name', '')}({params})".strip()
+
+
+def _render_function_signature(signature: dict, include_extern: bool = False) -> str:
+    prefix = 'extern "C" ' if include_extern else ""
+    return (
+        f"{prefix}{_normalize_signature_text(signature.get('return_type', ''))} "
+        f"{signature.get('name', '')}({_normalize_signature_text(signature.get('params', ''))})"
+    ).strip()
+
+
+def _expected_top_signature(header_code: str, testbench_code: str, function_name: str) -> Optional[dict]:
+    for source, label in ((testbench_code, "testbench"), (header_code, "header")):
+        signature = _extract_function_signature(source, function_name, definitions_only=False)
+        if signature:
+            signature["source"] = label
+            return signature
+    return None
+
+
+def _top_signature_mismatch_reason(code: str, header_code: str, testbench_code: str,
+                                   function_name: str) -> str:
+    expected = _expected_top_signature(header_code, testbench_code, function_name)
+    current = _extract_function_signature(code, function_name, definitions_only=True)
+    if not expected or not current:
+        return ""
+
+    expected_linkage = bool(expected.get("extern_c"))
+    current_linkage = bool(current.get("extern_c") or ('extern "C"' in (code or "")))
+    same_signature = _canonical_function_signature(current) == _canonical_function_signature(expected)
+    same_linkage = (not expected_linkage) or current_linkage
+    if same_signature and same_linkage:
+        return ""
+
+    expected_text = _render_function_signature(expected, include_extern=expected_linkage)
+    current_text = _render_function_signature(current, include_extern=current_linkage)
+    return (
+        f"`{function_name}` uses `{current_text}`, but the benchmark testbench expects "
+        f"`{expected_text}`"
+    )
+
+
+def _align_generated_top_signature(code: str, header_code: str, testbench_code: str,
+                                   function_name: str) -> tuple[str, str]:
+    expected = _expected_top_signature(header_code, testbench_code, function_name)
+    current = _extract_function_signature(code, function_name, definitions_only=True)
+    if not expected or not current:
+        return code, ""
+
+    notes = []
+    updated = code
+    has_extern_linkage = current.get("extern_c") or ('extern "C"' in (code or ""))
+    needs_extern = bool(expected.get("extern_c") and not has_extern_linkage)
+    if _canonical_function_signature(current) != _canonical_function_signature(expected) or needs_extern:
+        replacement = _render_function_signature(expected, include_extern=needs_extern)
+        updated = (
+            code[:current["signature_start"]]
+            + replacement
+            + " "
+            + code[current["signature_end"]:]
+        )
+        if _canonical_function_signature(current) != _canonical_function_signature(expected):
+            notes.append(f"normalized `{function_name}` signature to match the {expected.get('source', 'expected')} declaration")
+        if needs_extern:
+            notes.append(f'added `extern "C"` linkage to `{function_name}`')
+
+    return updated, "; ".join(notes)
+
+
 def _summarize_synth_result(result: Optional[dict]) -> dict:
     if result is None:
         return {
@@ -199,7 +341,7 @@ def _summarize_synth_result(result: Optional[dict]) -> dict:
 def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
     if not supported:
         return {
-            "status": "failed",
+            "status": "not_supported",
             "supported": False,
             "ran": False,
             "success": False,
@@ -208,7 +350,7 @@ def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
         }
     if result is None:
         return {
-            "status": "failed",
+            "status": "not_run",
             "supported": True,
             "ran": False,
             "success": False,
@@ -216,14 +358,36 @@ def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
             "error": "",
         }
     passed = bool(result.get("passed", False))
-    return {
-        "status": _binary_status(passed),
+    error = result.get("error", "")
+    if not passed and not error:
+        error = _extract_failure_excerpt(result.get("log", ""), "Testbench did not pass")
+    summary = {
+        "status": _test_status(True, True, passed),
         "supported": True,
         "ran": True,
         "success": bool(result.get("success", False)),
         "passed": passed,
-        "error": result.get("error", ""),
+        "error": error,
     }
+    work_dir = result.get("work_dir", "")
+    if work_dir:
+        summary["work_dir"] = work_dir
+    log_excerpt = _extract_failure_excerpt(result.get("log", ""))
+    if log_excerpt and not passed:
+        summary["log_excerpt"] = log_excerpt
+    return summary
+
+
+def _summary_status(summary: Optional[dict], available: bool) -> str:
+    if isinstance(summary, dict):
+        status = summary.get("status")
+        if status in {"passed", "failed", "not_run", "not_supported"}:
+            return status
+        supported = bool(summary.get("supported", available))
+        ran = bool(summary.get("ran", False))
+        passed = bool(summary.get("passed", False))
+        return _test_status(supported, ran, passed)
+    return _test_status(available, False, False)
 
 
 def _repo_root_for_benchmark(bench_dir: Path) -> Path:
@@ -313,7 +477,9 @@ def _extract_interface_ports(hls_code: str) -> List[str]:
     return sorted(dict.fromkeys(ports))
 
 
-def _build_benchmark_context(meta: dict, header_name: str, header_code: str, c_code: str, ground_truth_code: str) -> str:
+def _build_benchmark_context(meta: dict, header_name: str, header_code: str,
+                             c_code: str, ground_truth_code: str,
+                             testbench_code: str = "") -> str:
     hints = []
     bench = meta.get("benchmark", "unknown")
     wrapper_top = meta.get("translated_hls_top", "workload")
@@ -325,6 +491,14 @@ def _build_benchmark_context(meta: dict, header_name: str, header_code: str, c_c
         hints.append(f"Preserve or call the existing kernel/helper function `{kernel_top}` inside `{wrapper_top}`.")
     if header_name:
         hints.append(f"Include `{header_name}` exactly once and reuse its declarations.")
+
+    expected_signature = _expected_top_signature(header_code, testbench_code, wrapper_top)
+    if expected_signature:
+        sig_text = _render_function_signature(
+            expected_signature,
+            include_extern=bool(expected_signature.get("extern_c")),
+        )
+        hints.append(f"Exact testbench-visible `{wrapper_top}` signature to preserve: `{sig_text}`.")
 
     struct_names = _extract_struct_names(header_code)
     if struct_names:
@@ -672,12 +846,25 @@ class C2HLSOrchestrator:
         self._append_history("assistant", reply)
         return extract_cpp_code(reply)
 
+    def _preflight_generated_hls_code(self, code: str, context: str) -> str:
+        normalized, note = _align_generated_top_signature(
+            code,
+            self.header_code,
+            self.testbench_code,
+            self.translated_hls_top,
+        )
+        if note:
+            logging.info("[%s] ABI preflight: %s", context, note)
+            self._append_history("system", f"[{context}] ABI preflight: {note}")
+        return normalized
+
     def _evaluate_candidate_with_repairs(self, candidate_code: str, label: str) -> dict:
         current_code = candidate_code
         last_error = ""
 
         for turn in range(self.turns_limitation):
             logging.info("%s Candidate attempt %d", label, turn)
+            current_code = self._preflight_generated_hls_code(current_code, f"{label} attempt {turn}")
 
             ok, err = compile_check_cpp(
                 current_code,
@@ -978,6 +1165,7 @@ class C2HLSOrchestrator:
 
         for turn in range(self.turns_limitation):
             logging.info("[Phase B] Synthesis attempt %d", turn)
+            self.hls_code = self._preflight_generated_hls_code(self.hls_code, f"Phase B attempt {turn}")
 
             ok, err = compile_check_cpp(
                 self.hls_code,
@@ -1185,6 +1373,7 @@ class C2HLSOrchestrator:
 
         for turn in range(self.turns_limitation):
             logging.info("[Step: %s] Synthesis attempt %d", step_name, turn)
+            new_code = self._preflight_generated_hls_code(new_code, f"Step {step_name} attempt {turn}")
 
             ok, err = compile_check_cpp(
                 new_code,
@@ -1549,6 +1738,7 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
         header_code,
         c_code,
         ground_truth_code or gold_hls_source_code,
+        testbench_code,
     )
 
     return {
@@ -1662,7 +1852,9 @@ def _preferred_reference_file(meta: dict, workflow: list[dict]) -> str:
 
 
 def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
-                                     supports_csim: bool, supports_cosim: bool) -> dict:
+                                     supports_csim: bool, supports_cosim: bool,
+                                     run_csim_check: bool = True,
+                                     run_cosim_check: bool = True) -> dict:
     meta = inputs["meta"]
     hls_code = candidate["code"]
     header_name = candidate.get("header_name") or inputs.get("header_name") or "kernel.h"
@@ -1677,9 +1869,17 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
         extra_files=inputs.get("extra_files", []),
     )
     synth_summary = _summarize_synth_result(synth_result)
+    csim_signature_mismatch = ""
+    if supports_csim and run_csim_check:
+        csim_signature_mismatch = _top_signature_mismatch_reason(
+            hls_code,
+            header_code,
+            inputs.get("testbench_code", ""),
+            meta.get("hls_top", "workload"),
+        )
 
     csim_result = None
-    if synth_result.get("success") and supports_csim:
+    if synth_result.get("success") and supports_csim and run_csim_check and not csim_signature_mismatch:
         csim_result = run_csim(
             hls_code,
             inputs.get("testbench_code", ""),
@@ -1691,9 +1891,17 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
             extra_files=inputs.get("extra_files", []),
         )
     csim_summary = _summarize_test_result(csim_result, supports_csim)
+    if csim_signature_mismatch and supports_csim and run_csim_check:
+        csim_summary["error"] = f"Skipped CSim: {csim_signature_mismatch}"
 
     cosim_result = None
-    if synth_result.get("success") and (not supports_csim or csim_summary.get("passed")) and supports_cosim:
+    if (
+        synth_result.get("success")
+        and supports_cosim
+        and run_cosim_check
+        and not csim_signature_mismatch
+        and ((not supports_csim) or (not run_csim_check) or csim_summary.get("passed"))
+    ):
         cosim_result = run_cosim(
             hls_code,
             inputs.get("testbench_code", ""),
@@ -1711,7 +1919,10 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
     invalid_reason = ""
     if not benchmark_ready:
         invalid_reason = f"Gold HLS synthesis failed: {synth_summary.get('error', '')}".strip()
-    elif supports_csim and not csim_summary.get("passed", False):
+    elif csim_signature_mismatch and supports_csim and run_csim_check:
+        benchmark_ready = False
+        invalid_reason = f"Gold HLS CSim is incompatible with the benchmark testbench: {csim_signature_mismatch}"
+    elif supports_csim and run_csim_check and not csim_summary.get("passed", False):
         benchmark_ready = False
         invalid_reason = f"Gold HLS csim failed: {csim_summary.get('error', '') or 'testbench did not pass'}"
 
@@ -1727,6 +1938,7 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
         "cosim": cosim_summary,
         "report": synth_summary.get("report", {}),
         "selected": False,
+        "testbench_interface_mismatch": csim_signature_mismatch,
     }
 
 
@@ -1826,6 +2038,291 @@ def validate_gold_reference(inputs: dict) -> dict:
     }
 
 
+def _looks_like_reference_error(message: str) -> bool:
+    if not message:
+        return False
+    lowered = str(message).lower()
+    needles = [
+        "gold hls",
+        "gold reference",
+        "invalid gold reference",
+        "ground-truth",
+        "ground truth",
+        "reference invalid",
+        "missing valid ground-truth workflow",
+    ]
+    return any(needle in lowered for needle in needles)
+
+
+def _sanitize_test_summary(summary: dict | None) -> dict | None:
+    if not isinstance(summary, dict):
+        return summary
+    cleaned = dict(summary)
+    status = cleaned.get("status")
+    if status == "passed" or cleaned.get("passed") is True:
+        cleaned.pop("error", None)
+        cleaned.pop("log_excerpt", None)
+    elif cleaned.get("error") == "":
+        cleaned.pop("error", None)
+    if status in {"not_run", "not_supported"}:
+        cleaned.pop("error", None)
+        cleaned.pop("log_excerpt", None)
+    return cleaned
+
+
+def _normalize_saved_test_summary(summary: dict | None, available: bool, ran: bool) -> dict | None:
+    if summary is None:
+        if not available and not ran:
+            return None
+        return _sanitize_test_summary({
+            "status": _test_status(available, ran, False),
+            "supported": available,
+            "ran": ran,
+            "success": False,
+            "passed": False,
+            "error": "",
+        })
+
+    cleaned = dict(summary)
+    supported = bool(cleaned.get("supported", available))
+    if available and not supported and not cleaned.get("ran", False):
+        supported = True
+    ran_value = bool(cleaned.get("ran", False) or ran)
+    passed = bool(cleaned.get("passed", False))
+    cleaned["supported"] = supported
+    cleaned["ran"] = ran_value
+    cleaned["success"] = bool(cleaned.get("success", False)) if ran_value else False
+    cleaned["passed"] = passed if ran_value else False
+    cleaned["status"] = _test_status(supported, ran_value, cleaned["passed"])
+    return _sanitize_test_summary(cleaned)
+
+
+def _sanitize_comparison_payload(comparison: dict | None,
+                                 reference_validation: dict | None = None,
+                                 synth_report: dict | None = None) -> dict:
+    reference_ready = bool(reference_validation and reference_validation.get("benchmark_ready"))
+    ground_truth_report = (reference_validation or {}).get("report", {})
+
+    if reference_validation and not reference_ready:
+        return {
+            "success": False,
+            "valid_reference": False,
+            "invalid_reference": True,
+            "error": reference_validation.get("invalid_reason", "Invalid gold reference"),
+        }
+
+    if reference_ready and synth_report:
+        return {
+            "success": True,
+            "valid_reference": True,
+            "invalid_reference": False,
+            "generated_report": synth_report,
+            "ground_truth_report": ground_truth_report,
+            "comparison": compare_reports(synth_report, ground_truth_report),
+        }
+
+    cleaned = dict(comparison or {})
+    if reference_ready:
+        cleaned["valid_reference"] = True
+        cleaned["invalid_reference"] = False
+        if ground_truth_report:
+            cleaned["ground_truth_report"] = ground_truth_report
+        if synth_report:
+            cleaned["generated_report"] = synth_report
+        if cleaned.get("error") and _looks_like_reference_error(cleaned.get("error")):
+            cleaned.pop("error", None)
+    if cleaned.get("success") is True:
+        cleaned.pop("error", None)
+    elif cleaned.get("error") == "":
+        cleaned.pop("error", None)
+    return cleaned
+
+
+def _sanitize_attempt_entries(entries, overall_success: bool = False) -> list:
+    if not isinstance(entries, list):
+        return []
+
+    cleaned_entries = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            cleaned_entries.append(entry)
+            continue
+
+        item = dict(entry)
+        entry_success = item.get("success")
+        error = item.get("error")
+
+        if item.get("csim") is not None:
+            item["csim"] = _sanitize_test_summary(item.get("csim"))
+        if item.get("cosim") is not None:
+            item["cosim"] = _sanitize_test_summary(item.get("cosim"))
+
+        if overall_success and entry_success is False and error:
+            item["superseded_by_success"] = True
+            item["attempt_error"] = error
+            item.pop("error", None)
+        elif entry_success is True or error == "":
+            item.pop("error", None)
+
+        if "comparison" in item and isinstance(item["comparison"], dict):
+            comp = dict(item["comparison"])
+            if comp.get("success") is True or comp.get("error") == "":
+                comp.pop("error", None)
+            item["comparison"] = comp
+
+        cleaned_entries.append(item)
+    return cleaned_entries
+
+
+def sanitize_saved_result_record(result: dict, reference_validation: dict | None = None) -> dict:
+    output = dict(result)
+    if reference_validation is None and isinstance(output.get("reference_validation"), dict):
+        reference_validation = output.get("reference_validation")
+    overall_success = bool(output.get("success"))
+    explicit_gt_valid = output.get("ground_truth_status") == "valid"
+    coverage = output.get("coverage") or {}
+
+    if output.get("csim") is not None:
+        output["csim"] = _normalize_saved_test_summary(
+            output.get("csim"),
+            bool(coverage.get("generated_csim_available", False)),
+            bool(coverage.get("generated_csim_ran", False)),
+        )
+    if output.get("cosim") is not None:
+        output["cosim"] = _normalize_saved_test_summary(
+            output.get("cosim"),
+            bool(coverage.get("generated_cosim_available", False)),
+            bool(coverage.get("generated_cosim_ran", False)),
+        )
+
+    for key in ["csim", "cosim", "baseline_csim", "baseline_cosim"]:
+        if key in output:
+            output[key] = _sanitize_test_summary(output.get(key))
+
+    if "turn_history" in output:
+        output["turn_history"] = _sanitize_attempt_entries(output.get("turn_history"), overall_success)
+    if "optimization_history" in output:
+        output["optimization_history"] = _sanitize_attempt_entries(output.get("optimization_history"), overall_success)
+    if "generated_step_history" in output:
+        output["generated_step_history"] = _sanitize_attempt_entries(output.get("generated_step_history"), overall_success)
+    if "steps" in output:
+        output["steps"] = _sanitize_attempt_entries(output.get("steps"), overall_success)
+
+    quality_repair = output.get("quality_repair")
+    if isinstance(quality_repair, dict):
+        cleaned_quality = dict(quality_repair)
+        cleaned_quality["attempts"] = _sanitize_attempt_entries(
+            cleaned_quality.get("attempts", []),
+            bool(cleaned_quality.get("applied")) or overall_success,
+        )
+        output["quality_repair"] = cleaned_quality
+
+    synth_report = output.get("synth_report")
+    if not synth_report:
+        synth_report = ((output.get("comparison") or {}).get("generated_report")) or None
+
+    output["comparison"] = _sanitize_comparison_payload(
+        output.get("comparison"),
+        reference_validation,
+        synth_report,
+    )
+
+    if reference_validation is not None:
+        normalized_reference = dict(reference_validation)
+        normalized_reference["csim"] = _normalize_saved_test_summary(
+            normalized_reference.get("csim"),
+            bool(coverage.get("ground_truth_csim_available", False)),
+            bool(coverage.get("ground_truth_csim_ran", False)),
+        )
+        normalized_reference["cosim"] = _normalize_saved_test_summary(
+            normalized_reference.get("cosim"),
+            bool(coverage.get("ground_truth_cosim_available", False)),
+            bool(coverage.get("ground_truth_cosim_ran", False)),
+        )
+        workflow = []
+        for stage in normalized_reference.get("workflow", []) or []:
+            if not isinstance(stage, dict):
+                workflow.append(stage)
+                continue
+            stage_copy = dict(stage)
+            is_selected_stage = bool(stage_copy.get("selected")) or (
+                stage_copy.get("file") == normalized_reference.get("selected_variant_file")
+            )
+            if is_selected_stage:
+                stage_copy["csim"] = normalized_reference.get("csim")
+                stage_copy["cosim"] = normalized_reference.get("cosim")
+            else:
+                stage_copy["csim"] = _sanitize_test_summary(stage_copy.get("csim"))
+                stage_copy["cosim"] = _sanitize_test_summary(stage_copy.get("cosim"))
+            workflow.append(stage_copy)
+        normalized_reference["workflow"] = workflow
+
+        output["reference_validation"] = normalized_reference
+        output["ground_truth_report"] = normalized_reference.get("report", {})
+        output["ground_truth_status"] = "valid" if normalized_reference.get("benchmark_ready") else "invalid"
+        output["baseline_status"] = normalized_reference.get("synthesis", {}).get("status", "failed")
+        output["invalid_reference_reason"] = "" if normalized_reference.get("benchmark_ready") else normalized_reference.get("invalid_reason", "")
+        if "ground_truth_workflow" in output:
+            output["ground_truth_workflow"] = workflow
+        reference_validation = normalized_reference
+
+    if output.get("generated_status") == "passed":
+        output.pop("error", None)
+    elif reference_validation is None and explicit_gt_valid and _looks_like_reference_error(output.get("error")):
+        output.pop("error", None)
+    elif reference_validation is not None and reference_validation.get("benchmark_ready"):
+        if _looks_like_reference_error(output.get("error")):
+            output.pop("error", None)
+    elif reference_validation is not None and not reference_validation.get("benchmark_ready"):
+        output["error"] = reference_validation.get("invalid_reason", output.get("error", "Invalid gold reference"))
+    elif output.get("error") == "":
+        output.pop("error", None)
+
+    comparison = output.get("comparison")
+    if isinstance(comparison, dict) and comparison.get("invalid_reference"):
+        invalid_reason = (
+            output.get("invalid_reference_reason")
+            or output.get("error")
+            or comparison.get("error")
+        )
+        if invalid_reason:
+            output["invalid_reference_reason"] = invalid_reason
+            output["comparison"]["error"] = invalid_reason
+    if isinstance(output.get("comparison"), dict) and explicit_gt_valid:
+        output["comparison"]["valid_reference"] = True
+        output["comparison"]["invalid_reference"] = False
+        if _looks_like_reference_error(output["comparison"].get("error")):
+            output["comparison"].pop("error", None)
+        output["invalid_reference_reason"] = ""
+
+    if isinstance(output.get("comparison"), dict) and output["comparison"].get("error") == "":
+        output["comparison"].pop("error", None)
+
+    coverage = output.get("coverage") or {}
+    output["csim_status"] = {
+        "ground_truth": _summary_status(
+            (output.get("reference_validation") or {}).get("csim"),
+            bool(coverage.get("ground_truth_csim_available", False)),
+        ),
+        "generated": _summary_status(
+            output.get("csim"),
+            bool(coverage.get("generated_csim_available", False)),
+        ),
+    }
+    output["cosim_status"] = {
+        "ground_truth": _summary_status(
+            (output.get("reference_validation") or {}).get("cosim"),
+            bool(coverage.get("ground_truth_cosim_available", False)),
+        ),
+        "generated": _summary_status(
+            output.get("cosim"),
+            bool(coverage.get("generated_cosim_available", False)),
+        ),
+    }
+
+    return output
+
+
 def _finalize_singleshot_results(bench_name: str, meta: dict, success: bool,
                                  base_results: dict, reference_validation: dict) -> dict:
     output = dict(base_results)
@@ -1852,13 +2349,21 @@ def _finalize_singleshot_results(bench_name: str, meta: dict, success: bool,
 
     generated_csim = output.get("csim")
     generated_cosim = output.get("cosim")
+    generated_csim_available = bool(meta.get("supports_csim") and meta.get("testbench_file"))
+    generated_cosim_available = bool(meta.get("supports_cosim") and meta.get("testbench_file"))
     output["csim_status"] = {
-        "ground_truth": reference_validation.get("csim", {}).get("status", "failed"),
-        "generated": (generated_csim or {}).get("status", "failed"),
+        "ground_truth": _summary_status(
+            reference_validation.get("csim"),
+            bool(meta.get("supports_csim") and meta.get("testbench_file")),
+        ),
+        "generated": _summary_status(generated_csim, generated_csim_available),
     }
     output["cosim_status"] = {
-        "ground_truth": reference_validation.get("cosim", {}).get("status", "failed"),
-        "generated": (generated_cosim or {}).get("status", "failed"),
+        "ground_truth": _summary_status(
+            reference_validation.get("cosim"),
+            bool(meta.get("supports_cosim") and meta.get("testbench_file")),
+        ),
+        "generated": _summary_status(generated_cosim, generated_cosim_available),
     }
     output["coverage"] = _build_coverage(meta, reference_validation, generated_csim, generated_cosim)
 
@@ -1870,7 +2375,7 @@ def _finalize_singleshot_results(bench_name: str, meta: dict, success: bool,
             "error": reference_validation.get("invalid_reason", "Invalid gold reference"),
         }
 
-    return output
+    return sanitize_saved_result_record(output, reference_validation)
 
 
 def run_benchmark(bench_dir: str, output_dir: str = None,
@@ -2020,6 +2525,7 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
         results.get("baseline_csim"),
         results.get("baseline_cosim"),
     )
+    results = sanitize_saved_result_record(results, reference_validation)
     orchestrator.save_multistep_results(output_dir, bench_name, results)
     return results
 

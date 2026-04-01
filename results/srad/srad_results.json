@@ -1,6 +1,5 @@
 {
   "phase": "reference",
-  "error": "Gold HLS csim failed: Csim failed",
   "benchmark": "srad",
   "success": false,
   "reference_validation": {
@@ -30,20 +29,18 @@
       "work_dir": "/tmp/hls_synth_4qylkgxh"
     },
     "csim": {
-      "status": "failed",
-      "supported": false,
+      "status": "not_run",
+      "supported": true,
       "ran": false,
       "success": false,
-      "passed": false,
-      "error": ""
+      "passed": false
     },
     "cosim": {
-      "status": "failed",
+      "status": "not_supported",
       "supported": false,
       "ran": false,
       "success": false,
-      "passed": false,
-      "error": ""
+      "passed": false
     },
     "report": {
       "latency_cycles": 101205,
@@ -91,20 +88,18 @@
           "work_dir": "/tmp/hls_synth_4qylkgxh"
         },
         "csim": {
-          "status": "failed",
-          "supported": false,
+          "status": "not_run",
+          "supported": true,
           "ran": false,
           "success": false,
-          "passed": false,
-          "error": ""
+          "passed": false
         },
         "cosim": {
-          "status": "failed",
+          "status": "not_supported",
           "supported": false,
           "ran": false,
           "success": false,
-          "passed": false,
-          "error": ""
+          "passed": false
         },
         "report": {
           "latency_cycles": 101205,
@@ -134,12 +129,12 @@
   "invalid_reference_reason": "",
   "generated_status": "failed",
   "csim_status": {
-    "ground_truth": "failed",
-    "generated": "failed"
+    "ground_truth": "not_run",
+    "generated": "not_run"
   },
   "cosim_status": {
-    "ground_truth": "failed",
-    "generated": "failed"
+    "ground_truth": "not_supported",
+    "generated": "not_supported"
   },
   "coverage": {
     "ground_truth_csim_available": true,
@@ -153,9 +148,23 @@
   },
   "comparison": {
     "success": false,
-    "valid_reference": false,
-    "invalid_reference": true,
-    "error": "Gold HLS csim failed: Csim failed"
+    "valid_reference": true,
+    "invalid_reference": false,
+    "ground_truth_report": {
+      "latency_cycles": 101205,
+      "latency_ns": 542000.0,
+      "bram": "2461",
+      "dsp": "1008",
+      "ff": "295403",
+      "lut": "177141",
+      "uram": "0",
+      "fmax_mhz": 186.64,
+      "interval": 101206,
+      "estimated_clock_period_ns": 5.358,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -1.358,
+      "work_dir": "/tmp/hls_synth_4qylkgxh"
+    }
   },
   "optimization_history": [],
   "ground_truth_variant": {
@@ -195,20 +204,18 @@
         "work_dir": "/tmp/hls_synth_4qylkgxh"
       },
       "csim": {
-        "status": "failed",
-        "supported": false,
+        "status": "not_run",
+        "supported": true,
         "ran": false,
         "success": false,
-        "passed": false,
-        "error": ""
+        "passed": false
       },
       "cosim": {
-        "status": "failed",
+        "status": "not_supported",
         "supported": false,
         "ran": false,
         "success": false,
-        "passed": false,
-        "error": ""
+        "passed": false
       },
       "report": {
         "latency_cycles": 101205,

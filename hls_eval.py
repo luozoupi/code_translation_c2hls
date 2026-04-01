@@ -4,6 +4,8 @@ HLS evaluation utilities: run Vitis HLS synthesis and parse reports.
 
 import os
 import re
+import shlex
+import signal
 import subprocess
 import tempfile
 import logging
@@ -24,19 +26,115 @@ CSIM_TIMEOUT = 120   # 2 minutes
 COSIM_TIMEOUT = 600  # 10 minutes
 
 
-def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
-    """Run a shell command with Vitis sourced. Returns (stdout+stderr, timed_out)."""
-    full_cmd = f"source {VITIS_SETTINGS} && {cmd} 2>&1"
+def _descendant_pids(root_pid: int) -> set:
+    """Best-effort snapshot of descendant PIDs for a process tree."""
     try:
         result = subprocess.run(
-            ["bash", "-c", full_cmd],
+            ["ps", "-eo", "pid=", "ppid="],
             capture_output=True,
-            timeout=timeout,
             text=True,
+            check=True,
         )
-        return result.stdout + result.stderr, False
-    except subprocess.TimeoutExpired:
-        return "", True
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return set()
+
+    children = {}
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) != 2:
+            continue
+        pid, ppid = map(int, parts)
+        children.setdefault(ppid, set()).add(pid)
+
+    descendants = set()
+    stack = [root_pid]
+    while stack:
+        parent = stack.pop()
+        for child in children.get(parent, ()):
+            if child not in descendants:
+                descendants.add(child)
+                stack.append(child)
+    return descendants
+
+
+def _signal_pids(pids: set, sig) -> None:
+    for pid in sorted(pids, reverse=True):
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            continue
+
+
+def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
+    """Run a shell command with Vitis sourced. Returns (stdout+stderr, timed_out)."""
+    full_cmd = f"source {shlex.quote(VITIS_SETTINGS)} && exec {cmd}"
+    proc = subprocess.Popen(
+        ["bash", "-lc", full_cmd],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        output, _ = proc.communicate(timeout=timeout)
+        return output or "", False
+    except subprocess.TimeoutExpired as exc:
+        output = exc.stdout or ""
+        tree_pids = _descendant_pids(proc.pid)
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        _signal_pids(tree_pids, signal.SIGTERM)
+
+        try:
+            tail, _ = proc.communicate(timeout=5)
+            output += tail or ""
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            _signal_pids(tree_pids, signal.SIGKILL)
+            tail, _ = proc.communicate()
+            output += tail or ""
+
+        _signal_pids(tree_pids, signal.SIGKILL)
+        return output, True
+
+
+def _extract_vitis_failure_reason(log: str, fallback: str) -> str:
+    if not log:
+        return fallback
+
+    interesting_lines = []
+    for line in log.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        lowered = stripped.lower()
+        if (
+            ("error" in lowered and "0 errors" not in lowered)
+            or "simulation failed" in lowered
+            or "segmentation violation" in lowered
+            or "child killed" in lowered
+            or "undefined symbol" in lowered
+            or "did you mean to declare" in lowered
+            or "ld.lld" in lowered
+            or lowered.startswith("@e ")
+        ):
+            if stripped not in interesting_lines:
+                interesting_lines.append(stripped)
+        if len(interesting_lines) >= 4:
+            break
+
+    if interesting_lines:
+        return "\n".join(interesting_lines)
+
+    tail = [line.strip() for line in log.splitlines() if line.strip()]
+    if tail:
+        return "\n".join(tail[-3:])
+    return fallback
 
 
 def _normalize_extra_files(extra_files) -> list:
@@ -158,7 +256,8 @@ exit
             "error": f"Synthesis timed out after {SYNTH_TIMEOUT}s",
             "report": {},
             "report_raw": "",
-            "log": "",
+            "log": log,
+            "work_dir": work_dir,
         }
 
     if "Pre-synthesis failed" in log or "ERROR" in log:
@@ -264,16 +363,32 @@ exit
     cmd = f"cd {work_dir} && vitis-run --tcl --input_file {tcl_file}"
     log, timed_out = _run_vitis_cmd(cmd, CSIM_TIMEOUT)
     if timed_out:
-        return {"success": False, "passed": False, "error": f"Csim timed out after {CSIM_TIMEOUT}s", "log": ""}
+        return {
+            "success": False,
+            "passed": False,
+            "error": f"Csim timed out after {CSIM_TIMEOUT}s",
+            "log": "",
+            "work_dir": work_dir,
+        }
 
     passed = "CSim done with 0 errors" in log or "csim_design finished successfully" in log.lower()
-    has_error = "ERROR" in log and "0 errors" not in log.lower()
+    log_lower = log.lower()
+    has_error = (
+        ("ERROR" in log and "0 errors" not in log_lower)
+        or "simulation failed" in log_lower
+        or "segmentation violation" in log_lower
+        or "child killed" in log_lower
+        or "undefined symbol" in log_lower
+        or "ld.lld" in log_lower
+    )
+    success = passed and not has_error
 
     return {
-        "success": not has_error,
+        "success": success,
         "passed": passed,
-        "error": "" if not has_error else "Csim failed",
+        "error": "" if success else _extract_vitis_failure_reason(log, "Csim failed"),
         "log": log,
+        "work_dir": work_dir,
     }
 
 
@@ -325,7 +440,13 @@ exit
     cmd = f"cd {work_dir} && vitis-run --tcl --input_file {tcl_file}"
     log, timed_out = _run_vitis_cmd(cmd, COSIM_TIMEOUT)
     if timed_out:
-        return {"success": False, "passed": False, "error": f"Cosim timed out after {COSIM_TIMEOUT}s", "log": ""}
+        return {
+            "success": False,
+            "passed": False,
+            "error": f"Cosim timed out after {COSIM_TIMEOUT}s",
+            "log": "",
+            "work_dir": work_dir,
+        }
 
     log_lower = log.lower()
     passed = (
@@ -333,13 +454,22 @@ exit
         or "cosim_design finished successfully" in log_lower
         or "c/rtl co-simulation finished: pass" in log_lower
     )
-    has_error = "ERROR" in log and "0 errors" not in log_lower
+    has_error = (
+        ("ERROR" in log and "0 errors" not in log_lower)
+        or "simulation failed" in log_lower
+        or "segmentation violation" in log_lower
+        or "child killed" in log_lower
+        or "undefined symbol" in log_lower
+        or "ld.lld" in log_lower
+    )
+    success = passed and not has_error
 
     return {
-        "success": not has_error,
+        "success": success,
         "passed": passed,
-        "error": "" if not has_error else "Cosim failed",
+        "error": "" if success else _extract_vitis_failure_reason(log, "Cosim failed"),
         "log": log,
+        "work_dir": work_dir,
     }
 
 

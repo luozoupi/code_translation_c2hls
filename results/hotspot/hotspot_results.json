@@ -1,6 +1,5 @@
 {
   "phase": "reference",
-  "error": "Gold HLS csim failed: Csim failed",
   "benchmark": "hotspot",
   "success": false,
   "reference_validation": {
@@ -30,20 +29,18 @@
       "work_dir": "/tmp/hls_synth_4rztr6rn"
     },
     "csim": {
-      "status": "failed",
-      "supported": false,
+      "status": "not_run",
+      "supported": true,
       "ran": false,
       "success": false,
-      "passed": false,
-      "error": ""
+      "passed": false
     },
     "cosim": {
-      "status": "failed",
+      "status": "not_supported",
       "supported": false,
       "ran": false,
       "success": false,
-      "passed": false,
-      "error": ""
+      "passed": false
     },
     "report": {
       "latency_cycles": 9400513,
@@ -91,20 +88,18 @@
           "work_dir": "/tmp/hls_synth_4rztr6rn"
         },
         "csim": {
-          "status": "failed",
-          "supported": false,
+          "status": "not_run",
+          "supported": true,
           "ran": false,
           "success": false,
-          "passed": false,
-          "error": ""
+          "passed": false
         },
         "cosim": {
-          "status": "failed",
+          "status": "not_supported",
           "supported": false,
           "ran": false,
           "success": false,
-          "passed": false,
-          "error": ""
+          "passed": false
         },
         "report": {
           "latency_cycles": 9400513,
@@ -134,12 +129,12 @@
   "invalid_reference_reason": "",
   "generated_status": "failed",
   "csim_status": {
-    "ground_truth": "failed",
-    "generated": "failed"
+    "ground_truth": "not_run",
+    "generated": "not_run"
   },
   "cosim_status": {
-    "ground_truth": "failed",
-    "generated": "failed"
+    "ground_truth": "not_supported",
+    "generated": "not_supported"
   },
   "coverage": {
     "ground_truth_csim_available": true,
@@ -153,9 +148,23 @@
   },
   "comparison": {
     "success": false,
-    "valid_reference": false,
-    "invalid_reference": true,
-    "error": "Gold HLS synthesis failed: ERROR: [HLS 207-974] 'support/common/mc.h' file not found (kernel.cpp:2:10)"
+    "valid_reference": true,
+    "invalid_reference": false,
+    "ground_truth_report": {
+      "latency_cycles": 9400513,
+      "latency_ns": 50297000.0,
+      "bram": "855",
+      "dsp": "192",
+      "ff": "208079",
+      "lut": "102806",
+      "uram": "0",
+      "fmax_mhz": 186.88,
+      "interval": 9400514,
+      "estimated_clock_period_ns": 5.351,
+      "requested_clock_period_ns": 4.0,
+      "slack_ns": -1.351,
+      "work_dir": "/tmp/hls_synth_4rztr6rn"
+    }
   },
   "optimization_history": [],
   "ground_truth_variant": {
@@ -195,20 +204,18 @@
         "work_dir": "/tmp/hls_synth_4rztr6rn"
       },
       "csim": {
-        "status": "failed",
-        "supported": false,
+        "status": "not_run",
+        "supported": true,
         "ran": false,
         "success": false,
-        "passed": false,
-        "error": ""
+        "passed": false
       },
       "cosim": {
-        "status": "failed",
+        "status": "not_supported",
         "supported": false,
         "ran": false,
         "success": false,
-        "passed": false,
-        "error": ""
+        "passed": false
       },
       "report": {
         "latency_cycles": 9400513,

@@ -93,8 +93,7 @@
     "supported": true,
     "ran": true,
     "success": true,
-    "passed": true,
-    "error": ""
+    "passed": true
   },
   "cosim": null,
   "quality_repair": {
@@ -279,7 +278,8 @@
       "phase": "B",
       "success": false,
       "report": {},
-      "error": "Synthesis timed out after 600s"
+      "superseded_by_success": true,
+      "attempt_error": "Synthesis timed out after 600s"
     },
     {
       "turn": 1,
@@ -299,8 +299,7 @@
         "requested_clock_period_ns": 4.0,
         "slack_ns": -0.312,
         "work_dir": "/tmp/hls_synth_15iep0ao"
-      },
-      "error": ""
+      }
     }
   ],
   "benchmark": "sort_merge",
@@ -332,20 +331,18 @@
       "work_dir": "/tmp/hls_synth_u_7l5ba8"
     },
     "csim": {
-      "status": "failed",
-      "supported": false,
+      "status": "not_run",
+      "supported": true,
       "ran": false,
       "success": false,
-      "passed": false,
-      "error": ""
+      "passed": false
     },
     "cosim": {
-      "status": "failed",
+      "status": "not_supported",
       "supported": false,
       "ran": false,
       "success": false,
-      "passed": false,
-      "error": ""
+      "passed": false
     },
     "report": {
       "latency_cycles": 4100,
@@ -393,20 +390,18 @@
           "work_dir": "/tmp/hls_synth_u_7l5ba8"
         },
         "csim": {
-          "status": "failed",
-          "supported": false,
+          "status": "not_run",
+          "supported": true,
           "ran": false,
           "success": false,
-          "passed": false,
-          "error": ""
+          "passed": false
         },
         "cosim": {
-          "status": "failed",
+          "status": "not_supported",
           "supported": false,
           "ran": false,
           "success": false,
-          "passed": false,
-          "error": ""
+          "passed": false
         },
         "report": {
           "latency_cycles": 4100,
@@ -436,12 +431,12 @@
   "invalid_reference_reason": "",
   "generated_status": "passed",
   "csim_status": {
-    "ground_truth": "failed",
+    "ground_truth": "not_run",
     "generated": "passed"
   },
   "cosim_status": {
-    "ground_truth": "failed",
-    "generated": "failed"
+    "ground_truth": "not_supported",
+    "generated": "not_supported"
   },
   "coverage": {
     "ground_truth_csim_available": true,
@@ -459,7 +454,8 @@
       "phase": "B",
       "success": false,
       "report": {},
-      "error": "Synthesis timed out after 600s"
+      "superseded_by_success": true,
+      "attempt_error": "Synthesis timed out after 600s"
     },
     {
       "turn": 1,
@@ -479,8 +475,7 @@
         "requested_clock_period_ns": 4.0,
         "slack_ns": -0.312,
         "work_dir": "/tmp/hls_synth_15iep0ao"
-      },
-      "error": ""
+      }
     }
   ],
   "ground_truth_variant": {
@@ -520,20 +515,18 @@
         "work_dir": "/tmp/hls_synth_u_7l5ba8"
       },
       "csim": {
-        "status": "failed",
-        "supported": false,
+        "status": "not_run",
+        "supported": true,
         "ran": false,
         "success": false,
-        "passed": false,
-        "error": ""
+        "passed": false
       },
       "cosim": {
-        "status": "failed",
+        "status": "not_supported",
         "supported": false,
         "ran": false,
         "success": false,
-        "passed": false,
-        "error": ""
+        "passed": false
       },
       "report": {
         "latency_cycles": 4100,

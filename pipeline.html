@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>C-to-HLS Translation Pipeline</title>
+<style>
+:root {
+  --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #e2e8f0;
+  --muted: #94a3b8; --accent: #38bdf8; --green: #4ade80; --red: #f87171;
+  --yellow: #fbbf24; --purple: #a78bfa; --orange: #fb923c; --pink: #f472b6;
+  --cyan: #22d3ee; --teal: #2dd4bf;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+.container { max-width:1400px; margin:0 auto; padding:32px 24px; }
+h1 { font-size:28px; font-weight:800; background:linear-gradient(135deg,var(--accent),var(--purple)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:4px; }
+h2 { font-size:18px; font-weight:700; margin:40px 0 16px; color:var(--accent); display:flex; align-items:center; gap:8px; }
+h2::before { content:''; display:inline-block; width:4px; height:20px; background:var(--accent); border-radius:2px; }
+.subtitle { color:var(--muted); font-size:14px; margin-bottom:32px; }
+
+/* ── Pipeline canvas ─────────────────────────────────── */
+.pipeline { position:relative; }
+.phase-row { display:flex; gap:16px; margin-bottom:24px; align-items:stretch; }
+.phase-row.center { justify-content:center; }
+
+/* ── Nodes ───────────────────────────────────────────── */
+.node { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px; position:relative; min-width:180px; transition: all 0.2s; }
+.node:hover { border-color:var(--accent); transform:translateY(-2px); box-shadow:0 8px 24px rgba(56,189,248,0.1); }
+.node .tag { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; display:inline-block; padding:2px 8px; border-radius:4px; }
+.node .title { font-size:14px; font-weight:700; margin-bottom:4px; }
+.node .desc { font-size:12px; color:var(--muted); line-height:1.4; }
+.node .detail { font-size:11px; color:var(--muted); margin-top:8px; padding-top:8px; border-top:1px solid var(--border); }
+.node .detail code { background:rgba(56,189,248,0.1); color:var(--accent); padding:1px 5px; border-radius:3px; font-size:10px; }
+
+/* Phase colors */
+.node.input { border-left:3px solid var(--cyan); }
+.node.input .tag { background:rgba(34,211,238,0.15); color:var(--cyan); }
+.node.phase-a { border-left:3px solid var(--green); }
+.node.phase-a .tag { background:rgba(74,222,128,0.15); color:var(--green); }
+.node.phase-b { border-left:3px solid var(--accent); }
+.node.phase-b .tag { background:rgba(56,189,248,0.15); color:var(--accent); }
+.node.phase-c { border-left:3px solid var(--purple); }
+.node.phase-c .tag { background:rgba(167,139,250,0.15); color:var(--purple); }
+.node.quality { border-left:3px solid var(--orange); }
+.node.quality .tag { background:rgba(251,146,63,0.15); color:var(--orange); }
+.node.eval { border-left:3px solid var(--pink); }
+.node.eval .tag { background:rgba(244,114,182,0.15); color:var(--pink); }
+.node.output { border-left:3px solid var(--teal); }
+.node.output .tag { background:rgba(45,212,191,0.15); color:var(--teal); }
+.node.llm { border-left:3px solid var(--yellow); }
+.node.llm .tag { background:rgba(251,191,36,0.15); color:var(--yellow); }
+.node.vitis { border-left:3px solid #60a5fa; }
+.node.vitis .tag { background:rgba(96,165,250,0.15); color:#60a5fa; }
+.node.decision { border-left:3px solid var(--red); border-style:dashed; border-left-style:solid; }
+.node.decision .tag { background:rgba(248,113,113,0.15); color:var(--red); }
+
+/* ── Arrows ──────────────────────────────────────────── */
+.arrow { display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:20px; min-width:32px; flex-shrink:0; }
+.arrow.down { writing-mode: vertical-lr; min-height:32px; min-width:auto; justify-content:center; text-align:center; margin:0 auto; }
+.arrow .label { font-size:10px; color:var(--muted); writing-mode:horizontal-tb; text-align:center; display:block; margin-top:2px; }
+
+/* ── Flow sections ───────────────────────────────────── */
+.flow-section { background:rgba(30,41,59,0.5); border:1px solid var(--border); border-radius:16px; padding:20px; margin-bottom:24px; }
+.flow-section .section-title { font-size:13px; font-weight:700; color:var(--accent); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+.flow-section .section-title .badge { font-size:10px; background:rgba(56,189,248,0.2); color:var(--accent); padding:2px 8px; border-radius:10px; }
+
+/* ── Loop indicator ──────────────────────────────────── */
+.loop-box { border:2px dashed var(--border); border-radius:12px; padding:16px; position:relative; }
+.loop-box::before { content:attr(data-label); position:absolute; top:-10px; left:16px; background:var(--bg); padding:0 8px; font-size:10px; font-weight:700; color:var(--yellow); letter-spacing:0.5px; }
+
+/* ── Grid layouts ────────────────────────────────────── */
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+.grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+
+/* ── Metric chips ────────────────────────────────────── */
+.metrics { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.metric { font-size:10px; padding:2px 8px; border-radius:8px; background:rgba(148,163,184,0.1); color:var(--muted); border:1px solid rgba(148,163,184,0.15); }
+
+/* ── Legend ───────────────────────────────────────────── */
+.legend { display:flex; flex-wrap:wrap; gap:16px; margin:24px 0; padding:16px; background:var(--card); border-radius:12px; border:1px solid var(--border); }
+.legend-item { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+.legend-color { width:12px; height:12px; border-radius:3px; flex-shrink:0; }
+
+/* ── Mode tabs ───────────────────────────────────────── */
+.mode-tabs { display:flex; gap:8px; margin-bottom:24px; }
+.mode-tab { padding:8px 20px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid var(--border); background:var(--card); color:var(--muted); transition:all 0.2s; }
+.mode-tab.active { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+.mode-tab:hover:not(.active) { border-color:var(--accent); color:var(--text); }
+.mode-content { display:none; }
+.mode-content.active { display:block; }
+
+/* ── Scoring table ───────────────────────────────────── */
+.score-table { width:100%; border-collapse:collapse; font-size:12px; }
+.score-table th { text-align:left; padding:8px 12px; background:rgba(56,189,248,0.08); color:var(--accent); font-weight:600; border-bottom:1px solid var(--border); }
+.score-table td { padding:6px 12px; border-bottom:1px solid rgba(51,65,85,0.5); }
+.score-table tr:hover td { background:rgba(56,189,248,0.03); }
+.weight { color:var(--yellow); font-weight:600; }
+
+/* ── Footer ──────────────────────────────────────────── */
+footer { text-align:center; color:var(--muted); font-size:11px; margin-top:48px; padding:16px; border-top:1px solid var(--border); }
+
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width:900px) {
+  .phase-row { flex-direction:column; }
+  .grid-2,.grid-3,.grid-4 { grid-template-columns:1fr; }
+  .arrow { transform:rotate(90deg); min-height:auto; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>C-to-HLS Translation Pipeline</h1>
+<div class="subtitle">LLM-driven C to Xilinx Vitis HLS code translation with iterative synthesis repair and quality optimization</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-color" style="background:var(--cyan)"></div>Input Data</div>
+  <div class="legend-item"><div class="legend-color" style="background:var(--green)"></div>Phase A: Validation</div>
+  <div class="legend-item"><div class="legend-color" style="background:var(--accent)"></div>Phase B: Translation</div>
+  <div class="legend-item"><div class="legend-color" style="background:var(--purple)"></div>Phase C: Comparison</div>
+  <div class="legend-item"><div class="legend-color" style="background:var(--orange)"></div>Quality Repair</div>
+  <div class="legend-item"><div class="legend-color" style="background:var(--yellow)"></div>LLM Calls</div>
+  <div class="legend-item"><div class="legend-color" style="background:#60a5fa"></div>Vitis HLS</div>
+  <div class="legend-item"><div class="legend-color" style="background:var(--pink)"></div>Evaluation</div>
+  <div class="legend-item"><div class="legend-color" style="background:var(--teal)"></div>Output</div>
+</div>
+
+<!-- Mode tabs -->
+<div class="mode-tabs">
+  <div class="mode-tab active" onclick="switchMode('single')">Single-Shot Mode</div>
+  <div class="mode-tab" onclick="switchMode('multi')">Multi-Step Mode</div>
+  <div class="mode-tab" onclick="switchMode('scoring')">Scoring Rubric</div>
+  <div class="mode-tab" onclick="switchMode('tools')">Tools &amp; Infrastructure</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- SINGLE-SHOT MODE                                     -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="mode-content active" id="mode-single">
+
+<!-- ── Input Loading ─────────────────────────────────── -->
+<div class="flow-section">
+  <div class="section-title">Benchmark Loading <span class="badge">_load_benchmark_inputs()</span></div>
+  <div class="grid-4">
+    <div class="node input">
+      <div class="tag">Input</div>
+      <div class="title">plain.cpp</div>
+      <div class="desc">Plain C source with HLS pragmas stripped from gold reference</div>
+    </div>
+    <div class="node input">
+      <div class="tag">Input</div>
+      <div class="title">kernel.h</div>
+      <div class="desc">Header with types, constants, array dimensions</div>
+    </div>
+    <div class="node input">
+      <div class="tag">Input</div>
+      <div class="title">testbench.cpp</div>
+      <div class="desc">Golden-reference C-sim testbench for functional verification</div>
+    </div>
+    <div class="node input">
+      <div class="tag">Input</div>
+      <div class="title">metadata.json</div>
+      <div class="desc">Benchmark config: part, clock, top function, variants, support files</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── GT Validation ─────────────────────────────────── -->
+<div class="flow-section">
+  <div class="section-title">Ground Truth Validation <span class="badge">validate_gold_reference()</span></div>
+  <div class="phase-row">
+    <div class="node input" style="flex:1">
+      <div class="tag">GT Selection</div>
+      <div class="title">Select Best GT Variant</div>
+      <div class="desc">Try preferred_gt_file first, then compile-check variants from best to worst, fall back to baseline</div>
+      <div class="detail">
+        Variants: baseline &rarr; tiling &rarr; pipeline &rarr; unroll &rarr; doublebuffer &rarr; coalescing<br>
+        Skip variants needing HLS-only headers (<code>ap_int.h</code>)
+      </div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="node vitis" style="flex:1">
+      <div class="tag">Vitis HLS</div>
+      <div class="title">Synthesize GT</div>
+      <div class="desc">Run csynth_design on selected GT variant to get reference synthesis report</div>
+      <div class="detail">
+        <code>xc7a100t-csg324-1</code> &middot; <code>4ns clock</code> &middot; Timeout: 600s
+      </div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="node vitis" style="flex:1">
+      <div class="tag">Vitis HLS</div>
+      <div class="title">GT Csim / Cosim</div>
+      <div class="desc">Verify GT passes testbench before using as reference</div>
+      <div class="detail">If csim fails &rarr; try next variant or fall back to baseline</div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="node output" style="flex:1">
+      <div class="tag">Output</div>
+      <div class="title">GT Report</div>
+      <div class="desc">Validated reference: latency_ns, Fmax, BRAM, DSP, FF, LUT</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Phase A ───────────────────────────────────────── -->
+<div class="flow-section">
+  <div class="section-title">Phase A: C Code Validation <span class="badge">run_phase_a()</span></div>
+  <div class="phase-row">
+    <div class="node phase-a" style="flex:1">
+      <div class="tag">Phase A</div>
+      <div class="title">Compile Check</div>
+      <div class="desc">Validate plain C code compiles with <code>g++ -c</code></div>
+      <div class="detail">Writes source + header + support files to temp dir</div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="loop-box" data-label="REPAIR LOOP (max 3 turns)" style="flex:2">
+      <div class="phase-row" style="margin:0">
+        <div class="node decision" style="flex:1">
+          <div class="tag">Decision</div>
+          <div class="title">Compiles?</div>
+          <div class="desc">Yes &rarr; proceed to Phase B<br>No &rarr; send error to LLM</div>
+        </div>
+        <div class="arrow">&rarr;</div>
+        <div class="node llm" style="flex:1">
+          <div class="tag">LLM</div>
+          <div class="title">Fix C Code</div>
+          <div class="desc">LLM receives compile error + code, returns fixed version</div>
+          <div class="detail">Prompt: <code>q_validate_c_code</code></div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="node phase-a" style="flex:0.7">
+      <div class="tag">Output</div>
+      <div class="title">Valid C Code</div>
+      <div class="desc">Compiles successfully, ready for HLS translation</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Phase B ───────────────────────────────────────── -->
+<div class="flow-section">
+  <div class="section-title">Phase B: HLS Translation &amp; Synthesis <span class="badge">run_phase_b()</span></div>
+
+  <!-- Initial translation -->
+  <div class="phase-row">
+    <div class="node phase-b" style="flex:1">
+      <div class="tag">Phase B</div>
+      <div class="title">C Code Input</div>
+      <div class="desc">Validated C code + header + benchmark context</div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="node llm" style="flex:1.5">
+      <div class="tag">LLM Translation</div>
+      <div class="title">C &rarr; HLS</div>
+      <div class="desc">LLM adds HLS pragmas: INTERFACE (m_axi, s_axilite), PIPELINE, UNROLL, ARRAY_PARTITION. Preserves workload() wrapper.</div>
+      <div class="detail">Prompt: <code>q_translate_c_to_hls</code><br>System: <code>Instruction_c2hls</code></div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="node phase-b" style="flex:1">
+      <div class="tag">Extract</div>
+      <div class="title">HLS Code</div>
+      <div class="desc">Parse code block from LLM response</div>
+      <div class="detail"><code>extract_cpp_code(reply)</code></div>
+    </div>
+  </div>
+
+  <!-- Synthesis loop -->
+  <div class="loop-box" data-label="SYNTHESIS LOOP (max 3 turns)" style="margin-top:16px">
+    <div class="phase-row" style="margin:0">
+      <div class="node phase-b" style="flex:1">
+        <div class="tag">Step 1</div>
+        <div class="title">g++ Compile Check</div>
+        <div class="desc">Quick validation before expensive Vitis synthesis</div>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="node vitis" style="flex:1">
+        <div class="tag">Step 2</div>
+        <div class="title">Vitis csynth_design</div>
+        <div class="desc">Full FPGA synthesis targeting Artix-7 100T at 4ns (250 MHz)</div>
+        <div class="detail">Timeout: 600s &middot; TCL via <code>vitis-run</code></div>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="node decision" style="flex:1">
+        <div class="tag">Decision</div>
+        <div class="title">Synthesis OK?</div>
+        <div class="desc">
+          <strong style="color:var(--green)">Pass</strong> &rarr; run csim/cosim, proceed<br>
+          <strong style="color:var(--red)">Fail</strong> &rarr; LLM repair<br>
+          <strong style="color:var(--yellow)">Timeout</strong> &rarr; LLM simplify
+        </div>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="node llm" style="flex:1">
+        <div class="tag">LLM Repair</div>
+        <div class="title">Fix Synthesis Error</div>
+        <div class="desc">LLM receives error log + current code + repair guidance</div>
+        <div class="detail">
+          Prompts: <code>hls_synthesis_fix</code><br><code>hls_synthesis_timeout_fix</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Post-synthesis testing -->
+  <div class="phase-row" style="margin-top:16px">
+    <div class="node vitis" style="flex:1">
+      <div class="tag">Vitis HLS</div>
+      <div class="title">C-Simulation (csim)</div>
+      <div class="desc">Run testbench against generated HLS code in C simulation</div>
+      <div class="detail"><code>csim_design</code> &middot; Timeout: 120s &middot; Check "0 errors"</div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="node vitis" style="flex:1">
+      <div class="tag">Vitis HLS</div>
+      <div class="title">Co-Simulation (cosim)</div>
+      <div class="desc">RTL-level verification: synthesize then simulate against testbench</div>
+      <div class="detail"><code>cosim_design</code> &middot; Timeout: 600s &middot; Optional</div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="node output" style="flex:1">
+      <div class="tag">Output</div>
+      <div class="title">Synthesis Report</div>
+      <div class="desc">Parsed from csynth.xml / csynth.rpt</div>
+      <div class="metrics">
+        <span class="metric">latency_ns</span>
+        <span class="metric">fmax_mhz</span>
+        <span class="metric">BRAM</span>
+        <span class="metric">DSP</span>
+        <span class="metric">FF</span>
+        <span class="metric">LUT</span>
+        <span class="metric">slack_ns</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Phase C ───────────────────────────────────────── -->
+<div class="flow-section">
+  <div class="section-title">Phase C: Ground Truth Comparison <span class="badge">run_phase_c()</span></div>
+  <div class="phase-row">
+    <div class="node phase-c" style="flex:1">
+      <div class="tag">Phase C</div>
+      <div class="title">Compare Reports</div>
+      <div class="desc">Calculate gen/GT ratio for each metric</div>
+      <div class="detail"><code>compare_reports(gen, gt)</code></div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="node phase-c" style="flex:1.5">
+      <div class="tag">Ratios</div>
+      <div class="title">Metric Ratios</div>
+      <div class="desc">For each metric: ratio = generated / ground_truth<br>
+        &lt;1.0 = better (for latency, resources)<br>
+        &gt;1.0 = better (for Fmax)</div>
+      <div class="metrics">
+        <span class="metric">latency_ratio</span>
+        <span class="metric">fmax_ratio</span>
+        <span class="metric">bram_ratio</span>
+        <span class="metric">dsp_ratio</span>
+        <span class="metric">ff_ratio</span>
+        <span class="metric">lut_ratio</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Quality Repair ────────────────────────────────── -->
+<div class="flow-section">
+  <div class="section-title">Quality Repair <span class="badge">run_quality_repair()</span></div>
+  <div class="loop-box" data-label="QUALITY REPAIR LOOP (max 2 turns)">
+    <div class="phase-row" style="margin:0">
+      <div class="node quality" style="flex:1">
+        <div class="tag">Analyze</div>
+        <div class="title">Quality Guidance</div>
+        <div class="desc">Identify improvement targets: timing slack, Fmax, latency, resource overuse</div>
+        <div class="detail">
+          Thresholds: slack &lt; 0, fmax_ratio &lt; 0.8, lat_ratio &gt; 2.0, resource &gt; 1.15&times;
+        </div>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="node llm" style="flex:1">
+        <div class="tag">LLM</div>
+        <div class="title">Optimize Code</div>
+        <div class="desc">LLM receives gen+GT reports, comparison, and specific guidance. Returns improved HLS code.</div>
+        <div class="detail">Prompt: <code>hls_quality_repair</code></div>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="node vitis" style="flex:1">
+        <div class="tag">Evaluate</div>
+        <div class="title">Synth + Csim</div>
+        <div class="desc">Synthesize candidate, verify csim still passes</div>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="node decision" style="flex:1">
+        <div class="tag">Accept?</div>
+        <div class="title">Score Improved?</div>
+        <div class="desc">
+          <strong style="color:var(--green)">Accept</strong>: focus improved + tests preserved + score better<br>
+          <strong style="color:var(--red)">Reject</strong>: test regression or no improvement
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Final Output ──────────────────────────────────── -->
+<div class="flow-section">
+  <div class="section-title">Final Output</div>
+  <div class="grid-3">
+    <div class="node output">
+      <div class="tag">Result</div>
+      <div class="title">Generated HLS Code</div>
+      <div class="desc">Final optimized HLS C++ code with pragmas</div>
+      <div class="detail"><code>{bench}_generated.cpp</code></div>
+    </div>
+    <div class="node eval">
+      <div class="tag">Scoring</div>
+      <div class="title">Rubric Evaluation</div>
+      <div class="desc">8-metric weighted score (0-100) and letter grade (A-F)</div>
+      <div class="detail"><code>rubric.py --results results</code></div>
+    </div>
+    <div class="node output">
+      <div class="tag">Report</div>
+      <div class="title">HTML Report</div>
+      <div class="desc">Interactive scoreboard, charts, per-benchmark detail, turn history</div>
+      <div class="detail"><code>report.py --output report.html</code></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /mode-single -->
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- MULTI-STEP MODE                                      -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="mode-content" id="mode-multi">
+
+<div class="flow-section">
+  <div class="section-title">Multi-Step Incremental Optimization <span class="badge">run_multistep()</span></div>
+
+  <!-- Baseline -->
+  <div class="phase-row">
+    <div class="node phase-a" style="flex:1">
+      <div class="tag">Phase A</div>
+      <div class="title">Validate C Code</div>
+      <div class="desc">Same as single-shot Phase A</div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="node phase-b" style="flex:1">
+      <div class="tag">Phase B</div>
+      <div class="title">Baseline HLS</div>
+      <div class="desc">Initial translation + synthesis (same as single-shot)</div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="node phase-c" style="flex:1">
+      <div class="tag">Phase C</div>
+      <div class="title">Baseline Comparison</div>
+      <div class="desc">Compare baseline against GT reference</div>
+    </div>
+  </div>
+
+  <!-- Optimization steps -->
+  <div class="loop-box" data-label="OPTIMIZATION STEPS (sequential)" style="margin-top:16px">
+    <div class="grid-3" style="margin-bottom:16px">
+      <div class="node phase-b">
+        <div class="tag">Step 1</div>
+        <div class="title">Tiling</div>
+        <div class="desc">Data buffering: partition arrays into on-chip tiles for local access</div>
+        <div class="detail">Prompt: <code>q_optimize_tiling</code></div>
+      </div>
+      <div class="node phase-b">
+        <div class="tag">Step 2</div>
+        <div class="title">Pipelining</div>
+        <div class="desc">Loop pipelining: overlap iterations with #pragma HLS PIPELINE</div>
+        <div class="detail">Prompt: <code>q_optimize_pipeline</code></div>
+      </div>
+      <div class="node phase-b">
+        <div class="tag">Step 3</div>
+        <div class="title">Unrolling</div>
+        <div class="desc">Loop unrolling: parallel execution with #pragma HLS UNROLL</div>
+        <div class="detail">Prompt: <code>q_optimize_unroll</code></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="node phase-b">
+        <div class="tag">Step 4</div>
+        <div class="title">Double Buffering</div>
+        <div class="desc">Overlap load/compute with ping-pong buffers using #pragma HLS DATAFLOW</div>
+        <div class="detail">Prompt: <code>q_optimize_doublebuffer</code></div>
+      </div>
+      <div class="node phase-b">
+        <div class="tag">Step 5</div>
+        <div class="title">Memory Coalescing</div>
+        <div class="desc">Wide memory bus (512-bit) with ap_uint packing for burst transfers</div>
+        <div class="detail">Prompt: <code>q_optimize_coalescing</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Per-step process -->
+  <div style="margin-top:16px">
+    <div class="section-title" style="font-size:12px;margin-bottom:12px">Each Optimization Step <span class="badge">run_optimization_step()</span></div>
+    <div class="phase-row">
+      <div class="node llm" style="flex:1">
+        <div class="tag">LLM</div>
+        <div class="title">Apply Optimization</div>
+        <div class="desc">LLM receives current code + previous report + step-specific prompt</div>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="node vitis" style="flex:1">
+        <div class="tag">Vitis</div>
+        <div class="title">Synthesis + Test</div>
+        <div class="desc">csynth_design + csim + cosim (same as Phase B loop)</div>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="node phase-c" style="flex:1">
+        <div class="tag">Compare</div>
+        <div class="title">vs Previous + GT</div>
+        <div class="desc">Compare against previous step and per-step GT variant (if available)</div>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="node output" style="flex:1">
+        <div class="tag">Save</div>
+        <div class="title">Step Result</div>
+        <div class="desc">Code, report, comparisons saved per step</div>
+        <div class="detail"><code>steps/{i}_{name}.cpp</code></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /mode-multi -->
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- SCORING RUBRIC                                       -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="mode-content" id="mode-scoring">
+
+<div class="flow-section">
+  <div class="section-title">Scoring Rubric <span class="badge">rubric.py</span></div>
+
+  <table class="score-table">
+    <tr><th>Metric</th><th>Weight</th><th>Scoring Method</th><th>Details</th></tr>
+    <tr>
+      <td><strong>M1. Synthesis</strong></td>
+      <td class="weight">5%</td>
+      <td>Binary: 0 or 100</td>
+      <td>Did the generated code synthesize successfully?</td>
+    </tr>
+    <tr>
+      <td><strong>M2. C-Simulation</strong></td>
+      <td class="weight">10%</td>
+      <td>Binary: 0 or 100</td>
+      <td>Did csim pass the testbench?</td>
+    </tr>
+    <tr>
+      <td><strong>M3. Co-Simulation</strong></td>
+      <td class="weight">10%</td>
+      <td>Binary: 0 or 100</td>
+      <td>Did cosim (RTL simulation) pass?</td>
+    </tr>
+    <tr>
+      <td><strong>M4. Latency (ns)</strong></td>
+      <td class="weight">23%</td>
+      <td>Ratio score: gen/GT</td>
+      <td>ratio=1.0 &rarr; 85, better &rarr; 100, 2&times; worse &rarr; 42, 5&times; &rarr; 5. Uses latency_ns (accounts for Fmax).</td>
+    </tr>
+    <tr>
+      <td><strong>M5. Fmax</strong></td>
+      <td class="weight">10%</td>
+      <td>Inverse ratio score</td>
+      <td>Higher is better. Also checks timing slack (estimated period vs 4ns target).</td>
+    </tr>
+    <tr>
+      <td><strong>M6. Resources</strong></td>
+      <td class="weight">17%</td>
+      <td>Weighted sub-metrics</td>
+      <td>BRAM 30%, DSP 30%, FF 20%, LUT 20%. Each scored as gen/GT ratio.</td>
+    </tr>
+    <tr>
+      <td><strong>M7. Area-Delay Product</strong></td>
+      <td class="weight">15%</td>
+      <td>ADP ratio score</td>
+      <td>ADP = latency_ns &times; normalized_area. Combined efficiency metric.</td>
+    </tr>
+    <tr>
+      <td><strong>M8. Device Feasibility</strong></td>
+      <td class="weight">10%</td>
+      <td>Utilization-based</td>
+      <td>&le;50% &rarr; 100, 50-80% &rarr; 60-100, 80-100% &rarr; 20-60, &gt;100% &rarr; 0 (infeasible)</td>
+    </tr>
+  </table>
+
+  <div class="grid-2" style="margin-top:20px">
+    <div class="node eval">
+      <div class="tag">Scoring Curve</div>
+      <div class="title">Ratio &rarr; Score Function</div>
+      <div class="desc">
+        Piecewise exponential decay:<br>
+        <code>ratio &le; 1.0</code>: score = 85 + 15 &times; (1 - ratio)<br>
+        <code>ratio &gt; 1.0</code>: score = 85 &times; e<sup>-0.7(ratio-1)</sup>
+      </div>
+    </div>
+    <div class="node eval">
+      <div class="tag">Grades</div>
+      <div class="title">Letter Grade Thresholds</div>
+      <div class="desc">
+        <strong style="color:#22c55e">A</strong> &ge; 90 &mdash; Excellent<br>
+        <strong style="color:#3b82f6">B</strong> &ge; 75 &mdash; Good<br>
+        <strong style="color:#eab308">C</strong> &ge; 60 &mdash; Acceptable<br>
+        <strong style="color:#f97316">D</strong> &ge; 40 &mdash; Below average<br>
+        <strong style="color:#ef4444">F</strong> &lt; 40 &mdash; Poor
+      </div>
+    </div>
+  </div>
+
+  <div class="node output" style="margin-top:20px">
+    <div class="tag">Target Device</div>
+    <div class="title">xc7a100t-csg324-1 (Artix-7 100T)</div>
+    <div class="desc">Clock: 4 ns (250 MHz) &middot; BRAM: 270 &middot; DSP: 240 &middot; FF: 126,800 &middot; LUT: 63,400</div>
+  </div>
+</div>
+
+</div><!-- /mode-scoring -->
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- TOOLS & INFRA                                        -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="mode-content" id="mode-tools">
+
+<div class="flow-section">
+  <div class="section-title">Files &amp; Components</div>
+  <div class="grid-2">
+    <div class="node phase-b">
+      <div class="tag">Core</div>
+      <div class="title">c2hls.py</div>
+      <div class="desc">Main orchestrator: C2HLSOrchestrator class, run_benchmark(), run_benchmark_multistep(), Phase A/B/C, quality repair</div>
+    </div>
+    <div class="node vitis">
+      <div class="tag">Backend</div>
+      <div class="title">hls_eval.py</div>
+      <div class="desc">Vitis HLS runner: run_hls_synthesis(), run_csim(), run_cosim(), XML/text report parsers</div>
+    </div>
+    <div class="node llm">
+      <div class="tag">Prompts</div>
+      <div class="title">prompt_c2hls.py</div>
+      <div class="desc">All LLM prompt templates: system instructions, phase prompts, optimization step prompts, repair prompts</div>
+    </div>
+    <div class="node eval">
+      <div class="tag">Scoring</div>
+      <div class="title">rubric.py</div>
+      <div class="desc">8-metric rubric: ratio_score(), score_step(), score_benchmark(), grade thresholds, JSON/text output</div>
+    </div>
+    <div class="node output">
+      <div class="tag">Report</div>
+      <div class="title">report.py</div>
+      <div class="desc">HTML report generator: scoreboard, resource charts, performance tables, turn history, per-benchmark detail</div>
+    </div>
+    <div class="node input">
+      <div class="tag">Data</div>
+      <div class="title">prepare_benchmarks.py</div>
+      <div class="desc">Strip HLS pragmas from rodinia-hls / ML4Accel gold sources to create plain.cpp + metadata</div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-section">
+  <div class="section-title">Supported LLM Backends</div>
+  <div class="grid-3">
+    <div class="node llm">
+      <div class="tag">Anthropic</div>
+      <div class="title">Claude Models</div>
+      <div class="desc">claude-haiku-4-5, claude-sonnet-4-5, etc. Via Anthropic SDK.</div>
+      <div class="detail">API key: <code>.env</code> or <code>claude-api-key.txt</code></div>
+    </div>
+    <div class="node llm">
+      <div class="tag">OpenAI</div>
+      <div class="title">GPT / OpenAI API</div>
+      <div class="desc">gpt-4o, gpt-4o-mini, etc. Via OpenAI SDK.</div>
+      <div class="detail">API key: <code>.env</code> or <code>openai-api-key.txt</code></div>
+    </div>
+    <div class="node llm">
+      <div class="tag">vLLM</div>
+      <div class="title">Self-Hosted Models</div>
+      <div class="desc">Qwen, Nemotron, etc. Via OpenAI-compatible API on localhost.</div>
+      <div class="detail">Default: <code>http://127.0.0.1:8000/v1</code></div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-section">
+  <div class="section-title">Benchmark Sources</div>
+  <div class="grid-2">
+    <div class="node input">
+      <div class="tag">9 Benchmarks</div>
+      <div class="title">rodinia-hls</div>
+      <div class="desc">StreamCluster, hotspot, kmeans, knn, lavaMD, lud, nw, pathfinder, srad</div>
+      <div class="detail">Multi-variant: baseline through coalescing (5-7 optimization steps each)</div>
+    </div>
+    <div class="node input">
+      <div class="tag">8 Benchmarks</div>
+      <div class="title">ML4Accel-Dataset</div>
+      <div class="desc">aes, fft, gemm_ncubed, md_knn, sort_merge, spmv_crs, stencil2D, viterbi</div>
+      <div class="detail">Single-variant: one optimized gold reference per benchmark</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /mode-tools -->
+
+<footer>
+  C-to-HLS Translation Pipeline &middot; Target: xc7a100t-csg324-1 (Artix-7 100T) &middot; Clock: 4 ns (250 MHz)<br>
+  17 benchmarks from rodinia-hls &amp; ML4Accel-Dataset
+</footer>
+
+</div><!-- /container -->
+
+<script>
+function switchMode(mode) {
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.mode-content').forEach(c => c.classList.remove('active'));
+  document.querySelector(`#mode-${mode}`).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>

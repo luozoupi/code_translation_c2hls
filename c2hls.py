@@ -250,7 +250,12 @@ def _extract_failure_excerpt(log: str, fallback: str = "") -> str:
 
 
 def _normalize_signature_text(text: str) -> str:
-    normalized = " ".join((text or "").strip().split())
+    # Strip C/C++ comments that appear inline in parameter lists
+    # (e.g. `float *feature /*[N][F]*/`). The comparison should be on types
+    # and names only, not on documentation.
+    stripped = re.sub(r"/\*.*?\*/", " ", text or "", flags=re.DOTALL)
+    stripped = re.sub(r"//[^\n]*", " ", stripped)
+    normalized = " ".join(stripped.strip().split())
     normalized = re.sub(r"\s*([(),\[\]])\s*", r"\1", normalized)
     normalized = normalized.replace(",", ", ")
     normalized = re.sub(r"\s*\*\s*", "*", normalized)

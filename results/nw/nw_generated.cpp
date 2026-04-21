@@ -90,9 +90,7 @@ void needwun(char SEQA[ALEN], char SEQB[BLEN],
     }
 }
 
-
 extern "C" {
-
 void workload(char* SEQA, char* SEQB,
              char* alignedA, char* alignedB, int num_jobs) {
     #pragma HLS INTERFACE m_axi port=SEQA offset=slave bundle=gmem
@@ -110,5 +108,4 @@ void workload(char* SEQA, char* SEQB,
 	}
 	return;
 }
-
 }

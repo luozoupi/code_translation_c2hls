@@ -225,7 +225,7 @@ footer {{ text-align:center; color:var(--muted); font-size:12px; margin-top:40px
              '<span style="--c:#ef4444">&#9632; Device Limit</span>'
              '</div>')
 
-    DEVICE = {"bram": 270, "dsp": 240, "ff": 126800, "lut": 63400}
+    from rubric import DEVICE_LIMITS as DEVICE  # derived from C2HLS_PART
 
     for b in sorted(rubric_data, key=lambda x: -x["composite"]):
         name = b["benchmark"]
@@ -308,7 +308,10 @@ footer {{ text-align:center; color:var(--muted); font-size:12px; margin-top:40px
     h.append('</div>')  # metric-grid
 
     # ── Device utilization heatmap ──────────────────────────────────
-    h.append('<h2>Device Utilization (% of Artix-7 100T)</h2>')
+    import os as _os
+    _part = _os.getenv("C2HLS_PART", "xc7a100t-csg324-1")
+    _clock_ns = _os.getenv("C2HLS_CLOCK_NS", "4")
+    h.append(f'<h2>Device Utilization (% of {escape(_part)})</h2>')
     h.append('<table><tr><th>Benchmark</th><th>BRAM %</th><th>DSP %</th><th>FF %</th><th>LUT %</th><th>Feasible</th></tr>')
 
     for b in sorted(rubric_data, key=lambda x: x["benchmark"]):
@@ -476,7 +479,7 @@ footer {{ text-align:center; color:var(--muted); font-size:12px; margin-top:40px
     h.append(f"""
 <footer>
   C-to-HLS Translation Pipeline &middot; Report generated {now}<br>
-  Target: xc7a100t-csg324-1 (Artix-7 100T) &middot; Clock: 4 ns (250 MHz)
+  Target: {escape(_part)} &middot; Clock: {_clock_ns} ns ({1000/float(_clock_ns):.0f} MHz)
 </footer>
 </div>
 </body>

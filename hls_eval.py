@@ -18,12 +18,25 @@ logging.basicConfig(
     format='%(asctime)s - %(filename)s - %(lineno)d - %(levelname)s - %(message)s'
 )
 
-VITIS_SETTINGS = "/mnt/data/luo00466/Xilinx/2025.2/Vitis/settings64.sh"
-DEFAULT_PART = "xc7a100t-csg324-1"
-DEFAULT_CLOCK_NS = 4
-SYNTH_TIMEOUT = 600  # 10 minutes
-CSIM_TIMEOUT = 120   # 2 minutes
-COSIM_TIMEOUT = 600  # 10 minutes
+# === Configuration ===========================================================
+# Override any of these via environment variables. See README for details.
+#   C2HLS_VITIS_SETTINGS  Path to the Vitis HLS settings64.sh sourced before
+#                         every Vitis invocation.
+#   C2HLS_PART            Target FPGA part id (e.g. xc7a100t-csg324-1).
+#   C2HLS_CLOCK_NS        Target clock period in nanoseconds.
+#   C2HLS_SYNTH_TIMEOUT   Max seconds for csynth_design.
+#   C2HLS_CSIM_TIMEOUT    Max seconds for csim_design.
+#   C2HLS_COSIM_TIMEOUT   Max seconds for cosim_design.
+VITIS_SETTINGS = os.getenv(
+    "C2HLS_VITIS_SETTINGS",
+    "/mnt/data/luo00466/Xilinx/2025.2/Vitis/settings64.sh",
+)
+DEFAULT_PART = os.getenv("C2HLS_PART", "xc7a100t-csg324-1")
+DEFAULT_CLOCK_NS = float(os.getenv("C2HLS_CLOCK_NS", "4"))
+SYNTH_TIMEOUT = int(os.getenv("C2HLS_SYNTH_TIMEOUT", "1200"))  # 20 minutes
+CSIM_TIMEOUT = int(os.getenv("C2HLS_CSIM_TIMEOUT", "180"))     # 3 minutes
+COSIM_TIMEOUT = int(os.getenv("C2HLS_COSIM_TIMEOUT", "1200"))  # 20 minutes
+# =============================================================================
 
 
 def _descendant_pids(root_pid: int) -> set:
@@ -66,8 +79,14 @@ def _signal_pids(pids: set, sig) -> None:
 
 
 def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
-    """Run a shell command with Vitis sourced. Returns (stdout+stderr, timed_out)."""
-    full_cmd = f"source {shlex.quote(VITIS_SETTINGS)} && exec {cmd}"
+    """Run a shell command with Vitis sourced. Returns (stdout+stderr, timed_out).
+
+    We deliberately do NOT `exec` the command string: the callers chain
+    `cd <work_dir> && vitis-run ...`, and `cd` is a shell builtin that cannot
+    be exec'd. Process-tree cleanup on timeout is handled via start_new_session
+    + killpg, so losing the exec replacement does not leak processes.
+    """
+    full_cmd = f"source {shlex.quote(VITIS_SETTINGS)} && {cmd}"
     proc = subprocess.Popen(
         ["bash", "-lc", full_cmd],
         stdout=subprocess.PIPE,
@@ -75,11 +94,20 @@ def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
         text=True,
         start_new_session=True,
     )
+    def _as_text(blob):
+        # Popen was opened with text=True, but TimeoutExpired.stdout may still
+        # carry bytes in some Python versions when the decoder was interrupted.
+        if blob is None:
+            return ""
+        if isinstance(blob, bytes):
+            return blob.decode("utf-8", errors="replace")
+        return blob
+
     try:
         output, _ = proc.communicate(timeout=timeout)
-        return output or "", False
+        return _as_text(output), False
     except subprocess.TimeoutExpired as exc:
-        output = exc.stdout or ""
+        output = _as_text(exc.stdout)
         tree_pids = _descendant_pids(proc.pid)
         try:
             os.killpg(proc.pid, signal.SIGTERM)
@@ -89,7 +117,7 @@ def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
 
         try:
             tail, _ = proc.communicate(timeout=5)
-            output += tail or ""
+            output += _as_text(tail)
         except subprocess.TimeoutExpired:
             try:
                 os.killpg(proc.pid, signal.SIGKILL)
@@ -97,7 +125,7 @@ def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
                 pass
             _signal_pids(tree_pids, signal.SIGKILL)
             tail, _ = proc.communicate()
-            output += tail or ""
+            output += _as_text(tail)
 
         _signal_pids(tree_pids, signal.SIGKILL)
         return output, True
@@ -214,7 +242,7 @@ def run_hls_synthesis(
     header_name: str = "kernel.h",
     top_function: str = "workload",
     part: str = DEFAULT_PART,
-    clock_ns: int = DEFAULT_CLOCK_NS,
+    clock_ns: float = DEFAULT_CLOCK_NS,
     work_dir: str = None,
     extra_files=None,
 ) -> dict:
@@ -325,7 +353,7 @@ def run_csim(
     header_name: str = "kernel.h",
     top_function: str = "workload",
     part: str = DEFAULT_PART,
-    clock_ns: int = DEFAULT_CLOCK_NS,
+    clock_ns: float = DEFAULT_CLOCK_NS,
     work_dir: str = None,
     extra_files=None,
 ) -> dict:
@@ -399,7 +427,7 @@ def run_cosim(
     header_name: str = "kernel.h",
     top_function: str = "workload",
     part: str = DEFAULT_PART,
-    clock_ns: int = DEFAULT_CLOCK_NS,
+    clock_ns: float = DEFAULT_CLOCK_NS,
     work_dir: str = None,
     extra_files=None,
     interface_depths=None,

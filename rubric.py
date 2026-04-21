@@ -26,15 +26,58 @@ from typing import Optional
 
 # ── Target device resource limits (xc7a100t-csg324-1, Artix-7 100T) ──
 
-DEVICE_LIMITS = {
-    "bram": 270,      # BRAM_18K (135 × BRAM_36K × 2)
-    "dsp":  240,       # DSP48E1
-    "ff":   126800,    # flip-flops
-    "lut":  63400,     # 6-input LUTs
-    "uram": 0,         # not available on Artix-7
+import os
+
+# Per-part resource capacities. Keyed by the Vitis HLS `set_part` identifier
+# prefix (match is prefix-based so speed/package suffixes are tolerated).
+# Numbers from AMD/Xilinx datasheets.
+_DEVICE_TABLE = {
+    # Alveo U50 — Virtex UltraScale+ XCU50 (HBM2)
+    "xcu50": {
+        "bram": 1344,     # BRAM_18K (672 × BRAM_36K)
+        "dsp":  5952,     # DSP48E2 slices
+        "ff":   1743360,  # CLB flip-flops
+        "lut":  871680,   # 6-input LUTs
+        "uram": 640,      # URAM288
+    },
+    # Artix-7 100T (legacy default)
+    "xc7a100t": {
+        "bram": 270,
+        "dsp":  240,
+        "ff":   126800,
+        "lut":  63400,
+        "uram": 0,
+    },
+    # Artix-7 200T (used for fractional-clock smoke test)
+    "xc7a200t": {
+        "bram": 730,
+        "dsp":  740,
+        "ff":   269200,
+        "lut":  134600,
+        "uram": 0,
+    },
 }
 
-DEFAULT_CLOCK_NS = 4  # target clock period (ns)
+
+def _device_limits_for_part(part: str) -> dict:
+    """Return the resource capacity table for a Vitis part identifier.
+    Prefix match so "xcu50-fsvh2104-2-e" resolves to the xcu50 row.
+    """
+    if not part:
+        return _DEVICE_TABLE["xc7a100t"]
+    part_lc = part.lower()
+    for key, limits in _DEVICE_TABLE.items():
+        if part_lc.startswith(key):
+            return limits
+    # Unknown part — fall back to Artix-7 100T so scoring does not crash.
+    return _DEVICE_TABLE["xc7a100t"]
+
+
+# Resolve once per process based on C2HLS_PART. Same env var the pipeline
+# uses, so rubric and synth always agree on the target device.
+DEVICE_LIMITS = _device_limits_for_part(os.getenv("C2HLS_PART", "xc7a100t"))
+
+DEFAULT_CLOCK_NS = float(os.getenv("C2HLS_CLOCK_NS", "4"))
 
 # ── Metric weights (sum to 1.0) ──────────────────────────────────────
 

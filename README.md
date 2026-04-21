@@ -132,14 +132,33 @@ python c2hls.py --bench aes --model Qwen/Qwen3.5-35B-A3B
 
 ### Step 6: Configure project paths
 
-Several paths in the codebase need to match your environment. Update these before first use:
+Most configuration is now driven by environment variables — export them in your shell, add them to `.env`, or prepend them to the `python` invocation. The only hard-coded paths left are in `prepare_benchmarks.py` (used only if you regenerate benchmarks from the upstream repos).
 
-| File | Variable | Description |
+**Core environment variables** (all optional; defaults in parentheses):
+
+| Variable | Default | Purpose |
 |---|---|---|
-| `hls_eval.py` | `VITIS_SETTINGS` | Path to Vitis `settings64.sh` |
-| `prepare_benchmarks.py` | `ROOT` | Project root directory |
-| `prepare_benchmarks.py` | `RODINIA_DIR` | Path to rodinia-hls benchmark repo |
-| `prepare_benchmarks.py` | `ML4ACCEL_DIR` | Path to ML4Accel-Dataset repo |
+| `C2HLS_VITIS_SETTINGS` | `/mnt/data/luo00466/Xilinx/2025.2/Vitis/settings64.sh` | Path to Vitis HLS `settings64.sh` sourced before every synth/csim/cosim call. **Set this first.** |
+| `C2HLS_PART` | `xc7a100t-csg324-1` | Target FPGA part id. |
+| `C2HLS_CLOCK_NS` | `4` | Target clock period in nanoseconds (4 ns = 250 MHz). |
+| `C2HLS_SYNTH_TIMEOUT` | `600` | Max seconds for `csynth_design`. |
+| `C2HLS_CSIM_TIMEOUT` | `120` | Max seconds for `csim_design`. |
+| `C2HLS_COSIM_TIMEOUT` | `600` | Max seconds for `cosim_design`. |
+| `C2HLS_COMPILE_CHECK_TIMEOUT` | `60` | Max seconds for the `g++ -c` compile-check used in Phase A. |
+| `C2HLS_MODEL` | `nvidia/OpenCodeReasoning-Nemotron-1.1-32B` | Default LLM model id (overridden by `--model`). |
+| `C2HLS_QUALITY_REPAIR_TURNS` | `2` | Max candidate attempts in the quality-repair loop. |
+| `C2HLS_QUALITY_SCORE_EPSILON` | `0.25` | Minimum quality-score improvement required to accept a candidate. |
+| `C2HLS_CLAUDE_KEY_FILE` | `/home/luo00466/claude-api-key.txt` | Fallback file for Claude API key when `ANTHROPIC_API_KEY` is not set. |
+| `C2HLS_OPENAI_KEY_FILE` | `/home/luo00466/gpt-key.txt` | Fallback file for OpenAI API key when `OPENAI_API_KEY` is not set. |
+| `C2HLS_OPENAI_HOSTED_URL` | `https://api.openai.com/v1` | Hosted OpenAI base URL (change to use a compatible gateway). |
+
+Example `.env` for a non-default machine:
+
+```bash
+C2HLS_VITIS_SETTINGS=/opt/Xilinx/2025.2/Vitis/settings64.sh
+C2HLS_MODEL=claude-haiku-4-5-20251001
+ANTHROPIC_API_KEY=sk-ant-...
+```
 
 If you only use the pre-built benchmarks in `benchmarks/` (already included in this repo), you can skip configuring `prepare_benchmarks.py`.
 

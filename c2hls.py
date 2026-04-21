@@ -53,58 +53,96 @@ logging.basicConfig(
     format='%(asctime)s - %(filename)s - %(lineno)d - %(levelname)s - %(message)s'
 )
 
+# === Configuration ===========================================================
+# All constants below can be overridden via environment variables. See README
+# for the full list and how to set them (.env, shell export, or direct edit).
 REPO_ROOT = Path(__file__).resolve().parent
-CLAUDE_API_KEY_FILE = Path("/home/luo00466/claude-api-key.txt")
-OPENAI_API_KEY_FILE = Path("/home/luo00466/gpt-key.txt")
-OPENAI_HOSTED_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_MODEL_ID = "nvidia/OpenCodeReasoning-Nemotron-1.1-32B"
-TIMEOUT_LIMIT = 60
-DEFAULT_QUALITY_REPAIR_TURNS = 2
-QUALITY_SCORE_EPSILON = 0.25
 
-BENCHMARK_HINTS = {
-    "nw": [
-        "The header owns `bench_args_t`; do not redeclare it in the source.",
-        "Preserve the existing `needwun` helper structure from the plain input instead of inventing a new algorithm decomposition.",
-        "Keep the workload wrapper very close to the plain input: one pair of local dynamic-programming arrays named `M` and `ptr`, then a simple loop over jobs that calls `needwun`.",
-        "Do not remove or rename dynamic-programming buffers like `M` and `ptr` if the existing helper logic still requires them.",
-        "Avoid aggressive optimization on this benchmark: do not completely partition `M` or `ptr`, do not fully unroll the DP loops, and prefer only light inner-loop pipelining if any.",
-    ],
-    "spmv_crs": [
-        "Use the existing kernel interface `spmv(val, cols, rowDelimiters, vec, out)` from the header.",
-        "Keep the workload wrapper very close to the plain input: preserve the existing local arrays `l_val`, `l_cols`, `l_rowDelimiters`, `l_vec`, and `l_out` plus their copy-in/copy-out loops.",
-        "Do not invent new helper buffers beyond the existing plain-input locals unless they are clearly necessary and fully declared.",
-        "Keep the wrapper ports aligned with the reference AXI-visible arrays: `val`, `cols`, `rowDelimiters`, `vec`, and `out`.",
-        "Do not collapse the wrapper into a direct pointer call to `spmv`; the plain input already gives the intended wrapper structure.",
-    ],
-    "StreamCluster": [
-        "Preserve the existing helper-call structure from the plain input instead of rewriting the whole benchmark around a new buffer scheme.",
-    ],
+# Paths to API key files (used only when ANTHROPIC_API_KEY / OPENAI_API_KEY
+# environment variables are unset). The defaults point at the developer's
+# local keys; set C2HLS_CLAUDE_KEY_FILE / C2HLS_OPENAI_KEY_FILE to override.
+CLAUDE_API_KEY_FILE = Path(
+    os.getenv("C2HLS_CLAUDE_KEY_FILE", "/home/luo00466/claude-api-key.txt")
+)
+OPENAI_API_KEY_FILE = Path(
+    os.getenv("C2HLS_OPENAI_KEY_FILE", "/home/luo00466/gpt-key.txt")
+)
+
+# Hosted OpenAI API endpoint. Override with C2HLS_OPENAI_BASE_URL when using
+# a compatible gateway (e.g. Together, OpenRouter).
+OPENAI_HOSTED_BASE_URL = os.getenv("C2HLS_OPENAI_HOSTED_URL", "https://api.openai.com/v1")
+
+# Default LLM model id. Override with --model or C2HLS_MODEL.
+DEFAULT_MODEL_ID = os.getenv("C2HLS_MODEL", "nvidia/OpenCodeReasoning-Nemotron-1.1-32B")
+
+# Quality-repair loop: how many candidate attempts per benchmark and the
+# minimum score improvement (lower = better) required to accept a candidate.
+DEFAULT_QUALITY_REPAIR_TURNS = int(os.getenv("C2HLS_QUALITY_REPAIR_TURNS", "2"))
+QUALITY_SCORE_EPSILON = float(os.getenv("C2HLS_QUALITY_SCORE_EPSILON", "0.25"))
+
+# Max seconds for the g++ compile-check used in Phase A and before each
+# Vitis synthesis attempt. Kept small since compile-check is quick.
+TIMEOUT_LIMIT = int(os.getenv("C2HLS_COMPILE_CHECK_TIMEOUT", "60"))
+# =============================================================================
+
+# Benchmark-specific guidance. One dict keyed by benchmark name; sub-fields
+# scope each hint class:
+#   translation  — hints added to Phase B's benchmark_context (LLM translation)
+#   quality      — hints added to Phase B's quality-repair prompt
+#   priority     — one-liner that leads the quality-repair guidance
+BENCHMARK_POLICIES = {
+    "nw": {
+        "priority": "Primary objective: improve timing/slack/Fmax while keeping the simple workload wrapper and dynamic-programming structure intact.",
+        "translation": [
+            "The header owns `bench_args_t`; do not redeclare it in the source.",
+            "Preserve the existing `needwun` helper structure from the plain input instead of inventing a new algorithm decomposition.",
+            "Keep the workload wrapper very close to the plain input: one pair of local dynamic-programming arrays named `M` and `ptr`, then a simple loop over jobs that calls `needwun`.",
+            "Do not remove or rename dynamic-programming buffers like `M` and `ptr` if the existing helper logic still requires them.",
+            "Avoid aggressive optimization on this benchmark: do not completely partition `M` or `ptr`, do not fully unroll the DP loops, and prefer only light inner-loop pipelining if any.",
+        ],
+        "quality": [
+            "Treat the large dynamic-programming arrays `M` and `ptr` as simple memories; reduce or remove large partition factors on them if timing is poor.",
+            "Avoid over-pipelining loops that repeatedly read and write `M` and `ptr` if it hurts timing closure.",
+            "Keep the workload wrapper simple; do not add extra buffering layers or duplicated helper logic just to chase throughput.",
+        ],
+    },
+    "spmv_crs": {
+        "priority": "Primary objective: reduce resource usage, especially memory-heavy buffering, without making latency much worse.",
+        "translation": [
+            "Use the existing kernel interface `spmv(val, cols, rowDelimiters, vec, out)` from the header.",
+            "Keep the workload wrapper very close to the plain input: preserve the existing local arrays `l_val`, `l_cols`, `l_rowDelimiters`, `l_vec`, and `l_out` plus their copy-in/copy-out loops.",
+            "Do not invent new helper buffers beyond the existing plain-input locals unless they are clearly necessary and fully declared.",
+            "Keep the wrapper ports aligned with the reference AXI-visible arrays: `val`, `cols`, `rowDelimiters`, `vec`, and `out`.",
+            "Do not collapse the wrapper into a direct pointer call to `spmv`; the plain input already gives the intended wrapper structure.",
+        ],
+        "quality": [
+            "Minimize BRAM-heavy local buffering and avoid complete partitioning of `out`/`l_out` or other large arrays unless it clearly pays off.",
+            "Prefer modest cyclic factors or no partitioning on large arrays over aggressive partitioning that inflates memory resources.",
+            "Keep the copy-in/copy-out loops simple and do not introduce extra array copies unless they materially help timing.",
+            "When timing is already healthy, it is acceptable to spend a little area to shrink the remaining latency gap, especially in the compute loop.",
+            "When timing is poor, move closer to the gold-baseline pragma style: keep the interface pragmas, but remove compute-side PIPELINE/ARRAY_PARTITION/INLINE directives unless they clearly help.",
+            "For this benchmark, a simpler gold-like pragma set is preferable to an over-pragmatized kernel.",
+        ],
+    },
+    "StreamCluster": {
+        "priority": "Primary objective: reduce FF/LUT blow-up from over-aggressive parallelism or duplicated logic.",
+        "translation": [
+            "Preserve the existing helper-call structure from the plain input instead of rewriting the whole benchmark around a new buffer scheme.",
+        ],
+        "quality": [
+            "Reduce FF/LUT blow-up by avoiding aggressive unrolling, inlining, or duplicated helper pipelines.",
+            "Prefer shared buffers and sequential helper calls over dataflow-like rewrites that replicate large logic blocks.",
+            "Remove unnecessary complete partitioning on large state arrays and keep the design closer to the original helper structure.",
+            "This benchmark has large latency headroom, so it is acceptable to relax throughput-oriented pipelining if that improves slack/Fmax or reduces DSP pressure.",
+            "Prefer one reusable arithmetic pipeline over DSP-heavy parallel scheduling when timing is poor.",
+        ],
+    },
 }
 
 
-BENCHMARK_QUALITY_HINTS = {
-    "nw": [
-        "Treat the large dynamic-programming arrays `M` and `ptr` as simple memories; reduce or remove large partition factors on them if timing is poor.",
-        "Avoid over-pipelining loops that repeatedly read and write `M` and `ptr` if it hurts timing closure.",
-        "Keep the workload wrapper simple; do not add extra buffering layers or duplicated helper logic just to chase throughput.",
-    ],
-    "spmv_crs": [
-        "Minimize BRAM-heavy local buffering and avoid complete partitioning of `out`/`l_out` or other large arrays unless it clearly pays off.",
-        "Prefer modest cyclic factors or no partitioning on large arrays over aggressive partitioning that inflates memory resources.",
-        "Keep the copy-in/copy-out loops simple and do not introduce extra array copies unless they materially help timing.",
-        "When timing is already healthy, it is acceptable to spend a little area to shrink the remaining latency gap, especially in the compute loop.",
-        "When timing is poor, move closer to the gold-baseline pragma style: keep the interface pragmas, but remove compute-side PIPELINE/ARRAY_PARTITION/INLINE directives unless they clearly help.",
-        "For this benchmark, a simpler gold-like pragma set is preferable to an over-pragmatized kernel.",
-    ],
-    "StreamCluster": [
-        "Reduce FF/LUT blow-up by avoiding aggressive unrolling, inlining, or duplicated helper pipelines.",
-        "Prefer shared buffers and sequential helper calls over dataflow-like rewrites that replicate large logic blocks.",
-        "Remove unnecessary complete partitioning on large state arrays and keep the design closer to the original helper structure.",
-        "This benchmark has large latency headroom, so it is acceptable to relax throughput-oriented pipelining if that improves slack/Fmax or reduces DSP pressure.",
-        "Prefer one reusable arithmetic pipeline over DSP-heavy parallel scheduling when timing is poor.",
-    ],
-}
+def _policy(benchmark_name: str, field: str, default=None):
+    """Look up a field of BENCHMARK_POLICIES with a fallback."""
+    return (BENCHMARK_POLICIES.get(benchmark_name or "") or {}).get(field, default)
 
 
 def extract_cpp_code(text: str) -> Optional[str]:
@@ -390,6 +428,87 @@ def _summary_status(summary: Optional[dict], available: bool) -> str:
     return _test_status(available, False, False)
 
 
+def _run_synth_csim_cosim(
+    hls_code: str,
+    header_code: str,
+    header_name: str,
+    top_function: str,
+    part: str,
+    clock_ns: float,
+    extra_files: list,
+    testbench_code: str = "",
+    run_csim_check: bool = True,
+    run_cosim_check: bool = False,
+    cosim_depths: Optional[dict] = None,
+    cosim_requires_csim_pass: bool = False,
+    log_prefix: str = "",
+) -> dict:
+    """Synthesize HLS code, then optionally run csim and cosim.
+
+    csim runs when the synthesis succeeded, a testbench is provided, and
+    run_csim_check is True. cosim runs when synthesis succeeded, a testbench
+    is provided, run_cosim_check is True, and (when cosim_requires_csim_pass
+    is True) the csim run either passed or was not attempted.
+
+    Returns {synth, csim, cosim} where synth is the raw synthesis result and
+    csim/cosim are _summarize_test_result dicts (or None when skipped).
+    """
+    synth_result = run_hls_synthesis(
+        hls_code,
+        header_code,
+        header_name=header_name,
+        top_function=top_function,
+        part=part,
+        clock_ns=clock_ns,
+        extra_files=extra_files,
+    )
+
+    csim_summary = None
+    if synth_result.get("success") and testbench_code and run_csim_check:
+        if log_prefix:
+            logging.info("%s Running C-simulation (csim)...", log_prefix)
+        csim_result = run_csim(
+            hls_code,
+            testbench_code,
+            header_code,
+            header_name=header_name,
+            top_function=top_function,
+            part=part,
+            clock_ns=clock_ns,
+            extra_files=extra_files,
+        )
+        csim_summary = _summarize_test_result(csim_result, True)
+
+    cosim_gate_open = (
+        not cosim_requires_csim_pass
+        or csim_summary is None
+        or csim_summary.get("passed")
+    )
+    cosim_summary = None
+    if (
+        synth_result.get("success")
+        and testbench_code
+        and run_cosim_check
+        and cosim_gate_open
+    ):
+        if log_prefix:
+            logging.info("%s Running co-simulation (cosim)...", log_prefix)
+        cosim_result = run_cosim(
+            hls_code,
+            testbench_code,
+            header_code,
+            header_name=header_name,
+            top_function=top_function,
+            part=part,
+            clock_ns=clock_ns,
+            extra_files=extra_files,
+            interface_depths=cosim_depths or {},
+        )
+        cosim_summary = _summarize_test_result(cosim_result, True)
+
+    return {"synth": synth_result, "csim": csim_summary, "cosim": cosim_summary}
+
+
 def _repo_root_for_benchmark(bench_dir: Path) -> Path:
     bench_dir = bench_dir.resolve()
     for candidate in [bench_dir] + list(bench_dir.parents):
@@ -520,7 +639,7 @@ def _build_benchmark_context(meta: dict, header_name: str, header_code: str,
         joined = ", ".join(f"`{name}`" for name in reference_ports)
         hints.append(f"Reference wrapper interface ports: {joined}.")
 
-    for manual_hint in BENCHMARK_HINTS.get(bench, []):
+    for manual_hint in _policy(bench, "translation", []):
         hints.append(manual_hint)
 
     return "\n".join(f"- {hint}" for hint in hints)
@@ -599,17 +718,12 @@ def _build_quality_guidance(benchmark_name: str, report: dict, ground_truth_repo
     if not issues:
         return ""
 
-    priorities = {
-        "nw": "Primary objective: improve timing/slack/Fmax while keeping the simple workload wrapper and dynamic-programming structure intact.",
-        "spmv_crs": "Primary objective: reduce resource usage, especially memory-heavy buffering, without making latency much worse.",
-        "StreamCluster": "Primary objective: reduce FF/LUT blow-up from over-aggressive parallelism or duplicated logic.",
-    }
-
     guidance = []
-    if priorities.get(bench):
-        guidance.append(priorities[bench])
+    priority = _policy(bench, "priority")
+    if priority:
+        guidance.append(priority)
     guidance.extend(issues)
-    guidance.extend(BENCHMARK_QUALITY_HINTS.get(bench, []))
+    guidance.extend(_policy(bench, "quality", []))
     return "\n".join(f"- {line}" for line in guidance)
 
 
@@ -786,7 +900,7 @@ class C2HLSOrchestrator:
         translated_hls_top: str = "workload",
         reference_hls_top: str = "workload",
         part: str = DEFAULT_PART,
-        clock_ns: int = DEFAULT_CLOCK_NS,
+        clock_ns: float = DEFAULT_CLOCK_NS,
         supports_cosim: bool = False,
         cosim_depths: Optional[dict] = None,
         benchmark_name: str = "",
@@ -858,6 +972,25 @@ class C2HLSOrchestrator:
             self._append_history("system", f"[{context}] ABI preflight: {note}")
         return normalized
 
+    def _synth_and_test(self, code: str, log_prefix: str = "") -> dict:
+        """Synthesize `code` with the orchestrator's current config and run
+        csim/cosim if a testbench is available. Returns the same shape as
+        _run_synth_csim_cosim: {synth, csim, cosim}."""
+        return _run_synth_csim_cosim(
+            code,
+            header_code=self.header_code,
+            header_name=self.header_name,
+            top_function=self.translated_hls_top,
+            part=self.part,
+            clock_ns=self.clock_ns,
+            extra_files=self.extra_files,
+            testbench_code=self.testbench_code,
+            run_csim_check=bool(self.testbench_code),
+            run_cosim_check=bool(self.testbench_code and self.supports_cosim),
+            cosim_depths=self.cosim_depths,
+            log_prefix=log_prefix,
+        )
+
     def _evaluate_candidate_with_repairs(self, candidate_code: str, label: str) -> dict:
         current_code = candidate_code
         last_error = ""
@@ -887,53 +1020,16 @@ class C2HLSOrchestrator:
                     current_code = fixed
                 continue
 
-            result = run_hls_synthesis(
-                current_code,
-                self.header_code,
-                header_name=self.header_name,
-                top_function=self.translated_hls_top,
-                part=self.part,
-                clock_ns=self.clock_ns,
-                extra_files=self.extra_files,
-            )
+            outcome = self._synth_and_test(current_code, log_prefix=label)
+            result = outcome["synth"]
             if result["success"]:
-                candidate = {
+                return {
                     "success": True,
                     "code": current_code,
                     "report": result["report"],
-                    "csim": None,
-                    "cosim": None,
+                    "csim": outcome["csim"],
+                    "cosim": outcome["cosim"],
                 }
-                if self.testbench_code:
-                    logging.info("%s Running C-simulation (csim)...", label)
-                    csim_result = run_csim(
-                        current_code,
-                        self.testbench_code,
-                        self.header_code,
-                        header_name=self.header_name,
-                        top_function=self.translated_hls_top,
-                        part=self.part,
-                        clock_ns=self.clock_ns,
-                        extra_files=self.extra_files,
-                    )
-                    candidate["csim"] = _summarize_test_result(csim_result, True)
-
-                if self.testbench_code and self.supports_cosim:
-                    logging.info("%s Running co-simulation (cosim)...", label)
-                    cosim_result = run_cosim(
-                        current_code,
-                        self.testbench_code,
-                        self.header_code,
-                        header_name=self.header_name,
-                        top_function=self.translated_hls_top,
-                        part=self.part,
-                        clock_ns=self.clock_ns,
-                        extra_files=self.extra_files,
-                        interface_depths=self.cosim_depths,
-                    )
-                    candidate["cosim"] = _summarize_test_result(cosim_result, True)
-
-                return candidate
 
             last_error = result["error"]
             logging.warning("%s Synthesis failed: %s", label, result["error"][:300])
@@ -1192,15 +1288,8 @@ class C2HLSOrchestrator:
                     self.hls_code = fixed
                 continue
 
-            result = run_hls_synthesis(
-                self.hls_code,
-                self.header_code,
-                header_name=self.header_name,
-                top_function=self.translated_hls_top,
-                part=self.part,
-                clock_ns=self.clock_ns,
-                extra_files=self.extra_files,
-            )
+            outcome = self._synth_and_test(self.hls_code, log_prefix="[Phase B]")
+            result = outcome["synth"]
 
             self.turn_results.append({
                 "turn": turn,
@@ -1218,40 +1307,15 @@ class C2HLSOrchestrator:
                     f"[Phase B] Synthesis SUCCESS. Report:\n{format_report_summary(result['report'])}",
                 )
 
-                self.generated_csim = None
-                if self.testbench_code:
-                    logging.info("[Phase B] Running C-simulation (csim)...")
-                    csim_result = run_csim(
-                        self.hls_code,
-                        self.testbench_code,
-                        self.header_code,
-                        header_name=self.header_name,
-                        top_function=self.translated_hls_top,
-                        part=self.part,
-                        clock_ns=self.clock_ns,
-                        extra_files=self.extra_files,
-                    )
-                    self.generated_csim = _summarize_test_result(csim_result, True)
+                self.generated_csim = outcome["csim"]
+                if self.generated_csim is not None:
                     if self.generated_csim.get("passed"):
                         logging.info("[Phase B] Csim PASSED")
                     else:
                         logging.warning("[Phase B] Csim FAILED: %s", self.generated_csim.get("error", "")[:200])
 
-                self.generated_cosim = None
-                if self.testbench_code and self.supports_cosim:
-                    logging.info("[Phase B] Running co-simulation (cosim)...")
-                    cosim_result = run_cosim(
-                        self.hls_code,
-                        self.testbench_code,
-                        self.header_code,
-                        header_name=self.header_name,
-                        top_function=self.translated_hls_top,
-                        part=self.part,
-                        clock_ns=self.clock_ns,
-                        extra_files=self.extra_files,
-                        interface_depths=self.cosim_depths,
-                    )
-                    self.generated_cosim = _summarize_test_result(cosim_result, True)
+                self.generated_cosim = outcome["cosim"]
+                if self.generated_cosim is not None:
                     if self.generated_cosim.get("passed"):
                         logging.info("[Phase B] Cosim PASSED")
                     else:
@@ -1398,15 +1462,8 @@ class C2HLSOrchestrator:
                     new_code = fixed
                 continue
 
-            result = run_hls_synthesis(
-                new_code,
-                self.header_code,
-                header_name=self.header_name,
-                top_function=self.translated_hls_top,
-                part=self.part,
-                clock_ns=self.clock_ns,
-                extra_files=self.extra_files,
-            )
+            outcome = self._synth_and_test(new_code, log_prefix=f"[Step: {step_name}]")
+            result = outcome["synth"]
 
             if result["success"]:
                 prev_report = self.synth_report
@@ -1440,34 +1497,10 @@ class C2HLSOrchestrator:
                     else:
                         step_result["gt_report_status"] = _summarize_synth_result(gt_result)
 
-                if self.testbench_code:
-                    logging.info("[Step: %s] Running C-simulation (csim)...", step_name)
-                    csim_result = run_csim(
-                        new_code,
-                        self.testbench_code,
-                        self.header_code,
-                        header_name=self.header_name,
-                        top_function=self.translated_hls_top,
-                        part=self.part,
-                        clock_ns=self.clock_ns,
-                        extra_files=self.extra_files,
-                    )
-                    step_result["csim"] = _summarize_test_result(csim_result, True)
-
-                if self.testbench_code and self.supports_cosim:
-                    logging.info("[Step: %s] Running co-simulation (cosim)...", step_name)
-                    cosim_result = run_cosim(
-                        new_code,
-                        self.testbench_code,
-                        self.header_code,
-                        header_name=self.header_name,
-                        top_function=self.translated_hls_top,
-                        part=self.part,
-                        clock_ns=self.clock_ns,
-                        extra_files=self.extra_files,
-                        interface_depths=self.cosim_depths,
-                    )
-                    step_result["cosim"] = _summarize_test_result(cosim_result, True)
+                if outcome["csim"] is not None:
+                    step_result["csim"] = outcome["csim"]
+                if outcome["cosim"] is not None:
+                    step_result["cosim"] = outcome["cosim"]
 
                 return step_result
 
@@ -1649,35 +1682,34 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
     ground_truth_code = None
     gt_file = meta.get("gold_hls_baseline_file", "hls_baseline.cpp")
 
-    # Use preferred GT variant if explicitly set in metadata (pre-validated).
+    # GT-variant selection.
+    # Order of preference:
+    #   1. metadata["preferred_gt_file"]      — explicit override when a
+    #                                           specific variant must be used
+    #                                           (e.g. it's the only one whose
+    #                                           top signature matches the
+    #                                           testbench).
+    #   2. variants[-1]                       — the last (most optimized)
+    #                                           variant in the workflow.
+    #   3. gold_hls_baseline_file             — plain baseline fallback.
+    #
+    # Vitis HLS is the sole validator. We deliberately do NOT run a g++
+    # compile-check on GT variants: gold HLS code routinely uses HLS-only
+    # headers (ap_int.h via mc.h) that g++ cannot compile, so a preflight
+    # would false-reject valid variants. If Vitis later rejects the selected
+    # variant, validate_gold_reference()'s fallback-to-baseline handles it.
     preferred = meta.get("preferred_gt_file")
     if preferred and (bench_dir / preferred).exists():
         gt_file = preferred
         logging.info(f"Using preferred GT variant '{preferred}'")
     else:
-        # Fall back: try from best to worst; skip variants that don't compile.
-        extra_files_for_check = []
-        for rel_path in meta.get("support_files", []):
-            fp = bench_dir / rel_path
-            if fp.exists():
-                extra_files_for_check.append({"path": rel_path, "content": fp.read_text()})
-
         variants = meta.get("variants", [])
-        if len(variants) > 1:
-            for variant in reversed(variants):
-                vfile = variant["file"]
-                vpath = bench_dir / vfile
-                if not vpath.exists():
-                    continue
-                vcode = vpath.read_text()
-                ok, err = compile_check_cpp(vcode, header_code, header_name,
-                                            extra_files=extra_files_for_check)
-                if ok:
-                    gt_file = vfile
-                    logging.info(f"Using best variant '{variant['name']}' as ground truth")
-                    break
-                else:
-                    logging.debug(f"Variant '{variant['name']}' failed compile check: {err[:120]}")
+        for variant in reversed(variants):
+            vfile = variant["file"]
+            if (bench_dir / vfile).exists():
+                gt_file = vfile
+                logging.info(f"Using last variant '{variant['name']}' as ground truth")
+                break
 
     gt_path = bench_dir / gt_file
     if gt_path.exists():
@@ -1859,61 +1891,45 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
     hls_code = candidate["code"]
     header_name = candidate.get("header_name") or inputs.get("header_name") or "kernel.h"
     header_code = candidate.get("header_code", inputs.get("header_code", ""))
-    synth_result = run_hls_synthesis(
-        hls_code,
-        header_code,
-        header_name=header_name,
-        top_function=meta.get("hls_top", "workload"),
-        part=meta.get("part", DEFAULT_PART),
-        clock_ns=meta.get("clock_ns", DEFAULT_CLOCK_NS),
-        extra_files=inputs.get("extra_files", []),
-    )
-    synth_summary = _summarize_synth_result(synth_result)
+    top_function = meta.get("hls_top", "workload")
+
     csim_signature_mismatch = ""
     if supports_csim and run_csim_check:
         csim_signature_mismatch = _top_signature_mismatch_reason(
             hls_code,
             header_code,
             inputs.get("testbench_code", ""),
-            meta.get("hls_top", "workload"),
+            top_function,
         )
 
-    csim_result = None
-    if synth_result.get("success") and supports_csim and run_csim_check and not csim_signature_mismatch:
-        csim_result = run_csim(
-            hls_code,
-            inputs.get("testbench_code", ""),
-            header_code,
-            header_name=header_name,
-            top_function=meta.get("hls_top", "workload"),
-            part=meta.get("part", DEFAULT_PART),
-            clock_ns=meta.get("clock_ns", DEFAULT_CLOCK_NS),
-            extra_files=inputs.get("extra_files", []),
-        )
-    csim_summary = _summarize_test_result(csim_result, supports_csim)
+    outcome = _run_synth_csim_cosim(
+        hls_code,
+        header_code=header_code,
+        header_name=header_name,
+        top_function=top_function,
+        part=meta.get("part", DEFAULT_PART),
+        clock_ns=meta.get("clock_ns", DEFAULT_CLOCK_NS),
+        extra_files=inputs.get("extra_files", []),
+        testbench_code=inputs.get("testbench_code", ""),
+        run_csim_check=supports_csim and run_csim_check and not csim_signature_mismatch,
+        run_cosim_check=supports_cosim and run_cosim_check and not csim_signature_mismatch,
+        cosim_depths=meta.get("cosim_depths", {}),
+        cosim_requires_csim_pass=True,
+    )
+    synth_result = outcome["synth"]
+    synth_summary = _summarize_synth_result(synth_result)
+
+    # When csim is supported but was skipped for signature mismatch, surface
+    # the reason in the summary instead of leaving it as "not_run".
+    csim_summary = outcome["csim"]
+    if csim_summary is None:
+        csim_summary = _summarize_test_result(None, supports_csim)
     if csim_signature_mismatch and supports_csim and run_csim_check:
         csim_summary["error"] = f"Skipped CSim: {csim_signature_mismatch}"
 
-    cosim_result = None
-    if (
-        synth_result.get("success")
-        and supports_cosim
-        and run_cosim_check
-        and not csim_signature_mismatch
-        and ((not supports_csim) or (not run_csim_check) or csim_summary.get("passed"))
-    ):
-        cosim_result = run_cosim(
-            hls_code,
-            inputs.get("testbench_code", ""),
-            header_code,
-            header_name=header_name,
-            top_function=meta.get("hls_top", "workload"),
-            part=meta.get("part", DEFAULT_PART),
-            clock_ns=meta.get("clock_ns", DEFAULT_CLOCK_NS),
-            extra_files=inputs.get("extra_files", []),
-            interface_depths=meta.get("cosim_depths", {}),
-        )
-    cosim_summary = _summarize_test_result(cosim_result, supports_cosim)
+    cosim_summary = outcome["cosim"]
+    if cosim_summary is None:
+        cosim_summary = _summarize_test_result(None, supports_cosim)
 
     benchmark_ready = synth_summary["status"] == "passed"
     invalid_reason = ""

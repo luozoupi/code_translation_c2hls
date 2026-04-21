@@ -156,6 +156,43 @@ def _check_variants(bench_dir: Path, meta: dict, report: BenchmarkReport) -> Non
             "missing_last_variant",
             f"variants[-1] {last_file!r} (RL ground truth) not on disk",
         )
+        return
+
+    # variants[-1] should share the top-function signature with the testbench;
+    # if not, the pipeline will fall back to an earlier variant at runtime,
+    # which is correct but silently loses the most-optimized GT. Emit a
+    # warning so corpus authors can fix the mismatch upstream.
+    if not meta.get("supports_csim"):
+        return
+    tb_file = meta.get("testbench_file") or "testbench.cpp"
+    header_file = meta.get("header_file") or "kernel.h"
+    tb_path = bench_dir / tb_file
+    header_path = bench_dir / header_file
+    last_path = bench_dir / last_file if last_file else None
+    if not (tb_path.exists() and header_path.exists() and last_path and last_path.exists()):
+        return
+    try:
+        # Lazy-import so the validator stays importable without c2hls available.
+        import sys as _sys
+        _sys.path.insert(0, str(REPO_ROOT))
+        from c2hls import _top_signature_mismatch_reason  # type: ignore
+    except Exception as exc:  # pragma: no cover — import shouldn't fail in-repo
+        report.warn("sig_check_unavailable",
+                    f"signature-compat check skipped: {exc.__class__.__name__}")
+        return
+    top_fn = meta.get("hls_top") or meta.get("translated_hls_top") or "workload"
+    mismatch = _top_signature_mismatch_reason(
+        last_path.read_text(),
+        header_path.read_text(),
+        tb_path.read_text(),
+        top_fn,
+    )
+    if mismatch:
+        report.warn(
+            "last_variant_tb_incompat",
+            f"variants[-1] {last_file!r} top-function signature differs from "
+            f"testbench: {mismatch[:200]}",
+        )
 
 
 def _check_testbench(bench_dir: Path, meta: dict, report: BenchmarkReport) -> None:

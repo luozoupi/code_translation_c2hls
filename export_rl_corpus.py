@@ -214,6 +214,7 @@ def export(benchmarks_dir: Path, output_dir: Path,
     counts_by_split = {"train": 0, "val": 0, "test": 0}
     counts_by_repo: dict[str, int] = {}
     disabled_records: list[dict] = []
+    split_members: dict[str, list[str]] = {"train": [], "val": [], "test": []}
 
     with out_path.open("w") as f:
         for bench_dir in sorted(benchmarks_dir.iterdir()):
@@ -234,8 +235,27 @@ def export(benchmarks_dir: Path, output_dir: Path,
             f.write(json.dumps(record) + "\n")
             written += 1
             counts_by_split[record["split"]] = counts_by_split.get(record["split"], 0) + 1
+            split_members[record["split"]].append(record["benchmark"])
             repo = record.get("source_repo", "unknown")
             counts_by_repo[repo] = counts_by_repo.get(repo, 0) + 1
+
+    # splits.json — a standalone file so external tooling doesn't need to
+    # parse manifest.json. Train is derived from whatever benchmarks shipped
+    # as ready; val/test are the fixed policy sets intersected with shipped.
+    splits_path = output_dir / "splits.json"
+    splits_doc = {
+        "version": 1,
+        "train": sorted(split_members["train"]),
+        "val": sorted(split_members["val"]),
+        "test": sorted(split_members["test"]),
+        "policy": {
+            "val": sorted(VAL_SPLIT),
+            "test": sorted(TEST_SPLIT),
+            "note": "Fixed splits — val/test membership is policy, not derived. "
+                    "Train is every ready benchmark not in val or test.",
+        },
+    }
+    splits_path.write_text(json.dumps(splits_doc, indent=2) + "\n")
 
     manifest = {
         "version": 1,
@@ -249,8 +269,10 @@ def export(benchmarks_dir: Path, output_dir: Path,
             "val": sorted(VAL_SPLIT),
             "test": sorted(TEST_SPLIT),
         },
-        "output_file": str(out_path.relative_to(output_dir.parent) if output_dir.parent.exists()
-                           else out_path.name),
+        "output_files": {
+            "translation_sft": out_path.name,
+            "splits": splits_path.name,
+        },
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 

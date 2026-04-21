@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "train": [
+    "aes",
+    "fft",
+    "gemm_ncubed",
+    "hotspot",
+    "kmeans",
+    "knn",
+    "lavaMD",
+    "lud",
+    "md_knn",
+    "pathfinder",
+    "sort_merge",
+    "srad",
+    "stencil2D"
+  ],
+  "val": [
+    "StreamCluster",
+    "viterbi"
+  ],
+  "test": [
+    "nw",
+    "spmv_crs"
+  ],
+  "policy": {
+    "val": [
+      "StreamCluster",
+      "viterbi"
+    ],
+    "test": [
+      "nw",
+      "spmv_crs"
+    ],
+    "note": "Fixed splits \u2014 val/test membership is policy, not derived. Train is every ready benchmark not in val or test."
+  }
+}

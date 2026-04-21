@@ -597,8 +597,17 @@ def _extract_interface_ports(hls_code: str) -> List[str]:
 
 
 def _build_benchmark_context(meta: dict, header_name: str, header_code: str,
-                             c_code: str, ground_truth_code: str,
+                             c_code: str,
                              testbench_code: str = "") -> str:
+    """Build the benchmark-specific prompt context.
+
+    IMPORTANT: This function must NEVER read ground-truth HLS code. The context
+    it produces is seen by the LLM at generation time; leaking GT interface
+    ports, pragmas, or structure into the prompt contaminates any downstream
+    RL dataset and defeats the purpose of measuring model skill. Only inspect
+    plain C source, the header, the testbench-visible top-function signature,
+    and static per-benchmark hints stored in BENCHMARK_POLICIES.
+    """
     hints = []
     bench = meta.get("benchmark", "unknown")
     wrapper_top = meta.get("translated_hls_top", "workload")
@@ -634,10 +643,8 @@ def _build_benchmark_context(meta: dict, header_name: str, header_code: str,
         joined = ", ".join(f"`{name}`" for name in defined_names[:8])
         hints.append(f"Functions already defined in the plain input whose names/signatures should be preserved unless wrapping is required: {joined}.")
 
-    reference_ports = _extract_interface_ports(ground_truth_code)
-    if reference_ports:
-        joined = ", ".join(f"`{name}`" for name in reference_ports)
-        hints.append(f"Reference wrapper interface ports: {joined}.")
+    # Deliberately no GT-derived hints here. The reference wrapper's interface
+    # ports, pragmas, and structure must remain invisible to the LLM.
 
     for manual_hint in _policy(bench, "translation", []):
         hints.append(manual_hint)
@@ -1764,12 +1771,14 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
             extra_files.append({"path": rel_path, "content": file_path.read_text()})
             extra_file_paths.add(rel_path)
 
+    # GT code is deliberately NOT passed here. _build_benchmark_context may
+    # only look at plain C, the header, the testbench-visible signature, and
+    # static policy hints — never the gold reference.
     benchmark_context = _build_benchmark_context(
         meta,
         header_name,
         header_code,
         c_code,
-        ground_truth_code or gold_hls_source_code,
         testbench_code,
     )
 

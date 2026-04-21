@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "corpus_type": "translation_sft",
+  "record_count": 17,
+  "counts_by_split": {
+    "train": 13,
+    "val": 2,
+    "test": 2
+  },
+  "counts_by_source_repo": {
+    "rodinia-hls": 9,
+    "ML4Accel-Dataset": 8
+  },
+  "disabled_benchmarks": [],
+  "skipped_missing": 0,
+  "fixed_splits": {
+    "val": [
+      "StreamCluster",
+      "viterbi"
+    ],
+    "test": [
+      "nw",
+      "spmv_crs"
+    ]
+  },
+  "output_file": "rl_corpus/translation_sft.jsonl"
+}

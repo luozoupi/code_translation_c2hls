@@ -335,6 +335,9 @@ exit
             float(report["requested_clock_period_ns"]) - float(report["estimated_clock_period_ns"]), 3
         )
 
+    # Sanitize BEFORE attaching work_dir so downstream canonical_report can
+    # also drop work_dir without having to re-run numeric coercion.
+    report = sanitize_report(report)
     report["work_dir"] = work_dir
 
     return {
@@ -344,6 +347,141 @@ exit
         "report_raw": report_raw,
         "log": log,
     }
+
+
+# === Repeat-N synthesis for stability measurement ============================
+
+import math as _math
+import statistics as _statistics
+
+# Default: no repeat, preserves single-run behavior. Set C2HLS_VERIFY_RUNS=3
+# (or higher) to enable variance measurement on every synth invocation.
+VERIFY_RUNS = int(os.getenv("C2HLS_VERIFY_RUNS", "1"))
+
+# A report is "stable" when the coefficient of variation (stdev / mean) of
+# latency_ns stays under this threshold. 5% tolerates normal Vitis jitter on
+# modern CPUs; values above that usually indicate a mid-run server change
+# (CPU contention, thermal throttling) or a Vitis-version skew worth
+# investigating.
+STABILITY_CV_THRESHOLD = float(os.getenv("C2HLS_STABILITY_CV", "0.05"))
+
+
+def _summarize_metric(values):
+    """Compute mean/stdev/cv for a list of numeric values (None-safe)."""
+    clean = [v for v in values if v is not None]
+    if not clean:
+        return {"mean": None, "stdev": None, "cv": None, "n": 0}
+    mean = sum(clean) / len(clean)
+    stdev = _statistics.pstdev(clean) if len(clean) > 1 else 0.0
+    cv = (stdev / mean) if mean not in (0, None) else None
+    return {
+        "mean": round(mean, 6) if isinstance(mean, float) else mean,
+        "stdev": round(stdev, 6) if isinstance(stdev, float) else stdev,
+        "cv": round(cv, 6) if cv is not None else None,
+        "n": len(clean),
+    }
+
+
+def summarize_repeated_reports(reports: list) -> dict:
+    """Aggregate a list of sanitized reports into mean/stdev/stability flags.
+
+    Returns a dict containing per-metric stats plus an overall is_stable flag
+    based on latency_ns coefficient of variation.
+    """
+    metrics_to_track = ("latency_ns", "latency_cycles", "fmax_mhz",
+                        "bram", "dsp", "ff", "lut", "slack_ns")
+    summary = {}
+    for key in metrics_to_track:
+        summary[key] = _summarize_metric([r.get(key) for r in reports])
+
+    lat_cv = summary["latency_ns"]["cv"]
+    summary["is_stable"] = (
+        lat_cv is not None and lat_cv <= STABILITY_CV_THRESHOLD
+    )
+    summary["stability_threshold_cv"] = STABILITY_CV_THRESHOLD
+    summary["n_runs"] = len(reports)
+    return summary
+
+
+def run_hls_synthesis_repeated(
+    hls_code: str,
+    header_code: str = "",
+    header_name: str = "kernel.h",
+    top_function: str = "workload",
+    part: str = DEFAULT_PART,
+    clock_ns: float = DEFAULT_CLOCK_NS,
+    extra_files=None,
+    n_runs: int = None,
+) -> dict:
+    """Run run_hls_synthesis N times on fresh temp dirs; return per-run
+    reports plus aggregate stability metrics.
+
+    Each run uses a new work_dir so no state leaks between runs. A failed
+    run is recorded with success=False and kept in the runs list; the
+    summary is computed from successful runs only.
+
+    Returns:
+        {
+            "success": bool,               # all runs synthesized
+            "n_runs": int,
+            "runs": [ {success, error, report, work_dir}, ... ],
+            "summary": { per-metric stats, is_stable, ... },
+            "canonical_report": dict,       # mean-valued, for hashing/cache
+        }
+    """
+    n = int(n_runs if n_runs is not None else VERIFY_RUNS)
+    if n < 1:
+        n = 1
+
+    runs = []
+    all_success = True
+    for i in range(n):
+        r = run_hls_synthesis(
+            hls_code, header_code,
+            header_name=header_name,
+            top_function=top_function,
+            part=part,
+            clock_ns=clock_ns,
+            extra_files=extra_files,
+        )
+        # run_hls_synthesis creates its own tempdir when work_dir is None.
+        runs.append({
+            "success": r.get("success", False),
+            "error": r.get("error", ""),
+            "report": r.get("report", {}),
+            "work_dir": r.get("report", {}).get("work_dir"),
+        })
+        if not r.get("success"):
+            all_success = False
+
+    successful_reports = [run["report"] for run in runs if run["success"]]
+    summary = summarize_repeated_reports(successful_reports) if successful_reports else {
+        "n_runs": n, "is_stable": False, "stability_threshold_cv": STABILITY_CV_THRESHOLD,
+    }
+
+    # Canonical report: use the MEAN of each numeric field so downstream
+    # rubric/pref-pair code can feed one representative report. For non-
+    # numeric fields, take the first successful run's value.
+    canonical = {}
+    if successful_reports:
+        canonical = canonical_report(successful_reports[0])
+        for key in ("latency_ns", "latency_cycles", "fmax_mhz",
+                    "bram", "dsp", "ff", "lut", "interval",
+                    "estimated_clock_period_ns", "slack_ns"):
+            stats = summary.get(key)
+            if stats and stats.get("mean") is not None:
+                canonical[key] = stats["mean"]
+
+    return {
+        "success": all_success,
+        "n_runs": n,
+        "runs": runs,
+        "summary": summary,
+        "canonical_report": canonical,
+    }
+
+
+# =============================================================================
 
 
 def run_csim(
@@ -499,6 +637,129 @@ exit
         "log": log,
         "work_dir": work_dir,
     }
+
+
+# === Report sanitization =====================================================
+# Centralized post-parse cleanup so every synth report goes through the same
+# hygiene checks before reaching rubric.py / downstream tooling.
+#
+# Two responsibilities:
+#   (1) Coerce numeric fields that arrived as strings ("14" -> 14).
+#   (2) Drop implausibly large latency values that Vitis can produce when a
+#       loop's trip count is bounded by a runtime variable. Example: lud's
+#       tiling variant reports 2.7e14 cycles because the inner loop bound is
+#       `matrix_dim` which Vitis can't prove < 256 at synth time. Letting
+#       2.7e14 into the rubric's latency_ratio makes gen-vs-gt comparisons
+#       meaningless. We return None for these and rely on the rubric's
+#       None-guarding to skip the metric.
+
+# Caps chosen an order of magnitude above "realistic" HLS numbers on
+# data-center parts. 1 second of latency at 1 GHz is 1e9 cycles; 1 day is
+# 8.6e13. Anything above 1e12 cycles or 1e12 ns is almost certainly a
+# Vitis "undef" artifact — a real kernel at that scale wouldn't be
+# benchmarkable anyway.
+_LATENCY_CYCLES_CAP = 1e12
+_LATENCY_NS_CAP = 1e12
+
+_NUMERIC_RESOURCE_FIELDS = ("bram", "dsp", "ff", "lut", "uram")
+_NUMERIC_INT_FIELDS = ("latency_cycles", "interval", *_NUMERIC_RESOURCE_FIELDS)
+_NUMERIC_FLOAT_FIELDS = ("latency_ns", "fmax_mhz", "estimated_clock_period_ns",
+                         "requested_clock_period_ns", "slack_ns")
+
+
+def _coerce_int(value):
+    """Best-effort int coercion; keeps None for "undef"/"?" and non-numeric strings."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value) if value == value else None  # NaN check
+    s = str(value).strip()
+    if not s or s.lower() in {"undef", "?", "nan", "inf", "-inf", "infinity", "-infinity"}:
+        return None
+    try:
+        return int(float(s))
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_float(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return None if value != value else float(value)  # NaN check
+    s = str(value).strip()
+    if not s or s.lower() in {"undef", "?", "nan", "inf", "-inf", "infinity", "-infinity"}:
+        return None
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return None
+
+
+def sanitize_report(report: dict) -> dict:
+    """Return a cleaned copy of a parsed synthesis report.
+
+    - Coerces numeric fields from strings to ints/floats.
+    - Nulls out latency values above the plausibility cap (Vitis "undef"
+      artifact masquerading as a huge number).
+    - Preserves unknown fields so callers can carry extra data.
+    """
+    if not report:
+        return {}
+    out = dict(report)
+
+    sanitized_note = []
+
+    lat_cyc = _coerce_int(out.get("latency_cycles"))
+    if lat_cyc is not None and lat_cyc > _LATENCY_CYCLES_CAP:
+        sanitized_note.append(f"latency_cycles={lat_cyc:.3e} exceeds cap {_LATENCY_CYCLES_CAP:.0e}")
+        lat_cyc = None
+    out["latency_cycles"] = lat_cyc
+
+    lat_ns = _coerce_float(out.get("latency_ns"))
+    if lat_ns is not None and lat_ns > _LATENCY_NS_CAP:
+        sanitized_note.append(f"latency_ns={lat_ns:.3e} exceeds cap {_LATENCY_NS_CAP:.0e}")
+        lat_ns = None
+    out["latency_ns"] = lat_ns
+
+    for key in _NUMERIC_INT_FIELDS:
+        if key == "latency_cycles":
+            continue  # already handled above with cap
+        out[key] = _coerce_int(out.get(key))
+
+    for key in _NUMERIC_FLOAT_FIELDS:
+        if key == "latency_ns":
+            continue  # already handled above with cap
+        out[key] = _coerce_float(out.get(key))
+
+    if sanitized_note:
+        existing = out.get("sanitized_notes") or []
+        out["sanitized_notes"] = existing + sanitized_note
+        logging.info("sanitize_report: %s", "; ".join(sanitized_note))
+
+    return out
+
+
+def canonical_report(report: dict) -> dict:
+    """Return a report suitable for hashing / cross-run comparison.
+
+    Drops non-deterministic fields (work_dir, raw log paths) and sanitizes the
+    numeric fields. Callers use this as the input to sha256-based GT cache
+    keys so that two runs producing identical synthesis numbers hash the same.
+    """
+    r = sanitize_report(report)
+    for junk in ("work_dir", "log_path"):
+        r.pop(junk, None)
+    return r
+
+
+# =============================================================================
 
 
 def parse_synthesis_xml(xml_path: str) -> dict:

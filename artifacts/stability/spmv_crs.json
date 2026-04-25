@@ -1,0 +1,144 @@
+{
+  "benchmark": "spmv_crs",
+  "part": "xcu50-fsvh2104-2-e",
+  "clock_ns": 3.33,
+  "vitis_version": "2025.2",
+  "generated_at": "2026-04-24T22:01:29Z",
+  "n_runs": 3,
+  "stability_threshold_cv": 0.05,
+  "variants": [
+    {
+      "variant_name": "spmv_crs_0_baseline",
+      "file": "hls_baseline.cpp",
+      "step_name": "0_baseline",
+      "sha256": "8bfcec6ee4965c875be3ba5a61256db7e67ec9191859e2262c139c953bd92633",
+      "success": true,
+      "is_stable": true,
+      "n_runs": 3,
+      "elapsed_sec": 37.3,
+      "summary": {
+        "latency_ns": {
+          "mean": 5558.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "latency_cycles": {
+          "mean": 1669.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "fmax_mhz": {
+          "mean": 238.27,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "bram": {
+          "mean": 12.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "dsp": {
+          "mean": 11.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "ff": {
+          "mean": 5261.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "lut": {
+          "mean": 5877.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "slack_ns": {
+          "mean": -0.867,
+          "stdev": 0.0,
+          "cv": -0.0,
+          "n": 3
+        },
+        "is_stable": true,
+        "stability_threshold_cv": 0.05,
+        "n_runs": 3
+      },
+      "canonical_report": {
+        "latency_cycles": 1669.0,
+        "latency_ns": 5558.0,
+        "bram": 12.0,
+        "dsp": 11.0,
+        "ff": 5261.0,
+        "lut": 5877.0,
+        "uram": 1,
+        "fmax_mhz": 238.27,
+        "interval": null,
+        "estimated_clock_period_ns": 4.197,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": -0.867
+      },
+      "runs": [
+        {
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 1669,
+            "latency_ns": 5558.0,
+            "bram": 12,
+            "dsp": 11,
+            "ff": 5261,
+            "lut": 5877,
+            "uram": 1,
+            "fmax_mhz": 238.27,
+            "interval": null,
+            "estimated_clock_period_ns": 4.197,
+            "requested_clock_period_ns": 3.33,
+            "slack_ns": -0.867
+          }
+        },
+        {
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 1669,
+            "latency_ns": 5558.0,
+            "bram": 12,
+            "dsp": 11,
+            "ff": 5261,
+            "lut": 5877,
+            "uram": 1,
+            "fmax_mhz": 238.27,
+            "interval": null,
+            "estimated_clock_period_ns": 4.197,
+            "requested_clock_period_ns": 3.33,
+            "slack_ns": -0.867
+          }
+        },
+        {
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 1669,
+            "latency_ns": 5558.0,
+            "bram": 12,
+            "dsp": 11,
+            "ff": 5261,
+            "lut": 5877,
+            "uram": 1,
+            "fmax_mhz": 238.27,
+            "interval": null,
+            "estimated_clock_period_ns": 4.197,
+            "requested_clock_period_ns": 3.33,
+            "slack_ns": -0.867
+          }
+        }
+      ]
+    }
+  ]
+}

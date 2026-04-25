@@ -1,0 +1,20 @@
+{
+  "benchmark": "fft",
+  "part": "xcu50-fsvh2104-2-e",
+  "clock_ns": 3.33,
+  "vitis_version": "2025.2",
+  "generated_at": "2026-04-24T21:22:57Z",
+  "n_runs": 3,
+  "stability_threshold_cv": 0.05,
+  "variants": [
+    {
+      "variant_name": "fft_0_baseline",
+      "file": "hls_baseline.cpp",
+      "sha256": "0d0eb45c354702a607a22bc2b650d355b8b9f2e50ddd1ac0b1b06d77b55ca39c",
+      "success": false,
+      "is_stable": false,
+      "skip_reason": "probe_synth_failed",
+      "error": "ERROR: [HLS 207-974] 'support.h' file not found (./fft.h:9:10)"
+    }
+  ]
+}

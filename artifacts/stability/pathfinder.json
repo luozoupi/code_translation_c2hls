@@ -1,30 +1,30 @@
 {
-  "benchmark": "aes",
+  "benchmark": "pathfinder",
   "part": "xcu50-fsvh2104-2-e",
   "clock_ns": 3.33,
   "vitis_version": "2025.2",
-  "generated_at": "2026-04-24T21:22:54Z",
+  "generated_at": "2026-04-24T22:00:36Z",
   "n_runs": 3,
   "stability_threshold_cv": 0.05,
   "variants": [
     {
-      "variant_name": "aes_0_baseline",
-      "file": "hls_baseline.cpp",
-      "step_name": "baseline",
-      "sha256": "9a624e3ad753240f580d162680acd7fa86c3156dfb284a92482e0724d7a1a33c",
+      "variant_name": "pathfinder_5_coalescing",
+      "file": "hls_pathfinder_5_coalescing.cpp",
+      "step_name": "coalescing",
+      "sha256": "690fdc9c944fe262b1f26b53d42997dd89a9375a204670ebe212d44ae73e88d1",
       "success": true,
       "is_stable": true,
       "n_runs": 3,
-      "elapsed_sec": 50.7,
+      "elapsed_sec": 117.3,
       "summary": {
         "latency_ns": {
-          "mean": 3247.0,
+          "mean": 59783.0,
           "stdev": 0.0,
           "cv": 0.0,
           "n": 3
         },
         "latency_cycles": {
-          "mean": 975.0,
+          "mean": 17953.0,
           "stdev": 0.0,
           "cv": 0.0,
           "n": 3
@@ -36,7 +36,7 @@
           "n": 3
         },
         "bram": {
-          "mean": 1.0,
+          "mean": 8.0,
           "stdev": 0.0,
           "cv": 0.0,
           "n": 3
@@ -48,13 +48,13 @@
           "n": 3
         },
         "ff": {
-          "mean": 3163.0,
+          "mean": 33527.0,
           "stdev": 0.0,
           "cv": 0.0,
           "n": 3
         },
         "lut": {
-          "mean": 8342.0,
+          "mean": 109156.0,
           "stdev": 0.0,
           "cv": 0.0,
           "n": 3
@@ -70,15 +70,15 @@
         "n_runs": 3
       },
       "canonical_report": {
-        "latency_cycles": 975.0,
-        "latency_ns": 3247.0,
-        "bram": 1.0,
+        "latency_cycles": 17953.0,
+        "latency_ns": 59783.0,
+        "bram": 8.0,
         "dsp": 0.0,
-        "ff": 3163.0,
-        "lut": 8342.0,
+        "ff": 33527.0,
+        "lut": 109156.0,
         "uram": 0,
         "fmax_mhz": 411.35,
-        "interval": 976,
+        "interval": 17954,
         "estimated_clock_period_ns": 2.431,
         "requested_clock_period_ns": 3.33,
         "slack_ns": 0.899
@@ -88,15 +88,15 @@
           "success": true,
           "error": "",
           "report": {
-            "latency_cycles": 975,
-            "latency_ns": 3247.0,
-            "bram": 1,
+            "latency_cycles": 17953,
+            "latency_ns": 59783.0,
+            "bram": 8,
             "dsp": 0,
-            "ff": 3163,
-            "lut": 8342,
+            "ff": 33527,
+            "lut": 109156,
             "uram": 0,
             "fmax_mhz": 411.35,
-            "interval": 976,
+            "interval": 17954,
             "estimated_clock_period_ns": 2.431,
             "requested_clock_period_ns": 3.33,
             "slack_ns": 0.899
@@ -106,15 +106,15 @@
           "success": true,
           "error": "",
           "report": {
-            "latency_cycles": 975,
-            "latency_ns": 3247.0,
-            "bram": 1,
+            "latency_cycles": 17953,
+            "latency_ns": 59783.0,
+            "bram": 8,
             "dsp": 0,
-            "ff": 3163,
-            "lut": 8342,
+            "ff": 33527,
+            "lut": 109156,
             "uram": 0,
             "fmax_mhz": 411.35,
-            "interval": 976,
+            "interval": 17954,
             "estimated_clock_period_ns": 2.431,
             "requested_clock_period_ns": 3.33,
             "slack_ns": 0.899
@@ -124,15 +124,15 @@
           "success": true,
           "error": "",
           "report": {
-            "latency_cycles": 975,
-            "latency_ns": 3247.0,
-            "bram": 1,
+            "latency_cycles": 17953,
+            "latency_ns": 59783.0,
+            "bram": 8,
             "dsp": 0,
-            "ff": 3163,
-            "lut": 8342,
+            "ff": 33527,
+            "lut": 109156,
             "uram": 0,
             "fmax_mhz": 411.35,
-            "interval": 976,
+            "interval": 17954,
             "estimated_clock_period_ns": 2.431,
             "requested_clock_period_ns": 3.33,
             "slack_ns": 0.899

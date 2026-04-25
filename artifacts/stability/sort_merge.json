@@ -1,0 +1,20 @@
+{
+  "benchmark": "sort_merge",
+  "part": "xcu50-fsvh2104-2-e",
+  "clock_ns": 3.33,
+  "vitis_version": "2025.2",
+  "generated_at": "2026-04-24T22:00:39Z",
+  "n_runs": 3,
+  "stability_threshold_cv": 0.05,
+  "variants": [
+    {
+      "variant_name": "sort_merge_0_baseline",
+      "file": "hls_baseline.cpp",
+      "sha256": "be7431065657ba9a9702c6973996c9e265460b03e5b4f9e76e445117829abd76",
+      "success": false,
+      "is_stable": false,
+      "skip_reason": "probe_synth_failed",
+      "error": "ERROR: [HLS 207-974] 'support.h' file not found (./sort.h:4:10)"
+    }
+  ]
+}

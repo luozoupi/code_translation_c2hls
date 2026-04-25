@@ -1,0 +1,144 @@
+{
+  "benchmark": "lavaMD",
+  "part": "xcu50-fsvh2104-2-e",
+  "clock_ns": 3.33,
+  "vitis_version": "2025.2",
+  "generated_at": "2026-04-24T21:33:57Z",
+  "n_runs": 3,
+  "stability_threshold_cv": 0.05,
+  "variants": [
+    {
+      "variant_name": "lavaMD_5_coalescing",
+      "file": "hls_lavaMD_5_coalescing.cpp",
+      "step_name": "coalescing",
+      "sha256": "3886dbfd4b8b77d7f29ae23f66e2eafac300364991120f448ec6a12b366c25bc",
+      "success": true,
+      "is_stable": true,
+      "n_runs": 3,
+      "elapsed_sec": 147.5,
+      "summary": {
+        "latency_ns": {
+          "mean": 6053000.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "latency_cycles": {
+          "mean": 1817730.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "fmax_mhz": {
+          "mean": 300.3,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "bram": {
+          "mean": 4.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "dsp": {
+          "mean": 185.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "ff": {
+          "mean": 188529.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "lut": {
+          "mean": 42717.0,
+          "stdev": 0.0,
+          "cv": 0.0,
+          "n": 3
+        },
+        "slack_ns": {
+          "mean": 0.0,
+          "stdev": 0.0,
+          "cv": null,
+          "n": 3
+        },
+        "is_stable": true,
+        "stability_threshold_cv": 0.05,
+        "n_runs": 3
+      },
+      "canonical_report": {
+        "latency_cycles": 1817730.0,
+        "latency_ns": 6053000.0,
+        "bram": 4.0,
+        "dsp": 185.0,
+        "ff": 188529.0,
+        "lut": 42717.0,
+        "uram": 0,
+        "fmax_mhz": 300.3,
+        "interval": 1817731,
+        "estimated_clock_period_ns": 3.33,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.0
+      },
+      "runs": [
+        {
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 1817730,
+            "latency_ns": 6053000.0,
+            "bram": 4,
+            "dsp": 185,
+            "ff": 188529,
+            "lut": 42717,
+            "uram": 0,
+            "fmax_mhz": 300.3,
+            "interval": 1817731,
+            "estimated_clock_period_ns": 3.33,
+            "requested_clock_period_ns": 3.33,
+            "slack_ns": 0.0
+          }
+        },
+        {
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 1817730,
+            "latency_ns": 6053000.0,
+            "bram": 4,
+            "dsp": 185,
+            "ff": 188529,
+            "lut": 42717,
+            "uram": 0,
+            "fmax_mhz": 300.3,
+            "interval": 1817731,
+            "estimated_clock_period_ns": 3.33,
+            "requested_clock_period_ns": 3.33,
+            "slack_ns": 0.0
+          }
+        },
+        {
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 1817730,
+            "latency_ns": 6053000.0,
+            "bram": 4,
+            "dsp": 185,
+            "ff": 188529,
+            "lut": 42717,
+            "uram": 0,
+            "fmax_mhz": 300.3,
+            "interval": 1817731,
+            "estimated_clock_period_ns": 3.33,
+            "requested_clock_period_ns": 3.33,
+            "slack_ns": 0.0
+          }
+        }
+      ]
+    }
+  ]
+}

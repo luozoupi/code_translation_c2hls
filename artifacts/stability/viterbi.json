@@ -1,0 +1,20 @@
+{
+  "benchmark": "viterbi",
+  "part": "xcu50-fsvh2104-2-e",
+  "clock_ns": 3.33,
+  "vitis_version": "2025.2",
+  "generated_at": "2026-04-24T22:04:49Z",
+  "n_runs": 3,
+  "stability_threshold_cv": 0.05,
+  "variants": [
+    {
+      "variant_name": "viterbi_0_baseline",
+      "file": "hls_baseline.cpp",
+      "sha256": "8adf654efc890471fc66d4f7856f174e95a65f9f9197c3c090f4f99c057e03d5",
+      "success": false,
+      "is_stable": false,
+      "skip_reason": "probe_synth_failed",
+      "error": "ERROR: [HLS 207-974] 'support.h' file not found (./viterbi.h:10:10)"
+    }
+  ]
+}

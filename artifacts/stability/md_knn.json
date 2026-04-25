@@ -1,30 +1,30 @@
 {
-  "benchmark": "aes",
+  "benchmark": "md_knn",
   "part": "xcu50-fsvh2104-2-e",
   "clock_ns": 3.33,
   "vitis_version": "2025.2",
-  "generated_at": "2026-04-24T21:22:54Z",
+  "generated_at": "2026-04-24T21:54:54Z",
   "n_runs": 3,
   "stability_threshold_cv": 0.05,
   "variants": [
     {
-      "variant_name": "aes_0_baseline",
+      "variant_name": "md_knn_0_baseline",
       "file": "hls_baseline.cpp",
-      "step_name": "baseline",
-      "sha256": "9a624e3ad753240f580d162680acd7fa86c3156dfb284a92482e0724d7a1a33c",
+      "step_name": "0_baseline",
+      "sha256": "593132bd62d853ffd7e45e5211e6cf5bde8db2bda39bd86749a4590bcbc69011",
       "success": true,
       "is_stable": true,
       "n_runs": 3,
-      "elapsed_sec": 50.7,
+      "elapsed_sec": 43.0,
       "summary": {
         "latency_ns": {
-          "mean": 3247.0,
+          "mean": 17969.0,
           "stdev": 0.0,
           "cv": 0.0,
           "n": 3
         },
         "latency_cycles": {
-          "mean": 975.0,
+          "mean": 5396.0,
           "stdev": 0.0,
           "cv": 0.0,
           "n": 3
@@ -36,25 +36,25 @@
           "n": 3
         },
         "bram": {
-          "mean": 1.0,
+          "mean": 135.0,
           "stdev": 0.0,
           "cv": 0.0,
           "n": 3
         },
         "dsp": {
-          "mean": 0.0,
+          "mean": 1840.0,
           "stdev": 0.0,
-          "cv": null,
+          "cv": 0.0,
           "n": 3
         },
         "ff": {
-          "mean": 3163.0,
+          "mean": 204500.0,
           "stdev": 0.0,
           "cv": 0.0,
           "n": 3
         },
         "lut": {
-          "mean": 8342.0,
+          "mean": 123275.0,
           "stdev": 0.0,
           "cv": 0.0,
           "n": 3
@@ -70,15 +70,15 @@
         "n_runs": 3
       },
       "canonical_report": {
-        "latency_cycles": 975.0,
-        "latency_ns": 3247.0,
-        "bram": 1.0,
-        "dsp": 0.0,
-        "ff": 3163.0,
-        "lut": 8342.0,
+        "latency_cycles": 5396.0,
+        "latency_ns": 17969.0,
+        "bram": 135.0,
+        "dsp": 1840.0,
+        "ff": 204500.0,
+        "lut": 123275.0,
         "uram": 0,
         "fmax_mhz": 411.35,
-        "interval": 976,
+        "interval": 5397,
         "estimated_clock_period_ns": 2.431,
         "requested_clock_period_ns": 3.33,
         "slack_ns": 0.899
@@ -88,15 +88,15 @@
           "success": true,
           "error": "",
           "report": {
-            "latency_cycles": 975,
-            "latency_ns": 3247.0,
-            "bram": 1,
-            "dsp": 0,
-            "ff": 3163,
-            "lut": 8342,
+            "latency_cycles": 5396,
+            "latency_ns": 17969.0,
+            "bram": 135,
+            "dsp": 1840,
+            "ff": 204500,
+            "lut": 123275,
             "uram": 0,
             "fmax_mhz": 411.35,
-            "interval": 976,
+            "interval": 5397,
             "estimated_clock_period_ns": 2.431,
             "requested_clock_period_ns": 3.33,
             "slack_ns": 0.899
@@ -106,15 +106,15 @@
           "success": true,
           "error": "",
           "report": {
-            "latency_cycles": 975,
-            "latency_ns": 3247.0,
-            "bram": 1,
-            "dsp": 0,
-            "ff": 3163,
-            "lut": 8342,
+            "latency_cycles": 5396,
+            "latency_ns": 17969.0,
+            "bram": 135,
+            "dsp": 1840,
+            "ff": 204500,
+            "lut": 123275,
             "uram": 0,
             "fmax_mhz": 411.35,
-            "interval": 976,
+            "interval": 5397,
             "estimated_clock_period_ns": 2.431,
             "requested_clock_period_ns": 3.33,
             "slack_ns": 0.899
@@ -124,15 +124,15 @@
           "success": true,
           "error": "",
           "report": {
-            "latency_cycles": 975,
-            "latency_ns": 3247.0,
-            "bram": 1,
-            "dsp": 0,
-            "ff": 3163,
-            "lut": 8342,
+            "latency_cycles": 5396,
+            "latency_ns": 17969.0,
+            "bram": 135,
+            "dsp": 1840,
+            "ff": 204500,
+            "lut": 123275,
             "uram": 0,
             "fmax_mhz": 411.35,
-            "interval": 976,
+            "interval": 5397,
             "estimated_clock_period_ns": 2.431,
             "requested_clock_period_ns": 3.33,
             "slack_ns": 0.899

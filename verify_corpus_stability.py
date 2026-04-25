@@ -148,7 +148,8 @@ def verify_variant(candidate: dict, inputs: dict, n_runs: int,
 
 
 def verify_benchmark(bench_dir: Path, n_runs: int,
-                     validated_only: bool = False) -> dict:
+                     validated_only: bool = False,
+                     last_only: bool = False) -> dict:
     from c2hls import _load_benchmark_inputs, _ground_truth_candidates
     import hls_eval
 
@@ -157,6 +158,15 @@ def verify_benchmark(bench_dir: Path, n_runs: int,
     candidates = _ground_truth_candidates(inputs)
     if not candidates:
         return {"benchmark": bench_name, "variants": [], "skip_reason": "no_candidates"}
+
+    # --last-only restricts to the single "final step" GT candidate. This
+    # mirrors _load_benchmark_inputs, which picks variants[-1] (possibly
+    # overridden by preferred_gt_file) as the pipeline's ground truth.
+    # Recording a failure here IS the answer for benchmarks whose final
+    # variant can't be synthesized on the current target — don't silently
+    # walk back to an earlier variant.
+    if last_only:
+        candidates = candidates[-1:]
 
     logging.info("Benchmark %s: %d candidate variants, n_runs=%d",
                  bench_name, len(candidates), n_runs)
@@ -254,6 +264,9 @@ def main() -> int:
                    help="Number of synthesis repeats per variant (default: 3)")
     p.add_argument("--validated-only", action="store_true",
                    help="Probe each variant once first; skip N-run pass on variants that fail the probe")
+    p.add_argument("--last-only", action="store_true",
+                   help="Test only each benchmark's final-step variant (variants[-1]), "
+                        "matching what the pipeline selects as ground truth")
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args()
 
@@ -279,7 +292,8 @@ def main() -> int:
     for bench_dir in targets:
         logging.info("=== %s ===", bench_dir.name)
         record = verify_benchmark(bench_dir, args.n_runs,
-                                  validated_only=args.validated_only)
+                                  validated_only=args.validated_only,
+                                  last_only=args.last_only)
         write_benchmark_record(record, output_dir)
         records.append(record)
 

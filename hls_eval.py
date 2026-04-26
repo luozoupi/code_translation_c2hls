@@ -630,13 +630,52 @@ exit
     )
     success = passed and not has_error
 
+    # Vitis writes the cycle count to sim/report/verilog/lat.rpt. We pull
+    # $TOTAL_EXECUTE_TIME from there per the JSONL schema's rtl_sim contract;
+    # without this the cosim result is just pass/fail and downstream tools
+    # have no way to compare RTL-level performance.
+    kernel_runtime_cycles = _parse_lat_rpt_cycles(work_dir, proj_name)
+
     return {
         "success": success,
         "passed": passed,
         "error": "" if success else _extract_vitis_failure_reason(log, "Cosim failed"),
         "log": log,
         "work_dir": work_dir,
+        "kernel_runtime_cycles": kernel_runtime_cycles,
     }
+
+
+def _parse_lat_rpt_cycles(work_dir: str, proj_name: str = "hls_proj") -> "int | None":
+    """Pull $TOTAL_EXECUTE_TIME from a Vitis cosim lat.rpt.
+
+    Vitis writes lat.rpt at sim/report/verilog/lat.rpt under the solution
+    directory; on some flows it ends up under .../verilog/ or .../vhdl/.
+    We search the work_dir tree for any lat.rpt and return the cycle count
+    from the first one that parses cleanly. Returns None if not found.
+    """
+    if not work_dir:
+        return None
+    root = os.path.join(work_dir, proj_name) if proj_name else work_dir
+    if not os.path.isdir(root):
+        root = work_dir
+    pattern = re.compile(r'\$TOTAL_EXECUTE_TIME\s*=\s*"([^"]+)"')
+    for cur, _dirs, files in os.walk(root):
+        if "lat.rpt" not in files:
+            continue
+        try:
+            with open(os.path.join(cur, "lat.rpt"), "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+        except OSError:
+            continue
+        m = pattern.search(text)
+        if not m:
+            continue
+        try:
+            return round(float(m.group(1)))
+        except ValueError:
+            continue
+    return None
 
 
 # === Report sanitization =====================================================

@@ -415,6 +415,11 @@ def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
     work_dir = result.get("work_dir", "")
     if work_dir:
         summary["work_dir"] = work_dir
+    # Cosim runs return kernel_runtime_cycles parsed from lat.rpt; preserve
+    # it in the summary so downstream tooling (rubric, JSONL exporter) sees
+    # the actual RTL cycle count instead of just pass/fail.
+    if "kernel_runtime_cycles" in result:
+        summary["kernel_runtime_cycles"] = result.get("kernel_runtime_cycles")
     log_excerpt = _extract_failure_excerpt(result.get("log", ""))
     if log_excerpt and not passed:
         summary["log_excerpt"] = log_excerpt

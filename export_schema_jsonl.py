@@ -104,12 +104,25 @@ def _build_problem(meta: dict) -> dict:
     }
 
 
-def _variant_index_from_name(name: str) -> int:
-    """Variant names look like 'nw_4_doublebuffer'; pull the integer."""
-    m = re.search(r"_(\d+)_", name or "")
+_VARIANT_RE = re.compile(r"^(?P<prefix>.+?)_(?P<index>\d+)_(?P<name>.+)$")
+
+
+def _split_variant(name: str) -> tuple[int, str]:
+    """Split a variant name like 'spmv_crs_0_baseline' into (0, 'baseline').
+
+    Handles multi-underscore bench prefixes (spmv_crs, gemm_ncubed, etc.).
+    Falls back to (0, name) when the pattern doesn't match.
+    """
+    if not name:
+        return (0, "implementation")
+    m = _VARIANT_RE.match(name)
     if m:
-        return int(m.group(1))
-    return 0
+        return (int(m.group("index")), m.group("name"))
+    return (0, name)
+
+
+def _variant_index_from_name(name: str) -> int:
+    return _split_variant(name)[0]
 
 
 def _build_implementation(meta: dict, variant_name: str = "",
@@ -118,18 +131,17 @@ def _build_implementation(meta: dict, variant_name: str = "",
                           origin_version: Optional[str] = None,
                           origin_meta: Optional[dict] = None) -> dict:
     _, default_origin = _suite_and_origin(meta.get("source_repo"))
-    name = variant_name or "implementation"
-    # Strip the benchmark prefix and integer index for the schema's variant.name.
-    short = re.sub(r"^[A-Za-z]+_\d+_", "", name) if "_" in name else name
+    raw = variant_name or "implementation"
+    parsed_index, short = _split_variant(raw)
     if variant_index is None:
-        variant_index = _variant_index_from_name(name)
+        variant_index = parsed_index
     return {
         "origin": origin_override or default_origin,
         "origin_version": origin_version,
         "origin_meta": origin_meta,
         "variant": {
             "index": int(variant_index),
-            "name": short or name or "implementation",
+            "name": short or raw or "implementation",
         },
     }
 
@@ -375,8 +387,8 @@ def _records_from_results_json(bench_dir: Path, results_json: Path,
     selected_file = rv.get("selected_variant_file") or rv.get("selected_file") or ""
     selected_name = rv.get("selected_variant_name") or rv.get("selected_step_name") or ""
     gt_report = rv.get("report") or {}
+    workflow_entry = None
     if gt_report and selected_file:
-        # Pull the specific workflow entry (it has the full synth metrics).
         workflow_entry = next(
             (e for e in (rv.get("workflow") or []) if e.get("file") == selected_file),
             None,
@@ -392,6 +404,41 @@ def _records_from_results_json(bench_dir: Path, results_json: Path,
                 variant_name=selected_name,
             ),
             "hls_synth": _build_hls_synth_payload(gt_full_report, part, clock_ns),
+        })
+
+    # ── Ground-truth sw_run (csim) ─────────────────────────────────────────
+    gt_csim = (workflow_entry or {}).get("csim") or rv.get("csim") or {}
+    if gt_csim and gt_csim.get("ran"):
+        status = "pass" if gt_csim.get("passed") else (
+            "timeout" if "timed out" in (gt_csim.get("error") or "").lower() else "fail"
+        )
+        records.append({
+            "schema_version": SCHEMA_VERSION,
+            "report_type": "sw_run",
+            "run": _build_run(TARGET_CSIM, part, None),
+            "problem": _build_problem(meta),
+            "implementation": _build_implementation(meta, variant_name=selected_name),
+            "sw_run": {"status": status},
+        })
+
+    # ── Ground-truth rtl_sim (cosim from reference validation) ────────────
+    gt_cosim = (workflow_entry or {}).get("cosim") or rv.get("cosim") or {}
+    if gt_cosim and gt_cosim.get("ran"):
+        status = "pass" if gt_cosim.get("passed") else (
+            "timeout" if "timed out" in (gt_cosim.get("error") or "").lower() else "fail"
+        )
+        records.append({
+            "schema_version": SCHEMA_VERSION,
+            "report_type": "rtl_sim",
+            "run": _build_run(TARGET_COSIM, part, None),
+            "problem": _build_problem(meta),
+            "implementation": _build_implementation(meta, variant_name=selected_name),
+            "rtl_sim": {
+                "status": status,
+                "kernel_runtime_cycles": gt_cosim.get("kernel_runtime_cycles"),
+                "kernel_runtime_us": None,
+                "kernel_clock_freq_mhz": None,
+            },
         })
 
     return records

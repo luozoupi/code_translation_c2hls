@@ -6,7 +6,6 @@ void spmv(TYPE val[NNZ], int32_t cols[NNZ], int32_t rowDelimiters[N + 1],
     TYPE sum, Si;
 
     spmv_1: for (i = 0; i < N; i++) {
-        #pragma HLS PIPELINE II=1
         sum = 0; Si = 0;
         int tmp_begin = rowDelimiters[i];
         int tmp_end = rowDelimiters[i + 1];
@@ -20,6 +19,7 @@ void spmv(TYPE val[NNZ], int32_t cols[NNZ], int32_t rowDelimiters[N + 1],
 
 
 extern "C" {
+
 void workload(TYPE* val, int32_t* cols, int32_t* rowDelimiters,
               TYPE* vec, TYPE* out) {
     #pragma HLS INTERFACE m_axi port=val offset=slave bundle=gmem
@@ -41,23 +41,19 @@ void workload(TYPE* val, int32_t* cols, int32_t* rowDelimiters,
     TYPE l_out[N];
     int i;
 
-    #pragma HLS ARRAY_PARTITION variable=l_vec cyclic factor=4 dim=1
-
     for (i = 0; i < NNZ; i++) { 
         l_val[i] = val[i]; 
         l_cols[i] = cols[i]; 
     }
-    for (i = 0; i < N + 1; i++) {
+    for (i = 0; i < N + 1; i++) 
         l_rowDelimiters[i] = rowDelimiters[i];
-    }
-    for (i = 0; i < N; i++) {
+    for (i = 0; i < N; i++) 
         l_vec[i] = vec[i];
-    }
 
     spmv(l_val, l_cols, l_rowDelimiters, l_vec, l_out);
 
-    for (i = 0; i < N; i++) {
+    for (i = 0; i < N; i++) 
         out[i] = l_out[i];
-    }
 }
+
 }

@@ -1,118 +1,25 @@
 {
-  "success": true,
+  "success": false,
   "step_name": "doublebuffer",
-  "report": {
-    "latency_cycles": 5050377,
-    "latency_ns": 33350000.0,
-    "bram": 546,
-    "dsp": 9,
-    "ff": 17023,
-    "lut": 13355,
+  "regression_reasons": [
+    "resource_growth (>=3 resources got larger): lut 4028->6375 (1.58x), ff 3553->6331 (1.78x), dsp 5->10 (2.00x)"
+  ],
+  "rejected_report": {
+    "latency_cycles": 83976900,
+    "latency_ns": 3788000000.0,
+    "bram": 534,
+    "dsp": 10,
+    "ff": 6331,
+    "lut": 6375,
     "uram": 0,
-    "fmax_mhz": 151.42,
-    "interval": null,
-    "estimated_clock_period_ns": 6.604,
+    "fmax_mhz": 22.17,
+    "interval": 83976901,
+    "estimated_clock_period_ns": 45.112,
     "requested_clock_period_ns": 4.0,
-    "slack_ns": -2.604,
-    "work_dir": "/tmp/hls_synth_9yotc8_y"
+    "slack_ns": -41.112,
+    "work_dir": "/tmp/hls_synth_1q1c06v7"
   },
-  "vs_previous": {
-    "latency_cycles": {
-      "generated": 5050377.0,
-      "ground_truth": 13926895.0,
-      "ratio": 0.363
-    },
-    "latency_ns": {
-      "generated": 33350000.0,
-      "ground_truth": 74300000.0,
-      "ratio": 0.449
-    },
-    "bram": {
-      "generated": 546.0,
-      "ground_truth": 2.0,
-      "ratio": 273.0
-    },
-    "dsp": {
-      "generated": 9.0,
-      "ground_truth": 15.0,
-      "ratio": 0.6
-    },
-    "ff": {
-      "generated": 17023.0,
-      "ground_truth": 29730.0,
-      "ratio": 0.573
-    },
-    "lut": {
-      "generated": 13355.0,
-      "ground_truth": 15539.0,
-      "ratio": 0.859
-    },
-    "fmax_mhz": {
-      "generated": 151.42,
-      "ground_truth": 187.44,
-      "ratio": 0.808
-    }
-  },
-  "vs_ground_truth": {
-    "latency_cycles": {
-      "generated": 5050377.0,
-      "ground_truth": 15096797.0,
-      "ratio": 0.335
-    },
-    "latency_ns": {
-      "generated": 33350000.0,
-      "ground_truth": 93162000.0,
-      "ratio": 0.358
-    },
-    "bram": {
-      "generated": 546.0,
-      "ground_truth": 821.0,
-      "ratio": 0.665
-    },
-    "dsp": {
-      "generated": 9.0,
-      "ground_truth": 510.0,
-      "ratio": 0.018
-    },
-    "ff": {
-      "generated": 17023.0,
-      "ground_truth": 279609.0,
-      "ratio": 0.061
-    },
-    "lut": {
-      "generated": 13355.0,
-      "ground_truth": 175816.0,
-      "ratio": 0.076
-    },
-    "fmax_mhz": {
-      "generated": 151.42,
-      "ground_truth": 162.05,
-      "ratio": 0.934
-    }
-  },
-  "gt_report": {
-    "latency_cycles": 15096797,
-    "latency_ns": 93162000.0,
-    "bram": 821,
-    "dsp": 510,
-    "ff": 279609,
-    "lut": 175816,
-    "uram": 0,
-    "fmax_mhz": 162.05,
-    "interval": 15096798,
-    "estimated_clock_period_ns": 6.171,
-    "requested_clock_period_ns": 4.0,
-    "slack_ns": -2.171,
-    "work_dir": "/tmp/hls_synth_7l9ynkyo"
-  },
-  "csim": {
-    "status": "failed",
-    "supported": true,
-    "ran": true,
-    "success": false,
-    "passed": false,
-    "error": "FAIL: kmeans testbench \u2014 1 error(s)\n@E Simulation failed: Function 'main' returns nonzero value '1'.\nERROR: [SIM 211-100] 'csim_design' failed: nonzero return value.",
-    "work_dir": "/tmp/hls_csim_skgc_0c6",
-    "log_excerpt": "FAIL: kmeans testbench \u2014 1 error(s)\n@E Simulation failed: Function 'main' returns nonzero value '1'.\nERROR: [SIM 211-100] 'csim_design' failed: nonzero return value."
-  }
+  "reverted_to_prev": true,
+  "superseded_by_success": true,
+  "attempt_error": "Reverted: regression after retry"
 }

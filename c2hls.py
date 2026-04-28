@@ -80,6 +80,12 @@ DEFAULT_MODEL_ID = os.getenv("C2HLS_MODEL", "nvidia/OpenCodeReasoning-Nemotron-1
 DEFAULT_QUALITY_REPAIR_TURNS = int(os.getenv("C2HLS_QUALITY_REPAIR_TURNS", "2"))
 QUALITY_SCORE_EPSILON = float(os.getenv("C2HLS_QUALITY_SCORE_EPSILON", "0.25"))
 
+# Multistep regression guard: a step is rejected if its latency_ns or its
+# resource usage grew by this ratio vs the previous step. Defaults to 1.10
+# (10% regression triggers a one-shot retry with regression-aware guidance,
+# then revert if still regressing). Set to 0 to disable the guard entirely.
+STEP_REGRESSION_THRESHOLD = float(os.getenv("C2HLS_STEP_REGRESSION_THRESHOLD", "1.10"))
+
 # Max seconds for the g++ compile-check used in Phase A and before each
 # Vitis synthesis attempt. Kept small since compile-check is quick.
 TIMEOUT_LIMIT = int(os.getenv("C2HLS_COMPILE_CHECK_TIMEOUT", "60"))
@@ -788,6 +794,68 @@ def _build_profile_signal(report: dict, part: str = "",
     return ("Profile signals from the latest synthesis "
             "(treat these as the primary repair targets):\n"
             + "\n".join(signals))
+
+
+def _step_regression_reasons(new_report: dict, prev_report: dict,
+                             threshold: float = 1.10) -> list:
+    """Return a list of human-readable regression reasons. Empty list = no
+    regression detected at the given threshold.
+
+    A step "regresses" when at least one of:
+      - latency_ns grew by > threshold (the primary signal)
+      - 3+ resource counts (lut/ff/bram/dsp) all grew by > threshold
+        (catches the "LLM added pragmas without measuring" failure mode
+         where the design got bigger across the board with no benefit)
+    """
+    reasons: list[str] = []
+    if not new_report or not prev_report or threshold <= 0:
+        return reasons
+
+    new_lat = _as_float(new_report.get("latency_ns"))
+    prev_lat = _as_float(prev_report.get("latency_ns"))
+    if new_lat is not None and prev_lat is not None and prev_lat > 0:
+        ratio = new_lat / prev_lat
+        if ratio > threshold:
+            reasons.append(
+                f"latency_ns regressed {ratio:.2f}x "
+                f"({prev_lat:.0f} -> {new_lat:.0f})"
+            )
+
+    grown_resources: list[str] = []
+    for key in ("lut", "ff", "bram", "dsp"):
+        new_v = _as_float(new_report.get(key))
+        prev_v = _as_float(prev_report.get(key))
+        if new_v is not None and prev_v is not None and prev_v > 0:
+            r = new_v / prev_v
+            if r > threshold:
+                grown_resources.append(
+                    f"{key} {int(prev_v)}->{int(new_v)} ({r:.2f}x)"
+                )
+    if len(grown_resources) >= 3:
+        reasons.append(
+            "resource_growth (>=3 resources got larger): "
+            + ", ".join(grown_resources)
+        )
+
+    return reasons
+
+
+def _render_regression_guidance(step_name: str, reasons: list) -> str:
+    """Format a regression-reason list as a prompt fragment for the LLM's
+    next attempt. Tells it bluntly that the previous output was rejected
+    and what specifically regressed."""
+    if not reasons:
+        return ""
+    bullets = "\n".join(f"  - {r}" for r in reasons)
+    return (
+        f"Your previous attempt at the `{step_name}` step was REJECTED because "
+        f"it regressed against the previous step's metrics:\n"
+        f"{bullets}\n\n"
+        f"Produce a more conservative version that PRESERVES or IMPROVES on the "
+        f"previous step's latency and does not inflate resource usage. If the "
+        f"requested optimization cannot help here, return the previous code "
+        f"with only minor tweaks."
+    )
 
 
 def _as_float(value) -> Optional[float]:
@@ -1832,12 +1900,108 @@ class C2HLSOrchestrator:
         }
 
     def run_optimization_step(self, step_name: str, gt_code: str = None) -> dict:
+        """Run one optimization step with a regression guard.
+
+        Outer logic: try the step (LLM + synth + repair). If it succeeds but
+        regresses against the previous step's metrics (`_step_regression_reasons`
+        non-empty at threshold STEP_REGRESSION_THRESHOLD), retry once with an
+        explicit "you regressed, here's how" prompt. If the retry still
+        regresses, revert: keep the previous step's code and report and mark
+        this step as failed-by-regression. This stops a bad LLM step from
+        poisoning the rest of the multistep chain.
+        """
         logging.info("=== [Step: %s] Applying optimization ===", step_name)
 
         if not self.hls_code:
-            return {"success": False, "step_name": step_name, "error": "No HLS code to optimize"}
+            return {"success": False, "step_name": step_name,
+                    "error": "No HLS code to optimize"}
 
-        report_str = format_report_summary(self.synth_report) if self.synth_report else "(no prior report)"
+        # Snapshot for revert-on-regression. self.hls_code / self.synth_report
+        # represent the previous step's accepted output before this step runs.
+        prev_code = self.hls_code
+        prev_report = self.synth_report
+        threshold = STEP_REGRESSION_THRESHOLD
+
+        # Up to 2 outer attempts: a clean attempt, then a regression-feedback
+        # retry if needed. More than that and we revert; LLMs that miss twice
+        # rarely converge on the third.
+        regression_guidance = ""
+        for outer_turn in range(2):
+            attempt = self._optimization_step_attempt(
+                step_name, gt_code,
+                additional_guidance=regression_guidance,
+            )
+            if not attempt.get("success"):
+                # Synth itself failed (compile/synth budget exhausted). Don't
+                # retry-with-regression-guidance; just return the failure.
+                return attempt
+
+            # Synth succeeded — but may have regressed. Check before committing.
+            new_report = attempt["report"]
+            new_code = attempt["code"]
+            reasons = _step_regression_reasons(new_report, prev_report, threshold)
+
+            if not reasons:
+                # Accept: commit and return.
+                self.hls_code = new_code
+                self.synth_report = new_report
+                if outer_turn > 0:
+                    attempt["regression_retry_succeeded"] = True
+                return attempt
+
+            # Regression detected.
+            logging.warning(
+                "[Step: %s] Regression detected on attempt %d: %s",
+                step_name, outer_turn, "; ".join(reasons),
+            )
+            if outer_turn == 0:
+                # Re-prompt with the specific regression info; loop.
+                regression_guidance = _render_regression_guidance(step_name, reasons)
+                self._append_history(
+                    "system",
+                    f"[Step: {step_name}] Regression on attempt 0; retrying with "
+                    f"regression-aware guidance.",
+                )
+                continue
+
+            # outer_turn == 1: still regressed after retry. Revert.
+            logging.warning(
+                "[Step: %s] Reverting to previous step's code after regression retry",
+                step_name,
+            )
+            self.hls_code = prev_code
+            self.synth_report = prev_report
+            self._append_history(
+                "system",
+                f"[Step: {step_name}] Reverted: regression persisted after retry.",
+            )
+            return {
+                "success": False,
+                "step_name": step_name,
+                "error": "Reverted: regression after retry",
+                "regression_reasons": reasons,
+                "rejected_report": new_report,
+                "reverted_to_prev": True,
+            }
+
+        # Unreachable; satisfies static analysis.
+        return {"success": False, "step_name": step_name,
+                "error": "Optimization step exited unexpectedly"}
+
+    def _optimization_step_attempt(self, step_name: str, gt_code: str = None,
+                                   additional_guidance: str = "") -> dict:
+        """One optimization-step pass: LLM → synth + repair loop. Returns a
+        step_result dict with success / code / report / vs_previous / vs_ground_truth.
+
+        Does NOT commit self.hls_code / self.synth_report — the outer
+        run_optimization_step decides whether to accept based on the
+        regression check. This deferred-commit design is what makes the
+        regression guard possible.
+        """
+        report_str = (
+            format_report_summary(self.synth_report)
+            if self.synth_report else "(no prior report)"
+        )
         prompt_template = OPTIMIZATION_PROMPTS.get(step_name)
         if prompt_template is None:
             prompt_template = q_optimize_generic
@@ -1855,6 +2019,21 @@ class C2HLSOrchestrator:
                 current_code=self.hls_code,
             )
 
+        # Inject profile-signal hints + (if retrying) regression guidance into
+        # the prompt as an additional section. Keeps prompt templates
+        # untouched while letting the LLM see the actual bottlenecks.
+        signal = _build_profile_signal(
+            self.synth_report or {}, part=self.part,
+            requested_clock_ns=self.clock_ns,
+        )
+        extra_blocks = []
+        if signal:
+            extra_blocks.append(signal)
+        if additional_guidance:
+            extra_blocks.append(additional_guidance)
+        if extra_blocks:
+            prompt = prompt + "\n\n" + "\n\n".join(extra_blocks)
+
         self.messages = [
             {"role": "system", "content": Instruction_c2hls_multistep},
             {"role": "user", "content": prompt},
@@ -1868,16 +2047,17 @@ class C2HLSOrchestrator:
         new_code = extract_cpp_code(reply)
         if not new_code:
             logging.error("[Step: %s] No code in LLM response", step_name)
-            return {"success": False, "step_name": step_name, "error": "No code in response"}
+            return {"success": False, "step_name": step_name,
+                    "error": "No code in response"}
 
         for turn in range(self.turns_limitation):
             logging.info("[Step: %s] Synthesis attempt %d", step_name, turn)
-            new_code = self._preflight_generated_hls_code(new_code, f"Step {step_name} attempt {turn}")
+            new_code = self._preflight_generated_hls_code(
+                new_code, f"Step {step_name} attempt {turn}",
+            )
 
             ok, err = compile_check_cpp(
-                new_code,
-                self.header_code,
-                self.header_name,
+                new_code, self.header_code, self.header_name,
                 extra_files=self.extra_files,
             )
             if not ok:
@@ -1886,7 +2066,7 @@ class C2HLSOrchestrator:
                     compile_error=err,
                     hls_code=new_code,
                     benchmark_context=self.benchmark_context,
-                    repair_guidance=_build_repair_guidance(err),
+                    repair_guidance=self.synthesis._compose_repair_guidance(err, report=None),
                 )
                 self.messages.append({"role": "user", "content": fix_prompt})
                 reply = self._call_llm(self.messages)
@@ -1901,10 +2081,8 @@ class C2HLSOrchestrator:
             result = outcome["synth"]
 
             if result["success"]:
-                prev_report = self.synth_report
-                self.hls_code = new_code
-                self.synth_report = result["report"]
-                logging.info("[Step: %s] Synthesis SUCCESS!\n%s", step_name, format_report_summary(result["report"]))
+                logging.info("[Step: %s] Synthesis SUCCESS!\n%s",
+                             step_name, format_report_summary(result["report"]))
 
                 step_result = {
                     "success": True,
@@ -1912,9 +2090,10 @@ class C2HLSOrchestrator:
                     "report": result["report"],
                     "code": new_code,
                 }
-
-                if prev_report:
-                    step_result["vs_previous"] = compare_reports(result["report"], prev_report)
+                if self.synth_report:
+                    step_result["vs_previous"] = compare_reports(
+                        result["report"], self.synth_report,
+                    )
 
                 if gt_code:
                     gt_result = run_hls_synthesis(
@@ -1927,7 +2106,9 @@ class C2HLSOrchestrator:
                         extra_files=self.extra_files,
                     )
                     if gt_result["success"]:
-                        step_result["vs_ground_truth"] = compare_reports(result["report"], gt_result["report"])
+                        step_result["vs_ground_truth"] = compare_reports(
+                            result["report"], gt_result["report"],
+                        )
                         step_result["gt_report"] = gt_result["report"]
                     else:
                         step_result["gt_report_status"] = _summarize_synth_result(gt_result)
@@ -1939,15 +2120,19 @@ class C2HLSOrchestrator:
 
                 return step_result
 
-            logging.warning("[Step: %s] Synthesis failed: %s", step_name, result["error"][:300])
+            logging.warning("[Step: %s] Synthesis failed: %s",
+                            step_name, result["error"][:300])
             is_timeout = "timed out" in result["error"].lower()
+            guidance = self.synthesis._compose_repair_guidance(
+                result["error"], report=result.get("report"),
+            )
             if is_timeout:
                 fix_prompt = hls_synthesis_timeout_fix.format(
                     timeout=600,
                     hls_code=new_code,
                     header_code=self.header_code,
                     benchmark_context=self.benchmark_context,
-                    repair_guidance=_build_repair_guidance(result["error"]),
+                    repair_guidance=guidance,
                 )
             else:
                 fix_prompt = hls_synthesis_fix.format(
@@ -1955,7 +2140,7 @@ class C2HLSOrchestrator:
                     hls_code=new_code,
                     header_code=self.header_code,
                     benchmark_context=self.benchmark_context,
-                    repair_guidance=_build_repair_guidance(result["error"]),
+                    repair_guidance=guidance,
                 )
             self.messages.append({"role": "user", "content": fix_prompt})
             reply = self._call_llm(self.messages)

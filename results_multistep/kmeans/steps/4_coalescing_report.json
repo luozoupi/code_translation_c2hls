@@ -1,0 +1,118 @@
+{
+  "success": true,
+  "step_name": "coalescing",
+  "report": {
+    "latency_cycles": 5062665,
+    "latency_ns": 33430000.0,
+    "bram": 554,
+    "dsp": 9,
+    "ff": 15853,
+    "lut": 14860,
+    "uram": 0,
+    "fmax_mhz": 151.42,
+    "interval": null,
+    "estimated_clock_period_ns": 6.604,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -2.604,
+    "work_dir": "/tmp/hls_synth_72t1ise2"
+  },
+  "vs_previous": {
+    "latency_cycles": {
+      "generated": 5062665.0,
+      "ground_truth": 5050377.0,
+      "ratio": 1.002
+    },
+    "latency_ns": {
+      "generated": 33430000.0,
+      "ground_truth": 33350000.0,
+      "ratio": 1.002
+    },
+    "bram": {
+      "generated": 554.0,
+      "ground_truth": 546.0,
+      "ratio": 1.015
+    },
+    "dsp": {
+      "generated": 9.0,
+      "ground_truth": 9.0,
+      "ratio": 1.0
+    },
+    "ff": {
+      "generated": 15853.0,
+      "ground_truth": 17023.0,
+      "ratio": 0.931
+    },
+    "lut": {
+      "generated": 14860.0,
+      "ground_truth": 13355.0,
+      "ratio": 1.113
+    },
+    "fmax_mhz": {
+      "generated": 151.42,
+      "ground_truth": 151.42,
+      "ratio": 1.0
+    }
+  },
+  "vs_ground_truth": {
+    "latency_cycles": {
+      "generated": 5062665.0,
+      "ground_truth": 890128.0,
+      "ratio": 5.688
+    },
+    "latency_ns": {
+      "generated": 33430000.0,
+      "ground_truth": 4770000.0,
+      "ratio": 7.008
+    },
+    "bram": {
+      "generated": 554.0,
+      "ground_truth": 874.0,
+      "ratio": 0.634
+    },
+    "dsp": {
+      "generated": 9.0,
+      "ground_truth": 526.0,
+      "ratio": 0.017
+    },
+    "ff": {
+      "generated": 15853.0,
+      "ground_truth": 292682.0,
+      "ratio": 0.054
+    },
+    "lut": {
+      "generated": 14860.0,
+      "ground_truth": 191244.0,
+      "ratio": 0.078
+    },
+    "fmax_mhz": {
+      "generated": 151.42,
+      "ground_truth": 186.64,
+      "ratio": 0.811
+    }
+  },
+  "gt_report": {
+    "latency_cycles": 890128,
+    "latency_ns": 4770000.0,
+    "bram": 874,
+    "dsp": 526,
+    "ff": 292682,
+    "lut": 191244,
+    "uram": 0,
+    "fmax_mhz": 186.64,
+    "interval": 890129,
+    "estimated_clock_period_ns": 5.358,
+    "requested_clock_period_ns": 4.0,
+    "slack_ns": -1.358,
+    "work_dir": "/tmp/hls_synth_a3ask2bq"
+  },
+  "csim": {
+    "status": "failed",
+    "supported": true,
+    "ran": true,
+    "success": false,
+    "passed": false,
+    "error": "FAIL: kmeans testbench \u2014 1 error(s)\n@E Simulation failed: Function 'main' returns nonzero value '1'.\nERROR: [SIM 211-100] 'csim_design' failed: nonzero return value.",
+    "work_dir": "/tmp/hls_csim_wuqv6b4n",
+    "log_excerpt": "FAIL: kmeans testbench \u2014 1 error(s)\n@E Simulation failed: Function 'main' returns nonzero value '1'.\nERROR: [SIM 211-100] 'csim_design' failed: nonzero return value."
+  }
+}

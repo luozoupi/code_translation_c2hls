@@ -857,8 +857,413 @@ def _quality_focus_improved(benchmark_name: str, focus: str, current_report: dic
     return True
 
 
+# =============================================================================
+# Agent split (P3): Phase logic lives on dedicated agent classes; the
+# orchestrator below instantiates them and delegates. State + shared helpers
+# (history, messages, _synth_and_test, _evaluate_candidate_with_repairs)
+# remain on the orchestrator so this is a layering refactor, not a state
+# migration. Each agent has its own model, resolvable via env var, with a
+# fallback to the orchestrator's default. The lazy LLM client cache in
+# C2HLSOrchestrator._call_llm_with_model handles cross-backend mixing
+# (e.g. a Claude translator + a vLLM-served Qwen synthesizer) without
+# forcing all callers to manage clients.
+
+# Per-agent model env vars. Unset -> falls through to gpt_model.
+TRANSLATOR_MODEL_ENV     = "C2HLS_TRANSLATOR_MODEL"
+SYNTHESIS_MODEL_ENV      = "C2HLS_SYNTHESIS_MODEL"
+QUALITY_REPAIR_MODEL_ENV = "C2HLS_QUALITY_REPAIR_MODEL"
+
+
+class _AgentBase:
+    """Base class for phase-specific agents.
+
+    Each agent owns its phase's prompts and control flow. State (messages,
+    history, hls_code, synth_report, etc.) lives on the parent orchestrator;
+    agents read and mutate via `self.orch.<field>`. Helper methods that are
+    shared across phases (compile_check_cpp via the orchestrator's
+    _synth_and_test, the candidate-with-repairs evaluator) stay on the
+    orchestrator so multistep mode and quality repair can keep reusing them.
+
+    The only thing each agent owns independently is its LLM model id. The
+    orchestrator's _call_llm_with_model() routes to the right backend.
+    """
+    AGENT_NAME = "base"
+    MODEL_ENV = ""
+
+    def __init__(self, orch: "C2HLSOrchestrator"):
+        self.orch = orch
+        env_model = os.getenv(self.MODEL_ENV) if self.MODEL_ENV else ""
+        self.model = env_model or orch.gpt_model
+
+    def _call_llm(self, messages: list, max_tokens: int = None) -> str:
+        return self.orch._call_llm_with_model(
+            messages, model=self.model, max_tokens=max_tokens,
+        )
+
+    def _request_code_revision(self, prompt: str) -> Optional[str]:
+        """Append a user prompt to orch.messages, call this agent's LLM,
+        record both turns in history, and return the extracted code."""
+        self.orch.messages.append({"role": "user", "content": prompt})
+        reply = self._call_llm(self.orch.messages)
+        self.orch.messages.append({"role": "assistant", "content": reply})
+        self.orch._append_history("user", prompt)
+        self.orch._append_history("assistant", reply)
+        return extract_cpp_code(reply)
+
+
+class TranslatorAgent(_AgentBase):
+    """Phase A (validate plain C compiles) + initial Phase B translate.
+
+    Owns the conversation initialization (system prompt + first user prompt)
+    so the SynthesisAgent's repair turns layer on top of a coherent thread.
+    """
+    AGENT_NAME = "translator"
+    MODEL_ENV = TRANSLATOR_MODEL_ENV
+
+    def run_phase_a(self, c_code: str, header_code: str = "",
+                    header_name: str = "kernel.h") -> bool:
+        orch = self.orch
+        orch.c_code = c_code
+        orch.header_code = header_code
+        orch.header_name = header_name
+
+        logging.info("=== [Phase A] Validating C code compilation ===")
+        orch._append_history("system", Instruction_c2hls)
+
+        ok, err = compile_check_cpp(
+            c_code, header_code, header_name, extra_files=orch.extra_files,
+        )
+        if ok:
+            logging.info("[Phase A] C code compiles successfully")
+            orch._append_history("system", "[Phase A] Input C code compiles OK.")
+            return True
+
+        logging.warning("[Phase A] C code fails to compile: %s", err)
+        for turn in range(orch.turns_limitation):
+            prompt = q_validate_c_code.format(
+                c_code=orch.c_code,
+                header_code=orch.header_code,
+                benchmark_context=orch.benchmark_context,
+            )
+            orch.messages = [
+                {"role": "system", "content": Instruction_c2hls},
+                {"role": "user", "content": prompt},
+            ]
+            reply = self._call_llm(orch.messages)
+            orch._append_history("assistant", reply)
+
+            fixed = extract_cpp_code(reply)
+            if fixed:
+                orch.c_code = fixed
+                ok, err = compile_check_cpp(
+                    orch.c_code, orch.header_code, orch.header_name,
+                    extra_files=orch.extra_files,
+                )
+                if ok:
+                    logging.info("[Phase A] Fixed C code compiles (turn %d)", turn)
+                    return True
+                logging.warning("[Phase A] Still fails (turn %d): %s", turn, err[:200])
+
+        orch._append_history(
+            "system",
+            f"[Phase A] FAIL: C code does not compile after {orch.turns_limitation} turns",
+        )
+        return False
+
+    def translate_initial(self) -> Optional[str]:
+        """Run Phase B's initial translate prompt and return the extracted
+        HLS code. Does not synthesize — the SynthesisAgent does that."""
+        orch = self.orch
+        logging.info("=== [Phase B] Translating C to HLS ===")
+
+        prompt = q_translate_c_to_hls.format(
+            c_code=orch.c_code,
+            header_code=orch.header_code,
+            benchmark_context=orch.benchmark_context,
+        )
+        orch.messages = [
+            {"role": "system", "content": Instruction_c2hls},
+            {"role": "user", "content": prompt},
+        ]
+
+        reply = self._call_llm(orch.messages)
+        orch._append_history("user", prompt)
+        orch._append_history("assistant", reply)
+        orch.messages.append({"role": "assistant", "content": reply})
+
+        hls_code = extract_cpp_code(reply)
+        if not hls_code:
+            logging.error("[Phase B] No code block in LLM response")
+            orch._append_history("system", "[Phase B] FAIL: no code in response")
+            return None
+        return hls_code
+
+
+class SynthesisAgent(_AgentBase):
+    """Phase B synth + test loop with LLM-driven repair on compile or synth
+    failures. Mutates orch.hls_code, orch.synth_report, orch.generated_csim,
+    orch.generated_cosim, orch.turn_results."""
+    AGENT_NAME = "synthesis"
+    MODEL_ENV = SYNTHESIS_MODEL_ENV
+
+    def synthesize_with_repair(self) -> bool:
+        orch = self.orch
+        for turn in range(orch.turns_limitation):
+            logging.info("[Phase B] Synthesis attempt %d", turn)
+            orch.hls_code = orch._preflight_generated_hls_code(
+                orch.hls_code, f"Phase B attempt {turn}",
+            )
+
+            ok, err = compile_check_cpp(
+                orch.hls_code, orch.header_code, orch.header_name,
+                extra_files=orch.extra_files,
+            )
+            if not ok:
+                logging.warning("[Phase B] HLS code doesn't compile: %s", err[:200])
+                fix_prompt = c_compilation_fix.format(
+                    compile_error=err,
+                    hls_code=orch.hls_code,
+                    benchmark_context=orch.benchmark_context,
+                    repair_guidance=_build_repair_guidance(err),
+                )
+                orch.messages.append({"role": "user", "content": fix_prompt})
+                reply = self._call_llm(orch.messages)
+                orch.messages.append({"role": "assistant", "content": reply})
+                orch._append_history("user", fix_prompt)
+                orch._append_history("assistant", reply)
+                fixed = extract_cpp_code(reply)
+                if fixed:
+                    orch.hls_code = fixed
+                continue
+
+            outcome = orch._synth_and_test(orch.hls_code, log_prefix="[Phase B]")
+            result = outcome["synth"]
+            orch.turn_results.append({
+                "turn": turn,
+                "phase": "B",
+                "success": result["success"],
+                "report": result.get("report", {}),
+                "error": result.get("error", ""),
+            })
+
+            if result["success"]:
+                orch.synth_report = result["report"]
+                logging.info("[Phase B] Synthesis SUCCESS!\n%s",
+                             format_report_summary(result["report"]))
+                orch._append_history(
+                    "system",
+                    f"[Phase B] Synthesis SUCCESS. Report:\n"
+                    f"{format_report_summary(result['report'])}",
+                )
+
+                orch.generated_csim = outcome["csim"]
+                if orch.generated_csim is not None:
+                    if orch.generated_csim.get("passed"):
+                        logging.info("[Phase B] Csim PASSED")
+                    else:
+                        logging.warning(
+                            "[Phase B] Csim FAILED: %s",
+                            (orch.generated_csim.get("error") or "")[:200],
+                        )
+
+                orch.generated_cosim = outcome["cosim"]
+                if orch.generated_cosim is not None:
+                    if orch.generated_cosim.get("passed"):
+                        logging.info("[Phase B] Cosim PASSED")
+                    else:
+                        logging.warning(
+                            "[Phase B] Cosim FAILED: %s",
+                            (orch.generated_cosim.get("error") or "")[:200],
+                        )
+
+                return True
+
+            logging.warning("[Phase B] Synthesis failed: %s", result["error"][:300])
+            is_timeout = "timed out" in result["error"].lower()
+            if is_timeout:
+                fix_prompt = hls_synthesis_timeout_fix.format(
+                    timeout=600,
+                    hls_code=orch.hls_code,
+                    header_code=orch.header_code,
+                    benchmark_context=orch.benchmark_context,
+                    repair_guidance=_build_repair_guidance(result["error"]),
+                )
+            else:
+                fix_prompt = hls_synthesis_fix.format(
+                    synth_error=result["error"],
+                    hls_code=orch.hls_code,
+                    header_code=orch.header_code,
+                    benchmark_context=orch.benchmark_context,
+                    repair_guidance=_build_repair_guidance(result["error"]),
+                )
+            orch.messages.append({"role": "user", "content": fix_prompt})
+            reply = self._call_llm(orch.messages)
+            orch.messages.append({"role": "assistant", "content": reply})
+            orch._append_history("user", fix_prompt)
+            orch._append_history("assistant", reply)
+            fixed = extract_cpp_code(reply)
+            if fixed:
+                orch.hls_code = fixed
+
+        orch._append_history(
+            "system",
+            f"[Phase B] FAIL: HLS synthesis not achieved in {orch.turns_limitation} turns",
+        )
+        return False
+
+
+class QualityRepairAgent(_AgentBase):
+    """Iterative LLM-driven candidate generation + accept/reject loop to
+    close the gen-vs-GT gap on rubric-tracked metrics."""
+    AGENT_NAME = "quality_repair"
+    MODEL_ENV = QUALITY_REPAIR_MODEL_ENV
+
+    def run(self, ground_truth_report: dict,
+            initial_comparison: Optional[dict] = None) -> dict:
+        orch = self.orch
+        summary = {"attempted": False, "applied": False, "attempts": []}
+        orch.quality_repair_result = summary
+
+        if (orch.quality_repair_turns <= 0
+                or not ground_truth_report
+                or not orch.synth_report
+                or not orch.hls_code):
+            summary["reason"] = "Quality repair disabled or missing reports"
+            return summary
+
+        current_comparison = initial_comparison or compare_reports(
+            orch.synth_report, ground_truth_report,
+        )
+        quality_guidance = _build_quality_guidance(
+            orch.benchmark_name, orch.synth_report,
+            ground_truth_report, current_comparison,
+        )
+        if not quality_guidance:
+            summary["reason"] = "No timing/resource issues triggered quality repair"
+            return summary
+
+        summary["attempted"] = True
+        summary["initial_score"] = _quality_score(
+            orch.benchmark_name, orch.synth_report, current_comparison,
+        )
+        summary["initial_comparison"] = current_comparison
+        current_score = summary["initial_score"]
+
+        for turn in range(orch.quality_repair_turns):
+            current_focus = _quality_focus(
+                orch.benchmark_name, orch.synth_report, current_comparison,
+            )
+            prompt = hls_quality_repair.format(
+                hls_code=orch.hls_code,
+                current_report=format_report_summary(orch.synth_report),
+                ground_truth_report=format_report_summary(ground_truth_report),
+                comparison_summary=json.dumps(current_comparison, indent=2),
+                benchmark_context=orch.benchmark_context,
+                quality_guidance=quality_guidance,
+            )
+            proposed_code = self._request_code_revision(prompt)
+            attempt = {
+                "turn": turn,
+                "focus": current_focus,
+                "score_before": current_score,
+            }
+            if not proposed_code:
+                attempt["status"] = "no_code"
+                summary["attempts"].append(attempt)
+                continue
+
+            candidate = orch._evaluate_candidate_with_repairs(
+                proposed_code, "[Quality Repair]",
+            )
+            if not candidate.get("success"):
+                attempt["status"] = "failed"
+                attempt["error"] = candidate.get("error", "")
+                summary["attempts"].append(attempt)
+                continue
+
+            candidate_comparison = compare_reports(
+                candidate["report"], ground_truth_report,
+            )
+            candidate_score = _quality_score(
+                orch.benchmark_name, candidate["report"], candidate_comparison,
+            )
+            tests_preserved = (
+                _preserves_passed_test(orch.generated_csim, candidate.get("csim"))
+                and _preserves_passed_test(orch.generated_cosim, candidate.get("cosim"))
+            )
+            attempt.update({
+                "candidate_score": candidate_score,
+                "comparison": candidate_comparison,
+                "tests_preserved": tests_preserved,
+            })
+
+            focus_improved = _quality_focus_improved(
+                orch.benchmark_name, current_focus,
+                orch.synth_report, current_comparison,
+                candidate["report"], candidate_comparison,
+            )
+            attempt["focus_improved"] = focus_improved
+
+            if (tests_preserved and focus_improved
+                    and candidate_score + QUALITY_SCORE_EPSILON < current_score):
+                orch.hls_code = candidate["code"]
+                orch.synth_report = candidate["report"]
+                orch.generated_csim = candidate.get("csim")
+                orch.generated_cosim = candidate.get("cosim")
+                current_comparison = candidate_comparison
+                current_score = candidate_score
+                summary["applied"] = True
+                attempt["status"] = "accepted"
+                summary["attempts"].append(attempt)
+                logging.info("[Quality Repair] Accepted improved candidate with score %.3f",
+                             candidate_score)
+
+                quality_guidance = _build_quality_guidance(
+                    orch.benchmark_name, orch.synth_report,
+                    ground_truth_report, current_comparison,
+                )
+                if not quality_guidance:
+                    break
+                continue
+
+            attempt["status"] = "rejected"
+            if not tests_preserved:
+                attempt["rejection_reason"] = "Functional checks regressed"
+            elif not focus_improved:
+                attempt["rejection_reason"] = (
+                    f"Candidate did not improve the active {current_focus} focus"
+                )
+            else:
+                attempt["rejection_reason"] = (
+                    f"Quality score did not improve enough "
+                    f"({candidate_score:.3f} vs {current_score:.3f})"
+                )
+            summary["attempts"].append(attempt)
+
+        summary["final_score"] = current_score
+        summary["final_comparison"] = current_comparison
+        orch.quality_repair_result = summary
+        return summary
+
+
+# =============================================================================
+
+
 class C2HLSOrchestrator:
-    """Pipeline orchestrator for C-to-HLS translation."""
+    """Pipeline orchestrator for C-to-HLS translation.
+
+    Holds shared state (messages, history, hls_code, synth_report, ...) and
+    coordinates phase-specific agents:
+
+      - self.translator      (TranslatorAgent)      Phase A + initial translate
+      - self.synthesis       (SynthesisAgent)        Phase B synth+repair loop
+      - self.quality_repair  (QualityRepairAgent)    candidate-improvement loop
+
+    Multistep mode (run_optimization_step) and reference helpers (_synth_and_test,
+    _evaluate_candidate_with_repairs, _preflight_generated_hls_code) remain on
+    the orchestrator so existing callers (multistep, run_benchmark, etc.) are
+    unchanged.
+    """
 
     def __init__(self, max_completion_tokens=8192, gpt_model=DEFAULT_MODEL_ID,
                  turns_limitation=3, idx=0, quality_repair_turns=DEFAULT_QUALITY_REPAIR_TURNS):
@@ -884,6 +1289,11 @@ class C2HLSOrchestrator:
                 self.key = os.getenv("OPENAI_API_KEY", "EMPTY")
                 self.base_url = os.getenv("OPENAI_BASE_URL", "http://127.0.0.1:8000/v1")
             self.client = OpenAI(base_url=self.base_url, api_key=self.key)
+
+        # Per-agent LLM cache. Populated lazily when an agent's model differs
+        # from the orchestrator's default. Keys: model id; values: tuple
+        # (kind, client) where kind is "anthropic" or "openai".
+        self._extra_clients: dict = {}
 
         self.messages = []
         self.history = []
@@ -911,6 +1321,14 @@ class C2HLSOrchestrator:
             "attempts": [],
         }
 
+        # Phase-specific agents. They share state with this orchestrator and
+        # call _call_llm_with_model() for routing. Each picks up its own
+        # model from C2HLS_TRANSLATOR_MODEL / _SYNTHESIS_MODEL / _QUALITY_REPAIR_MODEL,
+        # falling back to gpt_model when unset.
+        self.translator = TranslatorAgent(self)
+        self.synthesis = SynthesisAgent(self)
+        self.quality_repair = QualityRepairAgent(self)
+
     def configure_benchmark(
         self,
         extra_files=None,
@@ -934,36 +1352,91 @@ class C2HLSOrchestrator:
         self.benchmark_context = benchmark_context or ""
 
     def _call_llm(self, messages: list, max_tokens: int = None) -> str:
+        """Default-model LLM call. Kept as the public interface so existing
+        callers (multistep, run_optimization_step, anything outside the
+        agent classes) continue to work unchanged."""
+        return self._call_llm_with_model(messages, model=self.gpt_model,
+                                         max_tokens=max_tokens)
+
+    def _client_for_model(self, model: str):
+        """Get or create the right backend client for a given model id.
+
+        Returns a tuple (kind, client) where kind is "anthropic" or
+        "openai". The orchestrator's default-model client is reused; non-
+        default models populate self._extra_clients on first use.
+        """
+        if model == self.gpt_model:
+            if self.use_anthropic:
+                return ("anthropic", self.anthropic_client)
+            return ("openai", self.client)
+        cached = self._extra_clients.get(model)
+        if cached is not None:
+            return cached
+
+        is_claude = model.lower().startswith("claude")
+        if is_claude:
+            assert HAS_ANTHROPIC, (
+                "anthropic package required for Claude models: pip install anthropic"
+            )
+            api_key = _load_anthropic_api_key()
+            assert api_key, (
+                f"Missing Anthropic API key for agent model {model!r}; "
+                f"set ANTHROPIC_API_KEY or populate {CLAUDE_API_KEY_FILE}."
+            )
+            client = anthropic.Anthropic(api_key=api_key)
+            entry = ("anthropic", client)
+        else:
+            if _is_hosted_openai_model(model):
+                api_key = _load_openai_api_key()
+                assert api_key, (
+                    f"Missing OpenAI API key for agent model {model!r}."
+                )
+                base_url = OPENAI_HOSTED_BASE_URL
+            else:
+                api_key = os.getenv("OPENAI_API_KEY", "EMPTY")
+                base_url = os.getenv("OPENAI_BASE_URL",
+                                     "http://127.0.0.1:8000/v1")
+            entry = ("openai", OpenAI(base_url=base_url, api_key=api_key))
+        self._extra_clients[model] = entry
+        return entry
+
+    def _call_llm_with_model(self, messages: list, model: str = None,
+                             max_tokens: int = None) -> str:
+        """Route an LLM call to the requested model's backend. Used by
+        agents to support per-agent model overrides without forcing every
+        caller to manage clients.
+        """
         if max_tokens is None:
             max_tokens = self.max_completion_tokens
+        if not model:
+            model = self.gpt_model
 
-        if self.use_anthropic:
+        kind, client = self._client_for_model(model)
+        if kind == "anthropic":
             system_text = ""
             conv_messages = []
             for message in messages:
                 if message["role"] == "system":
                     system_text += message["content"] + "\n"
                 else:
-                    conv_messages.append({"role": message["role"], "content": message["content"]})
-            response = self.anthropic_client.messages.create(
-                model=self.gpt_model,
+                    conv_messages.append({"role": message["role"],
+                                          "content": message["content"]})
+            response = client.messages.create(
+                model=model,
                 max_tokens=max_tokens,
                 system=system_text.strip() if system_text else "",
                 messages=conv_messages,
             )
             return response.content[0].text
 
-        kwargs = {
-            "model": self.gpt_model,
-            "messages": messages,
-        }
-        if self.use_hosted_openai:
+        kwargs = {"model": model, "messages": messages}
+        if _is_hosted_openai_model(model):
             kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
-        if "qwen" in self.gpt_model.lower():
+        if "qwen" in model.lower():
             kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
-        response = self.client.chat.completions.create(**kwargs)
+        response = client.chat.completions.create(**kwargs)
         return response.choices[0].message.content
 
     def _append_history(self, role: str, content: str):
@@ -1077,302 +1550,28 @@ class C2HLSOrchestrator:
             "error": last_error or f"{label} failed after {self.turns_limitation} attempts",
         }
 
-    def run_quality_repair(self, ground_truth_report: dict, initial_comparison: Optional[dict] = None) -> dict:
-        summary = {
-            "attempted": False,
-            "applied": False,
-            "attempts": [],
-        }
-        self.quality_repair_result = summary
-
-        if self.quality_repair_turns <= 0 or not ground_truth_report or not self.synth_report or not self.hls_code:
-            summary["reason"] = "Quality repair disabled or missing reports"
-            return summary
-
-        current_comparison = initial_comparison or compare_reports(self.synth_report, ground_truth_report)
-        quality_guidance = _build_quality_guidance(
-            self.benchmark_name,
-            self.synth_report,
-            ground_truth_report,
-            current_comparison,
-        )
-        if not quality_guidance:
-            summary["reason"] = "No timing/resource issues triggered quality repair"
-            return summary
-
-        summary["attempted"] = True
-        summary["initial_score"] = _quality_score(self.benchmark_name, self.synth_report, current_comparison)
-        summary["initial_comparison"] = current_comparison
-        current_score = summary["initial_score"]
-
-        for turn in range(self.quality_repair_turns):
-            current_focus = _quality_focus(self.benchmark_name, self.synth_report, current_comparison)
-            prompt = hls_quality_repair.format(
-                hls_code=self.hls_code,
-                current_report=format_report_summary(self.synth_report),
-                ground_truth_report=format_report_summary(ground_truth_report),
-                comparison_summary=json.dumps(current_comparison, indent=2),
-                benchmark_context=self.benchmark_context,
-                quality_guidance=quality_guidance,
-            )
-            proposed_code = self._request_code_revision(prompt)
-            attempt = {
-                "turn": turn,
-                "focus": current_focus,
-                "score_before": current_score,
-            }
-            if not proposed_code:
-                attempt["status"] = "no_code"
-                summary["attempts"].append(attempt)
-                continue
-
-            candidate = self._evaluate_candidate_with_repairs(proposed_code, "[Quality Repair]")
-            if not candidate.get("success"):
-                attempt["status"] = "failed"
-                attempt["error"] = candidate.get("error", "")
-                summary["attempts"].append(attempt)
-                continue
-
-            candidate_comparison = compare_reports(candidate["report"], ground_truth_report)
-            candidate_score = _quality_score(self.benchmark_name, candidate["report"], candidate_comparison)
-            tests_preserved = (
-                _preserves_passed_test(self.generated_csim, candidate.get("csim"))
-                and _preserves_passed_test(self.generated_cosim, candidate.get("cosim"))
-            )
-            attempt.update(
-                {
-                    "candidate_score": candidate_score,
-                    "comparison": candidate_comparison,
-                    "tests_preserved": tests_preserved,
-                }
-            )
-
-            focus_improved = _quality_focus_improved(
-                self.benchmark_name,
-                current_focus,
-                self.synth_report,
-                current_comparison,
-                candidate["report"],
-                candidate_comparison,
-            )
-            attempt["focus_improved"] = focus_improved
-
-            if tests_preserved and focus_improved and candidate_score + QUALITY_SCORE_EPSILON < current_score:
-                self.hls_code = candidate["code"]
-                self.synth_report = candidate["report"]
-                self.generated_csim = candidate.get("csim")
-                self.generated_cosim = candidate.get("cosim")
-                current_comparison = candidate_comparison
-                current_score = candidate_score
-                summary["applied"] = True
-                attempt["status"] = "accepted"
-                summary["attempts"].append(attempt)
-                logging.info("[Quality Repair] Accepted improved candidate with score %.3f", candidate_score)
-
-                quality_guidance = _build_quality_guidance(
-                    self.benchmark_name,
-                    self.synth_report,
-                    ground_truth_report,
-                    current_comparison,
-                )
-                if not quality_guidance:
-                    break
-                continue
-
-            attempt["status"] = "rejected"
-            if not tests_preserved:
-                attempt["rejection_reason"] = "Functional checks regressed"
-            elif not focus_improved:
-                attempt["rejection_reason"] = f"Candidate did not improve the active {current_focus} focus"
-            else:
-                attempt["rejection_reason"] = (
-                    f"Quality score did not improve enough ({candidate_score:.3f} vs {current_score:.3f})"
-                )
-            summary["attempts"].append(attempt)
-
-        summary["final_score"] = current_score
-        summary["final_comparison"] = current_comparison
-        self.quality_repair_result = summary
-        return summary
+    def run_quality_repair(self, ground_truth_report: dict,
+                           initial_comparison: Optional[dict] = None) -> dict:
+        """Delegate to QualityRepairAgent. Logic lives there; this method
+        keeps the existing public API for callers like run() and
+        run_benchmark()."""
+        return self.quality_repair.run(ground_truth_report, initial_comparison)
 
     def run_phase_a(self, c_code: str, header_code: str = "",
                     header_name: str = "kernel.h") -> bool:
-        self.c_code = c_code
-        self.header_code = header_code
-        self.header_name = header_name
-
-        logging.info("=== [Phase A] Validating C code compilation ===")
-        self._append_history("system", Instruction_c2hls)
-
-        ok, err = compile_check_cpp(
-            c_code,
-            header_code,
-            header_name,
-            extra_files=self.extra_files,
-        )
-        if ok:
-            logging.info("[Phase A] C code compiles successfully")
-            self._append_history("system", "[Phase A] Input C code compiles OK.")
-            return True
-
-        logging.warning("[Phase A] C code fails to compile: %s", err)
-
-        for turn in range(self.turns_limitation):
-            prompt = q_validate_c_code.format(
-                c_code=self.c_code,
-                header_code=self.header_code,
-                benchmark_context=self.benchmark_context,
-            )
-            self.messages = [
-                {"role": "system", "content": Instruction_c2hls},
-                {"role": "user", "content": prompt},
-            ]
-            reply = self._call_llm(self.messages)
-            self._append_history("assistant", reply)
-
-            fixed = extract_cpp_code(reply)
-            if fixed:
-                self.c_code = fixed
-                ok, err = compile_check_cpp(
-                    self.c_code,
-                    self.header_code,
-                    self.header_name,
-                    extra_files=self.extra_files,
-                )
-                if ok:
-                    logging.info("[Phase A] Fixed C code compiles (turn %d)", turn)
-                    return True
-                logging.warning("[Phase A] Still fails (turn %d): %s", turn, err[:200])
-
-        self._append_history(
-            "system",
-            f"[Phase A] FAIL: C code does not compile after {self.turns_limitation} turns",
-        )
-        return False
+        """Delegate to TranslatorAgent."""
+        return self.translator.run_phase_a(c_code, header_code, header_name)
 
     def run_phase_b(self) -> bool:
-        logging.info("=== [Phase B] Translating C to HLS ===")
-
-        prompt = q_translate_c_to_hls.format(
-            c_code=self.c_code,
-            header_code=self.header_code,
-            benchmark_context=self.benchmark_context,
-        )
-        self.messages = [
-            {"role": "system", "content": Instruction_c2hls},
-            {"role": "user", "content": prompt},
-        ]
-
-        reply = self._call_llm(self.messages)
-        self._append_history("user", prompt)
-        self._append_history("assistant", reply)
-        self.messages.append({"role": "assistant", "content": reply})
-
-        hls_code = extract_cpp_code(reply)
+        """Delegate to TranslatorAgent for the initial translate, then to
+        SynthesisAgent for the synth+repair loop. Splitting these two lets
+        future RL work plug in different policies for "produce code" vs
+        "fix a synth failure" without restructuring the full pipeline."""
+        hls_code = self.translator.translate_initial()
         if not hls_code:
-            logging.error("[Phase B] No code block in LLM response")
-            self._append_history("system", "[Phase B] FAIL: no code in response")
             return False
-
         self.hls_code = hls_code
-
-        for turn in range(self.turns_limitation):
-            logging.info("[Phase B] Synthesis attempt %d", turn)
-            self.hls_code = self._preflight_generated_hls_code(self.hls_code, f"Phase B attempt {turn}")
-
-            ok, err = compile_check_cpp(
-                self.hls_code,
-                self.header_code,
-                self.header_name,
-                extra_files=self.extra_files,
-            )
-            if not ok:
-                logging.warning("[Phase B] HLS code doesn't compile: %s", err[:200])
-                fix_prompt = c_compilation_fix.format(
-                    compile_error=err,
-                    hls_code=self.hls_code,
-                    benchmark_context=self.benchmark_context,
-                    repair_guidance=_build_repair_guidance(err),
-                )
-                self.messages.append({"role": "user", "content": fix_prompt})
-                reply = self._call_llm(self.messages)
-                self.messages.append({"role": "assistant", "content": reply})
-                self._append_history("user", fix_prompt)
-                self._append_history("assistant", reply)
-
-                fixed = extract_cpp_code(reply)
-                if fixed:
-                    self.hls_code = fixed
-                continue
-
-            outcome = self._synth_and_test(self.hls_code, log_prefix="[Phase B]")
-            result = outcome["synth"]
-
-            self.turn_results.append({
-                "turn": turn,
-                "phase": "B",
-                "success": result["success"],
-                "report": result.get("report", {}),
-                "error": result.get("error", ""),
-            })
-
-            if result["success"]:
-                self.synth_report = result["report"]
-                logging.info("[Phase B] Synthesis SUCCESS!\n%s", format_report_summary(result["report"]))
-                self._append_history(
-                    "system",
-                    f"[Phase B] Synthesis SUCCESS. Report:\n{format_report_summary(result['report'])}",
-                )
-
-                self.generated_csim = outcome["csim"]
-                if self.generated_csim is not None:
-                    if self.generated_csim.get("passed"):
-                        logging.info("[Phase B] Csim PASSED")
-                    else:
-                        logging.warning("[Phase B] Csim FAILED: %s", self.generated_csim.get("error", "")[:200])
-
-                self.generated_cosim = outcome["cosim"]
-                if self.generated_cosim is not None:
-                    if self.generated_cosim.get("passed"):
-                        logging.info("[Phase B] Cosim PASSED")
-                    else:
-                        logging.warning("[Phase B] Cosim FAILED: %s", self.generated_cosim.get("error", "")[:200])
-
-                return True
-
-            logging.warning("[Phase B] Synthesis failed: %s", result["error"][:300])
-            is_timeout = "timed out" in result["error"].lower()
-            if is_timeout:
-                fix_prompt = hls_synthesis_timeout_fix.format(
-                    timeout=600,
-                    hls_code=self.hls_code,
-                    header_code=self.header_code,
-                    benchmark_context=self.benchmark_context,
-                    repair_guidance=_build_repair_guidance(result["error"]),
-                )
-            else:
-                fix_prompt = hls_synthesis_fix.format(
-                    synth_error=result["error"],
-                    hls_code=self.hls_code,
-                    header_code=self.header_code,
-                    benchmark_context=self.benchmark_context,
-                    repair_guidance=_build_repair_guidance(result["error"]),
-                )
-            self.messages.append({"role": "user", "content": fix_prompt})
-            reply = self._call_llm(self.messages)
-            self.messages.append({"role": "assistant", "content": reply})
-            self._append_history("user", fix_prompt)
-            self._append_history("assistant", reply)
-
-            fixed = extract_cpp_code(reply)
-            if fixed:
-                self.hls_code = fixed
-
-        self._append_history(
-            "system",
-            f"[Phase B] FAIL: HLS synthesis not achieved in {self.turns_limitation} turns",
-        )
-        return False
+        return self.synthesis.synthesize_with_repair()
 
     def run_phase_c(self, ground_truth_report: dict) -> dict:
         logging.info("=== [Phase C] Comparing against validated gold baseline ===")

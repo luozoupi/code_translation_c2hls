@@ -119,9 +119,7 @@ void aes256_encrypt_ecb(aes256_context *ctx, uint8_t k[32], uint8_t buf[16]) {
     aes_addRoundKey(buf, ctx->key);
 }
 
-
 extern "C" {
-
 void workload(uint8_t* k, uint8_t* buf) {
     #pragma HLS INTERFACE m_axi port=k offset=slave bundle=gmem
     #pragma HLS INTERFACE m_axi port=buf offset=slave bundle=gmem
@@ -130,21 +128,22 @@ void workload(uint8_t* k, uint8_t* buf) {
     #pragma HLS INTERFACE s_axilite port=return bundle=control
 
     uint8_t l_k[32], l_buf[16];
+    #pragma HLS ARRAY_PARTITION variable=l_k block factor=4 dim=1
+    #pragma HLS ARRAY_PARTITION variable=l_buf block factor=4 dim=1
 
     int i;
-    read_k: for (i = 0; i < 32; i++) {
+    copy_k: for (i = 0; i < 32; i++) {
         l_k[i] = k[i];
     }
-    read_buf: for (i = 0; i < 16; i++) {
+    copy_buf_in: for (i = 0; i < 16; i++) {
         l_buf[i] = buf[i];
     }
 
     aes256_context ctx;
     aes256_encrypt_ecb(&ctx, l_k, l_buf);
 
-    write_buf: for (i = 0; i < 16; i++) {
+    copy_buf_out: for (i = 0; i < 16; i++) {
         buf[i] = l_buf[i];
     }
 }
-
 }

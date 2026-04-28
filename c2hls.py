@@ -683,6 +683,113 @@ def _build_repair_guidance(error: str) -> str:
     return "\n".join(hints)
 
 
+# Device-resource limits used by the profile-signal extractor. Keep this in
+# sync with rubric._DEVICE_TABLE; we duplicate the small lookup here to avoid
+# a circular import.
+def _resource_capacity_for(part: str) -> dict:
+    try:
+        from rubric import _device_limits_for_part  # type: ignore
+    except Exception:
+        return {}
+    return dict(_device_limits_for_part(part) or {})
+
+
+def _classify_synth_error(error: str) -> str:
+    """Coarse error-class buckets for streak detection. Distinct classes
+    should drive distinct repair strategies; the same class repeating is
+    a strong signal the LLM is stuck."""
+    if not error:
+        return "unknown"
+    e = error.lower()
+    if "timed out" in e or "timeout" in e:
+        return "timeout"
+    if "synthesis report not found" in e:
+        return "missing_report"
+    if "redefinition" in e or "undeclared" in e or "no matching function" in e \
+            or "too many arguments" in e or "too few arguments" in e:
+        return "compile_error"
+    if "pragma hls" in e and "function scope" in e:
+        return "pragma_scope"
+    if "memory" in e and ("exceeded" in e or "overflow" in e):
+        return "resource_overflow"
+    if "scheduler" in e or "could not schedule" in e:
+        return "scheduling_error"
+    return "synth_other"
+
+
+def _build_profile_signal(report: dict, part: str = "",
+                          requested_clock_ns: float = None) -> str:
+    """Turn a synthesis report into a structured bottleneck summary.
+
+    Returns a multi-line bullet list intended to be embedded in a repair
+    prompt next to the raw error log. Concrete signals beat free-text
+    error dumps for the LLM's next-attempt focus. Empty string when the
+    report has no actionable signal.
+    """
+    if not report:
+        return ""
+
+    signals: list[str] = []
+    capacity = _resource_capacity_for(part) if part else {}
+
+    # Timing
+    slack = _as_float(report.get("slack_ns"))
+    if slack is not None and slack < 0:
+        signals.append(
+            f"- TIMING_VIOLATION: slack={slack:+.3f} ns. "
+            f"The combinational path is longer than the target clock; "
+            f"reduce loop body complexity or break critical paths with "
+            f"an extra pipeline stage."
+        )
+    fmax = _as_float(report.get("fmax_mhz"))
+    if requested_clock_ns and fmax is not None and fmax > 0:
+        actual_period = 1000.0 / fmax
+        target = float(requested_clock_ns)
+        if actual_period > target * 1.10:
+            signals.append(
+                f"- FMAX_BELOW_TARGET: actual ~{fmax:.1f} MHz "
+                f"(period {actual_period:.3f} ns vs target {target:.3f} ns). "
+                f"Simplify the critical path."
+            )
+
+    # Latency
+    lat_ns = _as_float(report.get("latency_ns"))
+    if lat_ns is not None and lat_ns > 1e8:  # > 100 ms
+        signals.append(
+            f"- LATENCY_HIGH: {lat_ns/1e6:.1f} ms. Loop trip counts may be "
+            f"variable or unrolled inefficiently; check for unnecessary "
+            f"sequential dependencies."
+        )
+
+    # Resources — flag any > 80% of device capacity (warning) or > 100%
+    # (infeasible). Bigger signal means tighter constraint.
+    res_keys = (("lut", "LUT"), ("ff", "FF"), ("dsp", "DSP"), ("bram", "BRAM"))
+    for key, label in res_keys:
+        used = _as_float(report.get(key))
+        cap = capacity.get(key)
+        if used is None or not cap:
+            continue
+        pct = 100.0 * used / cap
+        if pct > 100.0:
+            signals.append(
+                f"- {label}_OVERFLOW: {int(used)} / {cap} ({pct:.1f}% of device). "
+                f"This will not place-and-route. Reduce parallelism, "
+                f"partition factors, or unroll factors on this resource type."
+            )
+        elif pct > 80.0:
+            signals.append(
+                f"- {label}_PRESSURE: {int(used)} / {cap} ({pct:.1f}% of device). "
+                f"Approaching the ceiling; further optimisation should not add "
+                f"to {label} usage."
+            )
+
+    if not signals:
+        return ""
+    return ("Profile signals from the latest synthesis "
+            "(treat these as the primary repair targets):\n"
+            + "\n".join(signals))
+
+
 def _as_float(value) -> Optional[float]:
     try:
         if value is None:
@@ -1002,12 +1109,68 @@ class TranslatorAgent(_AgentBase):
 class SynthesisAgent(_AgentBase):
     """Phase B synth + test loop with LLM-driven repair on compile or synth
     failures. Mutates orch.hls_code, orch.synth_report, orch.generated_csim,
-    orch.generated_cosim, orch.turn_results."""
+    orch.generated_cosim, orch.turn_results.
+
+    P5 enhancements:
+      - **Profile-feedback loop.** Each repair prompt now carries a
+        structured bottleneck summary (TIMING_VIOLATION / *_OVERFLOW /
+        LATENCY_HIGH / FMAX_BELOW_TARGET) derived from the synth report,
+        not just the raw error log. Empty when nothing is actionable.
+      - **Best-state tracking + revert-on-streak.** If `C2HLS_SYNTH_REVERT_THRESHOLD`
+        consecutive same-class errors hit, we either revert to the last
+        successful synth (if any) and exit early, or — when no good run
+        exists yet — abort the loop early instead of burning more LLM
+        budget on the same dead end. Default 0 = disabled (preserves
+        current behavior).
+    """
     AGENT_NAME = "synthesis"
     MODEL_ENV = SYNTHESIS_MODEL_ENV
 
+    @property
+    def revert_threshold(self) -> int:
+        """Read at access time so tests / env-overrides don't have to
+        re-instantiate the orchestrator."""
+        try:
+            return int(os.getenv("C2HLS_SYNTH_REVERT_THRESHOLD", "0"))
+        except ValueError:
+            return 0
+
+    def _compose_repair_guidance(self, err: str, report: dict = None) -> str:
+        """Combine error-text hints with structured profile signals."""
+        parts = [_build_repair_guidance(err)]
+        if report:
+            profile = _build_profile_signal(
+                report,
+                part=self.orch.part,
+                requested_clock_ns=self.orch.clock_ns,
+            )
+            if profile:
+                parts.append("")  # blank line between sections
+                parts.append(profile)
+        return "\n".join(parts)
+
+    def _record_best(self, hls_code: str, result: dict, outcome: dict) -> dict:
+        """Capture a synth-success snapshot for revert-on-streak."""
+        return {
+            "code": hls_code,
+            "report": result.get("report", {}),
+            "csim": outcome.get("csim"),
+            "cosim": outcome.get("cosim"),
+        }
+
+    def _restore_from_best(self, best: dict) -> None:
+        orch = self.orch
+        orch.hls_code = best["code"]
+        orch.synth_report = best["report"]
+        orch.generated_csim = best.get("csim")
+        orch.generated_cosim = best.get("cosim")
+
     def synthesize_with_repair(self) -> bool:
         orch = self.orch
+        best_state: Optional[dict] = None
+        error_class_history: list[str] = []
+        threshold = self.revert_threshold
+
         for turn in range(orch.turns_limitation):
             logging.info("[Phase B] Synthesis attempt %d", turn)
             orch.hls_code = orch._preflight_generated_hls_code(
@@ -1020,11 +1183,14 @@ class SynthesisAgent(_AgentBase):
             )
             if not ok:
                 logging.warning("[Phase B] HLS code doesn't compile: %s", err[:200])
+                error_class_history.append(_classify_synth_error(err))
+                if self._should_revert(error_class_history, best_state, threshold):
+                    return self._revert_and_exit(error_class_history, best_state, threshold)
                 fix_prompt = c_compilation_fix.format(
                     compile_error=err,
                     hls_code=orch.hls_code,
                     benchmark_context=orch.benchmark_context,
-                    repair_guidance=_build_repair_guidance(err),
+                    repair_guidance=self._compose_repair_guidance(err, report=None),
                 )
                 orch.messages.append({"role": "user", "content": fix_prompt})
                 reply = self._call_llm(orch.messages)
@@ -1076,17 +1242,30 @@ class SynthesisAgent(_AgentBase):
                             (orch.generated_cosim.get("error") or "")[:200],
                         )
 
+                # Snapshot for potential revert later (e.g. if a future
+                # quality-repair-style chain breaks things). Currently
+                # synthesize_with_repair returns on first success, but the
+                # snapshot is cheap and future-proofs the agent.
+                best_state = self._record_best(orch.hls_code, result, outcome)
+                error_class_history.clear()
                 return True
 
             logging.warning("[Phase B] Synthesis failed: %s", result["error"][:300])
+            error_class_history.append(_classify_synth_error(result["error"]))
+            if self._should_revert(error_class_history, best_state, threshold):
+                return self._revert_and_exit(error_class_history, best_state, threshold)
+
             is_timeout = "timed out" in result["error"].lower()
+            guidance = self._compose_repair_guidance(
+                result["error"], report=result.get("report"),
+            )
             if is_timeout:
                 fix_prompt = hls_synthesis_timeout_fix.format(
                     timeout=600,
                     hls_code=orch.hls_code,
                     header_code=orch.header_code,
                     benchmark_context=orch.benchmark_context,
-                    repair_guidance=_build_repair_guidance(result["error"]),
+                    repair_guidance=guidance,
                 )
             else:
                 fix_prompt = hls_synthesis_fix.format(
@@ -1094,7 +1273,7 @@ class SynthesisAgent(_AgentBase):
                     hls_code=orch.hls_code,
                     header_code=orch.header_code,
                     benchmark_context=orch.benchmark_context,
-                    repair_guidance=_build_repair_guidance(result["error"]),
+                    repair_guidance=guidance,
                 )
             orch.messages.append({"role": "user", "content": fix_prompt})
             reply = self._call_llm(orch.messages)
@@ -1108,6 +1287,46 @@ class SynthesisAgent(_AgentBase):
         orch._append_history(
             "system",
             f"[Phase B] FAIL: HLS synthesis not achieved in {orch.turns_limitation} turns",
+        )
+        return False
+
+    def _should_revert(self, history: list, best_state: Optional[dict],
+                       threshold: int) -> bool:
+        """True when we've seen `threshold` consecutive errors of the same
+        class. threshold<=0 disables the check entirely."""
+        if threshold <= 0 or len(history) < threshold:
+            return False
+        recent = history[-threshold:]
+        return len(set(recent)) == 1
+
+    def _revert_and_exit(self, history: list, best_state: Optional[dict],
+                         threshold: int) -> bool:
+        """Either restore the last successful state or abort the loop early.
+        Returning True means "Phase B succeeded (via the restored state)";
+        False means "Phase B is giving up early because the LLM is stuck"."""
+        orch = self.orch
+        stuck_class = history[-1] if history else "unknown"
+        if best_state is not None:
+            self._restore_from_best(best_state)
+            logging.info(
+                "[Phase B] Stuck on %s for %d turns; reverting to last good synth",
+                stuck_class, threshold,
+            )
+            orch._append_history(
+                "system",
+                f"[Phase B] Reverted to last good synth after "
+                f"{threshold} consecutive {stuck_class} errors",
+            )
+            return True
+        logging.warning(
+            "[Phase B] Stuck on %s for %d turns and no good state to revert to; "
+            "exiting Phase B early",
+            stuck_class, threshold,
+        )
+        orch._append_history(
+            "system",
+            f"[Phase B] Early exit: {threshold} consecutive {stuck_class} "
+            f"errors with no successful synth to revert to",
         )
         return False
 

@@ -1,0 +1,67 @@
+{
+  "benchmark": "cfd_flux",
+  "source_repo": "rodinia-hls-nova",
+  "algorithm_source_path": null,
+  "gold_hls_source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_0_baseline/src/cfd_flux.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "cfd_flux.cpp",
+  "header_file": "cfd_flux.h",
+  "baseline_variant": "cfd_flux_0_baseline",
+  "variants": [
+    {
+      "name": "cfd_flux_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_0_baseline/src/cfd_flux.cpp"
+    },
+    {
+      "name": "cfd_flux_1_tiling",
+      "file": "hls_cfd_flux_1_tiling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_1_tiling/src/cfd_flux.cpp"
+    },
+    {
+      "name": "cfd_flux_2_pipeline",
+      "file": "hls_cfd_flux_2_pipeline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_2_pipeline/src/cfd_flux.cpp"
+    },
+    {
+      "name": "cfd_flux_3_unroll",
+      "file": "hls_cfd_flux_3_unroll.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_3_unroll/src/cfd_flux.cpp"
+    },
+    {
+      "name": "cfd_flux_4_doublebuffer",
+      "file": "hls_cfd_flux_4_doublebuffer.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_4_doublebuffer/src/cfd_flux.cpp"
+    },
+    {
+      "name": "cfd_flux_5_coalescing",
+      "file": "hls_cfd_flux_5_coalescing.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_5_coalescing/src/cfd_flux.cpp"
+    }
+  ],
+  "preferred_gt_file": "hls_cfd_flux_5_coalescing.cpp",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "supports_csim": false,
+  "supports_cosim": false,
+  "testbench_file": null,
+  "support_files": [],
+  "strip_report": {
+    "removed_hls_pragmas": 17,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "removed_hls_artifact_comment_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "gold_hls_source_sha256": "9f4e6be9ea4848a6137b6b9cf38be2b1e4dad619728e0e4e37d9c9f7fcffc5c2",
+  "_provenance": {
+    "upstream_root": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd",
+    "added_by": "prepare_nova_benchmarks.py",
+    "note": "csim/cosim disabled until testbench is generated; use make check sw_emu/hw_emu after U280 platform install."
+  }
+}

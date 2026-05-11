@@ -40,6 +40,14 @@ _DEVICE_TABLE = {
         "lut":  871680,   # 6-input LUTs
         "uram": 640,      # URAM288
     },
+    # Alveo U280 — Virtex UltraScale+ XCU280 (HBM2)
+    "xcu280": {
+        "bram": 4032,     # BRAM_18K (2016 × BRAM_36K)
+        "dsp":  9024,     # DSP48E2 slices
+        "ff":   2607360,  # CLB flip-flops
+        "lut":  1303680,  # 6-input LUTs
+        "uram": 960,      # URAM288
+    },
     # Artix-7 100T (legacy default)
     "xc7a100t": {
         "bram": 270,
@@ -231,6 +239,37 @@ def _try_float(v) -> Optional[float]:
         return None
 
 
+def _pick_best_step_report(reports: dict) -> tuple:
+    """Return (step_name, report) of the entry with the minimum
+    latency_cycles (tie-break on latency_ns, then on resource sum).
+
+    Used for "best-vs-best" headline comparison: the agentic system's
+    best optimisation result is scored against the reference's best
+    variant, regardless of which step name produced it. This is the
+    comparison a working HLS engineer cares about — "did we land at the
+    same place the reference did?" — not per-step lockstep matching.
+    """
+    best_name, best_rep, best_key = None, None, None
+    for name, rep in (reports or {}).items():
+        if not rep:
+            continue
+        cyc = _try_int(rep.get("latency_cycles"))
+        ns = _try_float(rep.get("latency_ns"))
+        if cyc is None and ns is None:
+            continue
+        res_sum = sum(
+            (_try_int(rep.get(k)) or 0) for k in ("bram", "dsp", "ff", "lut")
+        )
+        key = (
+            cyc if cyc is not None else float("inf"),
+            ns if ns is not None else float("inf"),
+            res_sum,
+        )
+        if best_key is None or key < best_key:
+            best_key, best_name, best_rep = key, name, rep
+    return best_name, best_rep
+
+
 # ── Data classes ──────────────────────────────────────────────────────
 
 @dataclass
@@ -253,8 +292,20 @@ class StepScore:
     gt_latency: Optional[float] = None      # latency_ns
     gen_latency_cycles: Optional[int] = None
     gt_latency_cycles: Optional[int] = None
-    latency_ratio: Optional[float] = None
+    latency_ratio: Optional[float] = None              # ns-based; what
+                                                        # the headline score uses
     latency_score: float = 0.0
+    # M4 extension: latency_cycles ratio + score, surfaced alongside
+    # the ns-based one so cross-toolchain comparisons (e.g. our 4ns
+    # clock vs philip's 3.33ns reference) can separate the algorithmic
+    # gap from the clock/Fmax gap. NOT folded into the composite by
+    # default to preserve weight comparability with prior runs.
+    latency_cycles_ratio: Optional[float] = None       # gen_cyc / gt_cyc
+    latency_cycles_score: float = 0.0                  # ratio score from cycles
+    clock_gap_ratio: Optional[float] = None            # ns_ratio / cycles_ratio
+                                                        # > 1.0 means our clock
+                                                        # is slower (toolchain gap)
+                                                        # = 1.0 means no clock gap
 
     # M3: Fmax / Timing
     gen_fmax: Optional[float] = None
@@ -340,7 +391,11 @@ def score_step(step_name: str, gen_report: dict, gt_report: dict,
         ss.cosim_passed = cosim_result.get("passed", False)
         ss.cosim_score = 100.0 if ss.cosim_passed else 0.0
 
-    # M4: Latency — use latency_ns (accounts for cycle count × clock period)
+    # M4: Latency — use latency_ns as the headline (accounts for cycle
+    # count × clock period); also surface latency_cycles ratio +
+    # cycles-based score so cross-toolchain comparisons (e.g. our 4ns
+    # clock vs philip's 3.33ns reference) can separate the algorithmic
+    # gap (cycles) from the clock/Fmax gap (ns / cycles).
     ss.gen_latency = _try_float(gen_report.get("latency_ns"))
     ss.gt_latency = _try_float(gt_report.get("latency_ns"))
     ss.gen_latency_cycles = _try_int(gen_report.get("latency_cycles"))
@@ -352,6 +407,27 @@ def score_step(step_name: str, gen_report: dict, gt_report: dict,
         ss.gt_latency = float(ss.gt_latency_cycles)
     ss.latency_ratio = _safe_ratio(ss.gen_latency, ss.gt_latency)
     ss.latency_score = _ratio_score(ss.latency_ratio) if ss.latency_ratio else 0.0
+
+    # latency_cycles_ratio + cycles-based score: directly compares
+    # algorithmic work between gen and GT, independent of clock-period
+    # / Fmax differences.
+    ss.latency_cycles_ratio = _safe_ratio(
+        ss.gen_latency_cycles, ss.gt_latency_cycles,
+    )
+    ss.latency_cycles_score = (
+        _ratio_score(ss.latency_cycles_ratio)
+        if ss.latency_cycles_ratio else 0.0
+    )
+    # clock_gap_ratio = (ns_ratio / cycles_ratio): how much of the
+    # ns-gap is *not* explained by the cycle-gap. >1 means our
+    # toolchain is slower per cycle than the reference; =1 means
+    # identical clock period; <1 means we're actually faster per
+    # cycle (rare but possible if Fmax is higher).
+    if (ss.latency_ratio and ss.latency_cycles_ratio
+            and ss.latency_cycles_ratio > 0):
+        ss.clock_gap_ratio = round(
+            ss.latency_ratio / ss.latency_cycles_ratio, 4,
+        )
 
     # M3: Fmax + timing slack
     ss.gen_fmax = _try_float(gen_report.get("fmax_mhz"))
@@ -590,6 +666,28 @@ def load_multistep_results(results_dir: str) -> list:
         with open(ms_files[0]) as f:
             data = json.load(f)
         step_scores = []
+        # Catalogs for headline best-vs-best comparison: the agent's
+        # best synth+csim-passing step vs the reference's best variant
+        # (lowest latency_cycles, tie-break on ns). User directive:
+        # "the agentic system's expected optimization result should be
+        # compared with the 'best' step of baseline ... regardless of
+        # which step." This is the headline cross-toolchain comparison;
+        # per-step matching stays for diagnostic visibility.
+        ref_catalog: dict = {}
+        agent_catalog: dict = {}
+        agent_csim_by_step: dict = {}
+        agent_cosim_by_step: dict = {}
+        # Include baseline (Phase B) entry in both catalogs — it is also
+        # a legitimate "step result" the agentic system produced.
+        baseline_report = data.get("baseline_report") or {}
+        baseline_csim = data.get("baseline_csim")
+        baseline_cosim = data.get("baseline_cosim")
+        if baseline_report:
+            agent_catalog["baseline"] = baseline_report
+            if baseline_csim is not None:
+                agent_csim_by_step["baseline"] = baseline_csim
+            if baseline_cosim is not None:
+                agent_cosim_by_step["baseline"] = baseline_cosim
         for step_data in data.get("steps", []):
             step_name = step_data.get("step_name", "unknown")
             synthesised = step_data.get("success", False)
@@ -602,6 +700,7 @@ def load_multistep_results(results_dir: str) -> list:
                                 synthesised=synthesised,
                                 csim_result=csim_result,
                                 cosim_result=cosim_result)
+                ref_catalog[step_name] = gt_report
             else:
                 ss = StepScore(step_name=step_name, synthesised=synthesised,
                                adp_score=0.0, feasibility_score=0.0)
@@ -615,6 +714,42 @@ def load_multistep_results(results_dir: str) -> list:
                     ss.cosim_passed = cosim_result.get("passed", False)
                     ss.cosim_score = 100.0 if ss.cosim_passed else 0.0
             step_scores.append(ss)
+            if synthesised and gen_report:
+                agent_catalog[step_name] = gen_report
+                if csim_result is not None:
+                    agent_csim_by_step[step_name] = csim_result
+                if cosim_result is not None:
+                    agent_cosim_by_step[step_name] = cosim_result
+
+        # Headline: best-of-agent vs best-of-reference. Only emitted
+        # when both catalogs have at least one entry; csim must have
+        # passed for the agent step to be eligible (silent no-op trap
+        # protection — same gating multistep regression-guard uses).
+        agent_eligible = {
+            n: r for n, r in agent_catalog.items()
+            if (n not in agent_csim_by_step
+                or agent_csim_by_step[n].get("passed", False))
+        }
+        if not agent_eligible:
+            agent_eligible = agent_catalog  # fall back if no csim ran
+        if ref_catalog and agent_eligible:
+            agent_best_name, agent_best = _pick_best_step_report(
+                agent_eligible)
+            ref_best_name, ref_best = _pick_best_step_report(ref_catalog)
+            if agent_best and ref_best:
+                headline_label = (
+                    f"BEST({agent_best_name})_vs_REF({ref_best_name})"
+                )
+                headline = score_step(
+                    headline_label,
+                    agent_best,
+                    ref_best,
+                    synthesised=True,
+                    csim_result=agent_csim_by_step.get(agent_best_name),
+                    cosim_result=agent_cosim_by_step.get(agent_best_name),
+                )
+                step_scores.append(headline)
+
         if step_scores:
             benchmarks.append(score_benchmark(bench_dir.name, step_scores))
     return benchmarks

@@ -157,14 +157,15 @@ def _strip_hls_constructs(text: str) -> tuple[str, dict]:
         "removed_support_includes": 0,
         "removed_ap_int_includes": 0,
         "removed_extern_c_blocks": 0,
+        "removed_hls_artifact_comment_blocks": 0,
     }
 
     lines = []
     for line in text.splitlines():
-        if re.match(r"\s*#pragma\s+HLS\b", line, re.IGNORECASE):
+        if re.match(r"\s*(?://+\s*)?#pragma\s+HLS\b", line, re.IGNORECASE):
             report["removed_hls_pragmas"] += 1
             continue
-        if re.match(r"\s*#pragma\s+ACCEL\b", line, re.IGNORECASE):
+        if re.match(r"\s*(?://+\s*)?#pragma\s+ACCEL\b", line, re.IGNORECASE):
             report["removed_accel_pragmas"] += 1
             continue
         if re.match(r'\s*#include\s+"(?:\.\./)*common/mc\.h"', line):
@@ -189,6 +190,19 @@ def _strip_hls_constructs(text: str) -> tuple[str, dict]:
                 all_lines.pop(idx)
                 break
         stripped = "\n".join(all_lines)
+
+    def _drop_hls_artifact_comment(match: re.Match) -> str:
+        block = match.group(0)
+        if re.search(
+            r"(?:\bap_u?int\s*<|\bMARS_WIDE_BUS_TYPE\b|\bmemcpy_wide_bus_|#pragma\s+HLS\b)",
+            block,
+            flags=re.IGNORECASE,
+        ):
+            report["removed_hls_artifact_comment_blocks"] += 1
+            return ""
+        return block
+
+    stripped = re.sub(r"/\*.*?\*/", _drop_hls_artifact_comment, stripped, flags=re.DOTALL)
 
     report["plain_contains_hls_pragmas"] = bool(re.search(r"#pragma\s+HLS\b", stripped))
     report["plain_contains_accel_pragmas"] = bool(re.search(r"#pragma\s+ACCEL\b", stripped))

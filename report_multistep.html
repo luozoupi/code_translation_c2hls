@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>C-to-HLS Translation Report</title>
+<style>
+:root { --bg: #f8fafc; --card: #fff; --border: #e2e8f0; --text: #1e293b; --muted: #64748b; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+.container { max-width:1200px; margin:0 auto; padding:24px 16px; }
+h1 { font-size:24px; margin-bottom:4px; }
+h2 { font-size:18px; margin:32px 0 12px; border-bottom:2px solid var(--border); padding-bottom:6px; }
+h3 { font-size:15px; margin:16px 0 8px; }
+.subtitle { color:var(--muted); font-size:14px; margin-bottom:24px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:24px; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:16px; text-align:center; }
+.card .value { font-size:28px; font-weight:700; }
+.card .label { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:16px; font-size:13px; }
+th { background:#f1f5f9; font-weight:600; text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); white-space:nowrap; }
+td { padding:6px 10px; border-bottom:1px solid var(--border); }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:#f8fafc; }
+.grade { display:inline-block; width:28px; height:28px; line-height:28px; text-align:center; border-radius:6px; font-weight:700; font-size:14px; color:#fff; }
+.bar-cell { min-width:120px; }
+.metric-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:16px; }
+.metric-card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:16px; }
+.chip { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+.chip-pass { background:#dcfce7; color:#166534; }
+.chip-fail { background:#fee2e2; color:#991b1b; }
+.chip-na { background:#f3f4f6; color:#6b7280; }
+.legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin:8px 0; }
+.legend span::before { content:''; display:inline-block; width:12px; height:12px; border-radius:2px; margin-right:4px; vertical-align:middle; }
+details { margin-bottom:8px; }
+details summary { cursor:pointer; font-weight:600; padding:8px 0; }
+.resource-row { display:grid; grid-template-columns:70px 1fr 60px 60px 60px; gap:4px; align-items:center; font-size:12px; padding:2px 0; }
+footer { text-align:center; color:var(--muted); font-size:12px; margin-top:40px; padding:16px 0; border-top:1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>C-to-HLS Translation Report</h1>
+<div class="subtitle">Multi-Step mode &middot; Generated 2026-03-30 22:15</div>
+
+
+<div class="cards">
+  <div class="card"><div class="value" style="color:#eab308">70.7</div><div class="label">Overall Score</div></div>
+  <div class="card"><div class="value">2/3</div><div class="label">Synthesized</div></div>
+  <div class="card"><div class="value">71.5</div><div class="label">Avg (synth only)</div></div>
+  <div class="card">
+    <div class="value" style="font-size:20px">
+      <span class="grade" style="background:#3b82f6;margin:1px">1</span><span class="grade" style="background:#eab308;margin:1px">2</span>
+    </div>
+    <div class="label">Grade Distribution</div>
+  </div>
+</div>
+
+<h2>Benchmark Scoreboard</h2>
+<table>
+<tr>
+  <th>Benchmark</th><th>Grade</th><th>Score</th><th></th>
+  <th>Synth</th><th>Csim</th><th>Cosim</th>
+  <th>Latency</th><th>Fmax</th><th>Resources</th><th>ADP</th><th>Feasibility</th>
+</tr>
+
+<tr>
+  <td><strong>nw_rubric_test</strong></td>
+  <td><span class="grade" style="background:#3b82f6">B</span></td>
+  <td><strong>76.2</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#3b82f6;border-radius:4px;height:100%;width:76.2%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">76.2%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>95.3</td>
+  <td>37.5</td>
+  <td>72.0</td>
+  <td>98.5</td>
+  <td>85.2</td>
+</tr>
+
+<tr>
+  <td><strong>StreamCluster_test</strong></td>
+  <td><span class="grade" style="background:#eab308">C</span></td>
+  <td><strong>69.2</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#eab308;border-radius:4px;height:100%;width:69.2%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">69.2%</span></div></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>86.0</td>
+  <td>73.7</td>
+  <td>98.3</td>
+  <td>98.9</td>
+  <td>80.2</td>
+</tr>
+
+<tr>
+  <td><strong>nw_sonnet4</strong></td>
+  <td><span class="grade" style="background:#eab308">C</span></td>
+  <td><strong>66.7</strong></td>
+  <td class="bar-cell"><div style="background:#e5e7eb;border-radius:4px;height:18px;width:100%;position:relative"><div style="background:#eab308;border-radius:4px;height:100%;width:66.7%"></div><span style="position:absolute;left:4px;top:0;font-size:11px;line-height:18px">66.7%</span></div></td>
+  <td><span class="chip chip-pass">PASS</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td><span class="chip chip-fail">FAIL</span></td>
+  <td>91.4</td>
+  <td>34.2</td>
+  <td>89.4</td>
+  <td>97.7</td>
+  <td>74.1</td>
+</tr>
+
+</table>
+<h2>Resource Usage: Generated vs Ground Truth</h2>
+<div class="legend"><span style="--c:#3b82f6">&#9632; Generated</span><span style="--c:#94a3b8">&#9632; Ground Truth</span><span style="--c:#ef4444">&#9632; Device Limit</span></div>
+<details><summary>nw_rubric_test <span class="grade" style="background:#3b82f6;font-size:11px">B</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.0%;margin-bottom:2px" title="Gen: 0"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">0</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (0.46x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.0%;margin-bottom:2px" title="Gen: 0"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">0</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.0%;margin-bottom:2px" title="Gen: 0"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">0</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (7.06x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.0%;margin-bottom:2px" title="Gen: 0"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">0</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (11.13x)</div></div>
+</details>
+<details><summary>nw_sonnet4 <span class="grade" style="background:#eab308;font-size:11px">C</span></summary>
+<div class="resource-row"><div><strong>BRAM</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.0%;margin-bottom:2px" title="Gen: 0"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">0</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (0.48x)</div></div>
+<div class="resource-row"><div><strong>DSP</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.0%;margin-bottom:2px" title="Gen: 0"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">0</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (1.00x)</div></div>
+<div class="resource-row"><div><strong>FF</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.0%;margin-bottom:2px" title="Gen: 0"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">0</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (2.43x)</div></div>
+<div class="resource-row"><div><strong>LUT</strong></div><div><div style="background:#dbeafe;border-radius:3px;height:10px;width:0.0%;margin-bottom:2px" title="Gen: 0"></div><div style="background:#cbd5e1;border-radius:3px;height:10px;width:0.0%" title="GT: 0"></div></div><div style="font-size:11px">0</div><div style="font-size:11px">0</div><div style="font-size:11px;color:var(--muted)"> (1.94x)</div></div>
+</details>
+<h2>Performance Comparison</h2>
+<div class="metric-grid">
+<div class="metric-card"><h3>Latency (ns)</h3><table><tr><th>Benchmark</th><th>Generated</th><th>GT</th><th>Ratio</th><th>Speedup</th></tr>
+<tr><td>nw_rubric_test</td><td>165,800</td><td>655,400</td><td style="color:#22c55e">0.25x</td><td>3.95x</td></tr>
+<tr><td>nw_sonnet4</td><td>586,200</td><td>655,400</td><td style="color:#22c55e">0.89x</td><td>1.12x</td></tr>
+</table></div>
+<div class="metric-card"><h3>Clock Frequency (MHz)</h3><table><tr><th>Benchmark</th><th>Generated</th><th>GT</th><th>Ratio</th><th>Slack (ns)</th></tr>
+<tr><td>nw_rubric_test</td><td>137.9</td><td>137.0</td><td>1.01x</td><td style="color:#ef4444">-3.2</td></tr>
+<tr><td>nw_sonnet4</td><td>55.9</td><td>137.0</td><td>0.41x</td><td style="color:#ef4444">-13.9</td></tr>
+</table></div>
+</div>
+<h2>Device Utilization (% of Artix-7 100T)</h2>
+<table><tr><th>Benchmark</th><th>BRAM %</th><th>DSP %</th><th>FF %</th><th>LUT %</th><th>Feasible</th></tr>
+<tr><td><strong>nw_rubric_test</strong></td><td>29.6%</td><td>0.0%</td><td>16.1%</td><td style="background:#fef9c3">89.7%</td><td><span class="chip chip-fail">41%</span></td></tr>
+<tr><td><strong>nw_sonnet4</strong></td><td>31.1%</td><td>0.0%</td><td>5.5%</td><td>15.6%</td><td><span class="chip chip-pass">YES</span></td></tr>
+</table>
+<h2>Detailed Benchmark Results</h2>
+<details><summary><span class="grade" style="background:#3b82f6">B</span> <strong>nw_rubric_test</strong> &mdash; 76.2/100</summary>
+<h3 style="margin-top:12px;font-size:13px">Generated Optimization Progress</h3>
+<table><tr><th>Stage</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>tiling</td><td><span class="chip chip-pass">PASS</span></td><td>165,800</td><td>137.95</td><td>80</td><td>0</td><td>20,466</td><td>56,844</td></tr>
+<tr><td>pipeline</td><td><span class="chip chip-pass">PASS</span></td><td>199,700</td><td>88.43</td><td>80</td><td>0</td><td>895</td><td>2,043</td></tr>
+<tr><td>unroll</td><td><span class="chip chip-pass">PASS</span></td><td>299,900</td><td>24.75</td><td>77</td><td>11</td><td>2,552</td><td>6,449</td></tr>
+<tr><td>doublebuffer</td><td><span class="chip chip-pass">PASS</span></td><td>299,900</td><td>24.75</td><td>77</td><td>12</td><td>2,690</td><td>7,715</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>96.2</td><td>23%</td><td>22.1</td></tr>
+<tr><td>Fmax</td><td>85.1</td><td>10%</td><td>8.5</td></tr>
+<tr><td>Resources</td><td>53.7</td><td>17%</td><td>9.1</td></tr>
+<tr><td>ADP</td><td>94.7</td><td>15%</td><td>14.2</td></tr>
+<tr><td>Feasibility</td><td>40.7</td><td>10%</td><td>4.1</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#eab308">C</span> <strong>StreamCluster_test</strong> &mdash; 69.2/100</summary>
+<h3 style="margin-top:12px;font-size:13px">Generated Optimization Progress</h3>
+<table><tr><th>Stage</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>tiling</td><td><span class="chip chip-fail">FAIL</span></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>pipeline</td><td><span class="chip chip-pass">PASS</span></td><td>2,126,000</td><td>113.79</td><td>2</td><td>7</td><td>47,140</td><td>41,119</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>0.0</td><td>5%</td><td>0.0</td></tr>
+<tr><td>C-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>0.0</td><td>23%</td><td>0.0</td></tr>
+<tr><td>Fmax</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Resources</td><td>0.0</td><td>17%</td><td>0.0</td></tr>
+<tr><td>ADP</td><td>0.0</td><td>15%</td><td>0.0</td></tr>
+<tr><td>Feasibility</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+</table>
+</details>
+<details><summary><span class="grade" style="background:#eab308">C</span> <strong>nw_sonnet4</strong> &mdash; 66.7/100</summary>
+<h3 style="margin-top:12px;font-size:13px">Generated Optimization Progress</h3>
+<table><tr><th>Stage</th><th>Result</th><th>Latency (ns)</th><th>Fmax</th><th>BRAM</th><th>DSP</th><th>FF</th><th>LUT</th></tr>
+<tr><td>tiling</td><td><span class="chip chip-pass">PASS</span></td><td>586,200</td><td>55.91</td><td>84</td><td>0</td><td>7,033</td><td>9,886</td></tr>
+<tr><td>pipeline</td><td><span class="chip chip-pass">PASS</span></td><td>279,600</td><td>61.44</td><td>146</td><td>0</td><td>15,401</td><td>37,653</td></tr>
+<tr><td>unroll</td><td><span class="chip chip-pass">PASS</span></td><td>275,300</td><td>61.93</td><td>150</td><td>0</td><td>3,151</td><td>6,596</td></tr>
+<tr><td>doublebuffer</td><td><span class="chip chip-pass">PASS</span></td><td>275,300</td><td>61.93</td><td>154</td><td>0</td><td>3,600</td><td>9,177</td></tr>
+<tr><td>coalescing</td><td><span class="chip chip-pass">PASS</span></td><td>300,300</td><td>56.80</td><td>340</td><td>0</td><td>10,424</td><td>78,000</td></tr>
+</table>
+<table><tr><th>Rubric Metric</th><th>Score</th><th>Weight</th><th>Weighted</th></tr>
+<tr><td>Synthesis</td><td>100.0</td><td>5%</td><td>5.0</td></tr>
+<tr><td>C-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Co-Sim</td><td>0.0</td><td>10%</td><td>0.0</td></tr>
+<tr><td>Latency</td><td>86.6</td><td>23%</td><td>19.9</td></tr>
+<tr><td>Fmax</td><td>30.8</td><td>10%</td><td>3.1</td></tr>
+<tr><td>Resources</td><td>68.5</td><td>17%</td><td>11.6</td></tr>
+<tr><td>ADP</td><td>91.6</td><td>15%</td><td>13.7</td></tr>
+<tr><td>Feasibility</td><td>100.0</td><td>10%</td><td>10.0</td></tr>
+</table>
+</details>
+
+<footer>
+  C-to-HLS Translation Pipeline &middot; Report generated 2026-03-30 22:15<br>
+  Target: xc7a100t-csg324-1 (Artix-7 100T) &middot; Clock: 4 ns (250 MHz)
+</footer>
+</div>
+</body>
+</html>

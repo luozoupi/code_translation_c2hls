@@ -1,0 +1,73 @@
+{
+  "benchmark": "lc_gicov",
+  "source_repo": "rodinia-hls-nova",
+  "algorithm_source_path": null,
+  "gold_hls_source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_0_baseline/src/lc_gicov.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "lc_gicov.cpp",
+  "header_file": "lc_gicov.h",
+  "baseline_variant": "lc_gicov_0_baseline",
+  "variants": [
+    {
+      "name": "lc_gicov_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_0_baseline/src/lc_gicov.cpp"
+    },
+    {
+      "name": "lc_gicov_1_tiling",
+      "file": "hls_lc_gicov_1_tiling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_1_tiling/src/lc_gicov.cpp"
+    },
+    {
+      "name": "lc_gicov_2_pipeline",
+      "file": "hls_lc_gicov_2_pipeline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_2_pipeline/src/lc_gicov.cpp"
+    },
+    {
+      "name": "lc_gicov_3_unroll",
+      "file": "hls_lc_gicov_3_unroll.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_3_unroll/src/lc_gicov.cpp"
+    },
+    {
+      "name": "lc_gicov_4_doublebuffer",
+      "file": "hls_lc_gicov_4_doublebuffer.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_4_doublebuffer/src/lc_gicov.cpp"
+    },
+    {
+      "name": "lc_gicov_5_coalescing",
+      "file": "hls_lc_gicov_5_coalescing.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_5_coalescing/src/lc_gicov.cpp"
+    }
+  ],
+  "preferred_gt_file": "hls_lc_gicov_5_coalescing.cpp",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "supports_csim": false,
+  "supports_cosim": false,
+  "testbench_file": null,
+  "support_files": [
+    "support/common/mc.h",
+    "support/common/mars_wide_bus.h",
+    "support/common/mars_wide_bus_2d.h",
+    "support/common/mars_wide_bus_3d.h",
+    "support/common/mars_wide_bus_4d.h"
+  ],
+  "strip_report": {
+    "removed_hls_pragmas": 7,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "removed_hls_artifact_comment_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "gold_hls_source_sha256": "8c2368f526c4fc4bc29c928ae1544f157e7307e7ebb75fdc18cb9724ca0b92c0",
+  "_provenance": {
+    "upstream_root": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte",
+    "added_by": "prepare_nova_benchmarks.py",
+    "note": "csim/cosim disabled until testbench is generated; use make check sw_emu/hw_emu after U280 platform install."
+  }
+}

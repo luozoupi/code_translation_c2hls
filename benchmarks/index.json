@@ -658,7 +658,7 @@
       "srad_5_coalescing": "/home/luo00466/rodinia-hls/Benchmarks/srad/srad_5_coalescing/src/srad.cpp"
     },
     "plain_c_file": "plain.cpp",
-    "testbench_file": null,
+    "testbench_file": "testbench.cpp",
     "kernel_top": "srad_kernel1",
     "hls_top": "workload",
     "translated_hls_top": "workload",
@@ -669,25 +669,27 @@
       "support/common/mc.h"
     ],
     "include_dirs": [],
-    "supports_csim": false,
+    "supports_csim": true,
     "supports_cosim": false,
     "cosim_depths": {},
     "strip_report": {
-      "removed_hls_pragmas": 5,
+      "removed_hls_pragmas": 24,
       "removed_accel_pragmas": 0,
       "removed_support_includes": 1,
       "removed_ap_int_includes": 0,
       "removed_extern_c_blocks": 2,
-      "plain_contains_hls_pragmas": true,
+      "removed_hls_artifact_comment_blocks": 1,
+      "plain_contains_hls_pragmas": false,
       "plain_contains_accel_pragmas": false,
-      "plain_contains_ap_uint": true
+      "plain_contains_ap_uint": false
     },
     "provenance": {
       "gold_hls_source_sha256": "3a6b0287f822775b947a577e22c52d39f9c87e54d21ca19ba51cc720d56c8130",
       "gold_hls_baseline_sha256": "2a6a58abdd5cf61dcad1bbb9c6845c2ddc710401cc4f6beba9c7cf20594681b2",
-      "plain_c_sha256": "5aa94d058101056d867ad744d6589699320ceb17229f1647add23b1531cfcfaf",
+      "plain_c_sha256": "e0888d6c0da0cfd0f49fc1482886276728157c5d4bca0c052178277abc821aae",
       "plain_derived_from_gold_hls": true
-    }
+    },
+    "preferred_gt_file": "hls_srad_5_coalescing.cpp"
   },
   {
     "benchmark": "gemm_ncubed",
@@ -1069,6 +1071,374 @@
       "gold_hls_baseline_sha256": "0d0eb45c354702a607a22bc2b650d355b8b9f2e50ddd1ac0b1b06d77b55ca39c",
       "plain_c_sha256": "84d6aee7a6c8b9b4b09e2c501916bf56bc7d1b5ef27df3e1ed1494d0579d598c",
       "plain_derived_from_gold_hls": true
+    }
+  },
+  {
+    "benchmark": "cfd_flux",
+    "source_repo": "rodinia-hls-nova",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_0_baseline/src/cfd_flux.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "cfd_flux.cpp",
+    "header_file": "cfd_flux.h",
+    "baseline_variant": "cfd_flux_0_baseline",
+    "variants": [
+      {
+        "name": "cfd_flux_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_0_baseline/src/cfd_flux.cpp"
+      },
+      {
+        "name": "cfd_flux_1_tiling",
+        "file": "hls_cfd_flux_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_1_tiling/src/cfd_flux.cpp"
+      },
+      {
+        "name": "cfd_flux_2_pipeline",
+        "file": "hls_cfd_flux_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_2_pipeline/src/cfd_flux.cpp"
+      },
+      {
+        "name": "cfd_flux_3_unroll",
+        "file": "hls_cfd_flux_3_unroll.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_3_unroll/src/cfd_flux.cpp"
+      },
+      {
+        "name": "cfd_flux_4_doublebuffer",
+        "file": "hls_cfd_flux_4_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_4_doublebuffer/src/cfd_flux.cpp"
+      },
+      {
+        "name": "cfd_flux_5_coalescing",
+        "file": "hls_cfd_flux_5_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_flux/cfd_flux_5_coalescing/src/cfd_flux.cpp"
+      }
+    ],
+    "preferred_gt_file": "hls_cfd_flux_5_coalescing.cpp",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "supports_csim": false,
+    "supports_cosim": false,
+    "testbench_file": null,
+    "support_files": [],
+    "strip_report": {
+      "removed_hls_pragmas": 17,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "removed_hls_artifact_comment_blocks": 0,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "gold_hls_source_sha256": "9f4e6be9ea4848a6137b6b9cf38be2b1e4dad619728e0e4e37d9c9f7fcffc5c2",
+    "_provenance": {
+      "upstream_root": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd",
+      "added_by": "prepare_nova_benchmarks.py",
+      "note": "csim/cosim disabled until testbench is generated; use make check sw_emu/hw_emu after U280 platform install."
+    }
+  },
+  {
+    "benchmark": "cfd_step_factor",
+    "source_repo": "rodinia-hls-nova",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_step_factor/cfd_step_factor_0_baseline/src/cfd_step_factor.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "cfd_step_factor.cpp",
+    "header_file": "cfd_step_factor.h",
+    "baseline_variant": "cfd_step_factor_0_baseline",
+    "variants": [
+      {
+        "name": "cfd_step_factor_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_step_factor/cfd_step_factor_0_baseline/src/cfd_step_factor.cpp"
+      },
+      {
+        "name": "cfd_step_factor_1_tiling",
+        "file": "hls_cfd_step_factor_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_step_factor/cfd_step_factor_1_tiling/src/cfd_step_factor.cpp"
+      },
+      {
+        "name": "cfd_step_factor_2_pipeline",
+        "file": "hls_cfd_step_factor_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_step_factor/cfd_step_factor_2_pipeline/src/cfd_step_factor.cpp"
+      },
+      {
+        "name": "cfd_step_factor_3_unroll",
+        "file": "hls_cfd_step_factor_3_unroll.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_step_factor/cfd_step_factor_3_unroll/src/cfd_step_factor.cpp"
+      },
+      {
+        "name": "cfd_step_factor_4_doublebuffer",
+        "file": "hls_cfd_step_factor_4_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_step_factor/cfd_step_factor_4_doublebuffer/src/cfd_step_factor.cpp"
+      },
+      {
+        "name": "cfd_step_factor_5_coalescing",
+        "file": "hls_cfd_step_factor_5_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd/cfd_step_factor/cfd_step_factor_5_coalescing/src/cfd_step_factor.cpp"
+      }
+    ],
+    "preferred_gt_file": "hls_cfd_step_factor_5_coalescing.cpp",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "supports_csim": false,
+    "supports_cosim": false,
+    "testbench_file": null,
+    "support_files": [],
+    "strip_report": {
+      "removed_hls_pragmas": 7,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "removed_hls_artifact_comment_blocks": 0,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "gold_hls_source_sha256": "6bdce21f48072dea417d38d6136236368e300e69379f6b3673abc8397710c58c",
+    "_provenance": {
+      "upstream_root": "/home/luo00466/rodinia-hls-nova/Benchmarks/cfd",
+      "added_by": "prepare_nova_benchmarks.py",
+      "note": "csim/cosim disabled until testbench is generated; use make check sw_emu/hw_emu after U280 platform install."
+    }
+  },
+  {
+    "benchmark": "lc_gicov",
+    "source_repo": "rodinia-hls-nova",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_0_baseline/src/lc_gicov.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "lc_gicov.cpp",
+    "header_file": "lc_gicov.h",
+    "baseline_variant": "lc_gicov_0_baseline",
+    "variants": [
+      {
+        "name": "lc_gicov_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_0_baseline/src/lc_gicov.cpp"
+      },
+      {
+        "name": "lc_gicov_1_tiling",
+        "file": "hls_lc_gicov_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_1_tiling/src/lc_gicov.cpp"
+      },
+      {
+        "name": "lc_gicov_2_pipeline",
+        "file": "hls_lc_gicov_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_2_pipeline/src/lc_gicov.cpp"
+      },
+      {
+        "name": "lc_gicov_3_unroll",
+        "file": "hls_lc_gicov_3_unroll.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_3_unroll/src/lc_gicov.cpp"
+      },
+      {
+        "name": "lc_gicov_4_doublebuffer",
+        "file": "hls_lc_gicov_4_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_4_doublebuffer/src/lc_gicov.cpp"
+      },
+      {
+        "name": "lc_gicov_5_coalescing",
+        "file": "hls_lc_gicov_5_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_gicov/lc_gicov_5_coalescing/src/lc_gicov.cpp"
+      }
+    ],
+    "preferred_gt_file": "hls_lc_gicov_5_coalescing.cpp",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "supports_csim": false,
+    "supports_cosim": false,
+    "testbench_file": null,
+    "support_files": [
+      "support/common/mc.h",
+      "support/common/mars_wide_bus.h",
+      "support/common/mars_wide_bus_2d.h",
+      "support/common/mars_wide_bus_3d.h",
+      "support/common/mars_wide_bus_4d.h"
+    ],
+    "strip_report": {
+      "removed_hls_pragmas": 7,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "removed_hls_artifact_comment_blocks": 0,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "gold_hls_source_sha256": "8c2368f526c4fc4bc29c928ae1544f157e7307e7ebb75fdc18cb9724ca0b92c0",
+    "_provenance": {
+      "upstream_root": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte",
+      "added_by": "prepare_nova_benchmarks.py",
+      "note": "csim/cosim disabled until testbench is generated; use make check sw_emu/hw_emu after U280 platform install."
+    }
+  },
+  {
+    "benchmark": "lc_mgvf",
+    "source_repo": "rodinia-hls-nova",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_mgvf/lc_mgvf_0_baseline/src/lc_mgvf.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "lc_mgvf.cpp",
+    "header_file": "lc_mgvf.h",
+    "baseline_variant": "lc_mgvf_0_baseline",
+    "variants": [
+      {
+        "name": "lc_mgvf_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_mgvf/lc_mgvf_0_baseline/src/lc_mgvf.cpp"
+      },
+      {
+        "name": "lc_mgvf_1_tiling",
+        "file": "hls_lc_mgvf_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_mgvf/lc_mgvf_1_tiling/src/lc_mgvf.cpp"
+      },
+      {
+        "name": "lc_mgvf_2_pipeline",
+        "file": "hls_lc_mgvf_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_mgvf/lc_mgvf_2_pipeline/src/lc_mgvf.cpp"
+      },
+      {
+        "name": "lc_mgvf_3_unroll",
+        "file": "hls_lc_mgvf_3_unroll.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_mgvf/lc_mgvf_3_unroll/src/lc_mgvf.cpp"
+      },
+      {
+        "name": "lc_mgvf_4_doublebuffer",
+        "file": "hls_lc_mgvf_4_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_mgvf/lc_mgvf_4_doublebuffer/src/lc_mgvf.cpp"
+      },
+      {
+        "name": "lc_mgvf_5_coalescing",
+        "file": "hls_lc_mgvf_5_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_mgvf/lc_mgvf_5_coalescing/src/lc_mgvf.cpp"
+      },
+      {
+        "name": "lc_mgvf_6_multiddr",
+        "file": "hls_lc_mgvf_6_multiddr.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_mgvf/lc_mgvf_6_multiddr/src/lc_mgvf.cpp"
+      }
+    ],
+    "preferred_gt_file": "hls_lc_mgvf_6_multiddr.cpp",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "supports_csim": false,
+    "supports_cosim": false,
+    "testbench_file": null,
+    "support_files": [
+      "support/common/mc.h",
+      "support/common/mars_wide_bus.h",
+      "support/common/mars_wide_bus_2d.h",
+      "support/common/mars_wide_bus_3d.h",
+      "support/common/mars_wide_bus_4d.h"
+    ],
+    "strip_report": {
+      "removed_hls_pragmas": 7,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "removed_hls_artifact_comment_blocks": 0,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "gold_hls_source_sha256": "9f78ca626b95f2d62e5431b63c31b1e399892157e43b5478a405993cc0b6a769",
+    "_provenance": {
+      "upstream_root": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte",
+      "added_by": "prepare_nova_benchmarks.py",
+      "note": "csim/cosim disabled until testbench is generated; use make check sw_emu/hw_emu after U280 platform install."
+    }
+  },
+  {
+    "benchmark": "lc_dilate",
+    "source_repo": "rodinia-hls-nova",
+    "algorithm_source_path": null,
+    "gold_hls_source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_0_baseline/src/dilate.cpp",
+    "gold_hls_source_file": "gold_hls_source.cpp",
+    "gold_hls_baseline_file": "hls_baseline.cpp",
+    "kernel_file": "dilate.cpp",
+    "header_file": "dilate.h",
+    "baseline_variant": "dilate_0_baseline",
+    "variants": [
+      {
+        "name": "dilate_0_baseline",
+        "file": "hls_baseline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_0_baseline/src/dilate.cpp"
+      },
+      {
+        "name": "dilate_1_tiling",
+        "file": "hls_dilate_1_tiling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_1_tiling/src/dilate.cpp"
+      },
+      {
+        "name": "dilate_2_pipeline",
+        "file": "hls_dilate_2_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_2_pipeline/src/dilate.cpp"
+      },
+      {
+        "name": "dilate_3_pipeline",
+        "file": "hls_dilate_3_pipeline.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_3_pipeline/src/dilate.cpp"
+      },
+      {
+        "name": "dilate_4_unrolling",
+        "file": "hls_dilate_4_unrolling.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_4_unrolling/src/dilate.cpp"
+      },
+      {
+        "name": "dilate_5_doublebuffer",
+        "file": "hls_dilate_5_doublebuffer.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_5_doublebuffer/src/dilate.cpp"
+      },
+      {
+        "name": "dilate_6_coalescing",
+        "file": "hls_dilate_6_coalescing.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_6_coalescing/src/dilate.cpp"
+      },
+      {
+        "name": "dilate_7_multiddr",
+        "file": "hls_dilate_7_multiddr.cpp",
+        "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_7_multiddr/src/dilate.cpp"
+      }
+    ],
+    "preferred_gt_file": "hls_dilate_7_multiddr.cpp",
+    "hls_top": "workload",
+    "translated_hls_top": "workload",
+    "supports_csim": false,
+    "supports_cosim": false,
+    "testbench_file": null,
+    "support_files": [
+      "support/common/mc.h",
+      "support/common/mars_wide_bus.h",
+      "support/common/mars_wide_bus_2d.h",
+      "support/common/mars_wide_bus_3d.h",
+      "support/common/mars_wide_bus_4d.h"
+    ],
+    "strip_report": {
+      "removed_hls_pragmas": 5,
+      "removed_accel_pragmas": 0,
+      "removed_support_includes": 0,
+      "removed_ap_int_includes": 0,
+      "removed_extern_c_blocks": 1,
+      "removed_hls_artifact_comment_blocks": 0,
+      "plain_contains_hls_pragmas": false,
+      "plain_contains_accel_pragmas": false,
+      "plain_contains_ap_uint": false
+    },
+    "gold_hls_source_sha256": "3e8467942542d6dea9eceef067a1110a9a55a328a2db75e46934e443b93fbc7f",
+    "_provenance": {
+      "upstream_root": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte",
+      "added_by": "prepare_nova_benchmarks.py",
+      "note": "csim/cosim disabled until testbench is generated; use make check sw_emu/hw_emu after U280 platform install."
     }
   }
 ]

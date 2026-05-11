@@ -68,3 +68,31 @@ dialogues.json
 # Fortran/C++ artifacts
 *.f90.bak
 *.cpp.bak
+
+# HLS synthesis result directories (large, machine-generated)
+results_phase2/
+results_multistep/
+results_multistep_haiku/
+results_multistep_hwemu_haiku/
+results_haiku/
+results_sonnet/
+results_fixA_knn/
+results_fixB_knn/
+results_requested_agentic_hwemu/
+results_requested_agentic_hwemu_rerun_20260505_214545/
+results_hwemu_smoke/
+
+# External dataset clones (very large, cloned separately)
+external_datasets/
+
+# Large binary / data artifacts
+artifacts/*.zip
+artifacts/*.jsonl
+artifacts/*.json
+*.bin
+*.npy
+*.dat
+*.weights
+
+# HLS temp dirs
+/tmp/hls_synth_*/

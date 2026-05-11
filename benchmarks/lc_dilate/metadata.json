@@ -1,0 +1,83 @@
+{
+  "benchmark": "lc_dilate",
+  "source_repo": "rodinia-hls-nova",
+  "algorithm_source_path": null,
+  "gold_hls_source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_0_baseline/src/dilate.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "dilate.cpp",
+  "header_file": "dilate.h",
+  "baseline_variant": "dilate_0_baseline",
+  "variants": [
+    {
+      "name": "dilate_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_0_baseline/src/dilate.cpp"
+    },
+    {
+      "name": "dilate_1_tiling",
+      "file": "hls_dilate_1_tiling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_1_tiling/src/dilate.cpp"
+    },
+    {
+      "name": "dilate_2_pipeline",
+      "file": "hls_dilate_2_pipeline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_2_pipeline/src/dilate.cpp"
+    },
+    {
+      "name": "dilate_3_pipeline",
+      "file": "hls_dilate_3_pipeline.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_3_pipeline/src/dilate.cpp"
+    },
+    {
+      "name": "dilate_4_unrolling",
+      "file": "hls_dilate_4_unrolling.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_4_unrolling/src/dilate.cpp"
+    },
+    {
+      "name": "dilate_5_doublebuffer",
+      "file": "hls_dilate_5_doublebuffer.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_5_doublebuffer/src/dilate.cpp"
+    },
+    {
+      "name": "dilate_6_coalescing",
+      "file": "hls_dilate_6_coalescing.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_6_coalescing/src/dilate.cpp"
+    },
+    {
+      "name": "dilate_7_multiddr",
+      "file": "hls_dilate_7_multiddr.cpp",
+      "source_path": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte/lc_dilate/dilate_7_multiddr/src/dilate.cpp"
+    }
+  ],
+  "preferred_gt_file": "hls_dilate_7_multiddr.cpp",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "supports_csim": false,
+  "supports_cosim": false,
+  "testbench_file": null,
+  "support_files": [
+    "support/common/mc.h",
+    "support/common/mars_wide_bus.h",
+    "support/common/mars_wide_bus_2d.h",
+    "support/common/mars_wide_bus_3d.h",
+    "support/common/mars_wide_bus_4d.h"
+  ],
+  "strip_report": {
+    "removed_hls_pragmas": 5,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 1,
+    "removed_hls_artifact_comment_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "gold_hls_source_sha256": "3e8467942542d6dea9eceef067a1110a9a55a328a2db75e46934e443b93fbc7f",
+  "_provenance": {
+    "upstream_root": "/home/luo00466/rodinia-hls-nova/Benchmarks/leukocyte",
+    "added_by": "prepare_nova_benchmarks.py",
+    "note": "csim/cosim disabled until testbench is generated; use make check sw_emu/hw_emu after U280 platform install."
+  }
+}

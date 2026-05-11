@@ -2,7 +2,6 @@
 
 float srad_core1 (float dN, float dS, float dW, float dE,
 		  float Jc, float q0sqr) {
-  //#pragma HLS inline
   float G2, L, num, den, qsqr, c;
   
   G2 = (dN*dN + dS*dS + dW*dW + dE*dE) / (Jc*Jc);
@@ -23,7 +22,6 @@ float srad_core1 (float dN, float dS, float dW, float dE,
 float srad_core2 (float dN, float dS, float dW, float dE,
 		  float cN, float cS, float cW, float cE,
 		  float J) {
-  //#pragma HLS inline
   float D, Jout;
   // divergence (equ 58)
   D = cN * dN + cS * dS + cW * dW + cE * dE;
@@ -34,36 +32,7 @@ float srad_core2 (float dN, float dS, float dW, float dE,
   return Jout;
 }
 
-/*
-  
-void srad_kernel1(class ap_uint<LARGE_BUS> *J, float q0sqr[1]){
-  float sum, sum2, meanROI, varROI;
-  float tmp, tmp2;
-  int i, j, size_R;
-  float J_buf[(R2-R1+1)*COLS];
-  ////#pragma HLS array_partition variable=J_buf cyclic factor=32
-  
-    memcpy_wide_bus_read_float(J_buf, (class ap_uint<LARGE_BUS> *)( J + (R1+1)*COLS / (LARGE_BUS / 32) ), 0 * sizeof(float), (R2-R1+1)*COLS*sizeof(float) );
- 
-  sum=0; sum2=0;
- KERNEL0: for (i=0; i<=R2-R1; i++) {
-    for (j=C1; j<=C2; j++) {
-    //#pragma HLS pipeline II=1
-      tmp = J_buf[i * COLS + j];
-      //printf("tmp = %.16f\n", tmp);
-      tmp2 = tmp * tmp;
-      sum  += tmp;
-      sum2 += tmp2;
-    }
-  }
-  size_R = (R2-R1+1)*(C2-C1+1); 
-  meanROI = sum / size_R;
-  varROI  = (sum2 / size_R) - meanROI*meanROI;
-  q0sqr[0]   = varROI / (meanROI*meanROI);
-  //printf ("q0sqr = %f\n", *q0sqr);
-}
 
-}*/
 
 void srad_kernel2(float J[(TILE_ROWS+3)*COLS], float Jout[TILE_ROWS*COLS], float q0sqr, int tile){
   int i, ii, j, k, iN, iS, jW, jE;
@@ -73,26 +42,19 @@ void srad_kernel2(float J[(TILE_ROWS+3)*COLS], float Jout[TILE_ROWS*COLS], float
   float J_top[PARA_FACTOR], J_left[PARA_FACTOR], J_right[PARA_FACTOR], J_bottom[PARA_FACTOR], J_center[PARA_FACTOR], c_tmp[PARA_FACTOR];
 
   float J_rf[PARA_FACTOR][COLS * 2 / PARA_FACTOR + 1];
-  //#pragma HLS array_partition variable=J_rf complete dim=0
 
   float dN[(TILE_ROWS+1)*COLS];
-  //#pragma HLS array_partition variable=dN cyclic factor=32
   
   float dS[(TILE_ROWS+1)*COLS];
-  //#pragma HLS array_partition variable=dS cyclic factor=32
   
   float dW[(TILE_ROWS+1)*COLS];
-  //#pragma HLS array_partition variable=dW cyclic factor=32
   
   float dE[(TILE_ROWS+1)*COLS];
-  //#pragma HLS array_partition variable=dE cyclic factor=32
   
   float c[(TILE_ROWS+1)*COLS];
-  //#pragma HLS array_partition variable=c cyclic factor=32
   
   //initialize the line buffer
   /*KERNEL1: for (i = 0; i < COLS * 2 / PARA_FACTOR + 1; i++) {
-    //#pragma HLS pipeline II=1 
     for (ii = 0; ii < PARA_FACTOR; ii++) {
       J_rf[ii][i] = J[i*PARA_FACTOR + ii];
     }
@@ -103,9 +65,7 @@ void srad_kernel2(float J[(TILE_ROWS+3)*COLS], float Jout[TILE_ROWS*COLS], float
   printf("J[%d] = %.16f\n", i, J[i]);*/
   
   MAIN_KERNEL1: for (i = -2*COLS/PARA_FACTOR-1; i < COLS / PARA_FACTOR * (TILE_ROWS+1); i++) {
-    //#pragma HLS pipeline II=1
     for (k = 0; k < PARA_FACTOR; k++) {
-      //#pragma HLS unroll
       //read from line buffer, handle borders as well
       J_center[k]  = J_rf[k][COLS / PARA_FACTOR];     
       J_top[k]     = (tile == TOP_TILE && i < COLS / PARA_FACTOR) ? J_center[k] : J_rf[k][0];
@@ -145,9 +105,7 @@ void srad_kernel2(float J[(TILE_ROWS+3)*COLS], float Jout[TILE_ROWS*COLS], float
 
     //shift the line buffer one by one
     for (k = 0; k < PARA_FACTOR; k++) {
-      //#pragma HLS unroll
       for (j = 0; j < COLS * 2 / PARA_FACTOR; j++) {
-	//#pragma HLS unroll
         J_rf[k][j] = J_rf[k][j + 1];
       }
 
@@ -157,20 +115,16 @@ void srad_kernel2(float J[(TILE_ROWS+3)*COLS], float Jout[TILE_ROWS*COLS], float
   float c_right[PARA_FACTOR], c_bottom[PARA_FACTOR], c_center[PARA_FACTOR];
 
   float c_rf[PARA_FACTOR][COLS / PARA_FACTOR + 1];
-  //#pragma HLS array_partition variable=c_rf complete dim=0
   
   //initialize the line buffer
   /*KERNEL2: for (i = 0; i < COLS / PARA_FACTOR + 1; i++) {
-    //#pragma HLS pipeline II=1 
     for (ii = 0; ii < PARA_FACTOR; ii++) {
       c_rf[ii][i] = c[i*PARA_FACTOR + ii];
     }
   }*/
   
   MAIN_KERNEL2: for (i = -COLS/PARA_FACTOR-1; i < COLS / PARA_FACTOR * TILE_ROWS; i++) {
-    //#pragma HLS pipeline II=1
     for (k = 0; k < PARA_FACTOR; k++) {
-      //#pragma HLS unroll
       //read from line buffer, handle borders as well
       c_center[k]  = c_rf[k][0];
       c_right[k]   = ((i % (COLS / PARA_FACTOR)) == (COLS / PARA_FACTOR - 1) && k == PARA_FACTOR - 1) ? c_center[k] : c_rf[(k + 1 + PARA_FACTOR) % PARA_FACTOR][ (k == (PARA_FACTOR - 1)) ];

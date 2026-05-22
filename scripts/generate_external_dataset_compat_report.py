@@ -4,7 +4,7 @@ Walks every cloned external HLS dataset under external_datasets/, classifies
 each C/C++ source file by compatibility with the c2hls plain.cpp input
 shape, and demonstrates end-to-end adaptation on one external kernel
 (CollectiveHLS knn). Produces a single markdown artifact + leaves the
-adapted bench dir at /tmp/c2hls_external_adapter_demo for inspection.
+adapted bench dir under C2HLS_TMP_ROOT for inspection.
 
 Run:
     cd /home/luo00466/code_translation-c2hls
@@ -24,6 +24,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
+from c2hls_temp import configure_temp_env  # noqa: E402
 from dataset_pipeline.external_adapter import (  # noqa: E402
     adapt_external_kernel,
     render_survey_markdown,
@@ -33,7 +34,7 @@ from dataset_pipeline.external_adapter import (  # noqa: E402
 
 EXT = REPO / "external_datasets"
 DATASETS = ("HLSPilot", "HLSyn", "HLSFactory", "CollectiveHLS", "hls-eval")
-DEMO_OUT = Path("/tmp/c2hls_external_adapter_demo")
+DEMO_OUT = configure_temp_env(create=True) / "c2hls_external_adapter_demo"
 
 
 def main() -> int:
@@ -84,7 +85,7 @@ def main() -> int:
         "Reused `_strip_hls_constructs()` from "
         "[prepare_benchmarks.py](../prepare_benchmarks.py) via "
         "`dataset_pipeline.external_adapter.adapt_external_kernel()`. The "
-        "adapted bench dir lives at `/tmp/c2hls_external_adapter_demo/external_knn` "
+        f"adapted bench dir lives at `{DEMO_OUT / 'external_knn'}` "
         "and follows the same shape as `benchmarks/<bench>/` "
         "(`plain.cpp` + `hls_baseline.cpp` + `<bench>.h` + `metadata.json`).\n"
     )

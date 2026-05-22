@@ -52,6 +52,11 @@ _PRAGMA_RE = re.compile(r"^\s*(?://+\s*)?#pragma\s+(HLS|ACCEL)\b", re.IGNORECASE
 _AP_INT_RE = re.compile(r"\bap_(?:u)?int\s*<")
 _MARS_RE = re.compile(r"\bMARS_WIDE_BUS_TYPE\b|\bmemcpy_wide_bus_")
 _EXTERN_C_RE = re.compile(r'extern\s*"C"\s*\{')
+_HLS_TOP_RE = re.compile(r"#pragma\s+HLS\s+top\s+name\s*=\s*([A-Za-z_]\w*)")
+_FUNC_DEF_RE = re.compile(
+    r"^\s*(?:extern\s+\"C\"\s+)?(?:[\w:<>,~*&\s]+?)\s+([A-Za-z_]\w*)\s*\([^;]*\)\s*\{",
+    re.MULTILINE,
+)
 
 
 @dataclass
@@ -121,6 +126,18 @@ def classify_source_file(path: Path) -> FileClassification:
     )
 
 
+def infer_top_function(source_text: str, fallback: str = "workload") -> str:
+    """Infer an HLS top function from pragma metadata or the first definition."""
+    match = _HLS_TOP_RE.search(source_text)
+    if match:
+        return match.group(1)
+    for match in _FUNC_DEF_RE.finditer(source_text):
+        name = match.group(1)
+        if name not in {"if", "for", "while", "switch"}:
+            return name
+    return fallback
+
+
 def _walk(root: Path) -> Iterable[Path]:
     for path in root.rglob("*"):
         # Prune skip dirs.
@@ -163,8 +180,11 @@ def adapt_external_kernel(
     bench_name: str,
     output_dir: Path,
     header_path: Optional[Path] = None,
+    testbench_path: Optional[Path] = None,
+    support_paths: Optional[List[Path]] = None,
+    root_support_paths: Optional[List[Path]] = None,
     source_repo: str = "external",
-    top_function: str = "workload",
+    top_function: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Materialize one external HLS kernel into the c2hls benchmark dir
     layout. Returns a dict describing what was emitted plus the strip
@@ -182,6 +202,7 @@ def adapt_external_kernel(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     raw = kernel_path.read_text(encoding="utf-8", errors="ignore")
+    top_function = top_function or infer_top_function(raw)
     plain, strip_report = _strip_hls_constructs(raw)
 
     (output_dir / "plain.cpp").write_text(plain, encoding="utf-8")
@@ -191,6 +212,31 @@ def adapt_external_kernel(
     if header_path and header_path.is_file():
         header_dest = output_dir / header_path.name
         shutil.copy2(header_path, header_dest)
+
+    testbench_dest = None
+    if testbench_path and testbench_path.is_file():
+        testbench_dest = output_dir / "testbench.cpp"
+        shutil.copy2(testbench_path, testbench_dest)
+
+    support_files: List[str] = []
+    for support_path in support_paths or []:
+        if not support_path.is_file():
+            continue
+        dst = output_dir / "support" / support_path.name
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(support_path, dst)
+        support_files.append(str(dst.relative_to(output_dir)))
+
+    for support_path in root_support_paths or []:
+        if not support_path.is_file():
+            continue
+        dst = output_dir / support_path.name
+        if dst.name in {"plain.cpp", "hls_baseline.cpp", "metadata.json", "testbench.cpp"}:
+            continue
+        shutil.copy2(support_path, dst)
+        rel = str(dst.relative_to(output_dir))
+        if rel not in support_files:
+            support_files.append(rel)
 
     meta = {
         "benchmark": bench_name,
@@ -204,14 +250,16 @@ def adapt_external_kernel(
         "baseline_variant": f"{bench_name}_baseline",
         "translated_hls_top": top_function,
         "hls_top": top_function,
+        "testbench_file": testbench_dest.name if testbench_dest else None,
+        "support_files": support_files,
         "variants": [
             {
-                "name": f"{bench_name}_baseline",
+                "name": f"{bench_name}_0_baseline",
                 "file": "hls_baseline.cpp",
                 "source_path": str(kernel_path.resolve()),
             },
         ],
-        "supports_csim": False,    # external sources rarely ship a testbench
+        "supports_csim": bool(testbench_dest),
         "supports_cosim": False,
         "preferred_gt_file": "hls_baseline.cpp",
     }
@@ -225,6 +273,9 @@ def adapt_external_kernel(
         "plain_lines": plain.count("\n") + 1,
         "raw_lines": raw.count("\n") + 1,
         "header_copied": header_dest.name if header_dest else None,
+        "testbench_copied": testbench_dest.name if testbench_dest else None,
+        "support_files": support_files,
+        "top_function": top_function,
     }
 
 

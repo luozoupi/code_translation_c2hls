@@ -61,7 +61,7 @@ def test_baseline_gap_within_tolerance(results, tee):
     # Sonnet's pathfinder baseline matched ref to within 0.1% in cycles
     # and was within 2x on each resource. Should report within_tolerance.
     ours = {"latency_cycles": 2_110_674, "bram": 35, "dsp": 0,
-            "ff": 8_125, "lut": 5_355, "fmax_mhz": 187.0,
+            "ff": 8_125, "lut": 5_355, "fmax_mhz": 392.0,
             "latency_ns": 11_285_000}
     gap = c2hls._compute_baseline_gap(ours, REF_PATHFINDER_BASELINE)
     _check("within-tolerance-true", gap["within_tolerance"],
@@ -138,8 +138,8 @@ def test_translator_retranslate_method(results, tee):
     tee.section("Phase 8: TranslatorAgent.retranslate_with_guidance signature")
     src = inspect.getsource(c2hls.TranslatorAgent.retranslate_with_guidance)
     _check("uses-translation-template",
-           "q_translate_c_to_hls.format(" in src,
-           "reuses the canonical translate prompt as base", results, tee)
+           "q_translate_c_to_hls_functional" in src and "q_translate_c_to_hls" in src,
+           "reuses the Phase B translate prompt family as base", results, tee)
     _check("appends-alignment-feedback",
            "BASELINE ALIGNMENT FEEDBACK" in src,
            "appends a clearly-marked guidance section", results, tee)

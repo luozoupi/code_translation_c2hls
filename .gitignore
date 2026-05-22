@@ -40,6 +40,8 @@ env/
 # Logs
 *.log
 logs/
+vitis_hls.log
+test*.log
 
 # Testing
 .pytest_cache/
@@ -84,15 +86,28 @@ results_hwemu_smoke/
 
 # External dataset clones (very large, cloned separately)
 external_datasets/
+/external_datasets
 
 # Large binary / data artifacts
 artifacts/*.zip
 artifacts/*.jsonl
 artifacts/*.json
+artifacts/*.md
+artifacts/*.pid
+*.xclbin
 *.bin
 *.npy
 *.dat
 *.weights
+
+# Root-level generated report exports
+/*.jsonl
+
+# Generated experiment/dataset workspaces
+benchmarks_external/
+/benchmarks_external
+results_sweeps/
+c2hls_temp.py
 
 # HLS temp dirs
 /tmp/hls_synth_*/

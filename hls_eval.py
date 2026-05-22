@@ -9,11 +9,13 @@ import shlex
 import shutil
 import signal
 import subprocess
-import tempfile
 import logging
 import json
+import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+from c2hls_temp import C2HLS_TMP_ROOT_ENV, configure_temp_env, make_tempdir
 
 # Pillar 1: fine-grained per-scope HLS feedback (per-loop II / Slack / Issue,
 # scheduler-blame, typed bottleneck records). Imported lazily inside
@@ -100,7 +102,14 @@ def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
     be exec'd. Process-tree cleanup on timeout is handled via start_new_session
     + killpg, so losing the exec replacement does not leak processes.
     """
-    full_cmd = f"source {shlex.quote(VITIS_SETTINGS)} && {cmd}"
+    temp_root = configure_temp_env(create=True)
+    temp_exports = (
+        f"export {C2HLS_TMP_ROOT_ENV}={shlex.quote(str(temp_root))} "
+        f"TMPDIR={shlex.quote(str(temp_root))} "
+        f"TEMP={shlex.quote(str(temp_root))} "
+        f"TMP={shlex.quote(str(temp_root))}"
+    )
+    full_cmd = f"{temp_exports} && source {shlex.quote(VITIS_SETTINGS)} && {temp_exports} && {cmd}"
     proc = subprocess.Popen(
         ["bash", "-lc", full_cmd],
         stdout=subprocess.PIPE,
@@ -143,6 +152,121 @@ def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
 
         _signal_pids(tree_pids, signal.SIGKILL)
         return output, True
+
+
+def _read_log_tail(path: Path, max_bytes: int = 65536) -> str:
+    try:
+        with path.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - max_bytes), os.SEEK_SET)
+            return handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def _terminate_process_group(proc: subprocess.Popen, sig) -> None:
+    tree_pids = _descendant_pids(proc.pid)
+    try:
+        os.killpg(proc.pid, sig)
+    except ProcessLookupError:
+        pass
+    _signal_pids(tree_pids, sig)
+
+
+def _run_vitis_cmd_logged(
+    cmd: str,
+    timeout: int,
+    log_path: Path,
+    *,
+    terminal_markers: "list[str] | None" = None,
+    terminal_settle_s: int = 10,
+) -> tuple:
+    """Run a Vitis command with stdout/stderr redirected to a real log file.
+
+    Some hw_emu failures leave descendant processes holding stdout open after
+    make has printed a terminal failure line. Using a pipe plus communicate()
+    can then block until the full timeout. This variant polls the process and
+    the log file, allowing us to stop after explicit terminal failure markers.
+    """
+    temp_root = configure_temp_env(create=True)
+    temp_exports = (
+        f"export {C2HLS_TMP_ROOT_ENV}={shlex.quote(str(temp_root))} "
+        f"TMPDIR={shlex.quote(str(temp_root))} "
+        f"TEMP={shlex.quote(str(temp_root))} "
+        f"TMP={shlex.quote(str(temp_root))}"
+    )
+    full_cmd = f"{temp_exports} && source {shlex.quote(VITIS_SETTINGS)} && {temp_exports} && {cmd}"
+    markers = [m.lower() for m in (terminal_markers or [])]
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    start = time.monotonic()
+    marker_seen_at = None
+    marker_seen = ""
+    timed_out = False
+    stopped_on_marker = False
+
+    with log_path.open("w", encoding="utf-8", errors="replace") as log_handle:
+        proc = subprocess.Popen(
+            ["bash", "-lc", full_cmd],
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+
+        while True:
+            if proc.poll() is not None:
+                break
+
+            now = time.monotonic()
+            if now - start > timeout:
+                timed_out = True
+                _terminate_process_group(proc, signal.SIGTERM)
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    _terminate_process_group(proc, signal.SIGKILL)
+                    proc.wait()
+                break
+
+            if markers:
+                tail = _read_log_tail(log_path).lower()
+                hit = next((marker for marker in markers if marker in tail), "")
+                if hit:
+                    if marker_seen_at is None or hit != marker_seen:
+                        marker_seen_at = now
+                        marker_seen = hit
+                    elif now - marker_seen_at >= terminal_settle_s:
+                        stopped_on_marker = True
+                        _terminate_process_group(proc, signal.SIGTERM)
+                        try:
+                            proc.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            _terminate_process_group(proc, signal.SIGKILL)
+                            proc.wait()
+                        break
+                else:
+                    marker_seen_at = None
+                    marker_seen = ""
+
+            time.sleep(1)
+
+        log_handle.flush()
+
+    output = _read_log_tail(log_path, max_bytes=128 * 1024 * 1024)
+    if stopped_on_marker:
+        note = (
+            "\n[C2HLS] stopped emulation command after terminal log marker "
+            f"{marker_seen!r} remained for {terminal_settle_s}s.\n"
+        )
+        try:
+            with log_path.open("a", encoding="utf-8", errors="replace") as handle:
+                handle.write(note)
+        except OSError:
+            pass
+        output += note
+    return output, timed_out
 
 
 def _extract_vitis_failure_reason(log: str, fallback: str) -> str:
@@ -264,7 +388,7 @@ def run_hls_synthesis(
     Run Vitis HLS C-synthesis on the given code.
     """
     if work_dir is None:
-        work_dir = tempfile.mkdtemp(prefix="hls_synth_")
+        work_dir = make_tempdir(prefix="hls_synth_")
 
     inputs = _materialize_inputs(
         work_dir, hls_code, header_code, header_name,
@@ -530,7 +654,7 @@ def run_csim(
 ) -> dict:
     """Run Vitis HLS C-simulation (csim)."""
     if work_dir is None:
-        work_dir = tempfile.mkdtemp(prefix="hls_csim_")
+        work_dir = make_tempdir(prefix="hls_csim_")
 
     inputs = _materialize_inputs(
         work_dir, hls_code, header_code, header_name,
@@ -605,7 +729,7 @@ def run_cosim(
 ) -> dict:
     """Run Vitis HLS co-simulation (cosim)."""
     if work_dir is None:
-        work_dir = tempfile.mkdtemp(prefix="hls_cosim_")
+        work_dir = make_tempdir(prefix="hls_cosim_")
 
     inputs = _materialize_inputs(
         work_dir, hls_code, header_code, header_name,
@@ -713,7 +837,7 @@ def _stage_nova_workdir(nova_bench_dir: str,
         return None, f"could not locate Benchmarks/common above {nova_bench_dir}"
 
     rel = nova_path.parent.relative_to(bench_root)  # e.g. "cfd/cfd_flux" or "pathfinder"
-    work_root = tempfile.mkdtemp(prefix="emu_")
+    work_root = make_tempdir(prefix="emu_")
     staged_parent = Path(work_root) / rel
     staged_parent.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(nova_path.parent, staged_parent, symlinks=True,
@@ -780,6 +904,36 @@ def _stage_nova_workdir(nova_bench_dir: str,
     return staged_bench, src_dir
 
 
+def _hw_emu_disable_debug_symbols_enabled() -> bool:
+    return os.getenv("C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS", "").lower() in ("1", "true", "yes")
+
+
+def _disable_hw_emu_debug_symbols(staged_bench: Path) -> "tuple[bool, str]":
+    """Remove Nova's v++ `-g` flag in the temporary staged copy.
+
+    The xrt.ini `debug_mode=off` setting alone does not stop Vitis 2023.2 from
+    launching behav_waveform/xsim with WDB/protoinst setup when Nova common.mk
+    keeps `CLFLAGS += -g ...`. This edit is confined to the temp emulation
+    workdir and is recorded in the returned hw_emu result.
+    """
+    common_mk = staged_bench.parent / "common.mk"
+    if not common_mk.is_file():
+        return False, f"common.mk not found at {common_mk}"
+    try:
+        text = common_mk.read_text(encoding="utf-8", errors="ignore")
+    except OSError as exc:
+        return False, f"failed to read {common_mk}: {exc}"
+
+    updated = re.sub(r"(^\s*CLFLAGS\s*\+=\s*)-g\s+", r"\1", text, count=1, flags=re.MULTILINE)
+    if updated == text:
+        return False, f"no CLFLAGS '-g' entry found in {common_mk}"
+    try:
+        common_mk.write_text(updated, encoding="utf-8")
+    except OSError as exc:
+        return False, f"failed to write {common_mk}: {exc}"
+    return True, str(common_mk)
+
+
 def _run_make_check_emu(staged_bench: Path, target: str, timeout: int) -> "tuple[str, bool]":
     """Drive `make check TARGET=<sw_emu|hw_emu>` inside a staged nova variant.
     Returns (combined_stdout, timed_out)."""
@@ -794,7 +948,24 @@ def _run_make_check_emu(staged_bench: Path, target: str, timeout: int) -> "tuple
         f"make clean > /dev/null 2>&1 && "
         f"make check TARGET={target} DEVICE={shlex.quote(device)}"
     )
-    return _run_vitis_cmd(cmd, timeout=timeout)
+    # Keep the live log outside staged_bench: Nova `make clean` may remove
+    # `*.log` in the benchmark directory after Python has opened the file,
+    # which unlinks the watcher log and prevents marker polling.
+    log_path = staged_bench.parent / f".{staged_bench.name}.c2hls_{target}_make_check.live.log"
+    terminal_markers = [
+        "make: ***",
+        "benchmark results are incorrect",
+        "xsimk: *e",
+        "child killed",
+        "segmentation violation",
+    ]
+    return _run_vitis_cmd_logged(
+        cmd,
+        timeout=timeout,
+        log_path=log_path,
+        terminal_markers=terminal_markers,
+        terminal_settle_s=int(os.getenv("C2HLS_EMU_TERMINAL_SETTLE_S", "10")),
+    )
 
 
 def _choose_latest(paths: "list[Path]") -> "Path | None":
@@ -1057,6 +1228,15 @@ def run_hw_emu_via_nova(
             "profile_compute_unit_rows": 0, "clock_source": "not_run",
             "clock_fallback": False, "error": info, "work_dir": "", "log": "",
         }
+    debug_symbols_disabled = False
+    debug_symbols_note = ""
+    if _hw_emu_disable_debug_symbols_enabled():
+        debug_symbols_disabled, debug_symbols_note = _disable_hw_emu_debug_symbols(staged)
+        if not debug_symbols_disabled:
+            logging.warning(
+                "C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS requested but not applied: %s",
+                debug_symbols_note,
+            )
     output, timed_out = _run_make_check_emu(staged, "hw_emu", timeout)
     log_path = staged / "c2hls_hw_emu_make_check.log"
     try:
@@ -1119,6 +1299,8 @@ def run_hw_emu_via_nova(
         "crash_summary": crash_summary,
         "clock_fallback": clock_fallback,
         "clock_source": clock_source,
+        "debug_symbols_disabled": debug_symbols_disabled,
+        "debug_symbols_note": debug_symbols_note,
         "error": error,
         "work_dir": str(staged),
         "log_path": str(log_path) if log_path else "",

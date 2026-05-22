@@ -92,8 +92,9 @@ def test_skill_library_bootstrap_and_query(results, tee):
 
     lib = make_default_library(persist=False)
     skills = lib.all()
-    _check("bootstrap-non-empty", len(skills) >= 8,
-           f"loaded {len(skills)} skills (expect >=8)", results, tee)
+    _check("bootstrap-loads-curated-package", len(skills) >= 55,
+           f"loaded {len(skills)} skills (expect curated schema-1.1 package)",
+           results, tee)
 
     tiers = {sk.confidence for sk in skills}
     _check("tiers-spread", {TIER_HIGH, TIER_MEDIUM, TIER_AVOID} <= tiers,
@@ -115,6 +116,17 @@ def test_skill_library_bootstrap_and_query(results, tee):
            len(no_avoid) == len(skills) - avoid_count,
            f"avoid={avoid_count}, default={len(no_avoid)} (expect "
            f"{len(skills) - avoid_count})", results, tee)
+    coalescing = lib.get("hls-coalescing-512-compound-transform")
+    rendered = render_skill_for_prompt(coalescing) if coalescing is not None else ""
+    _check(
+        "schema11-required-steps-rendered",
+        coalescing is not None
+        and "required steps:" in rendered
+        and "guards:" in rendered,
+        "schema-1.1 guardrails/checklists are agent-visible",
+        results,
+        tee,
+    )
 
 
 def test_skill_library_statistics_and_promote(results, tee):

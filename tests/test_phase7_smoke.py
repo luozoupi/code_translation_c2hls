@@ -1,7 +1,7 @@
 """Phase 7a offline smoke: static-report harvest (burst.xml,
 fe/be_messages.xml, csynth_design_size.rpt). Pure offline.
 
-Uses the on-disk sample at /tmp/hls_synth_qu63pmih (left over from a
+Uses a recent on-disk hls_synth sample under C2HLS_TMP_ROOT (left over from a
 recent Vitis HLS run) when present. Falls back to inline xml fixtures
 otherwise so the test still runs in a clean environment.
 
@@ -241,13 +241,14 @@ def test_real_sample_optional(results, tee):
     """If a recent Vitis HLS work_dir is on disk, parse it and confirm
     we extract real data. Skipped (with PASS) when no sample exists."""
     tee.section("Phase 7a: real on-disk sample (optional)")
-    sample_glob = "/tmp/hls_synth_*"
+    sample_root = os.getenv("C2HLS_TMP_ROOT", "/mnt/data/luo00466/tmp")
+    sample_glob = os.path.join(sample_root, "hls_synth_*")
     import glob
     candidates = [p for p in glob.glob(sample_glob)
                   if os.path.isdir(os.path.join(p, "hls_proj"))]
     if not candidates:
         _check("real-sample-skipped",
-               True, "no /tmp/hls_synth_* directory present (skipped)",
+               True, f"no {sample_glob} directory present (skipped)",
                results, tee)
         return
     sample = candidates[0]

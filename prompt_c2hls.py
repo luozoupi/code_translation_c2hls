@@ -84,6 +84,63 @@ Here is the plain C kernel:
 
 Provide the complete HLS-optimized code in a ```cpp code fence."""
 
+# Phase B: conservative functional translation for multistep mode.
+# This is intentionally narrower than q_translate_c_to_hls. In multistep
+# experiments the optimization trajectory should own PIPELINE/UNROLL/
+# DATAFLOW/coalescing changes; Phase B should only make the kernel legal,
+# callable, and structurally simple.
+q_translate_c_to_hls_functional = """Convert the following plain C/C++ kernel code into a FUNCTIONAL Xilinx Vitis HLS kernel.
+
+Goal:
+- Produce a synthesizable and testbench-compatible Vitis kernel baseline.
+- Preserve the original algorithm and data layout.
+- Keep the baseline conservative so later optimization steps can add tiling, pipeline, unroll, double buffering, and coalescing intentionally.
+
+Requirements:
+1. Use a top-level `workload()` function wrapped in `extern "C" {{ }}`.
+   If the input already contains a `workload()` wrapper, preserve and upgrade that wrapper instead of creating a second wrapper.
+   If there is no wrapper yet, add one that calls the kernel.
+2. Add only required HLS INTERFACE pragmas to the workload function:
+   - `#pragma HLS INTERFACE m_axi port=<ptr> offset=slave bundle=gmem` for pointer arguments
+   - `#pragma HLS INTERFACE s_axilite port=<arg> bundle=control` for all arguments
+   - `#pragma HLS INTERFACE s_axilite port=return bundle=control`
+   IMPORTANT: every s_axilite port MUST share the SAME bundle name (`bundle=control`).
+3. Do NOT add performance optimizations in this Phase B baseline:
+   - no `#pragma HLS PIPELINE`
+   - no `#pragma HLS UNROLL`
+   - no `#pragma HLS DATAFLOW`
+   - no `#pragma HLS ARRAY_PARTITION`
+   - no `ap_uint<512>` wide-bus rewrites or `memcpy_wide_bus_*` helpers
+4. Keep helper functions simple and synthesizable. Add `static` / `inline` only when it preserves behavior and helps Vitis specialize small helpers.
+5. Include the original header file exactly once.
+6. Do NOT copy or re-declare structs, typedefs, constants, or function prototypes that already exist in the header; include the header once and reuse its declarations.
+7. The code must be synthesizable with Vitis HLS in vitis kernel flow (Alveo U280 / Virtex UltraScale+ HBM).
+
+Benchmark-specific guidance:
+{benchmark_context}
+
+Checklist before returning:
+- Include the header exactly once.
+- Reuse existing function names and signatures from the plain input when possible.
+- Match the exact `workload()` argument order and linkage expected by the testbench when benchmark guidance provides it.
+- Preserve the plain-input helper and wrapper structure unless a change is required for valid Vitis HLS pragmas.
+- Prefer minimal edits to the plain input over creative rewrites.
+- Do not redeclare header-owned structs/types like `bench_args_t`.
+- Do not invent undeclared helper arrays or buffers like `l_*`; if a local buffer is needed for correctness, declare it and fill it explicitly.
+- Keep every `#pragma HLS` inside a function body, never at global scope.
+
+Here is the header:
+```cpp
+{header_code}
+```
+
+Here is the plain C kernel:
+```cpp
+{c_code}
+```
+
+Provide the complete functional HLS baseline code in a ```cpp code fence."""
+
 # Fix HLS synthesis errors
 hls_synthesis_fix = """The HLS code failed synthesis with the following error:
 
@@ -166,9 +223,9 @@ hls_correctness_repair_fix = """The HLS code SYNTHESIZES cleanly but FAILS the c
   - Error / log excerpt:
 {gate_error}
 
-The csynth report is fine, so the issue is NOT a synthesis bug — your edit
-changed what the kernel computes. The previous accepted step's output was
-correct; your `{step_name}` transformation broke the algorithm. Common
+The csynth report is fine, so the issue is NOT a synthesis bug — the current
+kernel computes the wrong values. The source C behavior or previously accepted
+step was correct; your `{step_name}` code broke the algorithm. Common
 defects after this kind of optimization:
   1. Loop bounds shifted (off-by-one after tiling/unroll)
   2. Buffer indices stale (doublebuffer/coalescing reordering)
@@ -436,11 +493,16 @@ Provide the complete double-buffer-optimized code in a ```cpp code fence."""
 q_optimize_coalescing = """Apply MEMORY COALESCING optimization to the following HLS code.
 
 Memory coalescing means:
-- Change pointer arguments in the workload() function to use wide bus types: `ap_uint<512>*` (or `ap_uint<LARGE_BUS>*`)
-- Use wide bus read/write helper functions (memcpy_wide_bus_read_float, memcpy_wide_bus_write_float, etc.)
-- Include the wide bus header: `#include "../../../common/mc.h"` (defines LARGE_BUS=512, MARS_WIDE_BUS_TYPE, and provides helper functions)
-- Update INTERFACE pragmas to use the wide bus pointer types
-- Increase burst lengths where possible (max_read_burst_length=256, max_write_burst_length=256)
+- Preserve the existing `workload()` function signature and pointer element types unless the prompt
+  explicitly says the active benchmark variant is wide-bus ABI compatible.
+- Do NOT include `../../../common/mc.h`, `MARS_WIDE_BUS_TYPE`, or `memcpy_wide_bus_*` helpers in
+  the default generated kernel. The stripped-C benchmark input does not guarantee those helpers are
+  available, and changing the ABI can break the host/testbench contract.
+- Improve burst behavior while keeping the narrow ABI: add/adjust m_axi pragmas such as
+  `max_read_burst_length=64`, `max_write_burst_length=64`, `num_read_outstanding=16`, and
+  `num_write_outstanding=16` where legal.
+- Stage contiguous memory ranges into local buffers, compute locally, and write back in contiguous
+  order so Vitis can infer long bursts.
 - Add cyclic array partitioning with appropriate factors for local buffers
 
 CRITICAL — every `s_axilite` port (including `port=return`) MUST share the same `bundle=control`.
@@ -448,21 +510,14 @@ Vitis kernel mode rejects split bundles with `[HLS 214-219]`. Do NOT introduce `
 auto-generated second bundle. Each `#pragma HLS INTERFACE s_axilite ...` line must end with
 `bundle=control`.
 
-CORRECTNESS REQUIREMENTS — coalescing changes the memory layout, NOT the algorithm:
+CORRECTNESS REQUIREMENTS — coalescing changes the memory access schedule, NOT the algorithm:
 1. Output values must be byte-identical to the previous (narrow-bus) step. A single off-by-one
-   index, missing tail iteration, or mismatched packing factor breaks the testbench. Verify the
-   number of iterations × WIDTH_FACTOR equals the number of original elements processed.
-2. When the original loop bound is N elements, the wide-bus loop bound becomes
-   `N / WIDTH_FACTOR` (where WIDTH_FACTOR = LARGE_BUS / sizeof(element_type) / 8`); never just N.
-3. Use BOTH `memcpy_wide_bus_read_<type>` to unpack into a narrow buffer AND
-   `memcpy_wide_bus_write_<type>` to pack the result. Don't read narrow and write wide (or vice
-   versa) — that scrambles output ordering.
-4. Float and integer width factors differ. For `ap_uint<512>` over `float`, WIDTH_FACTOR=16
-   (512 / 32). For `ap_uint<512>` over `int32_t`, WIDTH_FACTOR=16. For `int64_t`, WIDTH_FACTOR=8.
-5. If the original kernel has a non-uniform tail (e.g. `for i in 0..N-1` with N not divisible
-   by WIDTH_FACTOR), keep a scalar tail loop. Don't drop the tail.
-6. Wide-bus arrays as `local_*[N/WIDTH_FACTOR]` must be matched in size everywhere they're
-   passed/used; mismatched sizes silently truncate.
+   index, missing tail iteration, or reordered store breaks the testbench.
+2. Keep all original scalar loop bounds unless you are only tiling/staging internally. If you split
+   a range into tiles, keep an explicit scalar tail path for non-divisible bounds.
+3. Do not mix narrow loads with wide stores or change array layout visible to the caller.
+4. If a skill block mentions a 512-bit wide-bus ABI, treat it as reference knowledge only unless
+   the prompt explicitly permits wide ABI for this benchmark variant.
 
 Keep all existing double-buffering, pipeline, and unroll optimizations.
 
@@ -503,7 +558,7 @@ Current HLS code:
 
 Provide the complete optimized code in a ```cpp code fence."""
 
-# --- Phase 3: combo-step prompts (apply multiple techniques in one shot) ---
+# --- Phase 3: combo/flash prompts (apply multiple techniques in one shot) ---
 #
 # The Rodinia-HLS reference trajectory shows that *individual* steps can
 # regress PPA (e.g., tiling alone is +4x latency over baseline) — the win
@@ -532,10 +587,11 @@ combine them so the kernel exhibits all of these techniques together:
    alternate them across iterations so global-memory load overlaps
    compute. Annotate with `#pragma HLS dataflow` at the workload level
    if applicable.
-5. **COALESCING**: where the hardware allows it (Alveo / U280 / U50),
-   widen the AXI burst to 512-bit via ap_uint<512> and the
-   memcpy_wide_bus_* helpers (only if the kernel has contiguous
-   read/write loops large enough to justify it; otherwise skip).
+5. **COALESCING**: improve contiguous AXI burst behavior while preserving
+   the public kernel ABI by default. Add legal burst/outstanding m_axi
+   pragmas and local staging. Only change pointer types to ap_uint<512>
+   or use memcpy_wide_bus_* helpers when the prompt explicitly says the
+   active host/testbench variant supports a wide-bus ABI.
 
 Justification: applying these techniques *together* avoids the trap
 where an intermediate step (e.g., tiling alone) shows worse PPA in
@@ -603,9 +659,11 @@ to the (already-structural) kernel in a SINGLE rewrite:
    plus the supporting `#pragma HLS array_partition` to clear port conflicts.
 2. **UNROLL** the innermost data-parallel loop with factor 4–8, keeping
    the array_partition factor in lockstep with the unroll factor.
-3. **COALESCING** the AXI burst width to 512-bit via ap_uint<512> and
-   memcpy_wide_bus_* helpers, *only if* the kernel has contiguous
-   read/write loops large enough to justify it on the target FPGA.
+3. **COALESCING** contiguous AXI accesses while preserving the public ABI
+   by default: add legal burst/outstanding m_axi pragmas and local
+   staging. Only change pointer types to ap_uint<512> or use
+   memcpy_wide_bus_* helpers when the prompt explicitly says the active
+   host/testbench variant supports a wide-bus ABI.
 
 Keep `extern "C" workload(...)` and INTERFACE pragmas. Provide the
 complete code in one ```cpp ...``` fence.
@@ -624,6 +682,53 @@ Current HLS code:
 ```
 """
 
+q_optimize_flash = """FLASH MODE: produce one aggressively optimized HLS design in a SINGLE rewrite.
+
+This is not a step-by-step trajectory. Treat the current code as the
+functional starting point and return the best complete endpoint you can
+safely synthesize. Use any combination of the following when it naturally
+fits the kernel:
+
+1. Preserve the public kernel ABI, `extern "C"` top, and existing
+   m_axi/s_axilite INTERFACE pragmas.
+2. Pipeline hot inner loops with `#pragma HLS pipeline II=1` only when
+   memory ports and loop-carried dependencies can support it.
+3. Unroll small data-parallel loops with a bounded factor, usually 2, 4,
+   or 8, and match any local-buffer array partitioning to the unroll factor.
+4. Use local scalar or array staging for repeated accesses; partition only
+   small hot buffers, not large global-size arrays.
+5. Add DATAFLOW/load-compute-store structure only when the added buffering
+   is simple and the kernel has clear streaming phases.
+6. Improve contiguous AXI access with legal burst/outstanding m_axi pragmas
+   and local staging while preserving the narrow host/testbench ABI by
+   default. Do NOT introduce `ap_uint<512>`, `MARS_WIDE_BUS_TYPE`, or
+   `memcpy_wide_bus_*` helpers unless the benchmark context explicitly says
+   the active harness supports a wide-bus ABI.
+7. Keep AXI pragma values Vitis-legal: burst lengths must be powers of two
+   in [1, 256], and m_axi ports sharing the same bundle must use the same
+   adapter parameters (`latency`, outstanding counts, burst lengths, etc.).
+   If unsure, preserve the existing INTERFACE pragmas exactly.
+
+Prefer a compact, synthesizable implementation over a heroic rewrite. For
+small PolyBench/HLSFactory-style kernels, simple pipelining, modest unroll,
+and a few local buffers often beat complex tiling/dataflow.
+
+Current synthesis report for the functional starting point:
+{synth_report}
+
+Header:
+```cpp
+{header_code}
+```
+
+Current HLS code:
+```cpp
+{current_code}
+```
+
+Provide the complete optimized code in one ```cpp ...``` fence.
+"""
+
 
 # Map step names to prompts
 OPTIMIZATION_PROMPTS = {
@@ -636,6 +741,7 @@ OPTIMIZATION_PROMPTS = {
     "combo_full": q_optimize_combo_full,
     "combo_structural": q_optimize_combo_structural,
     "combo_parallel": q_optimize_combo_parallel,
+    "flash": q_optimize_flash,
 }
 
 # Default optimization order (matches rodinia-hls convention)
@@ -644,3 +750,4 @@ DEFAULT_OPT_STEPS = ["tiling", "pipeline", "unroll", "doublebuffer", "coalescing
 # Phase 3 combo orderings.
 COMBO_FULL_STEPS = ["combo_full"]
 COMBO_PROGRESSIVE_STEPS = ["combo_structural", "combo_parallel"]
+FLASH_STEPS = ["flash"]

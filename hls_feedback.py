@@ -1121,6 +1121,46 @@ def summarize_static_extras(extras: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def derive_static_bottleneck_records(static_extras: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Convert static report harvest into routeable bottleneck records."""
+    if not static_extras:
+        return []
+    bursts = static_extras.get("bursts") or {}
+    counts = bursts.get("counts") or {}
+    failed = int(counts.get("failed") or 0)
+    widened = int(counts.get("widened") or 0)
+    passed = int(counts.get("passed") or 0)
+    summary = int(counts.get("summary") or 0)
+    records: List[Dict[str, Any]] = []
+    if failed:
+        rec = (bursts.get("failed") or [{}])[0]
+        records.append({
+            "scope_id": None,
+            "kind": "axi_burst_failed",
+            "evidence": (
+                f"burst.xml reports {failed} failed AXI burst inference record(s); "
+                f"first={rec.get('var') or '?'} {rec.get('direction') or ''} "
+                f"{rec.get('src_info') or ''}".strip()
+            ),
+            "severity": "high",
+            "metric": {"bursts_failed": failed, "bursts_widened": widened},
+            "source_location": rec.get("src_info"),
+        })
+    elif (passed or summary) and widened == 0:
+        records.append({
+            "scope_id": None,
+            "kind": "memory_bandwidth",
+            "evidence": (
+                "burst.xml has AXI burst records but no widened 512-bit transfers; "
+                "latency may be bandwidth-limited"
+            ),
+            "severity": "medium",
+            "metric": {"bursts_passed": passed, "bursts_summary": summary},
+            "source_location": None,
+        })
+    return records
+
+
 def render_static_extras_for_prompt(extras: Dict[str, Any], *,
                                      max_records: int = 4) -> str:
     """Compact human-readable static-extras block for the LLM prompt.
@@ -1244,6 +1284,10 @@ def build_feedback(*, xml_path: Optional[str] = None,
                 "design_size": design_size,
             }
             static_extras["summary"] = summarize_static_extras(static_extras)
+            bottlenecks.extend(derive_static_bottleneck_records(static_extras))
+            severity_rank = {"high": 0, "medium": 1, "low": 2}
+            bottlenecks.sort(key=lambda b: (severity_rank.get(b.get("severity"), 3), b.get("kind") or ""))
+            summary = summarize_feedback(scopes, bottlenecks)
 
     out: Dict[str, Any] = {
         "schema": FEEDBACK_SCHEMA_VERSION,

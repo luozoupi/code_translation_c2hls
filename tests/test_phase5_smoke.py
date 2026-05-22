@@ -90,14 +90,14 @@ def test_5b_gt_prepop_wiring(results, tee):
 
 def test_5b_skill_injection_wiring(results, tee):
     tee.section("Phase 5b: skill-template injection in optimization prompt")
-    src = inspect.getsource(c2hls.C2HLSOrchestrator._optimization_step_attempt)
+    src = inspect.getsource(c2hls.C2HLSOrchestrator._optimization_step_attempt_single)
     _check("renders-skill-set",
            "render_skill_set_for_prompt" in src,
            "render_skill_set_for_prompt imported and called",
            results, tee)
     _check("queries-by-top-bottleneck",
            "top_bottleneck_kind" in src and "skill_library.query(" in src,
-           "queries skills by feedback's top bottleneck kind",
+           "queries skills by feedback's top bottleneck kind when no routing skill is selected",
            results, tee)
     _check("guarded-by-skill-library-presence",
            "self.skill_library is not None" in src,

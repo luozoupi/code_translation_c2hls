@@ -16,13 +16,13 @@ import logging
 import os
 import re
 import subprocess
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from c2hls_temp import make_tempdir
 
 try:
     import anthropic
@@ -59,6 +59,9 @@ logging.basicConfig(
 # for the full list and how to set them (.env, shell export, or direct edit).
 REPO_ROOT = Path(__file__).resolve().parent
 
+TRUSTED_EXTERNAL_REFERENCE_REPOS = {"rodinia-hls", "rodinia-hls-nova"}
+_DIRECT_REFERENCE_CACHE: dict | None = None
+
 # Paths to API key files (used only when ANTHROPIC_API_KEY / OPENAI_API_KEY
 # environment variables are unset). The defaults point at the developer's
 # local keys; set C2HLS_CLAUDE_KEY_FILE / C2HLS_OPENAI_KEY_FILE to override.
@@ -80,6 +83,12 @@ DEFAULT_MODEL_ID = os.getenv("C2HLS_MODEL", "nvidia/OpenCodeReasoning-Nemotron-1
 # minimum score improvement (lower = better) required to accept a candidate.
 DEFAULT_QUALITY_REPAIR_TURNS = int(os.getenv("C2HLS_QUALITY_REPAIR_TURNS", "2"))
 QUALITY_SCORE_EPSILON = float(os.getenv("C2HLS_QUALITY_SCORE_EPSILON", "0.25"))
+PHASEB_MODE_ENV = "C2HLS_PHASEB_MODE"
+DEFAULT_PHASEB_MODE_SINGLE = "optimized"
+DEFAULT_PHASEB_MODE_MULTISTEP = "functional"
+STEP_CANDIDATES_ENV = "C2HLS_CANDIDATES_PER_STEP"
+CANDIDATE_ATTEMPTS_ENV = "C2HLS_ATTEMPTS_PER_CANDIDATE"
+EXHAUSTIVE_CANDIDATE_ATTEMPTS_ENV = "C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS"
 
 # Multistep regression guard: a step is rejected if its latency_ns or its
 # resource usage grew by this ratio vs the previous step. Defaults to 1.10
@@ -144,12 +153,57 @@ BENCHMARK_POLICIES = {
             "Prefer one reusable arithmetic pipeline over DSP-heavy parallel scheduling when timing is poor.",
         ],
     },
+    "srad": {
+        "priority": "Primary objective: preserve SRAD's tiled halo-row contract before optimizing bandwidth or parallelism.",
+        "translation": [
+            "SRAD uses one halo row above the active tile. Preserve the copy-back offsets exactly: write tile outputs to `Jout + (t*TILE_ROWS+1)*COLS` and `J + (t*TILE_ROWS+1)*COLS`, not to `t*TILE_ROWS*COLS`.",
+            "Do not change the `workload(float J[(ROWS+3)*COLS], float Jout[(ROWS+3)*COLS])` array layout: rows 1..ROWS are the compared interior rows, while row 0 is halo/boundary context.",
+            "Keep the local `J_buf` copy-in starting at `J + t*TILE_ROWS*COLS` / `Jout + t*TILE_ROWS*COLS`; only the copy-back to the global output arrays uses the `+1` row offset.",
+        ],
+        "quality": [
+            "Any tiling, pipeline, unroll, doublebuffer, or coalescing edit must preserve SRAD's halo-row copy-back offsets: `(t*TILE_ROWS+1)*COLS` for both Jout and J updates.",
+        ],
+    },
 }
 
 
 def _policy(benchmark_name: str, field: str, default=None):
     """Look up a field of BENCHMARK_POLICIES with a fallback."""
     return (BENCHMARK_POLICIES.get(benchmark_name or "") or {}).get(field, default)
+
+
+def _normalize_srad_halo_copy_offsets(code: str) -> tuple[str, list[str]]:
+    """Repair the exact SRAD halo-copy offset mistake seen in generated code.
+
+    The SRAD testbench compares interior rows 1..ROWS. Copy-in starts at the
+    tile boundary, but copy-back must skip the top halo row. The LLM sometimes
+    changes `(t*TILE_ROWS+1)*COLS` to `t*TILE_ROWS*COLS`, which shifts every
+    output tile and fails csim/hw_emu. This preflight is intentionally narrow
+    and records every edit so it is not a silent fallback.
+    """
+    if not code:
+        return code, []
+
+    replacements: list[tuple[str, str, str]] = [
+        (
+            r"memcpy\(\s*Jout\s*\+\s*t\s*\*\s*TILE_ROWS\s*\*\s*COLS\s*,",
+            "memcpy(Jout+(t*TILE_ROWS+1)*COLS,",
+            "Jout copy-back halo offset",
+        ),
+        (
+            r"memcpy\(\s*J\s*\+\s*t\s*\*\s*TILE_ROWS\s*\*\s*COLS\s*,",
+            "memcpy(J+(t*TILE_ROWS+1)*COLS,",
+            "J copy-back halo offset",
+        ),
+    ]
+    patched = code
+    notes: list[str] = []
+    for pattern, replacement, note in replacements:
+        updated, count = re.subn(pattern, replacement, patched)
+        if count:
+            patched = updated
+            notes.append(f"{note}: restored `(t*TILE_ROWS+1)*COLS` ({count} occurrence(s))")
+    return patched, notes
 
 
 def extract_cpp_code(text: str) -> Optional[str]:
@@ -187,7 +241,7 @@ def compile_check_cpp(
 ) -> Tuple[bool, str]:
     """Check if code compiles with g++ -c."""
     if work_dir is None:
-        work_dir = tempfile.mkdtemp(prefix="c2hls_compile_")
+        work_dir = make_tempdir(prefix="c2hls_compile_")
     os.makedirs(work_dir, exist_ok=True)
 
     src_file = os.path.join(work_dir, "kernel.cpp")
@@ -582,6 +636,20 @@ def _load_openai_api_key() -> str:
     return ""
 
 
+def _llm_timeout_seconds(default: float = 600.0) -> float:
+    value = os.getenv("C2HLS_LLM_TIMEOUT", str(default)).strip()
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        logging.warning(
+            "Invalid C2HLS_LLM_TIMEOUT=%r; using %.1fs",
+            value,
+            default,
+        )
+        return default
+    return max(1.0, parsed)
+
+
 def _is_hosted_openai_model(model_name: str) -> bool:
     model = (model_name or "").lower()
     return model.startswith(("gpt-", "o1", "o3", "o4", "codex-"))
@@ -618,6 +686,67 @@ def _extract_interface_ports(hls_code: str) -> List[str]:
         return []
     ports = re.findall(r"#pragma\s+HLS\s+INTERFACE\s+[^\n]*?\bport\s*=\s*([A-Za-z_][A-Za-z0-9_]*)", hls_code)
     return sorted(dict.fromkeys(ports))
+
+
+def _normalize_vitis_s_axilite_bundles(hls_code: str) -> tuple[str, str]:
+    """Ensure Vitis kernel-control pragmas are explicit and single-bundle.
+
+    Vitis 2023.2 treats `m_axi ... offset=slave` ports as requiring a matching
+    AXI-lite control entry. If the generated code only adds `s_axilite` for
+    scalar arguments and return, synthesis can fail with HLS 214-219 because
+    the pointer/array offsets are assigned a different bundle. Normalize this
+    before synthesis so external datasets with native array signatures do not
+    depend on the model remembering every control pragma.
+    """
+    if not hls_code:
+        return hls_code, ""
+
+    lines = hls_code.splitlines()
+    m_axi_ports: list[str] = []
+    s_axilite_ports: set[str] = set()
+    updated_lines: list[str] = []
+    changed_bundle = False
+
+    for line in lines:
+        m_axi = re.search(r"#pragma\s+HLS\s+INTERFACE\s+m_axi\b[^\n]*?\bport\s*=\s*([A-Za-z_][A-Za-z0-9_]*)", line)
+        if m_axi:
+            port = m_axi.group(1)
+            if port not in m_axi_ports:
+                m_axi_ports.append(port)
+
+        s_axilite = re.search(r"#pragma\s+HLS\s+INTERFACE\s+s_axilite\b[^\n]*?\bport\s*=\s*([A-Za-z_][A-Za-z0-9_]*)", line)
+        if s_axilite:
+            s_axilite_ports.add(s_axilite.group(1))
+            if re.search(r"\bbundle\s*=", line):
+                normalized = re.sub(r"\bbundle\s*=\s*[A-Za-z_][A-Za-z0-9_]*", "bundle=control", line)
+            else:
+                normalized = line.rstrip() + " bundle=control"
+            changed_bundle = changed_bundle or normalized != line
+            line = normalized
+        updated_lines.append(line)
+
+    missing_ports = [port for port in m_axi_ports if port not in s_axilite_ports]
+    if not missing_ports and not changed_bundle:
+        return hls_code, ""
+
+    final_lines: list[str] = []
+    inserted: set[str] = set()
+    for line in updated_lines:
+        final_lines.append(line)
+        m_axi = re.search(r"#pragma\s+HLS\s+INTERFACE\s+m_axi\b[^\n]*?\bport\s*=\s*([A-Za-z_][A-Za-z0-9_]*)", line)
+        if m_axi:
+            port = m_axi.group(1)
+            if port in missing_ports and port not in inserted:
+                indent = re.match(r"^(\s*)", line).group(1)
+                final_lines.append(f"{indent}#pragma HLS INTERFACE s_axilite port={port} bundle=control")
+                inserted.add(port)
+
+    notes = []
+    if inserted:
+        notes.append("added missing s_axilite control pragmas for m_axi ports: " + ", ".join(sorted(inserted)))
+    if changed_bundle:
+        notes.append("normalized all s_axilite pragmas to bundle=control")
+    return "\n".join(final_lines) + ("\n" if hls_code.endswith("\n") else ""), "; ".join(notes)
 
 
 def _build_benchmark_context(meta: dict, header_name: str, header_code: str,
@@ -734,6 +863,10 @@ def _build_repair_guidance(error: str) -> str:
             "an auto-generated bundle name like `control_r`. Vitis kernel mode rejects "
             "split bundles with HLS 214-219."
         )
+        hints.append(
+            "- For every `m_axi port=<name> offset=slave ...` pragma, also add a separate "
+            "`#pragma HLS INTERFACE s_axilite port=<name> bundle=control` line."
+        )
     if not hints:
         hints.append("- Preserve the existing helper/kernel structure and make the smallest change that fixes the reported error.")
     return "\n".join(hints)
@@ -759,6 +892,10 @@ def _classify_synth_error(error: str) -> str:
     e = error.lower()
     if "timed out" in e or "timeout" in e:
         return "timeout"
+    if e.startswith("csim_failed") or "csim failed" in e:
+        return "csim_failed"
+    if e.startswith("cosim_failed") or "cosim failed" in e:
+        return "cosim_failed"
     if "214-219" in error or "must be bundled into one bundle" in e:
         return "axilite_bundle_split"
     if "synthesis report not found" in e:
@@ -937,7 +1074,17 @@ STEP_REGRESSION_THRESHOLDS = {
         "latency": 1.20,
         "resources": {"dsp": 10.0, "ff": 6.0, "lut": 2.5, "default": 2.0},
     },
+    "flash": {
+        # Flash is a single all-in endpoint. It should normally improve
+        # latency, but allow broad resource motion so one-shot candidate
+        # search can discover compact HLSFactory/PolyBench rewrites.
+        "latency": 1.50,
+        "resources": {"dsp": 12.0, "bram": 6.0, "ff": 8.0, "lut": 6.0, "default": 4.0},
+    },
 }
+
+
+ONE_SHOT_STRATEGIES = {"combo", "combo_full", "flash"}
 
 
 def _resolve_step_thresholds(step_name: str,
@@ -1023,6 +1170,30 @@ def _step_regression_reasons(new_report: dict, prev_report: dict,
             f"latency_ns regressed {lat_ratio:.2f}x (limit "
             f"{lat_threshold:.2f}x for step '{step_name or '_default'}'): "
             f"({prev_lat:.0f} -> {new_lat:.0f})"
+        )
+
+    new_slack = _as_float(new_report.get("slack_ns"))
+    new_est_clock = _as_float(new_report.get("estimated_clock_period_ns"))
+    new_req_clock = _as_float(new_report.get("requested_clock_period_ns"))
+    timing_bad = False
+    timing_detail = ""
+    if new_slack is not None and new_slack < 0:
+        timing_bad = True
+        timing_detail = f"slack_ns={new_slack:.3f}"
+    elif (
+        new_est_clock is not None
+        and new_req_clock is not None
+        and new_est_clock > new_req_clock + 1e-9
+    ):
+        timing_bad = True
+        timing_detail = (
+            f"estimated_clock_period_ns {new_est_clock:.3f} > "
+            f"requested_clock_period_ns {new_req_clock:.3f}"
+        )
+    if timing_bad:
+        reasons.append(
+            f"timing_not_clean for step '{step_name or '_default'}': "
+            f"{timing_detail}"
         )
 
     grown_resources: list[str] = []
@@ -1353,6 +1524,150 @@ def _render_baseline_alignment_guidance(gap: dict, attempt: int = 0) -> str:
             "not close the baseline gap."
         )
     return "\n".join(lines)
+
+
+def _normalize_phaseb_mode(value: str, *, multistep: bool) -> str:
+    """Resolve Phase B prompt mode.
+
+    `functional` keeps multistep baselines deliberately conservative.
+    `optimized` preserves the legacy/single-shot behavior.
+    """
+    mode = (value or "").strip().lower()
+    if not mode:
+        return DEFAULT_PHASEB_MODE_MULTISTEP if multistep else DEFAULT_PHASEB_MODE_SINGLE
+    aliases = {
+        "conservative": "functional",
+        "baseline": "functional",
+        "legacy": "optimized",
+    }
+    mode = aliases.get(mode, mode)
+    if mode not in {"functional", "optimized"}:
+        logging.warning(
+            "Unknown %s=%r; using %s default",
+            PHASEB_MODE_ENV, value,
+            DEFAULT_PHASEB_MODE_MULTISTEP if multistep else DEFAULT_PHASEB_MODE_SINGLE,
+        )
+        return DEFAULT_PHASEB_MODE_MULTISTEP if multistep else DEFAULT_PHASEB_MODE_SINGLE
+    return mode
+
+
+def _step_candidate_count(step_name: str) -> int:
+    """Return bounded candidate count for an optimization step.
+
+    Env forms:
+      C2HLS_CANDIDATES_PER_STEP=3
+      C2HLS_CANDIDATES_PER_STEP='{"coalescing": 3, "default": 1}'
+    """
+    raw = os.getenv(STEP_CANDIDATES_ENV, "").strip()
+    if not raw:
+        return 1
+    try:
+        if raw.startswith("{"):
+            payload = json.loads(raw)
+            value = payload.get(step_name, payload.get("default", 1))
+        else:
+            value = raw
+        count = int(value)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        logging.warning("Invalid %s=%r; using 1", STEP_CANDIDATES_ENV, raw)
+        return 1
+    return max(1, min(count, 8))
+
+
+def _candidate_attempt_count(default: int = 1) -> int:
+    """Return bounded per-candidate attempt count.
+
+    This is separate from candidate count. In exhaustive mode each candidate
+    can produce multiple synth-tested attempts, and the best successful
+    attempt becomes that candidate's representative.
+    """
+    raw = os.getenv(CANDIDATE_ATTEMPTS_ENV, "").strip()
+    if not raw:
+        return max(1, min(int(default or 1), 10))
+    try:
+        count = int(raw)
+    except (TypeError, ValueError):
+        logging.warning("Invalid %s=%r; using %s", CANDIDATE_ATTEMPTS_ENV, raw, default)
+        return max(1, min(int(default or 1), 10))
+    return max(1, min(count, 10))
+
+
+def _exhaustive_candidate_attempts_enabled() -> bool:
+    raw = os.getenv(EXHAUSTIVE_CANDIDATE_ATTEMPTS_ENV, "0")
+    try:
+        return bool(int(raw or "0"))
+    except (TypeError, ValueError):
+        logging.warning("Invalid %s=%r; using 0", EXHAUSTIVE_CANDIDATE_ATTEMPTS_ENV, raw)
+        return False
+
+
+def _metric_stats_from_reports(reports: list[dict]) -> dict:
+    """Compute min/max/avg for metrics present in synth reports."""
+    metrics = (
+        "latency_cycles", "latency_ns", "interval",
+        "bram", "dsp", "ff", "lut", "uram", "fmax_mhz",
+    )
+    stats = {}
+    for metric in metrics:
+        values = []
+        for report in reports:
+            if not isinstance(report, dict):
+                continue
+            value = _as_float(report.get(metric))
+            if value is not None:
+                values.append(value)
+        if not values:
+            continue
+        stats[metric] = {
+            "min": min(values),
+            "max": max(values),
+            "avg": sum(values) / len(values),
+            "count": len(values),
+        }
+    return stats
+
+
+def _compact_attempt_record(record: dict) -> dict:
+    """Strip heavy code blobs from nested candidate/attempt telemetry."""
+    if not isinstance(record, dict):
+        return record
+    item = {k: v for k, v in record.items() if k != "code"}
+    if "attempt_results" in item:
+        item["attempt_results"] = [
+            _compact_attempt_record(entry)
+            for entry in (item.get("attempt_results") or [])
+        ]
+    if "candidate_attempts" in item:
+        item["candidate_attempts"] = [
+            _compact_attempt_record(entry)
+            for entry in (item.get("candidate_attempts") or [])
+        ]
+    return item
+
+
+def _render_candidate_improvement_prompt(step_name: str, candidate_index: int,
+                                         candidate_count: int, attempt_index: int,
+                                         attempt_count: int, report: dict,
+                                         current_code: str) -> str:
+    """Prompt fragment for exhaustive candidate attempts after a pass."""
+    return (
+        f"CANDIDATE SEARCH CONTINUATION: candidate {candidate_index + 1} "
+        f"of {candidate_count}, attempt {attempt_index + 1} of {attempt_count} "
+        f"for `{step_name}`.\n\n"
+        "The previous attempt compiled, synthesized, and passed available "
+        "correctness checks. Produce another complete HLS C++ implementation "
+        "for the same optimization step that tries to improve latency while "
+        "preserving correctness and staying within the same resource budget. "
+        "Do not remove required interface pragmas or change the public "
+        "function signature.\n\n"
+        "Previous successful attempt report:\n"
+        f"{format_report_summary(report)}\n\n"
+        "Current code to improve:\n"
+        "```cpp\n"
+        f"{current_code[:6000]}\n"
+        "```\n\n"
+        "Return only the complete revised C++ code in a fenced cpp block."
+    )
 
 
 def _render_regression_guidance(step_name: str, reasons: list) -> str:
@@ -1794,9 +2109,19 @@ class TranslatorAgent(_AgentBase):
         """Run Phase B's initial translate prompt and return the extracted
         HLS code. Does not synthesize — the SynthesisAgent does that."""
         orch = self.orch
-        logging.info("=== [Phase B] Translating C to HLS ===")
+        mode = _normalize_phaseb_mode(
+            getattr(orch, "phaseb_mode", ""),
+            multistep=bool(getattr(orch, "_phaseb_multistep_context", False)),
+        )
+        orch.phaseb_mode = mode
+        logging.info("=== [Phase B] Translating C to HLS (mode=%s) ===", mode)
 
-        prompt = q_translate_c_to_hls.format(
+        prompt_template = (
+            q_translate_c_to_hls_functional
+            if mode == "functional"
+            else q_translate_c_to_hls
+        )
+        prompt = prompt_template.format(
             c_code=orch.c_code,
             header_code=orch.header_code,
             benchmark_context=orch.benchmark_context,
@@ -1816,6 +2141,7 @@ class TranslatorAgent(_AgentBase):
             logging.error("[Phase B] No code block in LLM response")
             orch._append_history("system", "[Phase B] FAIL: no code in response")
             return None
+        orch._append_history("system", f"[Phase B] Translation mode: {mode}.")
         return hls_code
 
     def retranslate_with_guidance(self, guidance: str,
@@ -1832,7 +2158,14 @@ class TranslatorAgent(_AgentBase):
             "=== [Phase 8] Re-translating with baseline-alignment "
             "guidance (attempt %d) ===", attempt,
         )
-        base_prompt = q_translate_c_to_hls.format(
+        # Baseline alignment always uses the functional prompt in multistep:
+        # the goal is a clean starting point, not accidental optimization.
+        prompt_template = (
+            q_translate_c_to_hls_functional
+            if _normalize_phaseb_mode(getattr(orch, "phaseb_mode", ""), multistep=True) == "functional"
+            else q_translate_c_to_hls
+        )
+        base_prompt = prompt_template.format(
             c_code=orch.c_code,
             header_code=orch.header_code,
             benchmark_context=orch.benchmark_context,
@@ -1904,6 +2237,29 @@ class SynthesisAgent(_AgentBase):
             "csim": outcome.get("csim"),
             "cosim": outcome.get("cosim"),
         }
+
+    def _correctness_gate_failure(self, outcome: dict) -> "tuple[str, str]":
+        """Return (gate_name, error_text) when Phase B synth passes but a
+        generated csim/cosim check that actually ran fails.
+
+        Phase B is only a valid baseline when it is functionally correct under
+        the available generated testbench. Reference csim can be externally
+        trusted, but generated code must still pass its own correctness gate.
+        """
+        if os.getenv("C2HLS_DISABLE_CORRECTNESS_REPAIR", "0").lower() in ("1", "true", "yes"):
+            return "", ""
+        for gate_name in ("csim", "cosim"):
+            summary = outcome.get(gate_name)
+            if not isinstance(summary, dict):
+                continue
+            if not summary.get("ran") or summary.get("passed"):
+                continue
+            gate_error = (
+                (summary.get("error") or "").strip() + "\n"
+                + (summary.get("log_excerpt") or "").strip()
+            ).strip() or "(testbench reported a mismatch but did not capture an error message)"
+            return gate_name, gate_error
+        return "", ""
 
     def _restore_from_best(self, best: dict) -> None:
         orch = self.orch
@@ -1990,10 +2346,52 @@ class SynthesisAgent(_AgentBase):
                             (orch.generated_cosim.get("error") or "")[:200],
                         )
 
-                # Snapshot for potential revert later (e.g. if a future
-                # quality-repair-style chain breaks things). Currently
-                # synthesize_with_repair returns on first success, but the
-                # snapshot is cheap and future-proofs the agent.
+                gate_name, gate_error = self._correctness_gate_failure(outcome)
+                if gate_name:
+                    logging.warning(
+                        "[Phase B] %s FAILED on attempt %d — asking translator/synthesis "
+                        "thread to repair functionality before optimization",
+                        gate_name,
+                        turn,
+                    )
+                    failure = f"{gate_name}_failed: {gate_error[:300]}"
+                    orch.turn_results.append({
+                        "turn": turn,
+                        "phase": "B",
+                        "success": False,
+                        "stage": gate_name,
+                        "report": result.get("report", {}),
+                        "csim": outcome.get("csim"),
+                        "cosim": outcome.get("cosim"),
+                        "error": failure,
+                    })
+                    error_class_history.append(f"{gate_name}_failed")
+                    if self._should_revert(error_class_history, best_state, threshold):
+                        return self._revert_and_exit(error_class_history, best_state, threshold)
+                    if turn >= orch.turns_limitation - 1:
+                        continue
+                    fix_prompt = hls_correctness_repair_fix.format(
+                        step_name="initial translation",
+                        gate_name=gate_name,
+                        gate_error=gate_error[:2000],
+                        hls_code=orch.hls_code,
+                        header_code=orch.header_code,
+                        benchmark_context=orch.benchmark_context,
+                        attempt_history=_format_attempt_history(orch.turn_results, "B"),
+                    )
+                    orch.messages.append({"role": "user", "content": fix_prompt})
+                    reply = self._call_llm(orch.messages)
+                    orch.messages.append({"role": "assistant", "content": reply})
+                    orch._append_history("user", fix_prompt)
+                    orch._append_history("assistant", reply)
+                    fixed = extract_cpp_code(reply)
+                    if fixed:
+                        orch.hls_code = fixed
+                    continue
+
+                # Snapshot only after correctness passes (or no generated
+                # testbench was available). A synth-only success with failing
+                # csim is not a usable Phase B baseline.
                 best_state = self._record_best(orch.hls_code, result, outcome)
                 error_class_history.clear()
                 return True
@@ -2037,7 +2435,7 @@ class SynthesisAgent(_AgentBase):
 
         orch._append_history(
             "system",
-            f"[Phase B] FAIL: HLS synthesis not achieved in {orch.turns_limitation} turns",
+            f"[Phase B] FAIL: HLS synthesis/correctness not achieved in {orch.turns_limitation} turns",
         )
         return False
 
@@ -2456,7 +2854,10 @@ class C2HLSOrchestrator:
             assert HAS_ANTHROPIC, "anthropic package required for Claude models: pip install anthropic"
             api_key = _load_anthropic_api_key()
             assert api_key, f"Missing Anthropic API key. Set ANTHROPIC_API_KEY or populate {CLAUDE_API_KEY_FILE}."
-            self.anthropic_client = anthropic.Anthropic(api_key=api_key)
+            self.anthropic_client = anthropic.Anthropic(
+                api_key=api_key,
+                timeout=_llm_timeout_seconds(),
+            )
         else:
             if self.use_hosted_openai:
                 self.key = _load_openai_api_key()
@@ -2465,7 +2866,11 @@ class C2HLSOrchestrator:
             else:
                 self.key = os.getenv("OPENAI_API_KEY", "EMPTY")
                 self.base_url = os.getenv("OPENAI_BASE_URL", "http://127.0.0.1:8000/v1")
-            self.client = OpenAI(base_url=self.base_url, api_key=self.key)
+            self.client = OpenAI(
+                base_url=self.base_url,
+                api_key=self.key,
+                timeout=_llm_timeout_seconds(),
+            )
 
         # Per-agent LLM cache. Populated lazily when an agent's model differs
         # from the orchestrator's default. Keys: model id; values: tuple
@@ -2477,6 +2882,8 @@ class C2HLSOrchestrator:
         self.c_code = None
         self.header_code = ""
         self.header_name = "kernel.h"
+        self.phaseb_mode = os.getenv(PHASEB_MODE_ENV, "").strip().lower()
+        self.phase_b_fast_candidate = None
         self.hls_code = None
         self.synth_report = None
         self.testbench_code = ""
@@ -2491,6 +2898,7 @@ class C2HLSOrchestrator:
         self.generated_cosim = None
         self.benchmark_name = ""
         self.benchmark_context = ""
+        self.preflight_patches = []
         self.turn_results = []  # tracks each synthesis attempt: {turn, phase, success, report, error}
         self.quality_repair_result = {
             "attempted": False,
@@ -2502,8 +2910,16 @@ class C2HLSOrchestrator:
         # All opt-in. dynamic_routing=False keeps the static
         # tiling→pipeline→… order unchanged. Toggle via
         # `C2HLS_DYNAMIC_ROUTING=1`, the `--dynamic-routing` CLI flag,
-        # or by setting `orch.dynamic_routing = True` directly.
-        self.dynamic_routing: bool = bool(int(os.getenv("C2HLS_DYNAMIC_ROUTING", "0")))
+        # `C2HLS_STRATEGY=dynamic`, or by setting `orch.dynamic_routing = True`
+        # directly. Historically the sweep runner set only C2HLS_STRATEGY,
+        # which loaded the skill library but still used static ordering; keep
+        # the two knobs coherent so "dynamic" always means routed.
+        env_strategy = os.getenv("C2HLS_STRATEGY", "").strip().lower()
+        dynamic_env = os.getenv("C2HLS_DYNAMIC_ROUTING", "0").strip().lower()
+        self.dynamic_routing: bool = (
+            dynamic_env in {"1", "true", "yes", "on"}
+            or env_strategy == "dynamic"
+        )
         self.skill_library = None  # SkillLibrary, lazy-loaded when dynamic_routing kicks in
         self.vitis_version: str = os.getenv("C2HLS_VITIS_VERSION", "")
         # Trajectory-collapse / throughput-regression telemetry, populated
@@ -2514,11 +2930,11 @@ class C2HLSOrchestrator:
         # ---- Phase 3 wiring: strategy + GT-aware revert tolerance ----
         # `strategy` is the source of truth. dynamic_routing flag
         # remains for backward compat (it implies strategy="dynamic").
-        # Allowed values: "static" | "dynamic" | "combo" | "combo_progressive".
+        # Allowed values: "static" | "dynamic" | "combo" | "combo_full" |
+        # "combo_progressive" | "forward_eval" | "flash".
         # `gt_aware_revert` toggles the trajectory-alignment check that
         # tolerates regressions on enabling steps when the GT trajectory
         # also regresses there.
-        env_strategy = os.getenv("C2HLS_STRATEGY", "").strip().lower()
         if env_strategy:
             self.strategy: str = env_strategy
         elif self.dynamic_routing:
@@ -2603,7 +3019,10 @@ class C2HLSOrchestrator:
                 f"Missing Anthropic API key for agent model {model!r}; "
                 f"set ANTHROPIC_API_KEY or populate {CLAUDE_API_KEY_FILE}."
             )
-            client = anthropic.Anthropic(api_key=api_key)
+            client = anthropic.Anthropic(
+                api_key=api_key,
+                timeout=_llm_timeout_seconds(),
+            )
             entry = ("anthropic", client)
         else:
             if _is_hosted_openai_model(model):
@@ -2616,7 +3035,11 @@ class C2HLSOrchestrator:
                 api_key = os.getenv("OPENAI_API_KEY", "EMPTY")
                 base_url = os.getenv("OPENAI_BASE_URL",
                                      "http://127.0.0.1:8000/v1")
-            entry = ("openai", OpenAI(base_url=base_url, api_key=api_key))
+            entry = ("openai", OpenAI(
+                base_url=base_url,
+                api_key=api_key,
+                timeout=_llm_timeout_seconds(),
+            ))
         self._extra_clients[model] = entry
         return entry
 
@@ -2677,6 +3100,20 @@ class C2HLSOrchestrator:
             self.testbench_code,
             self.translated_hls_top,
         )
+        normalized, interface_note = _normalize_vitis_s_axilite_bundles(normalized)
+        if interface_note:
+            note = "; ".join(part for part in (note, interface_note) if part)
+        if self.benchmark_name == "srad":
+            normalized, srad_notes = _normalize_srad_halo_copy_offsets(normalized)
+            if srad_notes:
+                for srad_note in srad_notes:
+                    self.preflight_patches.append({
+                        "context": context,
+                        "kind": "srad_halo_copy_offset",
+                        "detail": srad_note,
+                        "profile_required": True,
+                    })
+                note = "; ".join(part for part in (note, "SRAD preflight: " + "; ".join(srad_notes)) if part)
         if note:
             logging.info("[%s] ABI preflight: %s", context, note)
             self._append_history("system", f"[{context}] ABI preflight: {note}")
@@ -2791,16 +3228,25 @@ class C2HLSOrchestrator:
         """Delegate to TranslatorAgent."""
         return self.translator.run_phase_a(c_code, header_code, header_name)
 
-    def run_phase_b(self) -> bool:
+    def run_phase_b(self, *, multistep: bool = False) -> bool:
         """Delegate to TranslatorAgent for the initial translate, then to
         SynthesisAgent for the synth+repair loop. Splitting these two lets
         future RL work plug in different policies for "produce code" vs
         "fix a synth failure" without restructuring the full pipeline."""
-        hls_code = self.translator.translate_initial()
-        if not hls_code:
-            return False
-        self.hls_code = hls_code
-        return self.synthesis.synthesize_with_repair()
+        prev_context = getattr(self, "_phaseb_multistep_context", False)
+        self._phaseb_multistep_context = bool(multistep)
+        self.phaseb_mode = _normalize_phaseb_mode(
+            os.getenv(PHASEB_MODE_ENV, ""),
+            multistep=bool(multistep),
+        )
+        try:
+            hls_code = self.translator.translate_initial()
+            if not hls_code:
+                return False
+            self.hls_code = hls_code
+            return self.synthesis.synthesize_with_repair()
+        finally:
+            self._phaseb_multistep_context = prev_context
 
     def _baseline_alignment_loop(
         self,
@@ -2980,7 +3426,8 @@ class C2HLSOrchestrator:
         return self._gt_baseline_report or None
 
     def run_optimization_step(self, step_name: str, gt_code: str = None,
-                               gt_header_code: str = None) -> dict:
+                               gt_header_code: str = None,
+                               skill_id: Optional[str] = None) -> dict:
         """Run one optimization step with a regression guard.
 
         Outer logic: try the step (LLM + synth + repair). If it succeeds but
@@ -3025,6 +3472,7 @@ class C2HLSOrchestrator:
                 step_name, gt_code,
                 additional_guidance=regression_guidance,
                 gt_header_code=gt_header_code,
+                skill_id=skill_id,
             )
             if not attempt.get("success"):
                 # Synth itself failed (compile/synth budget exhausted). Don't
@@ -3129,6 +3577,14 @@ class C2HLSOrchestrator:
                                   "bram", "dsp", "ff", "lut", "fmax_mhz")
                     },
                 }
+                static_extras = ((new_report.get("feedback") or {}).get("static_extras") or {})
+                if static_extras:
+                    try:
+                        from hls_feedback import render_static_extras_for_prompt
+                        bottleneck_record["static_extras_summary"] = static_extras.get("summary")
+                        bottleneck_record["static_extras_prompt"] = render_static_extras_for_prompt(static_extras)
+                    except Exception as exc:  # pragma: no cover
+                        logging.warning("static_extras render failed: %s", exc)
                 deterministic = self.feedback.render(
                     "regression", step_name=step_name, reasons=reasons,
                 )
@@ -3219,7 +3675,94 @@ class C2HLSOrchestrator:
 
     def _optimization_step_attempt(self, step_name: str, gt_code: str = None,
                                    additional_guidance: str = "",
-                                   gt_header_code: str = None) -> dict:
+                                   gt_header_code: str = None,
+                                   skill_id: Optional[str] = None) -> dict:
+        """Run one or more independent candidates for an optimization step.
+
+        Candidate count is controlled by C2HLS_CANDIDATES_PER_STEP. This is
+        bounded search, not RL: every candidate goes through the existing
+        synth/correctness-repair path, and the best successful candidate by
+        latency/resource score is returned to the existing regression guard.
+        """
+        count = _step_candidate_count(step_name)
+        exhaustive = _exhaustive_candidate_attempts_enabled()
+        attempt_count = _candidate_attempt_count(self.turns_limitation) if exhaustive else 1
+        if count <= 1:
+            return self._optimization_step_attempt_single(
+                step_name,
+                gt_code,
+                additional_guidance=additional_guidance,
+                gt_header_code=gt_header_code,
+                skill_id=skill_id,
+                candidate_index=0,
+                candidate_count=1,
+            )
+
+        attempts: list = []
+        for candidate_index in range(count):
+            attempt = self._optimization_step_attempt_single(
+                step_name,
+                gt_code,
+                additional_guidance=additional_guidance,
+                gt_header_code=gt_header_code,
+                skill_id=skill_id,
+                candidate_index=candidate_index,
+                candidate_count=count,
+            )
+            attempt["candidate_index"] = candidate_index
+            attempt["candidate_count"] = count
+            attempts.append(attempt)
+
+        successes = [a for a in attempts if a.get("success") and a.get("report")]
+        candidate_search = {
+            "candidate_count": count,
+            "attempts_per_candidate": attempt_count,
+            "exhaustive_attempts": exhaustive,
+            "successful_candidates": len(successes),
+            "candidate_stats": _metric_stats_from_reports(
+                [a.get("report") for a in successes if a.get("report")]
+            ),
+            "all_attempt_stats": _metric_stats_from_reports([
+                entry.get("report")
+                for attempt in attempts
+                for entry in (attempt.get("attempt_results") or [])
+                if entry.get("success") and entry.get("report")
+            ]),
+        }
+        if not successes:
+            chosen = attempts[-1] if attempts else {
+                "success": False,
+                "step_name": step_name,
+                "error": "no candidates attempted",
+            }
+            chosen["candidate_attempts"] = [
+                _compact_attempt_record(a) for a in attempts
+            ]
+            chosen["candidate_search"] = candidate_search
+            return chosen
+
+        chosen = min(successes, key=lambda a: self._best_so_far_score(a.get("report") or {}))
+        chosen["candidate_selected"] = True
+        chosen["selected_candidate_index"] = chosen.get("candidate_index")
+        chosen["candidate_attempts"] = [
+            _compact_attempt_record(a) for a in attempts
+        ]
+        candidate_search["selected_candidate_index"] = chosen.get("candidate_index")
+        candidate_search["selected_attempt_index"] = chosen.get("selected_attempt_index")
+        chosen["candidate_search"] = candidate_search
+        self._append_history(
+            "system",
+            f"[Step: {step_name}] selected candidate "
+            f"{chosen.get('candidate_index')} of {count}.",
+        )
+        return chosen
+
+    def _optimization_step_attempt_single(self, step_name: str, gt_code: str = None,
+                                          additional_guidance: str = "",
+                                          gt_header_code: str = None,
+                                          skill_id: Optional[str] = None,
+                                          candidate_index: int = 0,
+                                          candidate_count: int = 1) -> dict:
         """One optimization-step pass: LLM → synth + repair loop. Returns a
         step_result dict with success / code / report / vs_previous / vs_ground_truth.
 
@@ -3228,6 +3771,11 @@ class C2HLSOrchestrator:
         regression check. This deferred-commit design is what makes the
         regression guard possible.
         """
+        exhaustive = _exhaustive_candidate_attempts_enabled()
+        attempt_limit = (
+            _candidate_attempt_count(self.turns_limitation)
+            if exhaustive else self.turns_limitation
+        )
         report_str = (
             format_report_summary(self.synth_report)
             if self.synth_report else "(no prior report)"
@@ -3257,6 +3805,21 @@ class C2HLSOrchestrator:
             requested_clock_ns=self.clock_ns,
         )
         extra_blocks = []
+        if candidate_count > 1:
+            extra_blocks.append(
+                f"CANDIDATE SEARCH: this is candidate {candidate_index + 1} "
+                f"of {candidate_count} for `{step_name}`. Produce a distinct, "
+                "correct implementation of the requested step. Do not copy a "
+                "previous candidate unless it is clearly the only safe option."
+            )
+        if exhaustive:
+            extra_blocks.append(
+                f"EXHAUSTIVE ATTEMPT MODE: this candidate will be evaluated for "
+                f"{attempt_limit} attempts. Each attempt must be a complete, "
+                "synthesizable design variant. Later attempts should use the "
+                "reported feedback from earlier attempts to improve latency, "
+                "Fmax, or resource balance while preserving correctness."
+            )
         if signal:
             extra_blocks.append(signal)
 
@@ -3294,23 +3857,31 @@ class C2HLSOrchestrator:
         if self.skill_library is not None and self.synth_report is not None:
             try:
                 from skill_library import render_skill_set_for_prompt
-                feedback = (self.synth_report or {}).get("feedback") or {}
-                top_bottleneck_kind = None
-                bns = feedback.get("bottlenecks") or []
-                if bns:
-                    top_bottleneck_kind = bns[0].get("kind")
-                if top_bottleneck_kind:
-                    matching = self.skill_library.query(
-                        bottleneck_kind=top_bottleneck_kind,
-                        vitis_version=self.vitis_version,
-                        fpga=self.part,
-                    )
+                matching = []
+                selected_skill = self.skill_library.get(skill_id) if skill_id else None
+                if selected_skill:
+                    matching = [selected_skill]
+                    top_bottleneck_kind = None
+                else:
+                    feedback = (self.synth_report or {}).get("feedback") or {}
+                    top_bottleneck_kind = None
+                    bns = feedback.get("bottlenecks") or []
+                    if bns:
+                        top_bottleneck_kind = bns[0].get("kind")
+                    if top_bottleneck_kind:
+                        matching = self.skill_library.query(
+                            bottleneck_kind=top_bottleneck_kind,
+                            vitis_version=self.vitis_version,
+                            fpga=self.part,
+                        )
+                if matching:
                     skill_block = render_skill_set_for_prompt(matching, max_skills=2)
                     if skill_block and "No matching skills" not in skill_block:
                         extra_blocks.append(
                             "RELEVANT SKILLS from library (pattern → strategy → "
-                            "template). Apply the highest-confidence one that "
-                            f"addresses the bottleneck '{top_bottleneck_kind}' "
+                            "required steps → guardrails → template/example). "
+                            "Apply the highest-confidence one that "
+                            f"addresses the bottleneck/route '{top_bottleneck_kind or skill_id}' "
                             f"on the `{step_name}` step:\n\n" + skill_block
                         )
             except Exception as exc:  # pragma: no cover - skill injection best-effort
@@ -3335,11 +3906,17 @@ class C2HLSOrchestrator:
         if not new_code:
             logging.error("[Step: %s] No code in LLM response", step_name)
             return {"success": False, "step_name": step_name,
-                    "error": "No code in response"}
+                    "error": "No code in response",
+                    "candidate_index": candidate_index,
+                    "candidate_count": candidate_count,
+                    "attempt_count": attempt_limit,
+                    "attempt_results": []}
 
         step_turn_records: list[dict] = []  # per-step attempt history
+        attempt_results: list[dict] = []
+        successful_attempts: list[dict] = []
 
-        for turn in range(self.turns_limitation):
+        for turn in range(attempt_limit):
             logging.info("[Step: %s] Synthesis attempt %d", step_name, turn)
             new_code = self._preflight_generated_hls_code(
                 new_code, f"Step {step_name} attempt {turn}",
@@ -3350,6 +3927,14 @@ class C2HLSOrchestrator:
                 extra_files=self.extra_files,
             )
             if not ok:
+                attempt_results.append({
+                    "attempt_index": turn,
+                    "candidate_index": candidate_index,
+                    "candidate_count": candidate_count,
+                    "success": False,
+                    "stage": "compile_check",
+                    "error": err,
+                })
                 step_turn_records.append({"turn": turn, "phase": "B",
                                           "success": False, "error": err})
                 logging.warning("[Step: %s] Compile error: %s", step_name, err[:200])
@@ -3388,33 +3973,44 @@ class C2HLSOrchestrator:
                     )
 
                 if gt_code:
-                    # Per-variant headers carry step-specific `#define`s
-                    # (TILE_SIZE, COALESCING_5_512bit, …). Falling back to the
-                    # local header here makes GT synth fail with "undeclared
-                    # identifier", which silently zeroes the per-step gen-vs-gt
-                    # comparison.
-                    gt_hdr = gt_header_code if gt_header_code else self.header_code
-                    gt_result = run_hls_synthesis(
-                        gt_code,
-                        gt_hdr,
-                        header_name=self.header_name,
-                        top_function=self.reference_hls_top,
-                        part=self.part,
-                        clock_ns=self.clock_ns,
-                        extra_files=self.extra_files,
-                    )
-                    if gt_result["success"]:
+                    cached_gt_report = self._gt_step_reports.get(step_name)
+                    if cached_gt_report:
                         step_result["vs_ground_truth"] = compare_reports(
-                            result["report"], gt_result["report"],
+                            result["report"], cached_gt_report,
                         )
-                        step_result["gt_report"] = gt_result["report"]
-                        # Phase 3: cache the GT step report so
-                        # _previous_gt_report_for_step can find it later
-                        # when the alignment check kicks in.
-                        if step_name and gt_result.get("report"):
-                            self._gt_step_reports[step_name] = gt_result["report"]
+                        step_result["gt_report"] = cached_gt_report
+                        step_result["gt_report_status"] = {
+                            "status": "passed",
+                            "source": "trusted_external_direct_jsonl",
+                        }
                     else:
-                        step_result["gt_report_status"] = _summarize_synth_result(gt_result)
+                        # Per-variant headers carry step-specific `#define`s
+                        # (TILE_SIZE, COALESCING_5_512bit, …). Falling back to the
+                        # local header here makes GT synth fail with "undeclared
+                        # identifier", which silently zeroes the per-step gen-vs-gt
+                        # comparison.
+                        gt_hdr = gt_header_code if gt_header_code else self.header_code
+                        gt_result = run_hls_synthesis(
+                            gt_code,
+                            gt_hdr,
+                            header_name=self.header_name,
+                            top_function=self.reference_hls_top,
+                            part=self.part,
+                            clock_ns=self.clock_ns,
+                            extra_files=self.extra_files,
+                        )
+                        if gt_result["success"]:
+                            step_result["vs_ground_truth"] = compare_reports(
+                                result["report"], gt_result["report"],
+                            )
+                            step_result["gt_report"] = gt_result["report"]
+                            # Phase 3: cache the GT step report so
+                            # _previous_gt_report_for_step can find it later
+                            # when the alignment check kicks in.
+                            if step_name and gt_result.get("report"):
+                                self._gt_step_reports[step_name] = gt_result["report"]
+                        else:
+                            step_result["gt_report_status"] = _summarize_synth_result(gt_result)
 
                 if outcome["csim"] is not None:
                     step_result["csim"] = outcome["csim"]
@@ -3456,6 +4052,17 @@ class C2HLSOrchestrator:
                         "correctness-repair loop",
                         step_name, gate_name, turn,
                     )
+                    attempt_results.append({
+                        "attempt_index": turn,
+                        "candidate_index": candidate_index,
+                        "candidate_count": candidate_count,
+                        "success": False,
+                        "stage": gate_name,
+                        "report": result.get("report"),
+                        "csim": csim_summary,
+                        "cosim": cosim_summary,
+                        "error": f"{gate_name}_failed: {gate_error[:300]}",
+                    })
                     step_turn_records.append({
                         "turn": turn, "phase": "B",
                         "success": False,
@@ -3481,10 +4088,63 @@ class C2HLSOrchestrator:
                         new_code = fixed
                     continue
 
-                return step_result
+                step_result.update({
+                    "attempt_index": turn,
+                    "attempt_count": attempt_limit,
+                    "candidate_index": candidate_index,
+                    "candidate_count": candidate_count,
+                })
+                attempt_results.append(_compact_attempt_record(step_result))
+                successful_attempts.append(step_result)
+
+                if not exhaustive:
+                    return step_result
+
+                if turn >= attempt_limit - 1:
+                    break
+
+                improve_prompt = _render_candidate_improvement_prompt(
+                    step_name,
+                    candidate_index,
+                    candidate_count,
+                    turn + 1,
+                    attempt_limit,
+                    result["report"],
+                    new_code,
+                )
+                self.messages.append({"role": "user", "content": improve_prompt})
+                reply = self._call_llm(self.messages)
+                self.messages.append({"role": "assistant", "content": reply})
+                self._append_history("assistant", reply)
+                improved = extract_cpp_code(reply)
+                if not improved:
+                    attempt_results.append({
+                        "attempt_index": turn + 1,
+                        "candidate_index": candidate_index,
+                        "candidate_count": candidate_count,
+                        "success": False,
+                        "stage": "llm_improvement",
+                        "error": "No code in improvement response",
+                    })
+                    break
+                step_turn_records.append({
+                    "turn": turn, "phase": "B", "success": True,
+                    "report": result.get("report"),
+                })
+                new_code = improved
+                continue
 
             logging.warning("[Step: %s] Synthesis failed: %s",
                             step_name, result["error"][:300])
+            attempt_results.append({
+                "attempt_index": turn,
+                "candidate_index": candidate_index,
+                "candidate_count": candidate_count,
+                "success": False,
+                "stage": "synthesis",
+                "report": result.get("report"),
+                "error": result["error"],
+            })
             step_turn_records.append({"turn": turn, "phase": "B",
                                       "success": False, "error": result["error"]})
             is_timeout = "timed out" in result["error"].lower()
@@ -3518,6 +4178,31 @@ class C2HLSOrchestrator:
             if fixed:
                 new_code = fixed
 
+        if exhaustive and successful_attempts:
+            chosen = min(
+                successful_attempts,
+                key=lambda a: self._best_so_far_score(a.get("report") or {}),
+            )
+            chosen["attempt_selected"] = True
+            chosen["selected_attempt_index"] = chosen.get("attempt_index")
+            chosen["attempt_results"] = [
+                _compact_attempt_record(entry) for entry in attempt_results
+            ]
+            chosen["attempt_stats"] = _metric_stats_from_reports([
+                entry.get("report")
+                for entry in attempt_results
+                if entry.get("success") and entry.get("report")
+            ])
+            chosen["successful_attempt_count"] = len(successful_attempts)
+            chosen["attempt_count"] = attempt_limit
+            self._append_history(
+                "system",
+                f"[Step: {step_name}] candidate {candidate_index + 1}/"
+                f"{candidate_count} selected attempt "
+                f"{chosen.get('selected_attempt_index')} of {attempt_limit}.",
+            )
+            return chosen
+
         # Loop exhausted. Tail the last attempt record so the caller can
         # tell whether we ran out of synth budget or correctness budget
         # — Pillar 9's no-op trap and the new correctness-repair loop
@@ -3528,14 +4213,24 @@ class C2HLSOrchestrator:
         if last_err.startswith("csim_failed") or last_err.startswith("cosim_failed"):
             error_msg = (
                 f"Correctness repair exhausted after "
-                f"{self.turns_limitation} attempts ({last_err[:160]})"
+                f"{attempt_limit} attempts ({last_err[:160]})"
             )
         else:
-            error_msg = f"Synthesis failed after {self.turns_limitation} attempts"
+            error_msg = f"Synthesis failed after {attempt_limit} attempts"
         return {
             "success": False,
             "step_name": step_name,
             "error": error_msg,
+            "attempt_results": [
+                _compact_attempt_record(entry) for entry in attempt_results
+            ],
+            "attempt_stats": _metric_stats_from_reports([
+                entry.get("report")
+                for entry in attempt_results
+                if entry.get("success") and entry.get("report")
+            ]),
+            "successful_attempt_count": len(successful_attempts),
+            "attempt_count": attempt_limit,
         }
 
     # ---- Phase 6a: best-so-far tracking helpers ----
@@ -3559,9 +4254,21 @@ class C2HLSOrchestrator:
                 rsum += float(report.get(k) or 0)
             except (TypeError, ValueError):
                 pass
+        timing_penalty = 0.0
+        slack = _as_float(report.get("slack_ns"))
+        estimated = _as_float(report.get("estimated_clock_period_ns"))
+        requested = _as_float(report.get("requested_clock_period_ns"))
+        if slack is not None and slack < 0:
+            timing_penalty = 1e15 + abs(slack) * 1e12
+        elif (
+            estimated is not None
+            and requested is not None
+            and estimated > requested + 1e-9
+        ):
+            timing_penalty = 1e15 + (estimated - requested) * 1e12
         # 1e-6 weight on resources so resource ties only matter at
         # millions-of-cycles latency parity.
-        return lat + rsum * 1e-6
+        return lat + timing_penalty + rsum * 1e-6
 
     def _record_best_so_far(self, history: list, *, step_index: int,
                              step_name: str, source: str) -> None:
@@ -3578,6 +4285,47 @@ class C2HLSOrchestrator:
             "code": self.hls_code,
             "report": dict(self.synth_report),
         })
+
+    def _record_phase_b_fast_candidate(self, reference_report: Optional[dict]) -> None:
+        """Record an unusually fast Phase B result as provenance.
+
+        The record is metadata only. It preserves accidental fast baselines
+        for analysis while letting the multistep chain start from the chosen
+        Phase B mode without hidden fallback behavior.
+        """
+        self.phase_b_fast_candidate = None
+        if not reference_report or not self.synth_report:
+            return
+        try:
+            threshold = float(os.getenv("C2HLS_PHASEB_FAST_CANDIDATE_RATIO", "0.80"))
+        except ValueError:
+            threshold = 0.80
+        gap = _compute_baseline_gap(
+            self.synth_report,
+            reference_report,
+            latency_tolerance=max(threshold, 1e-9),
+            resource_tolerance=1e9,
+            fmax_floor=0.0,
+        )
+        ratio = gap.get("latency_ratio")
+        if ratio is None or ratio >= threshold:
+            return
+        self.phase_b_fast_candidate = {
+            "recorded": True,
+            "reason": (
+                f"Phase B baseline is faster than reference baseline "
+                f"({ratio:.3f}x < {threshold:.3f}x)"
+            ),
+            "phaseb_mode": self.phaseb_mode,
+            "latency_ratio": ratio,
+            "report": dict(self.synth_report),
+            "code": self.hls_code,
+        }
+        self._append_history(
+            "system",
+            f"[Phase B] Recorded fast candidate: latency_ratio={ratio:.3f}, "
+            f"mode={self.phaseb_mode}.",
+        )
 
     def _promote_best_so_far(self, history: list) -> Optional[dict]:
         """If the orchestrator's current state isn't the best one
@@ -3609,7 +4357,8 @@ class C2HLSOrchestrator:
 
     def run_optimization_step_forward(self, step_name: str,
                                        gt_code: str = None,
-                                       gt_header_code: str = None) -> dict:
+                                       gt_header_code: str = None,
+                                       skill_id: Optional[str] = None) -> dict:
         """Forward-only step: csynth + csim + cosim are gates (correctness
         guards) but a regression in PPA does NOT revert. Lets the
         trajectory explore freely; the outer loop's best-so-far tracker
@@ -3632,6 +4381,7 @@ class C2HLSOrchestrator:
             step_name, gt_code,
             additional_guidance="",
             gt_header_code=gt_header_code,
+            skill_id=skill_id,
         )
         if not attempt.get("success"):
             return attempt
@@ -3672,8 +4422,17 @@ class C2HLSOrchestrator:
         if not self.run_phase_a(c_code, header_code, header_name):
             return False, {"phase": "A", "error": "C code validation failed"}
 
-        if not self.run_phase_b():
-            return False, {"phase": "B", "error": "Baseline HLS synthesis failed"}
+        if not self.run_phase_b(multistep=True):
+            return False, {
+                "phase": "B",
+                "error": "Baseline HLS synthesis/correctness failed",
+                "turn_results": self.turn_results,
+                "csim": self.generated_csim,
+                "cosim": self.generated_cosim,
+                "baseline_csim": self.generated_csim,
+                "baseline_cosim": self.generated_cosim,
+                "preflight_patches": self.preflight_patches,
+            }
 
         # Phase 8 (opt-in via C2HLS_PHASE8_BASELINE_ALIGN=1): if our Phase B
         # baseline is significantly worse than the reference baseline,
@@ -3681,6 +4440,7 @@ class C2HLSOrchestrator:
         # starts. This stops a bad initial translation from poisoning
         # every downstream optimization step.
         baseline_alignment = self._baseline_alignment_loop(reference_report)
+        self._record_phase_b_fast_candidate(reference_report)
 
         baseline_report = dict(self.synth_report) if self.synth_report else {}
         # Store on self so _optimization_step_attempt can diff per-loop
@@ -3743,6 +4503,9 @@ class C2HLSOrchestrator:
         if self.strategy in ("combo", "combo_full"):
             from prompt_c2hls import COMBO_FULL_STEPS
             steps = list(COMBO_FULL_STEPS)
+        elif self.strategy == "flash":
+            from prompt_c2hls import FLASH_STEPS
+            steps = list(FLASH_STEPS)
         elif self.strategy == "combo_progressive":
             from prompt_c2hls import COMBO_PROGRESSIVE_STEPS
             steps = list(COMBO_PROGRESSIVE_STEPS)
@@ -3750,7 +4513,8 @@ class C2HLSOrchestrator:
         # Phase 2: lazy-load the skill library when dynamic routing is on.
         if (self.dynamic_routing or self.strategy == "dynamic") and self.skill_library is None:
             from skill_library import make_default_library
-            self.skill_library = make_default_library(persist=False)
+            persist_skills = bool(int(os.getenv("C2HLS_SKILL_LIBRARY_PERSIST", "1") or "1"))
+            self.skill_library = make_default_library(persist=persist_skills)
 
         # When dynamic_routing is on, we walk the steps in
         # bottleneck-driven order rather than the configured static
@@ -3759,8 +4523,10 @@ class C2HLSOrchestrator:
         # When off, we fall through the original loop unchanged.
         # Combo modes always use the static loop (the combo IS the
         # strategy; they typically have 1-2 steps).
-        if self.dynamic_routing and self.strategy not in ("combo", "combo_full",
-                                                            "combo_progressive"):
+        if self.dynamic_routing and self.strategy not in (
+            *ONE_SHOT_STRATEGIES,
+            "combo_progressive",
+        ):
             from bottleneck_router import select_next_step
             from robustness import (
                 trajectory_collapse_check,
@@ -3797,14 +4563,53 @@ class C2HLSOrchestrator:
                 # Phase 6b: forward_eval mode skips regression-revert; only
                 # correctness gates (csynth/csim/cosim) apply. Best-so-far
                 # tracking commits the peak state at the end.
-                if self.strategy == "forward_eval":
-                    step_result = self.run_optimization_step_forward(
-                        step_name, gt_code=gt_code, gt_header_code=gt_header,
-                    )
-                else:
-                    step_result = self.run_optimization_step(
-                        step_name, gt_code=gt_code, gt_header_code=gt_header,
-                    )
+                try:
+                    if self.strategy == "forward_eval":
+                        step_result = self.run_optimization_step_forward(
+                            step_name, gt_code=gt_code, gt_header_code=gt_header,
+                            skill_id=decision.skill_id,
+                        )
+                    else:
+                        step_result = self.run_optimization_step(
+                            step_name, gt_code=gt_code, gt_header_code=gt_header,
+                            skill_id=decision.skill_id,
+                        )
+                except Exception as exc:
+                    logging.warning("[Multistep] Step '%s' raised: %s", step_name, exc)
+                    step_result = {
+                        "step_name": step_name,
+                        "success": False,
+                        "error": str(exc),
+                        "exception_type": type(exc).__name__,
+                        "profile_required": True,
+                        "report": {},
+                    }
+                    step_result["routing_decision"] = {
+                        "step_name": decision.step_name,
+                        "reason": decision.reason,
+                        "bottleneck_kind": decision.bottleneck_kind,
+                        "skill_id": decision.skill_id,
+                        "confidence": decision.confidence,
+                        "fallback": decision.fallback,
+                        "skills_loaded_count": (
+                            len(self.skill_library.all())
+                            if self.skill_library is not None else 0
+                        ),
+                        "skill_store": (
+                            str(getattr(self.skill_library, "store_path", ""))
+                            if self.skill_library is not None else None
+                        ),
+                    }
+                    step_results.append(step_result)
+                    completed.append(step_name)
+                    available = [s for s in available if s != step_name]
+                    self.robustness_log.append({
+                        "step": step_name,
+                        "kind": "step_exception",
+                        "error": str(exc),
+                        "exception_type": type(exc).__name__,
+                    })
+                    break
                 step_result["routing_decision"] = {
                     "step_name": decision.step_name,
                     "reason": decision.reason,
@@ -3812,6 +4617,14 @@ class C2HLSOrchestrator:
                     "skill_id": decision.skill_id,
                     "confidence": decision.confidence,
                     "fallback": decision.fallback,
+                    "skills_loaded_count": (
+                        len(self.skill_library.all())
+                        if self.skill_library is not None else 0
+                    ),
+                    "skill_store": (
+                        str(getattr(self.skill_library, "store_path", ""))
+                        if self.skill_library is not None else None
+                    ),
                 }
 
                 # Pillar 9 item 3: hidden throughput regression flag.
@@ -3848,6 +4661,33 @@ class C2HLSOrchestrator:
                 step_result["step_effect"] = effect
                 effects.append(effect)
 
+                if decision.skill_id and self.skill_library is not None:
+                    rel_adv = None
+                    cur_report = step_result.get("report") or {}
+                    try:
+                        prev_lat = float((prev_report or {}).get("latency_ns") or 0.0)
+                        cur_lat = float(cur_report.get("latency_ns") or 0.0)
+                        if prev_lat > 0 and cur_lat > 0:
+                            rel_adv = (prev_lat - cur_lat) / prev_lat
+                    except (TypeError, ValueError):
+                        rel_adv = None
+                    updated = self.skill_library.update_skill_statistics(
+                        decision.skill_id,
+                        success=bool(step_result.get("success")) and csim_passed is not False,
+                        relative_advantage=rel_adv,
+                    )
+                    if updated is not None:
+                        self.skill_library.promote_demote(decision.skill_id)
+                        step_result["skill_update"] = {
+                            "skill_id": decision.skill_id,
+                            "success": bool(step_result.get("success")) and csim_passed is not False,
+                            "relative_advantage": rel_adv,
+                            "occurrences": updated.occurrences,
+                            "sec_pass": updated.sec_pass,
+                            "mean_advantage": updated.mean_advantage,
+                            "confidence": updated.confidence,
+                        }
+
                 # Pillar 9 item 2: trajectory-collapse abort.
                 collapse = trajectory_collapse_check(effects)
                 if collapse.should_abort:
@@ -3878,14 +4718,33 @@ class C2HLSOrchestrator:
                 gt_code = gt_variants.get(step_name)
                 gt_header = gt_variant_headers.get(step_name)
                 # Phase 6b: forward_eval skips regression-revert.
-                if self.strategy == "forward_eval":
-                    step_result = self.run_optimization_step_forward(
-                        step_name, gt_code=gt_code, gt_header_code=gt_header,
-                    )
-                else:
-                    step_result = self.run_optimization_step(
-                        step_name, gt_code=gt_code, gt_header_code=gt_header,
-                    )
+                try:
+                    if self.strategy == "forward_eval":
+                        step_result = self.run_optimization_step_forward(
+                            step_name, gt_code=gt_code, gt_header_code=gt_header,
+                        )
+                    else:
+                        step_result = self.run_optimization_step(
+                            step_name, gt_code=gt_code, gt_header_code=gt_header,
+                        )
+                except Exception as exc:
+                    logging.warning("[Multistep] Step '%s' raised: %s", step_name, exc)
+                    step_result = {
+                        "step_name": step_name,
+                        "success": False,
+                        "error": str(exc),
+                        "exception_type": type(exc).__name__,
+                        "profile_required": True,
+                        "report": {},
+                    }
+                    step_results.append(step_result)
+                    self.robustness_log.append({
+                        "step": step_name,
+                        "kind": "step_exception",
+                        "error": str(exc),
+                        "exception_type": type(exc).__name__,
+                    })
+                    break
                 step_results.append(step_result)
                 if not step_result.get("success"):
                     logging.warning("[Multistep] Step '%s' failed: %s", step_name, step_result.get("error", "unknown"))
@@ -3899,6 +4758,12 @@ class C2HLSOrchestrator:
                                 else "step"),
                     )
 
+        if self.skill_library is not None and bool(int(os.getenv("C2HLS_SKILL_LIBRARY_PERSIST", "1") or "1")):
+            try:
+                self.skill_library.save()
+            except OSError as exc:
+                logging.warning("SkillLibrary persistence failed at trajectory end: %s", exc)
+
         # Phase 6a: at the end of the trajectory, promote whichever
         # snapshot has the best score (lowest latency_ns + tiny
         # resource-sum tiebreak). If the best is the current state, this
@@ -3907,7 +4772,7 @@ class C2HLSOrchestrator:
         promotion = self._promote_best_so_far(best_so_far_history)
 
         return True, {
-            "phase": "multistep",
+            "phase": "flash" if self.strategy == "flash" else "multistep",
             "baseline_report": baseline_report,
             "baseline_comparison": baseline_comparison,
             "baseline_csim": self.generated_csim,
@@ -3939,6 +4804,12 @@ class C2HLSOrchestrator:
                 {"promoted": False, "reason": "final state was already the best"}
             ),
             "baseline_alignment": baseline_alignment,
+            "phase_b_mode": self.phaseb_mode,
+            "preflight_patches": self.preflight_patches,
+            "phase_b_fast_candidate": (
+                {k: v for k, v in (self.phase_b_fast_candidate or {}).items() if k != "code"}
+                if self.phase_b_fast_candidate else None
+            ),
         }
 
     def save_results(self, output_dir: str, bench_name: str):
@@ -4001,8 +4872,15 @@ class C2HLSOrchestrator:
         if not self.run_phase_a(c_code, header_code, header_name):
             return False, {"phase": "A", "error": "C code validation failed"}
 
-        if not self.run_phase_b():
-            return False, {"phase": "B", "error": "HLS synthesis failed"}
+        if not self.run_phase_b(multistep=False):
+            return False, {
+                "phase": "B",
+                "error": "HLS synthesis/correctness failed",
+                "turn_history": self.turn_results,
+                "csim": self.generated_csim,
+                "cosim": self.generated_cosim,
+                "preflight_patches": self.preflight_patches,
+            }
 
         comparison = {}
         quality_repair = {
@@ -4028,6 +4906,7 @@ class C2HLSOrchestrator:
             "cosim": self.generated_cosim,
             "quality_repair": quality_repair,
             "turn_history": self.turn_results,
+            "preflight_patches": self.preflight_patches,
         }
 
 
@@ -4106,13 +4985,7 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
         vpath = bench_dir / vfile
         if not vpath.exists():
             continue
-        parts = vname.split("_", 2)
-        if len(parts) < 3:
-            continue
-        step_key = parts[2]
-        step_key = step_key.replace("double_buffer", "doublebuffer")
-        step_key = step_key.replace("unrolll", "unroll")
-        step_key = step_key.replace("unrolling", "unroll")
+        step_key = _normalize_variant_step_name(vname)
         with open(vpath, "r") as f:
             gt_variants[step_key] = f.read()
         # Prefer the upstream variant's own header so per-variant `#define`s
@@ -4182,8 +5055,8 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
 
 
 def _normalize_variant_step_name(variant_name: str) -> str:
-    parts = (variant_name or "").split("_", 2)
-    step_name = parts[2] if len(parts) >= 3 else (variant_name or "baseline")
+    match = re.search(r"_(\d+)_(.+)$", variant_name or "")
+    step_name = match.group(2) if match else (variant_name or "baseline")
     step_name = step_name.replace("double_buffer", "doublebuffer")
     step_name = step_name.replace("doublebuffer", "doublebuffer")
     step_name = step_name.replace("unrolll", "unroll")
@@ -4290,6 +5163,415 @@ def _preferred_reference_file(meta: dict, workflow: list[dict]) -> str:
     return meta.get("preferred_gt_file", "")
 
 
+def _preferred_reference_candidate_file(meta: dict, candidates: list[dict]) -> str:
+    preferred = meta.get("preferred_gt_file", "")
+    if preferred:
+        return preferred
+    if meta.get("source_repo") == "rodinia-hls":
+        for entry in reversed(candidates):
+            if entry.get("step_name") == "coalescing":
+                return entry.get("file", "")
+        optimized = [entry.get("file", "") for entry in candidates if entry.get("step_name") != "baseline"]
+        if optimized:
+            return optimized[-1]
+    return ""
+
+
+def _reference_jsonl_paths() -> list[Path]:
+    """Candidate direct-reference JSONL files, ordered from broad references
+    to local repair/rerun artifacts. Passing duplicate records are preferred
+    during indexing, so repair artifacts can improve an older fail/timeout
+    without silently masking a pass.
+    """
+    defaults = [
+        REPO_ROOT / "csynth_vitis_2023.2__device_xilinx_u280_gen3x16_xdma_1_202211_1.jsonl",
+        REPO_ROOT / "sw_emu_vitis_2023.2__device_xilinx_u280_gen3x16_xdma_1_202211_1.jsonl",
+        REPO_ROOT / "results" / "references_philip" / "sw_emu_vitis_2023.2__device_xilinx_u280_gen3x16_xdma_1_202211_1.jsonl",
+        REPO_ROOT / "results" / "references_philip" / "hw_emu_vitis_2023.2__device_xilinx_u280_gen3x16_xdma_1_202211_1.jsonl",
+        REPO_ROOT / "artifacts" / "requested_hwemu_matrix.jsonl",
+        REPO_ROOT / "artifacts" / "requested_hwemu_mismatch_rerun.jsonl",
+        REPO_ROOT / "artifacts" / "hw_emu_reference_candidate_after_mismatch_rerun.jsonl",
+        REPO_ROOT / "artifacts" / "nw2_pipeline_hwemu_xrt_debug_off_after_agentic_20260506_001152.jsonl",
+    ]
+    extra = [
+        Path(item)
+        for item in os.getenv("C2HLS_REFERENCE_JSONL_PATHS", "").split(os.pathsep)
+        if item.strip()
+    ]
+    paths = []
+    seen = set()
+    for path in [*defaults, *extra]:
+        if path in seen:
+            continue
+        seen.add(path)
+        if path.exists():
+            paths.append(path)
+    return paths
+
+
+def _record_payload_status(record: dict) -> str:
+    report_type = record.get("report_type")
+    payload = record.get(report_type) if report_type else None
+    if not isinstance(payload, dict):
+        return "unknown"
+    return str(payload.get("status") or "unknown").lower()
+
+
+def _direct_status_is_pass(status: str) -> bool:
+    return str(status or "").lower() in {"pass", "passed", "success", "ok"}
+
+
+def _normal_status(status: str) -> str:
+    lowered = str(status or "").lower()
+    if _direct_status_is_pass(lowered):
+        return "passed"
+    if lowered in {"fail", "failed", "error"}:
+        return "failed"
+    if lowered == "timeout":
+        return "timeout"
+    return lowered or "unknown"
+
+
+def _load_direct_reference_index() -> dict:
+    global _DIRECT_REFERENCE_CACHE
+    if _DIRECT_REFERENCE_CACHE is not None:
+        return _DIRECT_REFERENCE_CACHE
+
+    index: dict[tuple[str, tuple[str, ...], int], list[dict]] = {}
+    paths = _reference_jsonl_paths()
+    for path in paths:
+        try:
+            lines = path.read_text().splitlines()
+        except OSError:
+            continue
+        for line_no, line in enumerate(lines, start=1):
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            impl = record.get("implementation") or {}
+            if impl.get("origin") != "rodinia_hls_benchmark":
+                continue
+            report_type = record.get("report_type")
+            if report_type not in {"hls_synth", "sw_run", "rtl_sim"}:
+                continue
+            variant = impl.get("variant") or {}
+            try:
+                variant_index = int(variant.get("index"))
+            except (TypeError, ValueError):
+                continue
+            group_path = tuple(str(part) for part in ((record.get("problem") or {}).get("group_path") or []))
+            if not group_path:
+                continue
+            enriched = dict(record)
+            enriched["_reference_artifact"] = str(path)
+            enriched["_reference_line"] = line_no
+            enriched["_variant_name_norm"] = _normalize_variant_token(variant.get("name"))
+            key = (report_type, group_path, variant_index)
+            bucket = index.setdefault(key, [])
+            new_pass = _direct_status_is_pass(_record_payload_status(enriched))
+            if new_pass and not any(_direct_status_is_pass(_record_payload_status(existing)) for existing in bucket):
+                bucket.insert(0, enriched)
+            elif not bucket:
+                bucket.append(enriched)
+            else:
+                bucket.append(enriched)
+
+    _DIRECT_REFERENCE_CACHE = {"index": index, "paths": [str(path) for path in paths]}
+    return _DIRECT_REFERENCE_CACHE
+
+
+def _normalize_variant_token(value: str | None) -> str:
+    token = str(value or "").strip().lower()
+    token = token.replace("double_buffer", "doublebuffer")
+    token = token.replace("unrolll", "unroll")
+    token = token.replace("unrolling", "unroll")
+    return token
+
+
+def _candidate_variant_index(candidate: dict) -> int | None:
+    name = candidate.get("variant_name") or candidate.get("file") or ""
+    match = re.search(r"_(\d+)_", name)
+    if match:
+        return int(match.group(1))
+    if candidate.get("step_name") == "baseline":
+        return 0
+    return None
+
+
+def _candidate_variant_aliases(candidate: dict) -> set[str]:
+    aliases = {
+        candidate.get("step_name", ""),
+        _normalize_variant_step_name(candidate.get("variant_name", "")),
+        candidate.get("variant_name", "").rsplit("_", 2)[-1],
+    }
+    normalized = {_normalize_variant_token(item) for item in aliases if item}
+    if "doublebuffer" in normalized:
+        normalized.add("double_buffer")
+    if "unroll" in normalized:
+        normalized.update({"unrolll", "unrolling"})
+    return normalized
+
+
+def _reference_group_path_candidates(meta: dict, candidates: list[dict] | None = None) -> list[tuple[str, ...]]:
+    explicit = meta.get("group_path")
+    paths: list[tuple[str, ...]] = []
+    if isinstance(explicit, list) and explicit:
+        paths.append(tuple(str(part) for part in explicit))
+    elif isinstance(explicit, str) and explicit:
+        paths.append(tuple(part for part in explicit.split("/") if part))
+
+    bench = meta.get("benchmark") or ""
+    if bench.startswith("cfd_"):
+        paths.append(("cfd", bench))
+    if bench.startswith("lc_"):
+        paths.append(("leukocyte", bench))
+    if bench:
+        paths.append((bench,))
+
+    source_candidates = candidates or []
+    for candidate in source_candidates:
+        source_path = candidate.get("source_path") or ""
+        marker = "/Benchmarks/"
+        if marker not in source_path:
+            continue
+        tail = source_path.split(marker, 1)[1]
+        parts = [part for part in tail.split("/") if part]
+        if not parts:
+            continue
+        if len(parts) >= 2 and parts[0] in {"cfd", "leukocyte", "backprop"}:
+            paths.append((parts[0], parts[1]))
+        else:
+            paths.append((parts[0],))
+
+    deduped = []
+    seen = set()
+    for path in paths:
+        if path and path not in seen:
+            seen.add(path)
+            deduped.append(path)
+    return deduped
+
+
+def _find_direct_reference_record(report_type: str, meta: dict, candidate: dict,
+                                  all_candidates: list[dict]) -> dict | None:
+    variant_index = _candidate_variant_index(candidate)
+    if variant_index is None:
+        return None
+    aliases = _candidate_variant_aliases(candidate)
+    ref_index = _load_direct_reference_index()["index"]
+    for group_path in _reference_group_path_candidates(meta, all_candidates):
+        bucket = ref_index.get((report_type, group_path, variant_index), [])
+        if not bucket:
+            continue
+        exact = [
+            record for record in bucket
+            if (record.get("_variant_name_norm") or "") in aliases
+        ]
+        candidates_to_rank = exact or bucket
+        passing = [
+            record for record in candidates_to_rank
+            if _direct_status_is_pass(_record_payload_status(record))
+        ]
+        return (passing or candidates_to_rank)[0]
+    return None
+
+
+def _num(value) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _int_num(value) -> int | None:
+    parsed = _num(value)
+    return int(parsed) if parsed is not None else None
+
+
+def _time_to_ns(value: str | None) -> float | None:
+    if value is None:
+        return None
+    raw = str(value).strip()
+    match = re.match(r"^([-+]?\d+(?:\.\d+)?)\s*(sec|s|ms|us|ns)?$", raw, re.IGNORECASE)
+    if not match:
+        return _num(raw)
+    amount = float(match.group(1))
+    unit = (match.group(2) or "ns").lower()
+    if unit in {"sec", "s"}:
+        return amount * 1_000_000_000.0
+    if unit == "ms":
+        return amount * 1_000_000.0
+    if unit == "us":
+        return amount * 1_000.0
+    return amount
+
+
+def _report_from_hls_synth_payload(payload: dict) -> dict:
+    perf = payload.get("PerformanceEstimates") or {}
+    timing = perf.get("SummaryOfTimingAnalysis") or {}
+    latency = perf.get("SummaryOfOverallLatency") or {}
+    area = payload.get("AreaEstimates") or {}
+    resources = area.get("Resources") or {}
+    assignments = payload.get("UserAssignments") or {}
+
+    estimated = _num(timing.get("EstimatedClockPeriod"))
+    requested = _num(assignments.get("TargetClockPeriod"))
+    report = {
+        "latency_cycles": _int_num(latency.get("Average-caseLatency")) or _int_num(latency.get("Worst-caseLatency")),
+        "latency_ns": _time_to_ns(latency.get("Average-caseRealTimeLatency")) or _time_to_ns(latency.get("Worst-caseRealTimeLatency")),
+        "latency_cycles_worst": _int_num(latency.get("Worst-caseLatency")),
+        "latency_ns_worst": _time_to_ns(latency.get("Worst-caseRealTimeLatency")),
+        "interval": _int_num(latency.get("Interval-max")),
+        "bram": _int_num(resources.get("BRAM_18K")),
+        "dsp": _int_num(resources.get("DSP")),
+        "ff": _int_num(resources.get("FF")),
+        "lut": _int_num(resources.get("LUT")),
+        "uram": _int_num(resources.get("URAM")),
+        "estimated_clock_period_ns": estimated,
+        "requested_clock_period_ns": requested,
+        "fmax_mhz": round(1000.0 / estimated, 2) if estimated and estimated > 0 else None,
+        "slack_ns": round(requested - estimated, 3) if requested is not None and estimated is not None else None,
+    }
+    return report
+
+
+def _direct_record_summary(record: dict | None, report_type: str) -> dict:
+    if not record:
+        return {
+            "status": "missing",
+            "passed": False,
+            "artifact": "",
+            "line": None,
+            "profile_required": True,
+        }
+    payload = record.get(report_type) or {}
+    raw_status = _record_payload_status(record)
+    return {
+        "status": _normal_status(raw_status),
+        "direct_status": raw_status,
+        "passed": _direct_status_is_pass(raw_status),
+        "artifact": record.get("_reference_artifact", ""),
+        "line": record.get("_reference_line"),
+        "run": record.get("run") or {},
+        "variant": (record.get("implementation") or {}).get("variant") or {},
+        "payload": {
+            key: payload.get(key)
+            for key in ("status", "kernel_runtime_cycles", "kernel_runtime_us", "kernel_clock_freq_mhz")
+            if key in payload
+        },
+    }
+
+
+def _validate_external_ground_truth_candidate(candidate: dict, inputs: dict,
+                                              supports_csim: bool, supports_cosim: bool,
+                                              all_candidates: list[dict]) -> dict:
+    meta = inputs["meta"]
+    synth_record = _find_direct_reference_record("hls_synth", meta, candidate, all_candidates)
+    sw_record = _find_direct_reference_record("sw_run", meta, candidate, all_candidates)
+    hw_record = _find_direct_reference_record("rtl_sim", meta, candidate, all_candidates)
+    synth_summary_direct = _direct_record_summary(synth_record, "hls_synth")
+    sw_summary = _direct_record_summary(sw_record, "sw_run")
+    hw_summary = _direct_record_summary(hw_record, "rtl_sim")
+
+    report = {}
+    synth_summary = {
+        "status": synth_summary_direct["status"],
+        "success": synth_summary_direct["passed"],
+        "external": True,
+        "direct_record": synth_summary_direct,
+        "report": report,
+    }
+    benchmark_ready = bool(synth_summary_direct["passed"])
+    invalid_reason = ""
+    if not synth_record:
+        invalid_reason = (
+            "Missing trusted external direct hls_synth record for "
+            f"{meta.get('benchmark')} variant {candidate.get('variant_name')}"
+        )
+    elif not benchmark_ready:
+        invalid_reason = (
+            "Trusted external direct hls_synth record is not passing: "
+            f"status={synth_summary_direct.get('direct_status')}"
+        )
+    else:
+        report = _report_from_hls_synth_payload(synth_record.get("hls_synth") or {})
+        synth_summary["report"] = report
+
+    csim_summary = {
+        "status": _test_status(supports_csim, False, False),
+        "supported": supports_csim,
+        "ran": False,
+        "success": False,
+        "passed": False,
+        "skip_reason": "reference CSim skipped; trusted direct Vitis reference artifacts are authoritative",
+        "profile_required": True,
+    }
+    cosim_summary = {
+        "status": _test_status(supports_cosim, False, False),
+        "supported": supports_cosim,
+        "ran": False,
+        "success": False,
+        "passed": False,
+        "skip_reason": "reference cosim skipped; direct hw_emu status is recorded under external_validation.hw_emu",
+        "profile_required": True,
+    }
+
+    return {
+        "variant_name": candidate.get("variant_name", "baseline"),
+        "file": candidate.get("file", ""),
+        "step_name": candidate.get("step_name", "baseline"),
+        "source_path": candidate.get("source_path", ""),
+        "benchmark_ready": benchmark_ready,
+        "invalid_reason": invalid_reason,
+        "synthesis": synth_summary,
+        "csim": csim_summary,
+        "cosim": cosim_summary,
+        "report": report,
+        "selected": False,
+        "testbench_interface_mismatch": "",
+        "reference_source": "direct_jsonl",
+        "external_validation": {
+            "mode": "trusted_external",
+            "used": True,
+            "jsonl_paths": _load_direct_reference_index().get("paths", []),
+            "hls_synth": synth_summary_direct,
+            "sw_emu": sw_summary,
+            "hw_emu": hw_summary,
+            "csim": {
+                "status": "not_run",
+                "skip_reason": "no standalone direct reference CSim artifact; not used to validate trusted references",
+                "profile_required": True,
+            },
+            "cosim": {
+                "status": "not_run",
+                "skip_reason": "no standalone Rodinia/Nova direct cosim artifact; hw_emu is used for RTL-level direct evidence",
+                "profile_required": True,
+            },
+        },
+    }
+
+
+def _trusted_external_gt_step_reports(inputs: dict) -> dict[str, dict]:
+    meta = inputs["meta"]
+    if meta.get("source_repo") not in TRUSTED_EXTERNAL_REFERENCE_REPOS:
+        return {}
+    candidates = _ground_truth_candidates(inputs)
+    reports: dict[str, dict] = {}
+    for candidate in candidates:
+        record = _find_direct_reference_record("hls_synth", meta, candidate, candidates)
+        if not record or not _direct_status_is_pass(_record_payload_status(record)):
+            continue
+        report = _report_from_hls_synth_payload(record.get("hls_synth") or {})
+        if report:
+            reports[candidate.get("step_name", "baseline")] = report
+    return reports
+
+
 def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
                                      supports_csim: bool, supports_cosim: bool,
                                      run_csim_check: bool = True,
@@ -4370,6 +5652,19 @@ def validate_gold_reference(inputs: dict) -> dict:
     supports_csim = bool(meta.get("supports_csim") and inputs.get("testbench_code"))
     supports_cosim = bool(meta.get("supports_cosim") and inputs.get("testbench_code"))
     candidates = _ground_truth_candidates(inputs)
+    validation_mode = os.getenv("C2HLS_REFERENCE_VALIDATE_MODE", "all").strip().lower() or "all"
+    if validation_mode not in {"all", "selected", "preferred", "baseline", "external", "trusted_external"}:
+        validation_mode = "all"
+    external_requested = validation_mode == "external"
+    use_trusted_external = (
+        validation_mode in {"external", "trusted_external"}
+        and meta.get("source_repo") in TRUSTED_EXTERNAL_REFERENCE_REPOS
+    )
+    local_validation_mode = "selected" if validation_mode == "trusted_external" else validation_mode
+    validation_scope = (
+        "selected" if local_validation_mode in {"selected", "preferred", "baseline"} or use_trusted_external
+        else "all"
+    )
 
     if not candidates:
         return {
@@ -4385,12 +5680,95 @@ def validate_gold_reference(inputs: dict) -> dict:
             "selected_variant_file": "",
             "selected_variant_step": "",
             "selection_reason": "",
+            "validation_mode": validation_mode,
+            "validation_scope": "none",
+            "skipped_candidates": [],
+            "reference_source": "none",
+            "external_validation": {
+                "used": False,
+                "reason": "missing gold HLS workflow code",
+                "profile_required": True,
+            },
         }
 
-    workflow = [
-        _validate_ground_truth_candidate(candidate, inputs, supports_csim, supports_cosim)
-        for candidate in candidates
-    ]
+    if external_requested and not use_trusted_external:
+        return {
+            "benchmark_ready": False,
+            "invalid_reason": (
+                "C2HLS_REFERENCE_VALIDATE_MODE=external requires a trusted "
+                f"direct-reference source repo; got {meta.get('source_repo')!r}"
+            ),
+            "synthesis": _summarize_synth_result(None),
+            "csim": _summarize_test_result(None, supports_csim),
+            "cosim": _summarize_test_result(None, supports_cosim),
+            "report": {},
+            "top_function": meta.get("hls_top", "workload"),
+            "workflow": [],
+            "selected_variant_name": "",
+            "selected_variant_file": "",
+            "selected_variant_step": "",
+            "selection_reason": "",
+            "validation_mode": validation_mode,
+            "validation_scope": "none",
+            "skipped_candidates": [],
+            "reference_source": "none",
+            "external_validation": {
+                "used": False,
+                "reason": "source_repo_not_in_trusted_external_reference_set",
+                "source_repo": meta.get("source_repo"),
+                "profile_required": True,
+            },
+        }
+
+    validation_candidates = list(candidates)
+    skipped_candidates = []
+    if validation_scope == "selected":
+        preferred_file = _preferred_reference_candidate_file(meta, candidates)
+        selected_candidate = None
+        if local_validation_mode == "baseline":
+            selected_candidate = next(
+                (candidate for candidate in candidates if candidate.get("step_name") == "baseline"),
+                None,
+            )
+        elif preferred_file:
+            selected_candidate = next(
+                (candidate for candidate in candidates if candidate.get("file") == preferred_file),
+                None,
+            )
+        if selected_candidate is None:
+            optimized = [candidate for candidate in candidates if candidate.get("step_name") != "baseline"]
+            selected_candidate = optimized[-1] if optimized else candidates[-1]
+        validation_candidates = [selected_candidate]
+        skipped_candidates = [
+            {
+                "variant_name": candidate.get("variant_name", ""),
+                "file": candidate.get("file", ""),
+                "step_name": candidate.get("step_name", ""),
+                "skip_reason": f"not validated in C2HLS_REFERENCE_VALIDATE_MODE={validation_mode}",
+                "profile_required": True,
+            }
+            for candidate in candidates
+            if candidate.get("file") != selected_candidate.get("file")
+        ]
+
+    if use_trusted_external:
+        workflow = [
+            _validate_external_ground_truth_candidate(
+                candidate,
+                inputs,
+                supports_csim,
+                supports_cosim,
+                candidates,
+            )
+            for candidate in validation_candidates
+        ]
+        reference_source = "direct_jsonl"
+    else:
+        workflow = [
+            _validate_ground_truth_candidate(candidate, inputs, supports_csim, supports_cosim)
+            for candidate in validation_candidates
+        ]
+        reference_source = "local_vitis"
 
     baseline_report = None
     previous_valid_report = None
@@ -4443,6 +5821,15 @@ def validate_gold_reference(inputs: dict) -> dict:
             "selected_variant_file": "",
             "selected_variant_step": "",
             "selection_reason": "",
+            "validation_mode": validation_mode,
+            "validation_scope": validation_scope,
+            "skipped_candidates": skipped_candidates,
+            "reference_source": reference_source,
+            "external_validation": {
+                "used": bool(use_trusted_external),
+                "reason": last_error or "Missing valid ground-truth workflow",
+                "profile_required": True,
+            },
         }
 
     selection_fallback = (
@@ -4467,6 +5854,15 @@ def validate_gold_reference(inputs: dict) -> dict:
             "optimized GT variants were unavailable or invalid; selected baseline"
             if selection_fallback else ""
         ),
+        "validation_mode": validation_mode,
+        "validation_scope": validation_scope,
+        "skipped_candidates": skipped_candidates,
+        "reference_source": reference_source,
+        "external_validation": selected.get("external_validation") if use_trusted_external else {
+            "used": False,
+            "reason": "local_vitis_reference_validation",
+            "profile_required": False,
+        },
     }
 
 
@@ -4943,11 +6339,30 @@ def _resolve_rodinia_variant(bench_name: str,
 
 def _infer_final_variant_step(results: dict) -> str:
     if results.get("phase") == "multistep":
+        promotion = results.get("best_so_far_promotion") or {}
+        promoted_step = promotion.get("from_step_name")
+        if promotion.get("promoted") and promoted_step:
+            return promoted_step
         for step in reversed(results.get("steps", [])):
             if step.get("success") and step.get("step_name"):
                 return step.get("step_name")
         return "baseline"
     return ""
+
+
+def _wide_abi_markers(code: str) -> list[str]:
+    markers = []
+    checks = {
+        "memcpy_wide_bus": "memcpy_wide_bus",
+        "MARS_WIDE_BUS_TYPE": "MARS_WIDE_BUS_TYPE",
+        "common/mc.h": "common/mc.h",
+        "ap_uint_512": "ap_uint<512",
+        "ap_uint_large_bus": "ap_uint<LARGE_BUS",
+    }
+    for name, token in checks.items():
+        if token in (code or ""):
+            markers.append(name)
+    return markers
 
 
 def _maybe_run_hw_emu_final(orchestrator, results: dict, bench_name: str,
@@ -4975,6 +6390,16 @@ def _maybe_run_hw_emu_final(orchestrator, results: dict, bench_name: str,
             "profile_required": True,
         }
         return
+    try:
+        timeout = int(os.getenv("C2HLS_HW_EMU_TIMEOUT", str(timeout)))
+    except (TypeError, ValueError):
+        results.setdefault("hw_emu_warnings", []).append({
+            "kind": "invalid_hw_emu_timeout_env",
+            "env": "C2HLS_HW_EMU_TIMEOUT",
+            "value": os.getenv("C2HLS_HW_EMU_TIMEOUT"),
+            "fallback_timeout_sec": timeout,
+            "profile_required": True,
+        })
     requested_step = variant_step or _infer_final_variant_step(results)
     variant, variant_error = _resolve_rodinia_variant(bench_name, requested_step)
     if not variant:
@@ -4983,6 +6408,27 @@ def _maybe_run_hw_emu_final(orchestrator, results: dict, bench_name: str,
             "skip_reason": variant_error,
             "profile_required": True,
             "requested_variant_step": requested_step,
+        }
+        return
+    wide_markers = _wide_abi_markers(orchestrator.hls_code)
+    allow_wide_abi = os.getenv("C2HLS_ALLOW_WIDE_ABI", "").lower() in ("1", "true", "yes")
+    if wide_markers and not allow_wide_abi:
+        results["hw_emu"] = {
+            "ran": False,
+            "skip_reason": (
+                "generated kernel uses wide-bus ABI/helper markers but "
+                "C2HLS_ALLOW_WIDE_ABI is not enabled; refusing to stage into "
+                "a possibly narrow host/testbench contract"
+            ),
+            "profile_required": True,
+            "requested_variant_step": requested_step,
+            "variant_step": variant["variant_step"],
+            "variant_name": variant["variant_name"],
+            "variant_index": variant["variant_index"],
+            "source_repo": variant["source_repo"],
+            "interface_contract": "narrow_safe_default",
+            "interface_mismatch": True,
+            "wide_abi_markers": wide_markers,
         }
         return
     logging.info("[hw_emu_final] Running on %s step=%s via %s",
@@ -5141,6 +6587,17 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
             "invalid_reference_reason": reference_validation.get("invalid_reason", ""),
         }
 
+    if reference_validation.get("reference_source") == "direct_jsonl":
+        external_step_reports = _trusted_external_gt_step_reports(inputs)
+        orchestrator._gt_step_reports.update(external_step_reports)
+        if "baseline" in external_step_reports:
+            orchestrator._gt_baseline_report = dict(external_step_reports["baseline"])
+        logging.info(
+            "Loaded %d trusted external GT step reports for %s",
+            len(external_step_reports),
+            bench_name,
+        )
+
     success, results = orchestrator.run_multistep(
         inputs["c_code"],
         inputs["header_code"],
@@ -5247,7 +6704,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--strategy",
         choices=["static", "dynamic", "combo", "combo_full",
-                 "combo_progressive", "forward_eval"],
+                 "combo_progressive", "forward_eval", "flash"],
         default=None,
         help=(
             "Multistep strategy. "
@@ -5256,6 +6713,8 @@ if __name__ == "__main__":
             "combo / combo_full: ask the LLM to apply ALL techniques in a single "
             "rewrite then synth once. "
             "combo_progressive: 2-step structural→parallel combo. "
+            "flash: functional Phase-B baseline followed by one aggressive "
+            "all-in optimization step with normal candidate/attempt telemetry. "
             "**forward_eval (Phase 6b)**: run all steps without per-step "
             "regression-revert; correctness gates (csynth/csim/cosim) only. "
             "Best-so-far tracking commits the peak mid-trajectory state at the end. "
@@ -5269,11 +6728,37 @@ if __name__ == "__main__":
              "When set, regressions are reverted on shape regardless of GT "
              "trajectory shape — i.e., revert-the-old-way.",
     )
+    parser.add_argument(
+        "--candidates-per-step",
+        type=str,
+        default=None,
+        help=(
+            "Candidate search width for multistep optimization. Accepts an "
+            "integer or JSON map such as '{\"coalescing\":5,\"default\":3}'."
+        ),
+    )
+    parser.add_argument(
+        "--attempts-per-candidate",
+        type=int,
+        default=None,
+        help="Synth-tested attempts per candidate when exhaustive candidate attempts are enabled.",
+    )
+    parser.add_argument(
+        "--exhaustive-candidate-attempts",
+        action="store_true",
+        help="Evaluate all attempts per candidate and select the best passing attempt.",
+    )
     args = parser.parse_args()
     if args.strategy:
         os.environ["C2HLS_STRATEGY"] = args.strategy
     if args.no_gt_aware_revert:
         os.environ["C2HLS_GT_AWARE_REVERT"] = "0"
+    if args.candidates_per_step is not None:
+        os.environ[STEP_CANDIDATES_ENV] = args.candidates_per_step
+    if args.attempts_per_candidate is not None:
+        os.environ[CANDIDATE_ATTEMPTS_ENV] = str(args.attempts_per_candidate)
+    if args.exhaustive_candidate_attempts:
+        os.environ[EXHAUSTIVE_CANDIDATE_ATTEMPTS_ENV] = "1"
 
     steps = args.steps.split(",") if args.steps else None
 

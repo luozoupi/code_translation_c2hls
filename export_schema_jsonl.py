@@ -48,6 +48,8 @@ SOURCE_REPO_MAP = {
     "rodinia-hls":       ("rodinia_hls",     "rodinia_hls_benchmark"),
     "rodinia-hls-nova":  ("rodinia_hls",     "rodinia_hls_benchmark"),
     "ML4Accel-Dataset":  ("ml4accel",        "ml4accel_benchmark"),
+    "HLSFactory":        ("hlsfactory",      "hlsfactory_benchmark"),
+    "hls-eval":          ("hls_eval",        "hls_eval_benchmark"),
 }
 
 # Vitis target naming. Our pipeline runs csynth + (optionally) csim + cosim;
@@ -207,6 +209,19 @@ def _build_implementation(meta: dict, variant_name: str = "",
     }
 
 
+def _compact_origin_meta(value: Any) -> Any:
+    """Remove generated code blobs before embedding telemetry in JSONL."""
+    if isinstance(value, dict):
+        return {
+            k: _compact_origin_meta(v)
+            for k, v in value.items()
+            if k not in {"code", "hls_code", "current_code"}
+        }
+    if isinstance(value, list):
+        return [_compact_origin_meta(item) for item in value]
+    return value
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -231,6 +246,41 @@ def _hw_emu_clock_freq_mhz(hw_emu: dict, clock_ns: Optional[float],
     if clock_ns:
         return round(1000.0 / clock_ns, 2)
     return None
+
+
+def _hw_emu_emittable(hw_emu: dict) -> bool:
+    """Return True when a hw_emu object should produce an explicit JSONL row.
+
+    Successful and failed runs are obvious. Skips are also emitted when the
+    orchestrator recorded a skip_reason/profile_required marker so sweep rows
+    do not silently disappear from intended-result JSONL.
+    """
+    return bool(
+        hw_emu
+        and (
+            hw_emu.get("ran")
+            or hw_emu.get("skip_reason")
+            or hw_emu.get("profile_required")
+        )
+    )
+
+
+def _hw_emu_status(hw_emu: dict) -> str:
+    if hw_emu.get("success"):
+        return "pass"
+    text = " ".join(
+        str(hw_emu.get(key) or "")
+        for key in ("error", "skip_reason")
+    ).lower()
+    if "timed out" in text or "timeout" in text:
+        return "timeout"
+    return "fail"
+
+
+def _hw_emu_error(hw_emu: dict, status: str) -> Optional[str]:
+    if status == "pass":
+        return None
+    return (hw_emu.get("error") or hw_emu.get("skip_reason") or "hw_emu did not run")[:300]
 
 
 def _metric_fallbacks(meta: dict, part: Optional[str],
@@ -551,16 +601,11 @@ def _records_from_results_json(bench_dir: Path, results_json: Path,
 
     # ── Generated hw_emu → rtl_sim ─────────────────────────────────────────
     # Authoritative cycle count from XSIM RTL simulation via nova `make
-    # check TARGET=hw_emu`. Only emitted when the orchestrator actually ran
-    # hw_emu (gated on C2HLS_HW_EMU_FINAL=1 at run time).
+    # check TARGET=hw_emu`. Also emit explicit fail rows for profiled skips
+    # so intended-result JSONL does not silently drop failed/unsupported cases.
     hw_emu = data.get("hw_emu") or {}
-    if hw_emu and hw_emu.get("ran"):
-        if hw_emu.get("success"):
-            hw_status = "pass"
-        elif "timed out" in (hw_emu.get("error") or "").lower():
-            hw_status = "timeout"
-        else:
-            hw_status = "fail"
+    if _hw_emu_emittable(hw_emu):
+        hw_status = _hw_emu_status(hw_emu)
         records.append({
             "schema_version": SCHEMA_VERSION,
             "report_type": "rtl_sim",
@@ -578,7 +623,13 @@ def _records_from_results_json(bench_dir: Path, results_json: Path,
                     hw_emu_profile_csv=hw_emu.get("profile_csv") or None,
                     hw_emu_clock_source=hw_emu.get("clock_source") or None,
                     hw_emu_clock_fallback=hw_emu.get("clock_fallback"),
+                    hw_emu_debug_symbols_disabled=hw_emu.get("debug_symbols_disabled"),
+                    hw_emu_debug_symbols_note=hw_emu.get("debug_symbols_note") or None,
                     requested_variant_step=hw_emu.get("requested_variant_step") or selected_step or None,
+                    hw_emu_skip_reason=hw_emu.get("skip_reason") or None,
+                    hw_emu_profile_required=hw_emu.get("profile_required"),
+                    interface_mismatch=hw_emu.get("interface_mismatch"),
+                    wide_abi_markers=hw_emu.get("wide_abi_markers") or None,
                 ),
             ),
             "rtl_sim": {
@@ -586,7 +637,7 @@ def _records_from_results_json(bench_dir: Path, results_json: Path,
                 "kernel_runtime_cycles": hw_emu.get("kernel_runtime_cycles"),
                 "kernel_runtime_us": hw_emu.get("kernel_runtime_us"),
                 "kernel_clock_freq_mhz": _hw_emu_clock_freq_mhz(hw_emu, clock_ns, run_meta),
-                "error": (hw_emu.get("error") or "")[:300] if hw_status != "pass" else None,
+                "error": _hw_emu_error(hw_emu, hw_status),
             },
         })
 
@@ -701,6 +752,23 @@ def _records_from_multistep(bench_dir: Path, multistep_json: Path,
         # AI-generated record at this step.
         if report:
             step_index, step_short_name = _variant_identity_for_step(meta, step_name)
+            step_origin_meta = dict(base_origin_meta, step=step_name)
+            for key in (
+                "candidate_search",
+                "candidate_attempts",
+                "attempt_stats",
+                "attempt_results",
+                "selected_candidate_index",
+                "selected_attempt_index",
+                "successful_attempt_count",
+                "attempt_count",
+                "candidate_count",
+                "routing_decision",
+                "skill_update",
+            ):
+                value = step.get(key)
+                if value not in (None, "", []):
+                    step_origin_meta[key] = _compact_origin_meta(value)
             records.append({
                 "schema_version": SCHEMA_VERSION,
                 "report_type": "hls_synth",
@@ -712,7 +780,7 @@ def _records_from_multistep(bench_dir: Path, multistep_json: Path,
                     variant_index=step_index,
                     origin_override="c2hls_orchestrator",
                     origin_version=model_id,
-                    origin_meta=dict(base_origin_meta, step=step_name),
+                    origin_meta=step_origin_meta,
                 ),
                 "hls_synth": _build_hls_synth_payload(report, part, clock_ns),
             })
@@ -745,14 +813,13 @@ def _records_from_multistep(bench_dir: Path, multistep_json: Path,
 
     # Final-stage hw_emu (one per multistep run, after the last step succeeds).
     hw_emu = data.get("hw_emu") or {}
-    if hw_emu and hw_emu.get("ran"):
-        if hw_emu.get("success"):
-            hw_status = "pass"
-        elif "timed out" in (hw_emu.get("error") or "").lower():
-            hw_status = "timeout"
-        else:
-            hw_status = "fail"
-        last_step_name = hw_emu.get("variant_step") or (steps[-1].get("step_name", "final") if steps else "final")
+    if _hw_emu_emittable(hw_emu):
+        hw_status = _hw_emu_status(hw_emu)
+        last_step_name = (
+            hw_emu.get("variant_step")
+            or hw_emu.get("requested_variant_step")
+            or (steps[-1].get("step_name", "baseline") if steps else "baseline")
+        )
         last_step_index, last_step_short_name = _variant_identity_for_step(meta, last_step_name)
         records.append({
             "schema_version": SCHEMA_VERSION,
@@ -770,14 +837,20 @@ def _records_from_multistep(bench_dir: Path, multistep_json: Path,
                                  hw_emu_profile_csv=hw_emu.get("profile_csv") or None,
                                  hw_emu_clock_source=hw_emu.get("clock_source") or None,
                                  hw_emu_clock_fallback=hw_emu.get("clock_fallback"),
-                                 requested_variant_step=hw_emu.get("requested_variant_step") or None),
+                                 hw_emu_debug_symbols_disabled=hw_emu.get("debug_symbols_disabled"),
+                                 hw_emu_debug_symbols_note=hw_emu.get("debug_symbols_note") or None,
+                                 requested_variant_step=hw_emu.get("requested_variant_step") or None,
+                                 hw_emu_skip_reason=hw_emu.get("skip_reason") or None,
+                                 hw_emu_profile_required=hw_emu.get("profile_required"),
+                                 interface_mismatch=hw_emu.get("interface_mismatch"),
+                                 wide_abi_markers=hw_emu.get("wide_abi_markers") or None),
             ),
             "rtl_sim": {
                 "status": hw_status,
                 "kernel_runtime_cycles": hw_emu.get("kernel_runtime_cycles"),
                 "kernel_runtime_us": hw_emu.get("kernel_runtime_us"),
                 "kernel_clock_freq_mhz": _hw_emu_clock_freq_mhz(hw_emu, clock_ns, run_meta),
-                "error": (hw_emu.get("error") or "")[:300] if hw_status != "pass" else None,
+                "error": _hw_emu_error(hw_emu, hw_status),
             },
         })
     return records

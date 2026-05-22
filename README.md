@@ -1,50 +1,110 @@
-# C-to-HLS Code Translation Pipeline
+# C2HLS Agentic Translation Framework
 
-A multi-agent LLM-driven pipeline that translates plain C/C++ kernels into
-Xilinx Vitis HLS optimised code, validates the output through Vitis HLS
-synthesis (csynth / csim / cosim), optionally measures kernel runtime via
-XSIM hardware emulation, and scores quality against ground-truth HLS
-baselines.
+C2HLS is a multi-agent framework for translating plain C/C++ kernels into
+Vitis HLS kernels, then validating and scoring the generated designs against
+reference HLS implementations. Its main target today is Rodinia/Rodinia-Nova
+kernel optimization on Vitis 2023.2 / U280, with external-dataset support for
+HLSFactory and hls-eval style C kernels.
+
+The project is intentionally more than a prompt wrapper. It contains a corpus
+layer, a reference-validation layer, an agentic translation and optimization
+loop, Vitis synthesis/csim/cosim runners, optional Nova `sw_emu`/`hw_emu`
+measurement, and canonical JSONL export for side-by-side comparison.
 
 ## Overview
 
-The pipeline takes pragma-free C code (derived from known-good HLS benchmarks
-with pragmas stripped) and uses LLM agents to re-introduce HLS optimisations
-in phases. Generated code is synthesised with Vitis HLS, validated for
-functional correctness (csim/cosim), and scored against the ground-truth using
-a 9-metric rubric.
+The normal input is `plain.cpp`: a benchmark kernel with HLS pragmas and
+platform-specific optimization code stripped. The framework asks the agents to
+recover a legal Vitis kernel first, then improve it through staged HLS
+optimization. Reference results come either from local Vitis runs or, for
+trusted Rodinia/Rodinia-Nova entries, from direct JSONL artifacts produced by
+known-good benchmark runs.
 
 ```
-gold_hls_source.cpp ──(strip pragmas)──> plain.cpp ──(LLM agents)──> generated HLS
-        │                                                                    │
-        ├──(synthesize as ground truth)──> GT report  <──(rubric)──── gen csynth report
-        └──(reference hw_emu)──>          ref cycles  <──(direct)──── XSIM kernel cycles
+upstream HLS benchmark
+        |
+        v
+benchmarks/<name>/
+  plain.cpp            # LLM input
+  metadata.json        # source repo, variants, provenance
+  hls_<step>.cpp       # reference HLS variants when available
+        |
+        v
+TranslatorAgent -> SynthesisAgent -> QualityRepairAgent
+        |
+        v
+generated HLS + csynth/csim/cosim reports + optional hw_emu profile
+        |
+        v
+schema-1.0 JSONL + markdown summaries + reference deltas
 ```
 
-### Multi-step optimisation chain
+### Architecture at a glance
 
-In multistep mode the orchestrator applies five incremental optimisation steps,
-each validated against the corresponding GT variant:
+| Layer | Main files | Responsibility |
+|---|---|---|
+| Corpus and manifest | `benchmarks/`, `benchmarks_external/`, `prepare_*.py` | Materialize stripped C inputs, headers, testbenches, metadata, and reference variants |
+| Reference validation | `c2hls.py`, `run_nova_direct_emu.py`, `results/references_philip/` | Prove or trust GT references; Rodinia/Rodinia-Nova can use direct JSONL evidence via `trusted_external` |
+| Agentic workflow | `c2hls.py`, `prompt_c2hls.py` | Phase A compile repair, Phase B translation, multistep optimization, correctness repair |
+| Performance feedback | `hls_eval.py`, `hls_feedback.py`, `bottleneck_router.py`, `skill_library.py` | Parse Vitis reports, classify bottlenecks, route steps, inject skills and resource constraints |
+| Experiment drivers | `run_agentic_sweep.py`, `run_*smoke*.py`, `run_requested_hwemu_matrix.py` | Launch repeatable sweeps and direct-reference matrix runs |
+| Results contract | `export_schema_jsonl.py`, `compare_jsonl_to_references.py`, `scripts/validate_jsonl_semantics.py` | Emit and validate reference-compatible schema-1.0 JSONL |
+
+### Multi-step optimization chain
+
+In multistep mode Phase B is deliberately conservative by default:
+`C2HLS_PHASEB_MODE=functional` asks the translator to produce a correct,
+testbench-compatible kernel, not an aggressively optimized one. The later step
+agents then apply the same broad optimization sequence used by the reference
+benchmark families.
 
 ```
-baseline ──> tiling ──> pipeline ──> unroll ──> doublebuffer ──> coalescing
-   │             │           │           │              │               │
-Phase 8     Phase 9      Phase 9     Phase 9        Phase 9         Phase 9
-(align)    (repair)    (repair)    (repair)        (repair)        (repair)
-   │                                                                    │
-Phase 6a ─────────────── best-so-far across all steps ─────────────────┘
+plain.cpp
+  |
+  v
+Phase A compile repair
+  |
+  v
+Phase B functional HLS baseline
+  |
+  +--> optional Phase 8 baseline alignment
+  |
+  v
+tiling -> pipeline -> unroll -> doublebuffer -> coalescing
+  |         |          |         |              |
+  +---------+----------+---------+--------------+
+                  Phase 6a best-so-far selection
 ```
+
+Each optimization step may evaluate multiple independent candidates and, in
+exhaustive mode, multiple synth-tested attempts per candidate. The sweep mode
+used for recent large runs is:
+
+```
+C2HLS_CANDIDATES_PER_STEP=5
+C2HLS_ATTEMPTS_PER_CANDIDATE=5
+C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS=1
+```
+
+The saved result records selected candidate/attempt indices plus min/max/avg
+telemetry, so bad attempts are visible rather than silently dropped.
 
 ### Agent decomposition
 
-The orchestrator runs three coordinating agents:
+The orchestrator coordinates three agent roles:
 
-- **TranslatorAgent** — Phase A compile-check + Phase B initial translation
-- **SynthesisAgent** — synth / csim / cosim chain with structured repair
-  feedback, per-loop bottleneck signals (Pillar 1), regression guard, and
-  correctness-repair loop (Phase 9)
-- **QualityRepairAgent** — post-synthesis quality-driven candidate generation
-  to close the gap to the ground-truth baseline
+- **TranslatorAgent**: Phase A input compile-check and Phase B initial HLS
+  translation.
+- **SynthesisAgent**: Vitis compile/synthesis/csim/cosim loop, structured
+  error repair, Phase B correctness gating, per-loop bottleneck feedback,
+  regression guard, and Phase 9 correctness repair.
+- **QualityRepairAgent**: optional post-synthesis improvement loop that
+  generates and accepts only candidates that preserve correctness while
+  improving the focused quality metric.
+
+The intended end-to-end workflow is therefore not "one prompt creates final
+HLS." It is a measured trajectory: recover functionality, synthesize, inspect
+feedback, optimize step by step, and export every material status.
 
 ---
 
@@ -65,7 +125,8 @@ The orchestrator runs three coordinating agents:
 13. [Benchmark Corpus](#benchmark-corpus)
 14. [File Reference](#file-reference)
 15. [Environment Variable Reference](#environment-variable-reference)
-16. [Troubleshooting](#troubleshooting)
+16. [Performance Hardening Roadmap](#performance-hardening-roadmap)
+17. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -218,6 +279,23 @@ which selects the next optimisation step based on the synthesised bottleneck
 profile rather than the fixed `tiling→pipeline→unroll→doublebuffer→coalescing`
 order.
 
+### Flash mode
+
+Flash mode keeps Phase B as a functional HLS baseline, then runs exactly one
+aggressive all-in optimisation step. It reuses the normal candidate/attempt
+search, CSim correctness gates, regression guard, and timing-clean selection,
+but avoids the five-step trajectory. This is useful for compact
+HLSFactory/PolyBench-style kernels where a simple pipeline/unroll/local-buffer
+rewrite often beats a full Rodinia-style path.
+
+```bash
+python c2hls.py --bench-dir benchmarks_external/HLSFactory/polybench_float_small/hlsfactory_2mm \
+    --multistep --strategy flash \
+    --model claude-haiku-4-5-20251001 --turns 4 \
+    --candidates-per-step 5 --attempts-per-candidate 5 \
+    --exhaustive-candidate-attempts
+```
+
 ### Multi-step with all Phase 8–11 features enabled
 
 ```bash
@@ -246,6 +324,31 @@ python c2hls.py --bench knn --multistep --model claude-haiku-4-5-20251001
 python c2hls.py --all --multistep --model claude-haiku-4-5-20251001
 ```
 
+### Agentic sweep runner
+
+[run_agentic_sweep.py](run_agentic_sweep.py) is the preferred driver for
+repeatable benchmark sweeps. It writes a live log, per-benchmark result dirs,
+a summary JSON, a markdown table, and validated schema-1.0 JSONL after every
+completed benchmark.
+
+```bash
+env \
+  C2HLS_SWEEP_STAMP=rodinia_nova_haiku_u280 \
+  C2HLS_SWEEP_BENCHES=knn,lud,nw,pathfinder \
+  C2HLS_SWEEP_MODELS=haiku \
+  C2HLS_SWEEP_HW_EMU=1 \
+  C2HLS_SWEEP_REFERENCE_VALIDATE_MODE=trusted_external \
+  C2HLS_SWEEP_CANDIDATES_PER_STEP=5 \
+  C2HLS_SWEEP_ATTEMPTS_PER_CANDIDATE=5 \
+  C2HLS_SWEEP_EXHAUSTIVE_CANDIDATE_ATTEMPTS=1 \
+  /home/luo00466/.conda/envs/py310_2/bin/python run_agentic_sweep.py
+```
+
+For Rodinia/Rodinia-Nova sweeps, `trusted_external` avoids re-running CSim on
+known-good reference kernels and instead uses the direct Vitis JSONL evidence.
+Generated kernels still have to pass the framework's compile/synthesis/csim
+checks where those checks are supported.
+
 ### Per-agent model routing
 
 Run cheap Haiku for translation and expensive Sonnet for repair:
@@ -265,7 +368,7 @@ python c2hls.py --bench knn --multistep
 | `--all` | — | Run every benchmark in `benchmarks/index.json` |
 | `--multistep` | off | Incremental per-step optimisation chain |
 | `--steps S1,S2,...` | all 5 steps | Custom step order for multistep |
-| `--strategy dynamic\|static` | `static` | Step selection: fixed order or bottleneck-routed |
+| `--strategy static\|dynamic\|flash\|combo_full\|combo_progressive\|forward_eval` | `static` | Step selection/mode. `flash` means one all-in optimisation step after the functional baseline |
 | `--model ID` | `$C2HLS_MODEL` | LLM model id (auto-routed by name) |
 | `--turns N` | `3` | Max repair attempts per phase/step |
 | `--out PATH` | `results/` or `results_multistep/` | Output directory |
@@ -274,39 +377,42 @@ python c2hls.py --bench knn --multistep
 
 ## Pipeline Architecture
 
-### Phase sequence (multistep)
+### Control flow
 
 ```
-Phase A  — compile-check plain.cpp with g++
-Phase B  — initial HLS translation (TranslatorAgent)
-Phase 8  — baseline alignment: if agent baseline > 1.20× GT cycles OR
-           Fmax < floor×GT_fmax, retranslate with gap feedback (up to 4 attempts)
-Phase 5b — pre-synthesise all GT step variants into cache (gated by env var)
-Phase C  — compare baseline vs GT baseline (rubric)
-
-For each optimisation step (tiling → pipeline → unroll → doublebuffer → coalescing):
-  ├─ _optimization_step_attempt (SynthesisAgent):
-  │    ├─ Prompt includes: {synth_report} with Pillar 1 per-loop bottlenecks
-  │    │                   baseline-vs-current scope diff block
-  │    │                   per-step resource constraint block
-  │    │                   profile signal (timing/resource overflow flags)
-  │    │                   skill library match (if dynamic strategy)
-  │    ├─ LLM generates HLS code
-  │    ├─ Compile-error repair loop (up to N attempts)
-  │    ├─ Synthesis (csynth_design)
-  │    └─ Phase 9: if csim/cosim fails → correctness-repair re-prompt
-  │
-  ├─ Regression guard (_step_regression_reasons):
-  │    ├─ Tier 1: reject if latency > step_threshold OR ≥3 resources > per-step ceiling
-  │    └─ Tier 2 override: accept if latency ≤ 0.5× AND all resources < device capacity
-  │       (allows aggressive DSP parallelisation that halves latency)
-  │
-  ├─ GT-shape alignment (trajectory_alignment.py):
-  │    └─ Keep enabling regressions consistent with GT trajectory shape
-  │
-  └─ Phase 6a: update best-so-far pointer across all completed steps
-
-Phase 6a final: promote best-so-far step as the output
+load benchmark inputs
+  |
+  +-- load metadata.json and reference variants
+  +-- validate/trust references
+  |     - all/selected/preferred/baseline: local Vitis validation
+  |     - trusted_external: Rodinia/Rodinia-Nova direct JSONL evidence
+  |
+  v
+Phase A: compile-check plain.cpp with g++
+  |
+  v
+Phase B: generate a functional HLS baseline
+  |
+  +-- optional Phase 8 baseline alignment
+  |
+  v
+for each selected optimization step:
+  |
+  +-- generate candidate code
+  +-- preflight compile
+  +-- csynth_design
+  +-- csim/cosim when supported
+  +-- repair with structured error and report feedback
+  +-- record candidate/attempt telemetry
+  +-- apply regression/resource guard
+  |
+  v
+Phase 6a: promote best passing step
+  |
+  +-- optional final Nova hw_emu
+  |
+  v
+results JSON + schema-1.0 JSONL + comparison markdown
 ```
 
 ### TranslatorAgent
@@ -314,7 +420,14 @@ Phase 6a final: promote best-so-far step as the output
 - **Phase A** — compile-check with `g++ -c`; fix on failure
 - **Phase B** — emit HLS code via `q_translate_c_to_hls`, targeting
   `extern "C" workload()`, unified `bundle=control` s_axilite, and
-  appropriate PIPELINE/UNROLL/ARRAY_PARTITION pragmas
+  appropriate PIPELINE/UNROLL/ARRAY_PARTITION pragmas in legacy single-shot
+  mode. In multistep mode the default is `C2HLS_PHASEB_MODE=functional`,
+  which emits only a correct Vitis kernel baseline and leaves optimization
+  pragmas to the step agents.
+- **Input cleanliness requirement** — `plain.cpp` and included local headers
+  must be compileable without upstream HLS helper dependencies. If a stripped
+  input still includes `ap_int.h`, MARS wide-bus helpers, or benchmark-specific
+  HLS transport code, Phase A correctly blocks the run and records the failure.
 
 ### SynthesisAgent
 
@@ -339,12 +452,18 @@ Runs the synth/csim/cosim chain with full structured feedback:
   (calibrated against GT reference; see `STEP_REGRESSION_THRESHOLDS`);
   two-tier override accepts latency-halving steps that fit on chip
 - **Phase 9 correctness-repair** — if csim/cosim fails after csynth
-  passes, re-prompt with the testbench failure log; up to 3 repair rounds
+  passes, re-prompt with the testbench failure log. This applies both to
+  Phase B's functional baseline and to later optimization steps, so the
+  workflow does not start optimization from a synth-only but functionally
+  broken kernel.
 - **GT-shape-aware revert** (`trajectory_alignment.py`) — keeps
   intermediate regressions that match the GT trajectory shape (enabling
   steps that are a structural prerequisite for later gains)
 - **Revert-on-streak** — N consecutive same-class errors trigger reversion
   to last-known-good state (`C2HLS_SYNTH_REVERT_THRESHOLD`)
+- **Candidate search telemetry** — when exhaustive search is enabled, every
+  candidate attempt is synthesized or explicitly failed, and min/max/avg
+  latency/resource statistics are retained in the step record.
 
 ### QualityRepairAgent
 
@@ -359,6 +478,26 @@ When `C2HLS_HW_EMU_FINAL=1`, after the loop completes,
 `hls_eval.run_hw_emu_via_nova` stages a private copy of the nova
 benchmark, swaps in the LLM's kernel, runs `make check TARGET=hw_emu`,
 and parses `profile_kernels.csv` for authoritative kernel runtime.
+
+The hw_emu result is intentionally profile-visible. Missing profile CSV,
+timeout, variant mismatch, testbench failure, and skipped runs are recorded
+under `results["hw_emu"]` and propagated into sweep summaries/JSONL metadata.
+This is important because csynth latency can look good while final emulation
+times out, crashes, or fails the benchmark testbench.
+
+The emulation wrapper writes `make check` output to a real log file while the
+run is active. If the log reaches an explicit terminal failure marker such as
+`Benchmark results are incorrect` or `make: ***` and the subprocess tree does
+not exit, the wrapper terminates it after a short settle window and appends a
+visible `[C2HLS]` note to the log. This prevents known-failed hw_emu runs from
+occupying the full timeout while still preserving the failure evidence.
+
+SRAD has an additional local CSim caveat: its tiled kernel uses a halo-row
+contract and the upstream vectorized bottom-tile boundary condition. The local
+testbench golden mirrors that condition so generated code is checked against
+Rodinia/Nova semantics, not a scalar boundary variant. Phase B also records a
+visible `srad_halo_copy_offset` preflight patch if an LLM shifts copy-back
+offsets from `(t*TILE_ROWS+1)*COLS` to `t*TILE_ROWS*COLS`.
 
 ---
 
@@ -420,23 +559,40 @@ Strategy: prefer LOCAL BUFFER staging over unrolling for AXI II violations.
 
 Implemented in [`skill_library.py`](skill_library.py).
 
-A YAML/JSON store of confidence-tagged pattern→strategy entries, loaded
-by the orchestrator and queried per bottleneck kind at each step.
+A JSON store of confidence-tagged pattern→strategy entries, loaded from
+`skills/skills.json` by the orchestrator and queried per bottleneck kind at
+each step. Built-in defaults are merged into the store when new skills are
+added by framework updates. The framework also imports the curated schema-1.1
+package in
+`hls_full_optimization_skills_schema_1_1_package/skills.json`, which adds
+compound coalescing, tiling, pipeline, unroll, double-buffer, and multibank
+recipes plus explicit guardrails.
+
+The important behavior change is that coalescing is treated as a compound HLS
+rewrite, not as "add an `m_axi` pragma and hope." The rendered prompt now
+includes `required_steps` and `guards`, so the agent is reminded to check
+burst-friendly contiguous access, local staging, lane-level compute parallelism,
+tail handling, resource growth, and synthesis-report evidence.
 
 ### Entry schema
 
 ```python
 {
-  "id":          "axi_burst_widening",
+  "id":          "hls-coalescing-512-compound-transform",
   "pattern":     "m_axi port in pipelined loop; latency dominated by DRAM bandwidth",
-  "strategy":    "Add max_read_burst_length=64 num_read_outstanding=16 to m_axi pragma",
-  "template":    "#pragma HLS INTERFACE m_axi port=X bundle=gmem max_read_burst_length=64 ...",
+  "strategy":    "request 512-bit widening, reshape access, stage locally, exploit LANES compute",
+  "template":    "#pragma HLS INTERFACE m_axi port=X bundle=gmem max_widen_bitwidth=512 ...",
   "confidence":  "high",          # high / medium / low / avoid
-  "kind":        ["ii_target_miss", "port_conflict"],
-  "vitis_versions": ["2023.2", "2025.2"],
-  "fpgas":       ["xcu280-fsvh2892-2L-e"],
-  "avoid":       "Do NOT combine with array_partition cyclic",
-  "stats":       {"occurrences": 0, "sec_pass": 0, "mean_advantage": null}
+  "kind":        "compound_transformation",
+  "bottleneck_kinds": ["memory_bandwidth", "axi_burst_failed"],
+  "applicable_versions": ["2023.2"],
+  "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+  "tags":        ["coalescing", "max_widen_bitwidth", "lane-parallelism"],
+  "required_steps": ["rewrite global accesses to contiguous unit-stride loops", "..."],
+  "guards":      ["do not treat interface pragmas alone as complete coalescing", "..."],
+  "occurrences": 0,
+  "sec_pass": 0,
+  "mean_advantage": 0.0
 }
 ```
 
@@ -452,6 +608,10 @@ block = render_skill_set_for_prompt(matches, max_skills=2)
 
 Matched skills are injected into the optimization prompt when
 `--strategy dynamic` is active and the bottleneck router identifies a match.
+The selected router skill is passed directly into the step prompt so the
+agent sees the intended recipe rather than an unrelated top-bottleneck match.
+The router maps the curated `hls-*` skill ids back to executable steps such as
+`coalescing`, `tiling`, `pipeline`, `unroll`, and `doublebuffer`.
 
 ### Updating skill statistics
 
@@ -500,6 +660,13 @@ Pre-computed reference numbers live in
 
 Typical validation result: cycle ratios within 0.1 % of upstream
 (integer-rounding from `cycles = int(us × 300.30)`).
+
+During agentic sweeps, use `C2HLS_REFERENCE_VALIDATE_MODE=trusted_external`
+for Rodinia/Rodinia-Nova. In that mode the framework trusts direct JSONL
+records for reference `hls_synth`, `sw_emu`, and `hw_emu` status instead of
+requiring each reference kernel to pass the stripped-C validation path. This
+matches the benchmark's own direct-run contract and prevents known-good HLS
+references from being rejected by the translator-oriented input checks.
 
 ---
 
@@ -590,6 +757,18 @@ python export_schema_jsonl.py \
 Output: `artifacts/schema_records.jsonl` with schema-1.0 records
 (`sw_run` / `hls_synth` / `rtl_sim`), paired AI + GT records per step,
 and `origin_meta` carrying model attribution and phase.
+
+Validate the envelope and semantic checks before treating a file as an
+intended result artifact:
+
+```bash
+python export_schema_jsonl.py --validate-jsonl artifacts/schema_records.jsonl
+python scripts/validate_jsonl_semantics.py artifacts/schema_records.jsonl
+```
+
+Direct Nova/reference records should use `origin=rodinia_hls_benchmark`.
+Generated records should use `origin=c2hls_orchestrator`. Every record must
+have one payload only: `sw_run`, `rtl_sim`, or `hls_synth`.
 
 ---
 
@@ -713,12 +892,15 @@ artifacts/                            # Markdown + comparison reports
 | [dataset_pipeline/replay.py](dataset_pipeline/replay.py) | Replays existing results into schema records |
 | [dataset_pipeline/merge.py](dataset_pipeline/merge.py) | Merges records across runs into a single JSONL |
 | [dataset_pipeline/external_adapter.py](dataset_pipeline/external_adapter.py) | Adapts HLSFactory / HLSyn records to c2hls schema |
+| [scripts/prepare_hlsfactory_external_benches.py](scripts/prepare_hlsfactory_external_benches.py) | Materializes HLSFactory PolyBench cases into `benchmarks_external/HLSFactory/polybench_float_small/` |
+| [scripts/prepare_hls_eval_external_benches.py](scripts/prepare_hls_eval_external_benches.py) | Materializes hls-eval cases into flat c2hls benchmark dirs under `benchmarks_external/hls_eval/` |
 
 ### JSONL export
 
 | File | Purpose |
 |---|---|
 | [export_schema_jsonl.py](export_schema_jsonl.py) | Canonical schema-1.0 JSONL from `results/` + `results_multistep/` |
+| [scripts/validate_jsonl_semantics.py](scripts/validate_jsonl_semantics.py) | Additional JSONL payload checks for timing/resource validity and suspicious external-dataset synth records |
 
 ### Setup helpers
 
@@ -746,9 +928,12 @@ artifacts/                            # Markdown + comparison reports
 | `C2HLS_PART` | `xc7a100t-csg324-1` | Target FPGA part id |
 | `C2HLS_CLOCK_NS` | `4` | Target clock period for `create_clock` (3.33 = 300 MHz) |
 | `C2HLS_FLOW_TARGET` | `vitis` | Vitis HLS flow: `vitis` (kernel/v++) or `vivado` (raw IP) |
+| `C2HLS_TMP_ROOT` | `/mnt/data/luo00466/tmp` | Scratch root for C2HLS compile probes, HLS synth/csim/cosim dirs, direct emu staging, and inherited `TMPDIR`/`TEMP`/`TMP` |
 | `C2HLS_SYNTH_TIMEOUT` | `1200` | Wall-time budget for `csynth_design` (seconds) |
 | `C2HLS_CSIM_TIMEOUT` | `180` | Wall-time budget for `csim_design` |
 | `C2HLS_COSIM_TIMEOUT` | `1200` | Wall-time budget for `cosim_design` |
+| `C2HLS_REFERENCE_VALIDATE_MODE` | `trusted_external` in sweeps, `all` otherwise | `trusted_external` uses direct JSONL reference artifacts for `rodinia-hls` / `rodinia-hls-nova` and records `reference_source=direct_jsonl`; non-trusted datasets use local Vitis validation. `external` requires a trusted direct record and fails explicitly if one is missing |
+| `C2HLS_REFERENCE_JSONL_PATHS` | — | Optional `:`-separated extra direct-reference JSONL files to include when resolving trusted external reference status |
 
 ### Phase 8 — Baseline alignment
 
@@ -762,12 +947,19 @@ artifacts/                            # Markdown + comparison reports
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `C2HLS_DISABLE_CORRECTNESS_REPAIR` | `0` | Set to `1` to disable Phase 9 csim/cosim repair loop |
+| `C2HLS_DISABLE_CORRECTNESS_REPAIR` | `0` | Set to `1` to disable generated-code csim/cosim repair in Phase B and Phase 9 |
 
 ### Multistep optimisation
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `C2HLS_PHASEB_MODE` | `functional` for multistep, `optimized` for single-shot | Phase B prompt mode. `functional` emits only legal/testbench-compatible HLS; `optimized` preserves legacy Phase B optimization behavior |
+| `C2HLS_STRATEGY` / `C2HLS_SWEEP_STRATEGY` | `dynamic` in sweeps, `static` in CLI unless set | `flash` runs one all-in optimisation step; `combo_full` is the older all-techniques prompt; `dynamic` enables router/skill-library step selection |
+| `C2HLS_CANDIDATES_PER_STEP` | `1` | Number of independent LLM candidates per optimization step. Accepts an integer or JSON, e.g. `{"coalescing":3,"default":1}` |
+| `C2HLS_ATTEMPTS_PER_CANDIDATE` | current repair turn limit | Number of fully evaluated attempts per candidate when exhaustive candidate attempts are enabled. Bounded to 1–10 |
+| `C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS` | `0` | Set to `1` to synthesize every candidate attempt, then select the best passing attempt per candidate and record min/max/avg metrics |
+| `C2HLS_SKILL_LIBRARY_PERSIST` | `1` | Persist skill-library bootstrap entries and per-skill trajectory statistics to `skills/skills.json` |
+| `C2HLS_PHASEB_FAST_CANDIDATE_RATIO` | `0.80` | Record Phase B as a fast candidate when its baseline cycles are below this fraction of the reference baseline |
 | `C2HLS_PHASE5_GT_PREPOP` | `0` | Pre-synthesise all GT step variants into cache before the optimisation loop |
 | `C2HLS_PHASE7A` | `0` | Harvest static report data (burst.xml, fe_messages.xml, etc.) after each step |
 | `C2HLS_GT_AWARE_REVERT` | `1` | Keep enabling regressions consistent with GT trajectory shape |
@@ -795,6 +987,124 @@ artifacts/                            # Markdown + comparison reports
 | `C2HLS_HW_EMU_CLOCK_NS` | `3.33` | Clock period for hw_emu cycle conversion (U280 platform = 3.33) |
 | `C2HLS_HW_EMU_TIMEOUT` | `21600` | Wall-time budget for one `make check TARGET=hw_emu` (6 hours) |
 | `C2HLS_HW_EMU_STEPS` | `baseline,coalescing` | Which variants to hw_emu in `run_nova_direct_emu.py` |
+| `C2HLS_EMU_TERMINAL_SETTLE_S` | `10` | Seconds to wait after a terminal hw_emu/sw_emu failure marker before stopping a stuck process tree |
+
+---
+
+## Performance Hardening Roadmap
+
+Recent Rodinia/Nova and HLSFactory sweeps show the framework is now getting
+past the earlier reference-validation blocker, but several performance and
+validity issues still need targeted hardening. These are the next practical
+patches to improve generated-kernel quality without moving to reinforcement
+learning.
+
+### 1. Strengthen stripped-input hygiene
+
+Observed issue: `lc_dilate` can still fail Phase A because `plain.cpp` or a
+local header reaches `support/common/mc.h`, which includes `ap_int.h`.
+
+Planned work:
+
+- Add a corpus sanitizer that fails on `ap_int.h`, `ap_uint`, `MARS_*`,
+  `memcpy_wide_bus_*`, and upstream transport helpers in LLM inputs.
+- Expand `validate_corpus.py` so this is a hard corpus error before a sweep.
+- Prefer benchmark-local scalar/plain-C headers for Phase A; keep HLS helper
+  headers only inside reference variants.
+
+### 2. Make resource feasibility part of candidate selection
+
+Observed issue: some candidates report excellent latency but unrealistic
+resource usage or suspiciously tiny cycles.
+
+Planned work:
+
+- Reject selected candidates that exceed device capacity before Phase 6a best
+  promotion, not only after summary export.
+- Add a resource-normalized score for tie-breaking: latency improvement must
+  pay for DSP/BRAM/LUT/FF growth.
+- Route suspicious records through `scripts/validate_jsonl_semantics.py`, for
+  example external-dataset records with implausible cycle counts or no
+  meaningful loop scopes.
+- Record `selection_rejected_reason` for each rejected fast candidate so the
+  search remains auditable.
+
+### 3. Improve HLS error classifiers and repair prompts
+
+Observed recurrent errors include undeclared temporaries (`sum`, `accum`,
+`min_dist`), unsupported pointer selection, invalid dataflow on shared AXI
+bundles, invalid burst values, and Vitis pragma conflicts.
+
+Planned work:
+
+- Add typed repair classes for those Vitis error families.
+- Feed the exact class, source line, and minimal fix pattern into the next
+  SynthesisAgent prompt.
+- Detect repeated same-class failures earlier and switch strategy rather than
+  spending all attempts on small rewrites of the same broken idea.
+
+### 4. Use adaptive candidate budgets
+
+The exhaustive `5 candidates x 5 attempts` mode is useful for measurement, but
+it is expensive and can waste time on unpromising steps.
+
+Planned work:
+
+- Keep 5x5 for benchmark-quality sweeps, but add an adaptive mode for routine
+  development: stop a candidate early after repeated compile/csim failure, and
+  escalate only promising candidates.
+- Use Haiku for broad candidate generation and reserve Sonnet for selected
+  repair/escalation cases such as repeated synthesis failures or near-GT
+  bottleneck closure.
+- Cache and deduplicate canonical AST-equivalent attempts before Vitis runs.
+
+### 5. Mine reference trajectories into the skill library
+
+The reference variants already encode useful human HLS decisions.
+
+Planned work:
+
+- Diff `baseline -> tiling -> pipeline -> unroll -> doublebuffer ->
+  coalescing` variants and extract pragma/code motifs into skill candidates.
+- Attach each skill to bottleneck classes and resource envelopes.
+- Promote skills only when live sweeps show positive advantage; demote skills
+  that repeatedly cause csim failure, resource overflow, or Vitis conflicts.
+
+### 6. Harden final hw_emu accounting
+
+Observed issue: several designs pass csynth/csim but timeout or fail in final
+`hw_emu`.
+
+Planned work:
+
+- Preserve and link final `make`, `v++`, XSIM, `profile_kernels.csv`, and
+  `xrt.ini` artifacts for each hw_emu attempt.
+- Classify timeout, missing profile CSV, XSIM crash, and testbench mismatch as
+  distinct statuses in JSONL metadata.
+- Default problematic XSIM waveform cases to `debug_mode=off` when the goal is
+  profiling rather than waveform capture.
+- Keep variant-aware staging strict: if the final selected step cannot be
+  mapped to the corresponding Nova variant, skip with a profiled reason rather
+  than silently falling back.
+
+### 7. Separate external-dataset evaluation from Nova emulation
+
+HLSFactory and hls-eval do not have Rodinia/Nova host harnesses, so the current
+framework correctly skips Nova-style `hw_emu` for those records.
+
+Planned work:
+
+- Treat external datasets as csynth/csim-first benchmarks unless a dataset-local
+  host/emulation harness is available.
+- Add dataset-specific emulation adapters only where the host contract is
+  explicit and reproducible.
+- Compare external results through canonical JSONL and semantic validators,
+  not through Rodinia-specific hw_emu expectations.
+
+These improvements are all compatible with the current agentic design: they
+make the agents' feedback sharper, reduce invalid candidate wins, and make
+failures easier to profile without changing the core translator/synthesis/
+quality-repair architecture.
 
 ---
 

@@ -95,7 +95,7 @@ def test_correctness_prompt_shape(results, tee):
 
 def test_step_attempt_wires_correctness_repair(results, tee):
     tee.section("Phase 9: _optimization_step_attempt wires correctness repair")
-    src = inspect.getsource(c2hls.C2HLSOrchestrator._optimization_step_attempt)
+    src = inspect.getsource(c2hls.C2HLSOrchestrator._optimization_step_attempt_single)
     _check("references-prompt",
            "hls_correctness_repair_fix" in src,
            "_optimization_step_attempt builds the correctness-repair prompt",
@@ -155,7 +155,7 @@ def test_summary_failure_log_extraction(results, tee):
 
 def test_disable_env_flag(results, tee):
     tee.section("Phase 9: disable env flag honored")
-    src = inspect.getsource(c2hls.C2HLSOrchestrator._optimization_step_attempt)
+    src = inspect.getsource(c2hls.C2HLSOrchestrator._optimization_step_attempt_single)
     # Env is read into a local flag, then that flag gates the repair
     # branch. Both halves must be present for runtime disable to work.
     _check("env-read-into-local-flag",

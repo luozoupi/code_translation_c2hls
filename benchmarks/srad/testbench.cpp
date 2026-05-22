@@ -67,7 +67,15 @@ static void srad_kernel2_ref(float* J, float* Jout, float q0sqr, int tile)
 
             /* South neighbor */
             float Js;
-            if (tile == (ROWS/TR - 1) && i == TR)
+            /*
+             * Match the upstream Rodinia/Nova vectorized kernel condition:
+             *   tile == BOTTOM_TILE && i >= COLS/PARA_FACTOR*(TILE_ROWS-1)
+             * In this scalar reference `i` is a row index, so the equivalent
+             * boundary starts at TR-1. This matters when ROWS == TILE_ROWS:
+             * the last compared interior row must use replicated bottom
+             * derivative, not the extra halo row.
+             */
+            if (tile == (ROWS/TR - 1) && i >= TR - 1)
                 Js = Jc;
             else
                 Js = J[(i+2)*COLS + j];

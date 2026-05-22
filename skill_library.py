@@ -35,7 +35,7 @@ import os
 import re
 import threading
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -49,7 +49,14 @@ CONFIDENCE_TIERS = (TIER_HIGH, TIER_MEDIUM, TIER_LOW, TIER_AVOID)
 _TIER_RANK = {TIER_HIGH: 0, TIER_MEDIUM: 1, TIER_LOW: 2, TIER_AVOID: 3}
 
 # Default store path — relative to the repo root (the parent of this file).
-_DEFAULT_STORE = Path(__file__).resolve().parent / "skills" / "skills.json"
+SCHEMA_VERSION = "1.1"
+_REPO_ROOT = Path(__file__).resolve().parent
+_DEFAULT_STORE = _REPO_ROOT / "skills" / "skills.json"
+_PACKAGED_SKILLS = (
+    _REPO_ROOT
+    / "hls_full_optimization_skills_schema_1_1_package"
+    / "skills.json"
+)
 
 
 @dataclass
@@ -76,10 +83,13 @@ class Skill:
     strategy: str          # human-readable transformation principle
     template: str = ""     # before/after code template (may be empty)
     confidence: str = TIER_MEDIUM
+    kind: str = ""         # optional schema-1.1 category, e.g. avoid_rule
     bottleneck_kinds: List[str] = field(default_factory=list)
     applicable_versions: List[str] = field(default_factory=list)
     applicable_fpgas: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
+    guards: List[str] = field(default_factory=list)
+    required_steps: List[str] = field(default_factory=list)
     # Running statistics.
     occurrences: int = 0
     sec_pass: int = 0          # csim+cosim-passing applications
@@ -87,6 +97,80 @@ class Skill:
     last_used_at: Optional[str] = None
     # Source provenance — `prompt`, `paper`, `agent`, `manual`.
     origin: str = "manual"
+
+
+_LIST_FIELDS = {
+    "bottleneck_kinds",
+    "applicable_versions",
+    "applicable_fpgas",
+    "tags",
+    "guards",
+    "required_steps",
+}
+_INT_FIELDS = {"occurrences", "sec_pass"}
+_FLOAT_FIELDS = {"mean_advantage"}
+_STATS_FIELDS = {"occurrences", "sec_pass", "mean_advantage", "last_used_at"}
+
+
+def _as_str_list(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(item) for item in value if item is not None]
+    return [str(value)]
+
+
+def _coerce_skill_entry(entry: Any) -> Optional[Skill]:
+    """Accept schema-1.0 and schema-1.1 skill JSON without silent loss.
+
+    Older stores do not contain `kind`, `guards`, or `required_steps`; the
+    professionally curated package does. Unknown future fields are ignored so
+    a strict dataclass constructor does not discard whole skill entries.
+    """
+    if not isinstance(entry, dict):
+        logging.warning("skipping malformed skill entry: expected object, got %s", type(entry).__name__)
+        return None
+    known = {f.name for f in fields(Skill)}
+    data = {k: v for k, v in entry.items() if k in known}
+    missing = [name for name in ("id", "pattern", "strategy") if not data.get(name)]
+    if missing:
+        logging.warning("skipping malformed skill entry %s: missing %s", entry.get("id"), ", ".join(missing))
+        return None
+    for key in _LIST_FIELDS:
+        data[key] = _as_str_list(data.get(key))
+    for key in ("id", "pattern", "strategy", "template", "confidence", "kind", "origin"):
+        if data.get(key) is None:
+            data[key] = ""
+        else:
+            data[key] = str(data.get(key))
+    for key in _INT_FIELDS:
+        try:
+            data[key] = int(data.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            data[key] = 0
+    for key in _FLOAT_FIELDS:
+        try:
+            data[key] = float(data.get(key, 0.0) or 0.0)
+        except (TypeError, ValueError):
+            data[key] = 0.0
+    if data.get("last_used_at") is not None:
+        data["last_used_at"] = str(data["last_used_at"])
+    if data.get("confidence") not in CONFIDENCE_TIERS:
+        data["confidence"] = TIER_LOW
+    if not data.get("origin"):
+        data["origin"] = "manual"
+    try:
+        return Skill(**data)
+    except TypeError as exc:
+        logging.warning("skipping malformed skill entry %s: %s", entry.get("id"), exc)
+        return None
+
+
+def _preserve_observed_stats(incoming: Skill, existing: Skill) -> Skill:
+    data = asdict(incoming)
+    for key in _STATS_FIELDS:
+        data[key] = getattr(existing, key)
+    return Skill(**data)
 
 
 # === Storage ==============================================================
@@ -117,13 +201,9 @@ class SkillLibrary:
         skills_raw = data.get("skills", []) if isinstance(data, dict) else data
         out: Dict[str, Skill] = {}
         for entry in skills_raw or []:
-            try:
-                sk = Skill(**entry)
-            except TypeError as exc:
-                logging.warning("skipping malformed skill entry %s: %s", entry.get("id"), exc)
+            sk = _coerce_skill_entry(entry)
+            if sk is None:
                 continue
-            if sk.confidence not in CONFIDENCE_TIERS:
-                sk.confidence = TIER_LOW
             out[sk.id] = sk
         self._skills = out
         return self
@@ -131,7 +211,7 @@ class SkillLibrary:
     def save(self) -> None:
         self.store_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "schema": "1.0",
+            "schema": SCHEMA_VERSION,
             "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
             "skills": [asdict(sk) for sk in self._skills.values()],
         }
@@ -141,10 +221,14 @@ class SkillLibrary:
 
     # ---- Mutators --------------------------------------------------------
 
-    def add(self, skill: Skill, *, overwrite: bool = False) -> None:
+    def add(self, skill: Skill, *, overwrite: bool = False,
+            preserve_stats: bool = False) -> None:
         with self._lock:
-            if skill.id in self._skills and not overwrite:
+            existing = self._skills.get(skill.id)
+            if existing is not None and not overwrite:
                 return
+            if existing is not None and preserve_stats:
+                skill = _preserve_observed_stats(skill, existing)
             self._skills[skill.id] = skill
 
     def remove(self, skill_id: str) -> bool:
@@ -292,8 +376,10 @@ def _bootstrap_skills_from_prompts() -> List[Skill]:
         ),
         "coalescing": (
             "narrow per-element AXI burst on a contiguous read/write loop",
-            "rewrite the interface as ap_uint<512> and use memcpy_wide_bus_* "
-            "helpers for a 16x wider burst per cycle",
+            "preserve the public kernel ABI by default; first improve burst "
+            "lengths, outstanding transactions, local staging, and tail-safe "
+            "contiguous access. Only use a wide-bus ABI when the active "
+            "variant explicitly supports it.",
         ),
     }
 
@@ -326,6 +412,114 @@ def _bootstrap_skills_from_prompts() -> List[Skill]:
 
 def _default_high_confidence_skills() -> List[Skill]:
     return [
+        Skill(
+            id="axi-burst-coalescing-narrow-safe",
+            pattern=(
+                "m_axi port feeds a contiguous streaming loop, but the active "
+                "host/testbench contract expects the original narrow pointer "
+                "types"
+            ),
+            strategy=(
+                "keep the top-level workload signature unchanged; add AXI "
+                "burst/outstanding pragmas, stage contiguous data into local "
+                "buffers, pipeline the local compute/store loops, and preserve "
+                "scalar tail handling"
+            ),
+            template=(
+                "#pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem "
+                "max_read_burst_length=64 num_read_outstanding=16\n"
+                "#pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem "
+                "max_write_burst_length=64 num_write_outstanding=16\n"
+                "// Keep pointer element types unchanged unless metadata marks the variant wide_bus."
+            ),
+            confidence=TIER_HIGH,
+            bottleneck_kinds=[
+                "memory_bandwidth",
+                "axi_burst_failed",
+                "port_conflict",
+                "interval_exceeds_latency",
+            ],
+            applicable_versions=["2023.2"],
+            applicable_fpgas=["xcu280-fsvh2892-2L-e"],
+            origin="manual",
+            tags=["coalescing", "narrow-abi", "u280", "safe-default"],
+        ),
+        Skill(
+            id="axi-burst-widening-512",
+            pattern=(
+                "m_axi port feeds a pipelined loop and latency remains "
+                "bandwidth dominated; burst.xml shows narrow or failed AXI "
+                "burst inference"
+            ),
+            strategy=(
+                "widen contiguous AXI transfers to 512 bits, unpack into a "
+                "narrow local buffer, compute locally, and pack stores with "
+                "tail handling"
+            ),
+            template=(
+                "#include <ap_int.h>\n"
+                "typedef ap_uint<512> wide_t;\n"
+                "#pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem "
+                "max_read_burst_length=64 num_read_outstanding=16\n"
+                "#pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem "
+                "max_write_burst_length=64 num_write_outstanding=16\n"
+                "// WIDTH_FACTOR = 512 / (8 * sizeof(element)); handle scalar tail explicitly"
+            ),
+            confidence=TIER_HIGH,
+            bottleneck_kinds=[
+                "memory_bandwidth",
+                "axi_burst_failed",
+                "port_conflict",
+                "interval_exceeds_latency",
+            ],
+            applicable_versions=["2023.2"],
+            applicable_fpgas=["xcu280-fsvh2892-2L-e"],
+            origin="manual",
+            tags=["coalescing", "wide-bus", "u280", "validated"],
+        ),
+        Skill(
+            id="local-axi-staging-for-ii",
+            pattern=(
+                "AXI read dependency causes high II but the loop consumes a "
+                "reusable contiguous tile"
+            ),
+            strategy=(
+                "load a bounded tile into a local buffer first, pipeline the "
+                "local compute loop, and avoid DSP-heavy unroll unless later "
+                "steps prove arithmetic-bound"
+            ),
+            template=(
+                "float tile[TILE];\n"
+                "load_tile: for (int i = 0; i < TILE; ++i) tile[i] = in[base + i];\n"
+                "compute_tile: for (int i = 0; i < TILE; ++i) {\n"
+                "#pragma HLS PIPELINE II=1\n"
+                "    ... tile[i] ...\n"
+                "}\n"
+            ),
+            confidence=TIER_HIGH,
+            bottleneck_kinds=["ii_target_miss", "loop_carried_dep", "port_conflict"],
+            applicable_versions=["2023.2"],
+            applicable_fpgas=["xcu280-fsvh2892-2L-e"],
+            origin="manual",
+            tags=["tiling", "local-buffer", "u280", "validated"],
+        ),
+        Skill(
+            id="avoid-over-unroll-axi-dep",
+            pattern=(
+                "II miss is caused by AXI bandwidth/port dependency rather "
+                "than arithmetic throughput"
+            ),
+            strategy=(
+                "do not respond with large UNROLL or complete partitioning; "
+                "route to local staging or 512-bit burst widening instead"
+            ),
+            confidence=TIER_AVOID,
+            bottleneck_kinds=["memory_bandwidth", "axi_burst_failed", "ii_target_miss"],
+            applicable_versions=["2023.2"],
+            applicable_fpgas=["xcu280-fsvh2892-2L-e"],
+            origin="manual",
+            tags=["avoid", "over-unroll", "axi"],
+        ),
         Skill(
             id="partition-cyclic-on-port-conflict",
             pattern="multiple parallel reads to a single BRAM port causing II>1",
@@ -405,22 +599,51 @@ def _default_avoid_skills() -> List[Skill]:
     ]
 
 
+def _load_packaged_skills(path: Path = _PACKAGED_SKILLS) -> List[Skill]:
+    """Load the schema-1.1 curated skill package when present.
+
+    The package is benchmark-independent and intentionally lives outside the
+    mutable `skills/` store. It updates the built-in recipes while preserving
+    observed trajectory statistics from the active store.
+    """
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logging.warning("packaged skill load failed (%s); using built-ins only", exc)
+        return []
+    skills_raw = data.get("skills", []) if isinstance(data, dict) else data
+    out: List[Skill] = []
+    for entry in skills_raw or []:
+        sk = _coerce_skill_entry(entry)
+        if sk is not None:
+            out.append(sk)
+    return out
+
+
 def make_default_library(store_path: Optional[Path] = None,
                           *, persist: bool = True) -> SkillLibrary:
-    """Initialize a SkillLibrary, loading from disk if a store exists,
-    otherwise bootstrapping from
-    [prompt_c2hls.OPTIMIZATION_PROMPTS](prompt_c2hls.py).
-    Returns the populated library; saves to disk if `persist=True` and
-    the store didn't yet exist."""
+    """Initialize a SkillLibrary and merge any missing built-in skills.
+
+    A hand-edited store remains authoritative for existing ids, while new
+    prompt/manual defaults are added when code upgrades introduce them. The
+    curated schema-1.1 package, when present, refreshes recipe text,
+    guardrails, and required-step checklists while keeping observed pass-rate
+    statistics from the mutable store.
+    """
     lib = SkillLibrary(store_path or _DEFAULT_STORE).load()
-    if not lib.all():
-        for sk in _bootstrap_skills_from_prompts():
-            lib.add(sk, overwrite=False)
-        if persist:
-            try:
-                lib.save()
-            except OSError as exc:
-                logging.warning("SkillLibrary persistence failed: %s", exc)
+    before = {sk.id: asdict(sk) for sk in lib.all()}
+    for sk in _bootstrap_skills_from_prompts():
+        lib.add(sk, overwrite=False)
+    for sk in _load_packaged_skills():
+        lib.add(sk, overwrite=True, preserve_stats=True)
+    after = {sk.id: asdict(sk) for sk in lib.all()}
+    if after != before and persist:
+        try:
+            lib.save()
+        except OSError as exc:
+            logging.warning("SkillLibrary persistence failed: %s", exc)
     return lib
 
 
@@ -428,15 +651,28 @@ def make_default_library(store_path: Optional[Path] = None,
 
 
 def render_skill_for_prompt(sk: Skill) -> str:
-    """Compact render so a skill takes ~3-5 lines in the agent prompt."""
+    """Compact render with schema-1.1 guardrails/checklists."""
     bullets = [
         f"[skill {sk.id}] confidence={sk.confidence} pass={sk.sec_pass}/{sk.occurrences}",
         f"  pattern: {sk.pattern}",
         f"  strategy: {sk.strategy}",
     ]
+    if sk.kind:
+        bullets.insert(1, f"  kind: {sk.kind}")
+    if sk.required_steps:
+        bullets.append("  required steps:\n" + "\n".join(
+            f"    - {item}" for item in sk.required_steps[:10]
+        ))
+    if sk.guards:
+        bullets.append("  guards:\n" + "\n".join(
+            f"    - {item}" for item in sk.guards[:8]
+        ))
     if sk.template:
-        bullets.append("  template:\n" + "\n".join(
-            f"    {line}" for line in sk.template.strip().splitlines()
+        template_lines = sk.template.strip().splitlines()
+        if len(template_lines) > 16:
+            template_lines = template_lines[:16] + ["..."]
+        bullets.append("  template/example:\n" + "\n".join(
+            f"    {line}" for line in template_lines
         ))
     return "\n".join(bullets)
 

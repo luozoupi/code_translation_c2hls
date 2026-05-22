@@ -1,0 +1,381 @@
+#!/usr/bin/env python3
+"""Run a filtered agentic multistep sweep and emit canonical JSONL.
+
+Defaults are conservative for a corpus sweep:
+  - excludes StreamCluster
+  - uses Haiku only
+  - leaves final hw_emu off unless C2HLS_SWEEP_HW_EMU=1
+
+Use environment filters:
+  C2HLS_SWEEP_BENCHES=pathfinder,lud,nw
+  C2HLS_SWEEP_EXCLUDE=StreamCluster,srad
+  C2HLS_SWEEP_MODELS=haiku,sonnet
+  C2HLS_SWEEP_MAX_BENCHES=4
+  C2HLS_SWEEP_HW_EMU=1
+  C2HLS_SWEEP_SYNTH_TIMEOUT=420
+  C2HLS_SWEEP_CANDIDATES_PER_STEP=5
+  C2HLS_SWEEP_ATTEMPTS_PER_CANDIDATE=5
+  C2HLS_SWEEP_EXHAUSTIVE_CANDIDATE_ATTEMPTS=1
+  C2HLS_SWEEP_GT_PREPOP=1
+  C2HLS_SWEEP_BASELINE_ALIGN=1
+  C2HLS_SWEEP_STEPS=tiling,pipeline
+  C2HLS_SWEEP_STRATEGY=flash
+  C2HLS_SWEEP_TMP_ROOT=/mnt/data/luo00466/tmp
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+REPO = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO))
+
+from c2hls_temp import configure_temp_env
+
+STAMP = os.getenv("C2HLS_SWEEP_STAMP") or datetime.now().strftime("%Y%m%d_%H%M%S")
+BENCHMARKS_DIR = Path(os.getenv("C2HLS_SWEEP_BENCHMARKS_DIR", str(REPO / "benchmarks")))
+OUT_ROOT = REPO / "results_sweeps" / f"agentic_no_streamcluster_{STAMP}"
+OUT_JSONL = REPO / "artifacts" / f"agentic_no_streamcluster_{STAMP}.jsonl"
+SUMMARY_JSON = REPO / "artifacts" / f"agentic_no_streamcluster_{STAMP}.summary.json"
+SUMMARY_MD = REPO / "artifacts" / f"agentic_no_streamcluster_{STAMP}.md"
+
+MODELS = {
+    "haiku": "claude-haiku-4-5-20251001",
+    "sonnet": "claude-sonnet-4-6",
+}
+
+
+def _split_csv(raw: str) -> list[str]:
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _set_default_env() -> None:
+    os.environ.setdefault("C2HLS_TMP_ROOT", os.getenv("C2HLS_SWEEP_TMP_ROOT", "/mnt/data/luo00466/tmp"))
+    configure_temp_env(create=True)
+    os.environ.setdefault("C2HLS_VITIS_SETTINGS", "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh")
+    os.environ.setdefault("C2HLS_VITIS_VERSION", "2023.2")
+    os.environ.setdefault("C2HLS_PART", "xcu280-fsvh2892-2L-e")
+    os.environ.setdefault("C2HLS_CLOCK_NS", "3.33")
+    os.environ.setdefault("C2HLS_FLOW_TARGET", "vitis")
+    os.environ.setdefault("C2HLS_EMU_ENV_SCRIPT", str(REPO / "scripts" / "setup_emu_env.sh"))
+    os.environ.setdefault("C2HLS_DEVICE_PLATFORM", "xilinx_u280_gen3x16_xdma_1_202211_1")
+    os.environ.setdefault("C2HLS_CLAUDE_KEY_FILE", "/home/luo00466/claude-api-key.txt")
+    sweep_strategy = os.getenv("C2HLS_SWEEP_STRATEGY", "").strip()
+    if sweep_strategy:
+        os.environ["C2HLS_STRATEGY"] = sweep_strategy
+    else:
+        os.environ.setdefault("C2HLS_STRATEGY", "dynamic")
+    if os.getenv("C2HLS_STRATEGY", "").strip().lower() == "dynamic":
+        os.environ.setdefault("C2HLS_DYNAMIC_ROUTING", "1")
+    else:
+        os.environ.setdefault("C2HLS_DYNAMIC_ROUTING", "0")
+    os.environ.setdefault("C2HLS_PHASE8_BASELINE_ALIGN", os.getenv("C2HLS_SWEEP_BASELINE_ALIGN", "0"))
+    os.environ.setdefault("C2HLS_PHASE5_GT_PREPOP", os.getenv("C2HLS_SWEEP_GT_PREPOP", "0"))
+    os.environ.setdefault("C2HLS_PHASE7A", "1")
+    os.environ.setdefault("C2HLS_PHASEB_MODE", "functional")
+    os.environ.setdefault("C2HLS_CANDIDATES_PER_STEP", os.getenv("C2HLS_SWEEP_CANDIDATES_PER_STEP", "5"))
+    os.environ.setdefault("C2HLS_ATTEMPTS_PER_CANDIDATE", os.getenv("C2HLS_SWEEP_ATTEMPTS_PER_CANDIDATE", "5"))
+    os.environ.setdefault("C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS", os.getenv("C2HLS_SWEEP_EXHAUSTIVE_CANDIDATE_ATTEMPTS", "1"))
+    os.environ.setdefault("C2HLS_REFERENCE_VALIDATE_MODE", os.getenv("C2HLS_SWEEP_REFERENCE_VALIDATE_MODE", "trusted_external"))
+    os.environ.setdefault("C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS", "1")
+    os.environ.setdefault("C2HLS_SYNTH_TIMEOUT", os.getenv("C2HLS_SWEEP_SYNTH_TIMEOUT", "420"))
+    os.environ.setdefault("C2HLS_CSIM_TIMEOUT", os.getenv("C2HLS_SWEEP_CSIM_TIMEOUT", "180"))
+    os.environ.setdefault("C2HLS_HW_EMU_TIMEOUT", "7200")
+    os.environ.setdefault("C2HLS_LLM_TIMEOUT", "900")
+    os.environ["C2HLS_HW_EMU_FINAL"] = os.getenv("C2HLS_SWEEP_HW_EMU", os.getenv("C2HLS_HW_EMU_FINAL", "0"))
+
+
+def _discover_benches() -> list[tuple[str, Path]]:
+    available: dict[str, Path] = {}
+    for meta_path in sorted(BENCHMARKS_DIR.glob("*/metadata.json")):
+        try:
+            meta = json.loads(meta_path.read_text())
+        except json.JSONDecodeError:
+            continue
+        name = meta.get("benchmark") or meta_path.parent.name
+        available[name] = meta_path.parent
+
+    requested = _split_csv(os.getenv("C2HLS_SWEEP_BENCHES", ""))
+    if requested:
+        missing = [name for name in requested if name not in available]
+        if missing:
+            raise ValueError(f"unknown benchmark(s) in C2HLS_SWEEP_BENCHES: {missing}")
+        names = requested
+    else:
+        names = sorted(available)
+
+    excluded = set(_split_csv(os.getenv("C2HLS_SWEEP_EXCLUDE", "StreamCluster")))
+    names = [name for name in names if name not in excluded]
+    max_benches = int(os.getenv("C2HLS_SWEEP_MAX_BENCHES", "0") or "0")
+    if max_benches > 0:
+        names = names[:max_benches]
+    return [(name, available[name]) for name in names]
+
+
+def _selected_models() -> list[tuple[str, str]]:
+    raw = os.getenv("C2HLS_SWEEP_MODELS", "haiku")
+    selected = []
+    for item in _split_csv(raw):
+        key = item.lower()
+        if key in MODELS:
+            selected.append((key, MODELS[key]))
+        elif item in MODELS.values():
+            label = next(label for label, model in MODELS.items() if model == item)
+            selected.append((label, item))
+        else:
+            raise ValueError(f"unknown model in C2HLS_SWEEP_MODELS: {item}")
+    return selected or [("haiku", MODELS["haiku"])]
+
+
+def _selected_steps() -> list[str] | None:
+    raw = os.getenv("C2HLS_SWEEP_STEPS", "").strip()
+    return _split_csv(raw) if raw else None
+
+
+def _cycles(report: dict[str, Any] | None) -> int | None:
+    if not isinstance(report, dict):
+        return None
+    value = report.get("latency_cycles") or report.get("latency_cycle")
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _best_step(data: dict[str, Any]) -> dict[str, Any]:
+    candidates: list[dict[str, Any]] = []
+    if data.get("baseline_report"):
+        candidates.append({"step": "baseline", "report": data["baseline_report"]})
+    for step in data.get("steps") or []:
+        if step.get("success") and step.get("report"):
+            candidates.append({"step": step.get("step_name"), "report": step.get("report")})
+    if not candidates:
+        return {}
+    best = min(candidates, key=lambda item: _cycles(item.get("report")) or 10**30)
+    return {"step": best["step"], "cycles": _cycles(best.get("report"))}
+
+
+def _result_path(bench: str, label: str) -> Path:
+    return OUT_ROOT / f"{bench}_{label}" / f"{bench}_multistep_results.json"
+
+
+def _summarize(data: dict[str, Any]) -> dict[str, Any]:
+    steps = data.get("steps") or []
+    hw = data.get("hw_emu") or {}
+    return {
+        "success": bool(data.get("success")),
+        "phase": data.get("phase"),
+        "error": data.get("error"),
+        "phase_b_mode": data.get("phase_b_mode"),
+        "baseline_cycles": _cycles(data.get("baseline_report")),
+        "baseline_csim": (
+            (data.get("baseline_csim") or data.get("csim") or {}).get("passed")
+            if isinstance(data.get("baseline_csim") or data.get("csim"), dict)
+            else None
+        ),
+        "best": _best_step(data),
+        "steps_attempted": len(steps),
+        "steps_success": sum(1 for step in steps if step.get("success")),
+        "step_cycles": [
+            {
+                "step": step.get("step_name"),
+                "success": bool(step.get("success")),
+                "cycles": _cycles(step.get("report")),
+                "csim": (step.get("csim") or {}).get("passed") if isinstance(step.get("csim"), dict) else None,
+                "candidate_attempts": len(step.get("candidate_attempts") or []),
+                "candidate_search": step.get("candidate_search"),
+                "attempt_stats": step.get("attempt_stats"),
+                "skill_id": ((step.get("routing_decision") or {}).get("skill_id")),
+            }
+            for step in steps
+        ],
+        "hw_emu": {
+            "ran": hw.get("ran"),
+            "success": hw.get("success"),
+            "passed": hw.get("passed"),
+            "cycles": hw.get("kernel_runtime_cycles"),
+            "variant": hw.get("variant_name"),
+            "error": hw.get("error") or hw.get("skip_reason"),
+        },
+    }
+
+
+def _export_jsonl(completed: list[tuple[str, str, Path]]) -> int:
+    import export_schema_jsonl as ex
+
+    OUT_JSONL.parent.mkdir(parents=True, exist_ok=True)
+    count = 0
+    with OUT_JSONL.open("w") as handle:
+        for bench, label, bench_dir in completed:
+            path = _result_path(bench, label)
+            if not path.exists():
+                continue
+            for record in ex._records_from_multistep(
+                bench_dir,
+                path,
+                default_part=os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e"),
+                default_clock_ns=float(os.getenv("C2HLS_CLOCK_NS", "3.33")),
+            ):
+                handle.write(json.dumps(record) + "\n")
+                count += 1
+    validation = ex.validate_jsonl(OUT_JSONL)
+    if validation.get("invalid"):
+        raise RuntimeError(f"invalid JSONL records={validation['invalid']} path={OUT_JSONL}")
+    return count
+
+
+def _write_reports(rows: list[dict[str, Any]], jsonl_count: int) -> None:
+    SUMMARY_JSON.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "stamp": STAMP,
+        "benchmarks_dir": str(BENCHMARKS_DIR),
+        "out_root": str(OUT_ROOT),
+        "jsonl": str(OUT_JSONL),
+        "jsonl_records": jsonl_count,
+        "env": {
+            key: os.getenv(key)
+            for key in [
+                "C2HLS_SWEEP_BENCHES",
+                "C2HLS_SWEEP_EXCLUDE",
+                "C2HLS_SWEEP_MODELS",
+                "C2HLS_SWEEP_MAX_BENCHES",
+                "C2HLS_SWEEP_HW_EMU",
+                "C2HLS_SWEEP_SYNTH_TIMEOUT",
+                "C2HLS_SWEEP_CSIM_TIMEOUT",
+                "C2HLS_SWEEP_CANDIDATES_PER_STEP",
+                "C2HLS_SWEEP_ATTEMPTS_PER_CANDIDATE",
+                "C2HLS_SWEEP_EXHAUSTIVE_CANDIDATE_ATTEMPTS",
+                "C2HLS_SWEEP_GT_PREPOP",
+                "C2HLS_SWEEP_BASELINE_ALIGN",
+                "C2HLS_SWEEP_REFERENCE_VALIDATE_MODE",
+                "C2HLS_SWEEP_STEPS",
+                "C2HLS_SWEEP_STRATEGY",
+                "C2HLS_REFERENCE_VALIDATE_MODE",
+                "C2HLS_STRATEGY",
+                "C2HLS_DYNAMIC_ROUTING",
+                "C2HLS_SYNTH_TIMEOUT",
+                "C2HLS_CSIM_TIMEOUT",
+                "C2HLS_HW_EMU_FINAL",
+                "C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS",
+                "C2HLS_PHASE5_GT_PREPOP",
+                "C2HLS_PHASE8_BASELINE_ALIGN",
+                "C2HLS_CANDIDATES_PER_STEP",
+                "C2HLS_ATTEMPTS_PER_CANDIDATE",
+                "C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS",
+                "C2HLS_HW_EMU_TIMEOUT",
+                "C2HLS_PHASEB_MODE",
+            ]
+        },
+        "rows": rows,
+    }
+    SUMMARY_JSON.write_text(json.dumps(payload, indent=2) + "\n")
+
+    lines = [
+        "# Agentic Sweep",
+        "",
+        f"stamp: `{STAMP}`",
+        f"benchmarks_dir: `{BENCHMARKS_DIR}`",
+        f"results root: `{OUT_ROOT}`",
+        f"jsonl: `{OUT_JSONL}`",
+        f"jsonl records: `{jsonl_count}`",
+        "",
+        "| bench | model | status | steps | best step | best cycles | baseline cycles | hw_emu | hw cycles | note |",
+        "|---|---|---|---:|---|---:|---:|---|---:|---|",
+    ]
+    for row in rows:
+        cur = row.get("current") or {}
+        best = cur.get("best") or {}
+        hw = cur.get("hw_emu") or {}
+        lines.append(
+            f"| {row.get('bench')} | {row.get('model')} | {'pass' if cur.get('success') else 'fail'} | "
+            f"{cur.get('steps_success')}/{cur.get('steps_attempted')} | {best.get('step') or '-'} | "
+            f"{best.get('cycles') if best.get('cycles') is not None else '-'} | "
+            f"{cur.get('baseline_cycles') if cur.get('baseline_cycles') is not None else '-'} | "
+            f"{'pass' if hw.get('success') else ('fail' if hw.get('ran') else 'skip')} | "
+            f"{hw.get('cycles') if hw.get('cycles') is not None else '-'} | "
+            f"{hw.get('error') or '-'} |"
+        )
+    SUMMARY_MD.write_text("\n".join(lines) + "\n")
+
+
+def main() -> int:
+    _set_default_env()
+    from c2hls import run_benchmark_multistep
+
+    benches = _discover_benches()
+    models = _selected_models()
+    OUT_ROOT.mkdir(parents=True, exist_ok=True)
+    rows: list[dict[str, Any]] = []
+    completed: list[tuple[str, str, Path]] = []
+    print(
+        f"SELECTED benches={','.join(name for name, _ in benches)} "
+        f"models={','.join(label for label, _ in models)} "
+        f"hw_emu={os.getenv('C2HLS_HW_EMU_FINAL')}",
+        flush=True,
+    )
+
+    for label, model_id in models:
+        for bench, bench_dir in benches:
+            out_dir = OUT_ROOT / f"{bench}_{label}"
+            result_json = _result_path(bench, label)
+            print(f"START bench={bench} model={label} out={out_dir}", flush=True)
+            t0 = time.time()
+            try:
+                result = run_benchmark_multistep(
+                    str(bench_dir),
+                    output_dir=str(out_dir),
+                    gpt_model=model_id,
+                    turns_limitation=int(os.getenv("C2HLS_TURNS", "4")),
+                    steps=_selected_steps(),
+                )
+            except Exception as exc:
+                out_dir.mkdir(parents=True, exist_ok=True)
+                result = {
+                    "benchmark": bench,
+                    "success": False,
+                    "phase": "exception",
+                    "error": str(exc),
+                    "steps": [],
+                    "hw_emu": {
+                        "ran": False,
+                        "skip_reason": f"agentic exception: {exc}",
+                        "profile_required": True,
+                    },
+                    "run": {"model": model_id},
+                }
+                result_json.write_text(json.dumps(result, indent=2) + "\n")
+                print(f"ERROR bench={bench} model={label}: {exc}", flush=True)
+
+            if not result_json.exists():
+                out_dir.mkdir(parents=True, exist_ok=True)
+                result_json.write_text(json.dumps(result, indent=2) + "\n")
+
+            current = _summarize(result)
+            current["elapsed_sec"] = round(time.time() - t0, 3)
+            current["json"] = str(result_json)
+            rows.append({"bench": bench, "bench_dir": str(bench_dir), "model": label, "model_id": model_id, "current": current})
+            completed.append((bench, label, bench_dir))
+            jsonl_count = _export_jsonl(completed)
+            _write_reports(rows, jsonl_count)
+            best = current.get("best") or {}
+            print(
+                f"DONE bench={bench} model={label} success={current.get('success')} "
+                f"steps={current.get('steps_success')}/{current.get('steps_attempted')} "
+                f"best={best.get('step')} cycles={best.get('cycles')} "
+                f"elapsed={current['elapsed_sec']}s",
+                flush=True,
+            )
+
+    print(f"SUMMARY {SUMMARY_MD}", flush=True)
+    print(f"JSONL {OUT_JSONL}", flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

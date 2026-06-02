@@ -41,17 +41,23 @@ logging.basicConfig(
 #   C2HLS_SYNTH_TIMEOUT   Max seconds for csynth_design.
 #   C2HLS_CSIM_TIMEOUT    Max seconds for csim_design.
 #   C2HLS_COSIM_TIMEOUT   Max seconds for cosim_design.
+#   C2HLS_VITIS_USER_HOME Writable HOME for Vitis/Vivado subprocesses.
+#   C2HLS_COSIM_TRACE_LEVEL
+#                         Vitis cosim trace level. Default "none" avoids
+#                         simulator waveform/debug setup for batch sweeps.
 VITIS_SETTINGS = os.getenv(
     "C2HLS_VITIS_SETTINGS",
-    "/mnt/data/luo00466/Xilinx/2025.2/Vitis/settings64.sh",
+    "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh",
 )
-DEFAULT_PART = os.getenv("C2HLS_PART", "xc7a100t-csg324-1")
-DEFAULT_CLOCK_NS = float(os.getenv("C2HLS_CLOCK_NS", "4"))
+DEFAULT_PART = os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e")
+DEFAULT_CLOCK_NS = float(os.getenv("C2HLS_CLOCK_NS", "3.33"))
 DEFAULT_FLOW_TARGET = os.getenv("C2HLS_FLOW_TARGET", "vitis")
+DEFAULT_COSIM_TRACE_LEVEL = os.getenv("C2HLS_COSIM_TRACE_LEVEL", "none").strip()
 SYNTH_TIMEOUT = int(os.getenv("C2HLS_SYNTH_TIMEOUT", "1200"))  # 20 minutes
 CSIM_TIMEOUT = int(os.getenv("C2HLS_CSIM_TIMEOUT", "180"))     # 3 minutes
 COSIM_TIMEOUT = int(os.getenv("C2HLS_COSIM_TIMEOUT", "1200"))  # 20 minutes
 KERNEL_CLOCK_ID = 0
+VITIS_USER_HOME_ENV = "C2HLS_VITIS_USER_HOME"
 # =============================================================================
 
 
@@ -94,6 +100,23 @@ def _signal_pids(pids: set, sig) -> None:
             continue
 
 
+def _vitis_shell_exports(temp_root: Path) -> str:
+    """Return exports that keep Vitis intermediates on writable storage."""
+    raw_home = os.getenv(VITIS_USER_HOME_ENV, str(temp_root / "vitis_user_home")).strip()
+    vitis_home = Path(raw_home or str(temp_root / "vitis_user_home")).expanduser()
+    if not vitis_home.is_absolute():
+        raise RuntimeError(f"{VITIS_USER_HOME_ENV} must be absolute, got: {vitis_home}")
+    vitis_home.mkdir(parents=True, exist_ok=True)
+    (vitis_home / ".Xilinx").mkdir(parents=True, exist_ok=True)
+    return (
+        f"export {C2HLS_TMP_ROOT_ENV}={shlex.quote(str(temp_root))} "
+        f"TMPDIR={shlex.quote(str(temp_root))} "
+        f"TEMP={shlex.quote(str(temp_root))} "
+        f"TMP={shlex.quote(str(temp_root))} "
+        f"HOME={shlex.quote(str(vitis_home))}"
+    )
+
+
 def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
     """Run a shell command with Vitis sourced. Returns (stdout+stderr, timed_out).
 
@@ -103,12 +126,7 @@ def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
     + killpg, so losing the exec replacement does not leak processes.
     """
     temp_root = configure_temp_env(create=True)
-    temp_exports = (
-        f"export {C2HLS_TMP_ROOT_ENV}={shlex.quote(str(temp_root))} "
-        f"TMPDIR={shlex.quote(str(temp_root))} "
-        f"TEMP={shlex.quote(str(temp_root))} "
-        f"TMP={shlex.quote(str(temp_root))}"
-    )
+    temp_exports = _vitis_shell_exports(temp_root)
     full_cmd = f"{temp_exports} && source {shlex.quote(VITIS_SETTINGS)} && {temp_exports} && {cmd}"
     proc = subprocess.Popen(
         ["bash", "-lc", full_cmd],
@@ -190,12 +208,7 @@ def _run_vitis_cmd_logged(
     the log file, allowing us to stop after explicit terminal failure markers.
     """
     temp_root = configure_temp_env(create=True)
-    temp_exports = (
-        f"export {C2HLS_TMP_ROOT_ENV}={shlex.quote(str(temp_root))} "
-        f"TMPDIR={shlex.quote(str(temp_root))} "
-        f"TEMP={shlex.quote(str(temp_root))} "
-        f"TMP={shlex.quote(str(temp_root))}"
-    )
+    temp_exports = _vitis_shell_exports(temp_root)
     full_cmd = f"{temp_exports} && source {shlex.quote(VITIS_SETTINGS)} && {temp_exports} && {cmd}"
     markers = [m.lower() for m in (terminal_markers or [])]
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -748,12 +761,17 @@ add_files {src_file}
 """
     if hdr_file:
         tcl_content += f"add_files {hdr_file}\n"
+    cosim_cmd = "cosim_design"
+    if DEFAULT_COSIM_TRACE_LEVEL:
+        cosim_cmd += f" -trace_level {DEFAULT_COSIM_TRACE_LEVEL}"
+
     tcl_content += f"""add_files -tb {tb_file}
 open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default
 csynth_design
-cosim_design
+if {{[info exists ::env(LIBRARY_PATH)]}} {{ unset ::env(LIBRARY_PATH) }}
+{cosim_cmd}
 exit
 """
     tcl_file = os.path.join(work_dir, "run_cosim.tcl")
@@ -792,6 +810,10 @@ exit
     # without this the cosim result is just pass/fail and downstream tools
     # have no way to compare RTL-level performance.
     kernel_runtime_cycles = _parse_lat_rpt_cycles(work_dir, proj_name)
+    kernel_clock_freq_mhz = 1000.0 / clock_ns if clock_ns else None
+    kernel_runtime_us = None
+    if kernel_runtime_cycles is not None and kernel_clock_freq_mhz:
+        kernel_runtime_us = kernel_runtime_cycles / kernel_clock_freq_mhz
 
     return {
         "success": success,
@@ -800,6 +822,8 @@ exit
         "log": log,
         "work_dir": work_dir,
         "kernel_runtime_cycles": kernel_runtime_cycles,
+        "kernel_runtime_us": kernel_runtime_us,
+        "kernel_clock_freq_mhz": kernel_clock_freq_mhz,
     }
 
 

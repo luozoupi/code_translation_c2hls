@@ -13,8 +13,8 @@ that reflect real FPGA engineering concerns:
   M7. Area-Delay Product      (15%)  — combined efficiency: latency × normalised area
   M8. Device Feasibility      (10%)  — hard resource (BRAM+DSP) pressure vs device limits
 
-Target device: xc7a100t-csg324-1 (Artix-7 100T)
-Clock target: 4 ns (250 MHz)
+Target device: configured by C2HLS_PART (default: xcu280-fsvh2892-2L-e / U280)
+Clock target: 3.33 ns by default (300 MHz)
 """
 
 import json
@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-# ── Target device resource limits (xc7a100t-csg324-1, Artix-7 100T) ──
+# ── Target device resource limits ─────────────────────────────────────
 
 import os
 
@@ -72,20 +72,24 @@ def _device_limits_for_part(part: str) -> dict:
     Prefix match so "xcu50-fsvh2104-2-e" resolves to the xcu50 row.
     """
     if not part:
-        return _DEVICE_TABLE["xc7a100t"]
+        part = "xcu280-fsvh2892-2L-e"
     part_lc = part.lower()
     for key, limits in _DEVICE_TABLE.items():
         if part_lc.startswith(key):
             return limits
-    # Unknown part — fall back to Artix-7 100T so scoring does not crash.
-    return _DEVICE_TABLE["xc7a100t"]
+    # Unknown part — fall back to the current evaluation default and mark it.
+    fallback = dict(_DEVICE_TABLE["xcu280"])
+    fallback["_fallback_reason"] = f"unknown_part:{part}"
+    return fallback
 
 
 # Resolve once per process based on C2HLS_PART. Same env var the pipeline
 # uses, so rubric and synth always agree on the target device.
-DEVICE_LIMITS = _device_limits_for_part(os.getenv("C2HLS_PART", "xc7a100t"))
+TARGET_PART = os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e")
+DEVICE_LIMITS = _device_limits_for_part(TARGET_PART)
+DEVICE_LIMITS_FALLBACK_REASON = DEVICE_LIMITS.get("_fallback_reason", "")
 
-DEFAULT_CLOCK_NS = float(os.getenv("C2HLS_CLOCK_NS", "4"))
+DEFAULT_CLOCK_NS = float(os.getenv("C2HLS_CLOCK_NS", "3.33"))
 
 # ── Metric weights (sum to 1.0) ──────────────────────────────────────
 
@@ -521,7 +525,8 @@ def format_report(benchmarks: list, title: str = "FPGA Synthesis Quality Rubric"
     lines.append(f"{'=' * W}")
     lines.append(f"  {title}")
     lines.append(f"{'=' * W}")
-    lines.append(f"  Target: xc7a100t-csg324-1 (Artix-7 100T)  |  Clock: {DEFAULT_CLOCK_NS} ns  |  "
+    fallback_note = f"  |  fallback={DEVICE_LIMITS_FALLBACK_REASON}" if DEVICE_LIMITS_FALLBACK_REASON else ""
+    lines.append(f"  Target: {TARGET_PART}  |  Clock: {DEFAULT_CLOCK_NS} ns{fallback_note}  |  "
                  f"BRAM={DEVICE_LIMITS['bram']}  DSP={DEVICE_LIMITS['dsp']}  "
                  f"FF={DEVICE_LIMITS['ff']}  LUT={DEVICE_LIMITS['lut']}")
     lines.append(f"  Weights: Synth={METRIC_WEIGHTS['synthesis']:.0%}  "

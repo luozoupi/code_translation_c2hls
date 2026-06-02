@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd /home/luo00466/code_translation-c2hls
+
+export C2HLS_SWEEP_STAMP=hlsfactory_flash_sonnet46_cosim_skill_onoff_20260528_cosim1800
+export C2HLS_SWEEP_BENCHMARKS_DIR=/home/luo00466/code_translation-c2hls/benchmarks_external/HLSFactory/polybench_float_small
+export C2HLS_SWEEP_MODELS=sonnet
+export C2HLS_SWEEP_STRATEGY=flash
+export C2HLS_SWEEP_SKILL_MODES=off,on
+export C2HLS_SWEEP_CANDIDATES_PER_STEP=1
+export C2HLS_SWEEP_ATTEMPTS_PER_CANDIDATE=1
+export C2HLS_SWEEP_EXHAUSTIVE_CANDIDATE_ATTEMPTS=1
+export C2HLS_SWEEP_REFERENCE_VALIDATE_MODE=trusted_external
+export C2HLS_SWEEP_SYNTH_TIMEOUT=420
+export C2HLS_SWEEP_CSIM_TIMEOUT=180
+export C2HLS_SWEEP_COSIM_TIMEOUT=1800
+export C2HLS_SWEEP_COSIM_REQUIRED=0
+export C2HLS_SWEEP_COSIM_TRACE_LEVEL=none
+export C2HLS_REFERENCE_COSIM=0
+export C2HLS_SWEEP_HW_EMU=0
+export C2HLS_SWEEP_TMP_ROOT=/home/luo00466/tmp
+export C2HLS_TMP_ROOT=/home/luo00466/tmp
+export C2HLS_VITIS_USER_HOME=/home/luo00466/tmp/vitis_user_home_hlsfactory_flash_cosim_20260528
+export C2HLS_TURNS=4
+
+python3 run_agentic_sweep.py 2>&1 | tee /home/luo00466/code_translation-c2hls/artifacts/hlsfactory_flash_sonnet46_cosim_skill_onoff_20260528_cosim1800.log

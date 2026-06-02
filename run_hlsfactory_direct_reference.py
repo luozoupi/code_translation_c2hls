@@ -3,9 +3,9 @@
 
 This runner is intentionally no-LLM: it synthesizes each HLSFactory
 `hls_baseline.cpp` reference variant and, when a testbench is available,
-runs Vitis C simulation. The output is schema-1.0 JSONL so these records can
-be compared against agentic C2HLS outputs without overloading the word
-"baseline".
+runs Vitis C simulation and C/RTL co-simulation. The output is schema-1.0
+JSONL so these records can be compared against agentic C2HLS outputs without
+overloading the word "baseline".
 
 Default corpus:
   benchmarks_external/HLSFactory/polybench_float_small/*
@@ -43,6 +43,7 @@ from c2hls import _ground_truth_candidates, _load_benchmark_inputs  # noqa: E402
 from export_schema_jsonl import (  # noqa: E402
     SCHEMA_VERSION,
     TARGET_CSIM,
+    TARGET_COSIM,
     TARGET_CSYNTH,
     _build_hls_synth_payload,
     _build_implementation,
@@ -183,21 +184,24 @@ def _write_outputs(rows: list[dict[str, Any]], records_written: int) -> None:
         f"- JSONL: `{OUT_JSONL}`",
         f"- Vitis: `{os.getenv('C2HLS_VITIS_VERSION')}` / `{hls_eval.DEFAULT_PART}` / `{hls_eval.DEFAULT_CLOCK_NS} ns`",
         "",
-        "| bench | synth | csim | cycles | latency ns | fmax MHz | BRAM | DSP | FF | LUT | error |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+        "| bench | synth | csim | cosim | cycles | cosim cycles | latency ns | fmax MHz | BRAM | DSP | FF | LUT | error |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for row in rows:
         report = row.get("report") or {}
-        err = row.get("error") or row.get("csim_error") or ""
+        err = row.get("error") or row.get("csim_error") or row.get("cosim_error") or ""
         if len(err) > 120:
             err = err[:117] + "..."
         lines.append(
-            "| {bench} | {synth_status} | {csim_status} | {cycles} | {lat_ns} | "
-            "{fmax} | {bram} | {dsp} | {ff} | {lut} | {err} |".format(
+            "| {bench} | {synth_status} | {csim_status} | {cosim_status} | "
+            "{cycles} | {cosim_cycles} | {lat_ns} | {fmax} | {bram} | {dsp} | "
+            "{ff} | {lut} | {err} |".format(
                 bench=row.get("bench", ""),
                 synth_status=row.get("synth_status", "-"),
                 csim_status=row.get("csim_status", "-"),
+                cosim_status=row.get("cosim_status", "-"),
                 cycles=report.get("latency_cycles", "-"),
+                cosim_cycles=row.get("cosim_cycles", "-"),
                 lat_ns=report.get("latency_ns", "-"),
                 fmax=report.get("fmax_mhz", "-"),
                 bram=report.get("bram", "-"),
@@ -217,6 +221,7 @@ def main() -> int:
     OUT_SUMMARY.parent.mkdir(parents=True, exist_ok=True)
 
     run_csim = os.getenv("C2HLS_HLSFACTORY_DIRECT_CSIM", "1") != "0"
+    run_cosim = os.getenv("C2HLS_HLSFACTORY_DIRECT_COSIM", "1") != "0"
     rows: list[dict[str, Any]] = []
     records_written = 0
 
@@ -224,7 +229,7 @@ def main() -> int:
     print(f"benches={len(bench_dirs)} jsonl={OUT_JSONL}", flush=True)
     print(
         f"vitis={os.getenv('C2HLS_VITIS_VERSION')} part={hls_eval.DEFAULT_PART} "
-        f"clock={hls_eval.DEFAULT_CLOCK_NS} csim={run_csim}",
+        f"clock={hls_eval.DEFAULT_CLOCK_NS} csim={run_csim} cosim={run_cosim}",
         flush=True,
     )
 
@@ -238,6 +243,7 @@ def main() -> int:
                 "bench": bench_dir.name,
                 "synth_status": "fail",
                 "csim_status": "not_run",
+                "cosim_status": "not_run",
                 "error": "missing ground-truth HLS candidate",
             }
             rows.append(row)
@@ -324,6 +330,48 @@ def main() -> int:
                 f.write(json.dumps(csim_record) + "\n")
             records_written += 1
 
+        cosim = None
+        cosim_elapsed = None
+        cosim_status = "not_run"
+        if synth_status == "pass" and run_cosim and inputs.get("testbench_code") and meta.get("supports_cosim"):
+            cosim_t0 = time.time()
+            cosim = hls_eval.run_cosim(
+                candidate["code"],
+                inputs.get("testbench_code", ""),
+                candidate.get("header_code", inputs.get("header_code", "")),
+                header_name=candidate.get("header_name") or inputs.get("header_name") or "kernel.h",
+                top_function=top,
+                part=hls_eval.DEFAULT_PART,
+                clock_ns=hls_eval.DEFAULT_CLOCK_NS,
+                extra_files=inputs.get("extra_files", []),
+                interface_depths=meta.get("cosim_depths") or {},
+            )
+            cosim_elapsed = round(time.time() - cosim_t0, 3)
+            cosim_status = _status_from_result(cosim, passed_key=True)
+            cosim_record = _jsonl_record(
+                report_type="rtl_sim",
+                target=TARGET_COSIM,
+                runtime_seconds=cosim_elapsed,
+                meta=meta,
+                variant_name=variant_name,
+                origin_meta={
+                    **origin_meta,
+                    "cosim_work_dir": cosim.get("work_dir") if isinstance(cosim, dict) else None,
+                    "error": (cosim.get("error") or "")[:300] if cosim_status != "pass" else None,
+                },
+                payload_key="rtl_sim",
+                payload={
+                    "status": cosim_status,
+                    "kernel_runtime_cycles": cosim.get("kernel_runtime_cycles") if isinstance(cosim, dict) else None,
+                    "kernel_runtime_us": cosim.get("kernel_runtime_us") if isinstance(cosim, dict) else None,
+                    "kernel_clock_freq_mhz": cosim.get("kernel_clock_freq_mhz") if isinstance(cosim, dict) else None,
+                    "error": (cosim.get("error") or "")[:300] if cosim_status != "pass" else None,
+                },
+            )
+            with OUT_JSONL.open("a") as f:
+                f.write(json.dumps(cosim_record) + "\n")
+            records_written += 1
+
         row = {
             "bench": bench_dir.name,
             "variant": variant_name,
@@ -331,6 +379,13 @@ def main() -> int:
             "synth_runtime_seconds": synth_elapsed,
             "csim_status": csim_status,
             "csim_runtime_seconds": csim_elapsed,
+            "cosim_status": cosim_status,
+            "cosim_runtime_seconds": cosim_elapsed,
+            "cosim_cycles": (
+                cosim.get("kernel_runtime_cycles")
+                if isinstance(cosim, dict)
+                else None
+            ),
             "report": report,
             "error": (synth.get("error") or "")[:300] if synth_status != "pass" else "",
             "csim_error": (
@@ -338,15 +393,21 @@ def main() -> int:
                 if isinstance(csim, dict) and csim_status != "pass"
                 else ""
             ),
+            "cosim_error": (
+                (cosim.get("error") or "")[:300]
+                if isinstance(cosim, dict) and cosim_status != "pass"
+                else ""
+            ),
             "synth_work_dir": synth.get("work_dir"),
             "csim_work_dir": csim.get("work_dir") if isinstance(csim, dict) else None,
+            "cosim_work_dir": cosim.get("work_dir") if isinstance(cosim, dict) else None,
         }
         rows.append(row)
         _write_outputs(rows, records_written)
         print(
-            f"  synth={synth_status} csim={csim_status} "
+            f"  synth={synth_status} csim={csim_status} cosim={cosim_status} "
             f"cycles={report.get('latency_cycles')} ns={report.get('latency_ns')} "
-            f"fmax={report.get('fmax_mhz')}",
+            f"cosim_cycles={row.get('cosim_cycles')} fmax={report.get('fmax_mhz')}",
             flush=True,
         )
 

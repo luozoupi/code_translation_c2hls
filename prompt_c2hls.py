@@ -162,7 +162,8 @@ Here is the header:
 {header_code}
 ```
 
-Fix the code so it synthesizes successfully with Vitis HLS (vivado flow, Artix-7).
+Fix the code so it synthesizes successfully with the active configured Vitis HLS target:
+{target_context}.
 Common issues:
 - Variable-length arrays are not supported; use fixed sizes from #defines
 - Dynamic memory allocation (malloc/new) is not supported
@@ -259,8 +260,9 @@ name (a) the specific defect category (loop bounds / indexing / ordering /
 buffering / burst-tail) and (b) the smallest specific change you'll make to
 fix it. Then provide the corrected code in a ```cpp code fence."""
 
-# Quality-aware post-synthesis repair
-hls_quality_repair = """The current HLS code already synthesizes, but its implementation quality is worse than the validated gold baseline on important metrics.
+# Quality-aware post-synthesis repair. Reference/gold reports are deliberately
+# not exposed here; the controller keeps them offline for scoring.
+hls_quality_repair = """The current HLS code already synthesizes, but the controller flagged a latency, timing, or device-budget issue.
 
 Current HLS code:
 ```cpp
@@ -270,13 +272,8 @@ Current HLS code:
 Current synthesis report:
 {current_report}
 
-Validated gold baseline report:
-{ground_truth_report}
-
-Current comparison against the gold baseline:
-```json
-{comparison_summary}
-```
+Controller diagnostics:
+{quality_context}
 
 Benchmark-specific guidance:
 {benchmark_context}

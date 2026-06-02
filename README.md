@@ -89,6 +89,21 @@ C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS=1
 The saved result records selected candidate/attempt indices plus min/max/avg
 telemetry, so bad attempts are visible rather than silently dropped.
 
+### Evaluation isolation policy
+
+Reference HLS code and absolute reference metrics are controller-side evidence,
+not prompt material. The agents may see their own synthesis/csim/cosim reports,
+configured target context, device utilization, bottleneck diagnostics, curated
+skills, and ratio-only directional feedback such as generated/reference latency
+or Fmax ratios. Phase 8 baseline alignment and quality repair follow the same
+rule: they can ask for a better structure, but they must not expose reference
+source, exact reference cycle counts, or exact reference resource counts.
+
+The default hardware target is Vitis 2023.2 on U280
+(`xcu280-fsvh2892-2L-e`) at 3.33 ns. Unknown target/device information is
+recorded as fallback metadata instead of being silently treated as successful
+evidence.
+
 ### Agent decomposition
 
 The orchestrator coordinates three agent roles:

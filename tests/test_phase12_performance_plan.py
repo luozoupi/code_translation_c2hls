@@ -137,24 +137,51 @@ def test_flash_mode_wiring(results, tee):
         "estimated_clock_period_ns": 3.83,
         "requested_clock_period_ns": 3.33,
     }
+    slow_timing_bad = {
+        "latency_ns": 1000.0,
+        "slack_ns": -0.5,
+        "estimated_clock_period_ns": 3.83,
+        "requested_clock_period_ns": 3.33,
+    }
     _check(
-        "flash-ranker-prefers-timing-clean",
+        "flash-ranker-allows-large-latency-win",
+        c2hls.C2HLSOrchestrator._best_so_far_score(timing_bad)
+        < c2hls.C2HLSOrchestrator._best_so_far_score(clean),
+        "large latency wins are not erased solely by estimated negative slack",
+        results,
+        tee,
+    )
+    _check(
+        "flash-ranker-demotes-slow-timing-bad",
         c2hls.C2HLSOrchestrator._best_so_far_score(clean)
-        < c2hls.C2HLSOrchestrator._best_so_far_score(timing_bad),
-        "candidate ranking demotes timing-violating reports",
+        < c2hls.C2HLSOrchestrator._best_so_far_score(slow_timing_bad),
+        "timing penalty still breaks latency ties against timing-violating reports",
         results,
         tee,
     )
     reasons = c2hls._step_regression_reasons(
+        slow_timing_bad,
+        clean,
+        step_name="flash",
+        part="xcu280-fsvh2892-2L-e",
+    )
+    _check(
+        "flash-regression-rejects-negative-slack-without-win",
+        any("timing_not_clean" in r for r in reasons),
+        "negative slack remains explicit when there is no large latency win",
+        results,
+        tee,
+    )
+    fast_reasons = c2hls._step_regression_reasons(
         timing_bad,
         clean,
         step_name="flash",
         part="xcu280-fsvh2892-2L-e",
     )
     _check(
-        "flash-regression-rejects-negative-slack",
-        any("timing_not_clean" in r for r in reasons),
-        "negative slack is an explicit regression reason",
+        "flash-regression-allows-fast-device-fitting-slack",
+        not any("timing_not_clean" in r for r in fast_reasons),
+        "negative slack is recorded in the report but not an automatic revert for a 2x+ latency win that fits device",
         results,
         tee,
     )

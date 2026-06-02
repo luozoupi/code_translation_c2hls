@@ -320,8 +320,15 @@ class SkillLibrary:
                     continue
                 if vitis_version and sk.applicable_versions and vitis_version not in sk.applicable_versions:
                     continue
-                if fpga and sk.applicable_fpgas and fpga not in sk.applicable_fpgas:
-                    continue
+                if fpga and sk.applicable_fpgas:
+                    fpga_l = fpga.lower()
+                    if not any(
+                        fpga_l == item.lower()
+                        or fpga_l.startswith(item.lower())
+                        or item.lower().startswith(fpga_l)
+                        for item in sk.applicable_fpgas
+                    ):
+                        continue
                 cands.append(sk)
         cands.sort(key=lambda s: (_TIER_RANK[s.confidence], -s.mean_advantage, s.id))
         return cands

@@ -117,9 +117,13 @@ def test_guidance_renderer(results, tee):
     g = c2hls._render_baseline_alignment_guidance(gap)
     _check("guidance-non-empty", bool(g),
            f"guidance length {len(g)}", results, tee)
-    _check("guidance-mentions-latency-multiplier",
-           "× slower" in g,
+    _check("guidance-mentions-latency-ratio",
+           "latency_cycles_ratio=" in g,
            f"first 200 chars: {g[:200]}", results, tee)
+    _check("guidance-hides-reference-absolutes",
+           "1048818" not in g and "411.0" not in g,
+           "guidance keeps reference metrics ratio-only",
+           results, tee)
     _check("guidance-no-gt-code-leak",
            "void workload" not in g and "#pragma HLS pipeline" not in g,
            "guidance does not include reference HLS source",

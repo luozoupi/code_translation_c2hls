@@ -222,6 +222,72 @@ def _compact_origin_meta(value: Any) -> Any:
     return value
 
 
+def _test_status_for_schema(summary: dict) -> str:
+    raw = (summary or {}).get("status", "")
+    if raw == "passed":
+        return "pass"
+    if raw == "failed":
+        return "timeout" if "timed out" in ((summary or {}).get("error") or "").lower() else "fail"
+    return raw
+
+
+def _emit_sw_run_record(records: list[dict], *, meta: dict, run_meta: dict,
+                        part: str, model_id: Optional[str], variant_name: str,
+                        variant_index: int, origin_meta: dict,
+                        csim: dict) -> None:
+    status = _test_status_for_schema(csim)
+    if status in ("not_run", "not_supported", ""):
+        return
+    records.append({
+        "schema_version": SCHEMA_VERSION,
+        "report_type": "sw_run",
+        "run": _build_run(TARGET_CSIM, part, None, run_meta),
+        "problem": _build_problem(meta),
+        "implementation": _build_implementation(
+            meta,
+            variant_name=variant_name,
+            variant_index=variant_index,
+            origin_override="c2hls_orchestrator",
+            origin_version=model_id,
+            origin_meta=origin_meta,
+        ),
+        "sw_run": {
+            "status": status,
+            "error": (csim.get("error") or "")[:300] if status != "pass" else None,
+        },
+    })
+
+
+def _emit_cosim_record(records: list[dict], *, meta: dict, run_meta: dict,
+                       part: str, model_id: Optional[str], variant_name: str,
+                       variant_index: int, origin_meta: dict,
+                       cosim: dict) -> None:
+    status = _test_status_for_schema(cosim)
+    if status in ("not_run", "not_supported", ""):
+        return
+    records.append({
+        "schema_version": SCHEMA_VERSION,
+        "report_type": "rtl_sim",
+        "run": _build_run(TARGET_COSIM, part, None, run_meta),
+        "problem": _build_problem(meta),
+        "implementation": _build_implementation(
+            meta,
+            variant_name=variant_name,
+            variant_index=variant_index,
+            origin_override="c2hls_orchestrator",
+            origin_version=model_id,
+            origin_meta=origin_meta,
+        ),
+        "rtl_sim": {
+            "status": status,
+            "kernel_runtime_cycles": cosim.get("kernel_runtime_cycles"),
+            "kernel_runtime_us": cosim.get("kernel_runtime_us"),
+            "kernel_clock_freq_mhz": cosim.get("kernel_clock_freq_mhz"),
+            "error": (cosim.get("error") or "")[:300] if status != "pass" else None,
+        },
+    })
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -479,6 +545,8 @@ def _records_from_results_json(bench_dir: Path, results_json: Path,
         "model_translator": model_translator,
         "model_synthesis": model_synthesis,
         "model_quality_repair": model_quality_repair,
+        "skill_mode": run_meta.get("skill_mode"),
+        "skill_prompts": run_meta.get("skill_prompts"),
         "generated_at": run_meta.get("generated_at"),
     }
     gt_variant = data.get("ground_truth_variant") or {}
@@ -593,8 +661,8 @@ def _records_from_results_json(bench_dir: Path, results_json: Path,
             "rtl_sim": {
                 "status": status,
                 "kernel_runtime_cycles": cosim.get("kernel_runtime_cycles"),
-                "kernel_runtime_us": None,  # we use cosim, not hw_emu
-                "kernel_clock_freq_mhz": None,
+                "kernel_runtime_us": cosim.get("kernel_runtime_us"),
+                "kernel_clock_freq_mhz": cosim.get("kernel_clock_freq_mhz"),
                 "error": (cosim.get("error") or "")[:300] if status != "pass" else None,
             },
         })
@@ -725,6 +793,8 @@ def _records_from_multistep(bench_dir: Path, multistep_json: Path,
         "model_translator":     run_meta.get("model_translator") or model_id,
         "model_synthesis":      run_meta.get("model_synthesis") or model_id,
         "model_quality_repair": run_meta.get("model_quality_repair") or model_id,
+        "skill_mode": run_meta.get("skill_mode"),
+        "skill_prompts": run_meta.get("skill_prompts"),
         "generated_at": run_meta.get("generated_at"),
     }
     gt_variant = data.get("ground_truth_variant") or {}
@@ -748,27 +818,27 @@ def _records_from_multistep(bench_dir: Path, multistep_json: Path,
             continue
         report = step.get("report") or {}
         step_name = step.get("step_name", "")
+        step_index, step_short_name = _variant_identity_for_step(meta, step_name)
+        step_origin_meta = dict(base_origin_meta, step=step_name)
+        for key in (
+            "candidate_search",
+            "candidate_attempts",
+            "attempt_stats",
+            "attempt_results",
+            "selected_candidate_index",
+            "selected_attempt_index",
+            "successful_attempt_count",
+            "attempt_count",
+            "candidate_count",
+            "routing_decision",
+            "skill_update",
+        ):
+            value = step.get(key)
+            if value not in (None, "", []):
+                step_origin_meta[key] = _compact_origin_meta(value)
 
         # AI-generated record at this step.
         if report:
-            step_index, step_short_name = _variant_identity_for_step(meta, step_name)
-            step_origin_meta = dict(base_origin_meta, step=step_name)
-            for key in (
-                "candidate_search",
-                "candidate_attempts",
-                "attempt_stats",
-                "attempt_results",
-                "selected_candidate_index",
-                "selected_attempt_index",
-                "successful_attempt_count",
-                "attempt_count",
-                "candidate_count",
-                "routing_decision",
-                "skill_update",
-            ):
-                value = step.get(key)
-                if value not in (None, "", []):
-                    step_origin_meta[key] = _compact_origin_meta(value)
             records.append({
                 "schema_version": SCHEMA_VERSION,
                 "report_type": "hls_synth",
@@ -784,6 +854,34 @@ def _records_from_multistep(bench_dir: Path, multistep_json: Path,
                 ),
                 "hls_synth": _build_hls_synth_payload(report, part, clock_ns),
             })
+
+        csim = step.get("csim") or {}
+        if csim:
+            _emit_sw_run_record(
+                records,
+                meta=meta,
+                run_meta=run_meta,
+                part=part,
+                model_id=model_id,
+                variant_name=step_short_name,
+                variant_index=step_index,
+                origin_meta=step_origin_meta,
+                csim=csim,
+            )
+
+        cosim = step.get("cosim") or {}
+        if cosim:
+            _emit_cosim_record(
+                records,
+                meta=meta,
+                run_meta=run_meta,
+                part=part,
+                model_id=model_id,
+                variant_name=step_short_name,
+                variant_index=step_index,
+                origin_meta=step_origin_meta,
+                cosim=cosim,
+            )
 
         # Same-step GT record. The orchestrator synthesises the upstream
         # benchmark variant whose name matches this step (`tiling`, `pipeline`,

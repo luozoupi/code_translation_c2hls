@@ -31,6 +31,8 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import ast
+import operator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -57,6 +59,15 @@ _FUNC_DEF_RE = re.compile(
     r"^\s*(?:extern\s+\"C\"\s+)?(?:[\w:<>,~*&\s]+?)\s+([A-Za-z_]\w*)\s*\([^;]*\)\s*\{",
     re.MULTILINE,
 )
+_SAFE_DIM_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.FloorDiv: operator.floordiv,
+    ast.Div: operator.floordiv,
+    ast.USub: operator.neg,
+    ast.UAdd: operator.pos,
+}
 
 
 @dataclass
@@ -136,6 +147,91 @@ def infer_top_function(source_text: str, fallback: str = "workload") -> str:
         if name not in {"if", "for", "while", "switch"}:
             return name
     return fallback
+
+
+def _safe_int_expr(expr: str) -> Optional[int]:
+    """Evaluate simple integer dimensions such as `40 + 0` without eval()."""
+    expr = (expr or "").strip()
+    if not expr:
+        return None
+    try:
+        node = ast.parse(expr, mode="eval").body
+    except SyntaxError:
+        return None
+
+    def visit(cur):
+        if isinstance(cur, ast.Constant) and isinstance(cur.value, (int, float)):
+            return int(cur.value)
+        if isinstance(cur, ast.Num):  # pragma: no cover - py<3.8 compatibility
+            return int(cur.n)
+        if isinstance(cur, ast.UnaryOp) and type(cur.op) in _SAFE_DIM_OPS:
+            return _SAFE_DIM_OPS[type(cur.op)](visit(cur.operand))
+        if isinstance(cur, ast.BinOp) and type(cur.op) in _SAFE_DIM_OPS:
+            return _SAFE_DIM_OPS[type(cur.op)](visit(cur.left), visit(cur.right))
+        raise ValueError
+
+    try:
+        value = visit(node)
+    except (ValueError, ZeroDivisionError):
+        return None
+    return int(value) if value > 0 else None
+
+
+def _split_params(params: str) -> List[str]:
+    out: List[str] = []
+    start = 0
+    depth = 0
+    for idx, char in enumerate(params):
+        if char in "([{<":
+            depth += 1
+        elif char in ")]}>":
+            depth = max(0, depth - 1)
+        elif char == "," and depth == 0:
+            out.append(params[start:idx].strip())
+            start = idx + 1
+    tail = params[start:].strip()
+    if tail:
+        out.append(tail)
+    return out
+
+
+def infer_cosim_depths(source_text: str, top_function: str) -> Dict[str, int]:
+    """Infer Vitis HLS C/RTL cosim depths from fixed-size array arguments.
+
+    Vitis requires `depth=` on `m_axi` pointer/array interfaces for cosim.
+    HLSFactory/PolyBench kernels mostly use fixed array dimensions in the top
+    signature, so these depths can be derived mechanically and recorded in
+    metadata for later injection into generated m_axi pragmas.
+    """
+    if not source_text or not top_function:
+        return {}
+    func_re = re.compile(
+        rf"(?:extern\s+\"C\"\s*)?(?:[\w:<>,~*&\s]+?)\b{re.escape(top_function)}\s*"
+        r"\((?P<params>.*?)\)\s*(?:\{|;)",
+        re.DOTALL,
+    )
+    match = func_re.search(source_text)
+    if not match:
+        return {}
+    depths: Dict[str, int] = {}
+    for param in _split_params(match.group("params")):
+        param = re.sub(r"/\*.*?\*/", " ", param)
+        dims = re.findall(r"\[([^\]]+)\]", param)
+        if not dims:
+            continue
+        name_match = re.search(r"([A-Za-z_]\w*)\s*(?:\[[^\]]+\]\s*)+$", param)
+        if not name_match:
+            continue
+        depth = 1
+        for dim in dims:
+            value = _safe_int_expr(dim)
+            if value is None:
+                depth = 0
+                break
+            depth *= value
+        if depth > 0:
+            depths[name_match.group(1)] = depth
+    return depths
 
 
 def _walk(root: Path) -> Iterable[Path]:
@@ -238,6 +334,7 @@ def adapt_external_kernel(
         if rel not in support_files:
             support_files.append(rel)
 
+    cosim_depths = infer_cosim_depths(raw, top_function)
     meta = {
         "benchmark": bench_name,
         "source_repo": source_repo,
@@ -260,7 +357,9 @@ def adapt_external_kernel(
             },
         ],
         "supports_csim": bool(testbench_dest),
-        "supports_cosim": False,
+        "supports_cosim": bool(testbench_dest),
+        "cosim_depths": cosim_depths,
+        "cosim_harness": "vitis_hls_c_rtl",
         "preferred_gt_file": "hls_baseline.cpp",
     }
     (output_dir / "metadata.json").write_text(

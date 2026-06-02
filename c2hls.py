@@ -5,10 +5,10 @@ Adapts the Fortran-to-C++ pipeline for translating plain C kernels
 into Xilinx Vitis HLS optimized code.
 
 Pipeline:
-  Reference Gate: Validate the gold HLS baseline with local Vitis HLS
+  Reference Gate: Validate or load trusted reference evidence
   Phase A: Validate input C code compiles with g++
   Phase B: LLM translates C -> HLS-C, validate with Vitis HLS synthesis
-  Phase C: Compare synthesis reports against the validated gold baseline
+  Phase C: Compare synthesis reports against the validated reference offline
 """
 
 import json
@@ -136,8 +136,8 @@ BENCHMARK_POLICIES = {
             "Prefer modest cyclic factors or no partitioning on large arrays over aggressive partitioning that inflates memory resources.",
             "Keep the copy-in/copy-out loops simple and do not introduce extra array copies unless they materially help timing.",
             "When timing is already healthy, it is acceptable to spend a little area to shrink the remaining latency gap, especially in the compute loop.",
-            "When timing is poor, move closer to the gold-baseline pragma style: keep the interface pragmas, but remove compute-side PIPELINE/ARRAY_PARTITION/INLINE directives unless they clearly help.",
-            "For this benchmark, a simpler gold-like pragma set is preferable to an over-pragmatized kernel.",
+            "When timing is poor, keep the interface pragmas, but remove compute-side PIPELINE/ARRAY_PARTITION/INLINE directives unless they clearly help.",
+            "For this benchmark, a simple, low-pressure pragma set is preferable to an over-pragmatized kernel.",
         ],
     },
     "StreamCluster": {
@@ -486,8 +486,9 @@ def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
     # Cosim runs return kernel_runtime_cycles parsed from lat.rpt; preserve
     # it in the summary so downstream tooling (rubric, JSONL exporter) sees
     # the actual RTL cycle count instead of just pass/fail.
-    if "kernel_runtime_cycles" in result:
-        summary["kernel_runtime_cycles"] = result.get("kernel_runtime_cycles")
+    for key in ("kernel_runtime_cycles", "kernel_runtime_us", "kernel_clock_freq_mhz"):
+        if key in result:
+            summary[key] = result.get(key)
     log_excerpt = _extract_failure_excerpt(result.get("log", ""))
     if log_excerpt and not passed:
         summary["log_excerpt"] = log_excerpt
@@ -504,6 +505,11 @@ def _summary_status(summary: Optional[dict], available: bool) -> str:
         passed = bool(summary.get("passed", False))
         return _test_status(supported, ran, passed)
     return _test_status(available, False, False)
+
+
+def _cosim_required_for_correctness() -> bool:
+    raw = os.getenv("C2HLS_COSIM_REQUIRED", "1").strip().lower()
+    return raw in ("1", "true", "yes", "on")
 
 
 def _run_synth_csim_cosim(
@@ -883,6 +889,61 @@ def _resource_capacity_for(part: str) -> dict:
     return dict(_device_limits_for_part(part) or {})
 
 
+def _target_context_for_prompt(part: str = "", clock_ns: float | None = None) -> str:
+    active_part = part or os.getenv("C2HLS_PART", DEFAULT_PART)
+    active_clock = clock_ns if clock_ns is not None else os.getenv("C2HLS_CLOCK_NS", str(DEFAULT_CLOCK_NS))
+    flow = os.getenv("C2HLS_FLOW_TARGET", "vitis")
+    return f"{flow} flow, part {active_part}, target clock {active_clock} ns"
+
+
+def _resource_utilization(report: dict, part: str = "") -> dict:
+    capacity = _resource_capacity_for(part or os.getenv("C2HLS_PART", DEFAULT_PART))
+    out = {}
+    for key in ("bram", "dsp", "ff", "lut", "uram"):
+        value = _as_float((report or {}).get(key))
+        cap = _as_float((capacity or {}).get(key))
+        if value is None or not cap or cap <= 0:
+            continue
+        out[key] = {
+            "used": value,
+            "capacity": cap,
+            "utilization": value / cap,
+        }
+    return out
+
+
+def _resource_over_device(report: dict, part: str = "") -> list[str]:
+    over = []
+    for key, data in _resource_utilization(report, part).items():
+        if data["utilization"] > 1.0:
+            over.append(
+                f"{key} {int(data['used'])} > device cap {int(data['capacity'])}"
+            )
+    return over
+
+
+def _fits_device(report: dict, part: str = "") -> bool:
+    return not _resource_over_device(report, part)
+
+
+def _actionable_timing_bottlenecks(report: dict, limit: int = 3) -> list[str]:
+    feedback = (report or {}).get("feedback") or {}
+    bottlenecks = feedback.get("bottlenecks") or []
+    out = []
+    for bn in bottlenecks:
+        if not isinstance(bn, dict):
+            continue
+        kind = str(bn.get("kind") or "")
+        if kind not in {"ii_target_miss", "pipeline_blocked", "loop_carried_dep", "port_conflict"}:
+            continue
+        scope = bn.get("scope_id") or bn.get("scope") or "unknown_scope"
+        evidence = bn.get("evidence") or bn.get("message") or kind
+        out.append(f"{scope}: {evidence}")
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _classify_synth_error(error: str) -> str:
     """Coarse error-class buckets for streak detection. Distinct classes
     should drive distinct repair strategies; the same class repeating is
@@ -1190,7 +1251,12 @@ def _step_regression_reasons(new_report: dict, prev_report: dict,
             f"estimated_clock_period_ns {new_est_clock:.3f} > "
             f"requested_clock_period_ns {new_req_clock:.3f}"
         )
-    if timing_bad:
+    timing_allowed_by_latency_fit = (
+        lat_ratio is not None
+        and lat_ratio <= 0.5
+        and _fits_device(new_report, part or os.getenv("C2HLS_PART", DEFAULT_PART))
+    )
+    if timing_bad and not timing_allowed_by_latency_fit:
         reasons.append(
             f"timing_not_clean for step '{step_name or '_default'}': "
             f"{timing_detail}"
@@ -1301,26 +1367,23 @@ def _render_no_op_guidance(step_name: str, reasons: list) -> str:
 
 # === Phase 8: baseline alignment ============================================
 #
-# Phase B's translation is a single-shot rewrite of plain C → HLS. If the
-# LLM lands a baseline that's significantly worse than the reference's
-# baseline, every downstream optimization step compounds the bad
-# starting point. The clearest example is knn_static's 72M-cycle
-# baseline (vs philip's 1.05M reference baseline — 70× worse) — even
-# with strong optimizations the trajectory could only recover to
-# 5.32M, never close to the reference's 262K.
+# Phase B's translation is a single-shot rewrite of plain C -> HLS. If the
+# LLM lands a baseline that's significantly worse than the offline reference
+# envelope, every downstream optimization step compounds the bad starting
+# point.
 #
 # Phase 8 adds an opt-in baseline-alignment loop that runs *between*
-# Phase B (translate + synth) and Phase C (compare against gold). When
+# Phase B (translate + synth) and Phase C (offline reference comparison). When
 # our baseline is more than ``C2HLS_PHASE8_BASELINE_LATENCY_TOL`` (default
 # 1.20×) over the reference's baseline cycles, or any single resource is
 # more than ``C2HLS_PHASE8_BASELINE_RESOURCE_TOL`` (default 2.00×) over,
-# we re-translate with **metric-only feedback** — no gold-code leak,
-# just numeric gaps + per-loop diagnostics — and re-synth. Up to 3
-# attempts.
+# we re-translate with metric-only, ratio-only feedback and re-synth. Up to
+# 3 attempts.
 #
 # Critical constraint: the feedback must NOT include the reference HLS
 # source. The translator agent should still be solving the
-# C-to-HLS task, not regurgitating philip's code. We render only:
+# C-to-HLS task, not reconstructing the reference implementation. We render
+# only:
 #   - latency_cycles ratio (ours / ref)
 #   - per-resource ratios
 #   - per-loop diagnostics from the agent's own report (already in
@@ -1421,9 +1484,9 @@ def _compute_baseline_gap(
 
 def _render_baseline_alignment_guidance(gap: dict, attempt: int = 0) -> str:
     """Build a prompt fragment for re-translating with metric-only
-    feedback. **Never** includes the reference HLS source — just numeric
-    gaps + per-loop diagnostics from our own report's
-    ``feedback`` field (which the orchestrator already attaches).
+    feedback. **Never** includes the reference HLS source or absolute
+    reference metrics; only ratios plus diagnostics from our own report's
+    ``feedback`` field are exposed to the LLM.
     """
     if gap.get("within_tolerance"):
         return ""
@@ -1432,48 +1495,35 @@ def _render_baseline_alignment_guidance(gap: dict, attempt: int = 0) -> str:
 
     lines: list = [
         f"Your previous translation has a baseline that's significantly "
-        f"worse than the canonical reference baseline for this kernel.",
+        f"worse than the offline reference envelope for this kernel.",
         "",
-        "Per-axis comparison (your translation → reference baseline):",
+        "Per-axis ratios against the offline reference (ratio > 1 is worse for latency/resources; ratio < 1 is worse for Fmax):",
     ]
     if o.get("latency_cycles") and r.get("latency_cycles"):
         ratio = o["latency_cycles"] / r["latency_cycles"]
-        lines.append(
-            f"  latency_cycles: {o['latency_cycles']:>10} → "
-            f"{r['latency_cycles']:>10}  ({ratio:.2f}× slower)"
-        )
+        lines.append(f"  - latency_cycles_ratio={ratio:.2f}")
     for k in ("bram", "dsp", "ff", "lut"):
         v_o, v_r = o.get(k), r.get(k)
         if v_o is not None and v_r is not None and v_r > 0:
             ratio = v_o / v_r
-            arrow = "→"
-            tag = "" if ratio <= 1.10 else f"  ({ratio:.2f}× more)"
-            lines.append(f"  {k:<6}      : {int(v_o):>10} {arrow} {int(v_r):>10}{tag}")
+            lines.append(f"  - {k}_ratio={ratio:.2f}")
     if o.get("fmax_mhz") and r.get("fmax_mhz"):
-        lines.append(
-            f"  Fmax (MHz)   : {o['fmax_mhz']:>10.1f} → "
-            f"{r['fmax_mhz']:>10.1f}"
-        )
+        lines.append(f"  - fmax_ratio={o['fmax_mhz'] / r['fmax_mhz']:.2f}")
 
     if gap.get("over_resources"):
         lines.append("")
         lines.append("Resources over the alignment tolerance:")
         for k, vo, vr, rr in gap["over_resources"]:
-            lines.append(f"  - {k}: {int(vo)} vs {int(vr)} ({rr:.2f}×)")
+            lines.append(f"  - {k}: ratio={rr:.2f}")
 
     if gap.get("fmax_below_floor"):
         fmax_ratio = gap.get("fmax_ratio", 0)
         fmax_floor = gap.get("fmax_floor", 0.80)
-        o_fmax = (gap.get("ours_summary") or {}).get("fmax_mhz")
-        r_fmax = (gap.get("reference_summary") or {}).get("fmax_mhz")
         lines.append("")
         lines.append(
-            f"Fmax is too low: your design achieves {o_fmax:.1f} MHz "
-            f"({fmax_ratio:.2f}× of reference {r_fmax:.1f} MHz, floor "
-            f"is {fmax_floor:.2f}×). A cycle-count match at much lower "
-            f"Fmax indicates a long combinational critical path — the "
-            f"translation has structural timing problems that will worsen "
-            f"under optimization. Target at least {r_fmax * fmax_floor:.0f} MHz."
+            f"Fmax ratio is too low: {fmax_ratio:.2f} with floor {fmax_floor:.2f}. "
+            "A cycle-count match at much lower Fmax indicates a long combinational "
+            "critical path; fix structural timing before optimization."
         )
         lines.append(
             "  - Avoid deep nested function calls without `inline`"
@@ -1510,8 +1560,8 @@ def _render_baseline_alignment_guidance(gap: dict, attempt: int = 0) -> str:
     lines.append("")
     lines.append(
         "Re-translate the kernel from scratch, targeting a baseline "
-        "synth-report that fits within the reference's per-resource "
-        "envelope. Do NOT add optimization pragmas (PIPELINE / UNROLL / "
+        "that fits the configured device budget and avoids unnecessary "
+        "local state. Do NOT add optimization pragmas (PIPELINE / UNROLL / "
         "DATAFLOW / array_partition) — those belong to the multistep "
         "optimization phase that runs AFTER this alignment. Keep this "
         "translation conservative: just AXI INTERFACE pragmas + the "
@@ -1831,37 +1881,94 @@ def _comparison_ratio(comparison: dict, key: str) -> Optional[float]:
     return _as_float(vals.get("ratio"))
 
 
+def _reference_ratio_summary(comparison: dict) -> dict:
+    """Small prompt/history-safe comparison: ratios only, no GT absolutes."""
+    out = {}
+    for key in ("latency_cycles", "latency_ns", "interval", "fmax_mhz"):
+        ratio = _comparison_ratio(comparison, key)
+        if ratio is not None:
+            out[key] = {
+                "ratio": round(ratio, 6),
+                "semantics": "lower_is_better" if key != "fmax_mhz" else "higher_is_better",
+            }
+    return out
+
+
+def _coalescing_diagnostics(hls_code: str, report: dict | None = None) -> dict:
+    code = hls_code or ""
+    uses_widening = bool(
+        re.search(r"max_widen_bitwidth\s*=\s*(256|512|1024)", code)
+        or re.search(r"\bap_uint\s*<\s*(256|512|1024)\s*>", code)
+    )
+    mentions_lanes = bool(re.search(r"\bLANES?\b|WIDTH_FACTOR|lane", code, re.IGNORECASE))
+    has_compute_parallelism = bool(
+        re.search(r"#\s*pragma\s+HLS\s+UNROLL", code)
+        or re.search(r"#\s*pragma\s+HLS\s+ARRAY_PARTITION", code)
+        or mentions_lanes
+    )
+    has_burst_or_staging = bool(
+        re.search(r"max_(read|write)_burst_length|num_(read|write)_outstanding", code)
+        or re.search(r"\b(load|store)_[A-Za-z0-9_]*:", code)
+    )
+    if uses_widening and not (has_compute_parallelism or has_burst_or_staging):
+        status = "interface_only"
+    elif uses_widening:
+        status = "compound_or_partial"
+    else:
+        status = "not_applied"
+    return {
+        "status": status,
+        "uses_widening": uses_widening,
+        "has_compute_parallelism_marker": has_compute_parallelism,
+        "has_burst_or_staging_marker": has_burst_or_staging,
+        "latency_cycles": (report or {}).get("latency_cycles"),
+    }
+
+
 def _build_quality_guidance(benchmark_name: str, report: dict, ground_truth_report: dict, comparison: dict) -> str:
     bench = benchmark_name or ""
     issues = []
 
     slack = _as_float((report or {}).get("slack_ns"))
-    if slack is not None and slack < 0:
-        issues.append(f"Current slack is {slack:.3f} ns, so reduce critical-path pressure and improve timing closure.")
+    timing_bottlenecks = _actionable_timing_bottlenecks(report)
+    if slack is not None and slack < 0 and timing_bottlenecks:
+        issues.append(
+            "Timing is not clean and the report names actionable loop bottlenecks; "
+            "repair the listed II/dependency or port-pressure causes rather than "
+            "blindly removing parallelism."
+        )
 
     fmax_ratio = _comparison_ratio(comparison, "fmax_mhz")
     if fmax_ratio is not None and fmax_ratio < 0.8:
-        issues.append(f"Current Fmax is only {fmax_ratio:.3f}x the gold baseline; improve clock frequency without breaking functionality.")
+        issues.append(
+            f"Clock quality ratio to the hidden reference is {fmax_ratio:.3f} "
+            "(higher is better); improve scheduling only if this does not give up "
+            "a large latency win."
+        )
 
     latency_ratio = _comparison_ratio(comparison, "latency_ns")
-    if latency_ratio is not None and latency_ratio > 2.0:
-        issues.append(f"Latency is {latency_ratio:.3f}x the gold baseline in ns; reduce unnecessary serialization or buffering if possible.")
+    if latency_ratio is not None and latency_ratio > 1.10:
+        issues.append(
+            f"Latency ratio to the hidden reference is {latency_ratio:.3f} "
+            "(ratio > 1 is slower); reduce avoidable serialization or buffering."
+        )
 
-    for key, label, threshold in [
-        ("bram", "BRAM", 1.15),
-        ("dsp", "DSP", 1.15),
-        ("ff", "FF", 1.25),
-        ("lut", "LUT", 1.25),
-    ]:
-        ratio = _comparison_ratio(comparison, key)
-        if ratio is not None and ratio > threshold:
-            issues.append(f"{label} usage is {ratio:.3f}x the gold baseline; reduce over-parallelization or duplicated storage for this resource.")
+    part = os.getenv("C2HLS_PART", DEFAULT_PART)
+    for item in _resource_over_device(report, part):
+        issues.append(f"Device resource budget exceeded: {item}.")
+    for key, data in _resource_utilization(report, part).items():
+        if data["utilization"] >= 0.90:
+            issues.append(
+                f"{key.upper()} utilization is {100.0 * data['utilization']:.1f}% "
+                f"of the configured device; reduce this only if it threatens fit "
+                "or blocks timing."
+            )
 
     if bench == "spmv_crs" and latency_ratio is not None and latency_ratio > 1.5 and (slack is None or slack >= 0) and (fmax_ratio is None or fmax_ratio >= 1.0):
         issues.insert(0, "Timing is already healthy, so focus this repair on reducing latency while keeping slack non-negative.")
 
     if bench == "spmv_crs" and ((slack is not None and slack < 0) or (fmax_ratio is not None and fmax_ratio < 0.8)):
-        issues.insert(0, "Timing is still poor on this benchmark; prefer a simpler, gold-like pragma set over additional aggressive compute-side directives.")
+        issues.insert(0, "Timing is still poor on this benchmark; prefer local-memory and dependency fixes over additional aggressive compute-side directives.")
 
     if bench == "StreamCluster" and latency_ratio is not None and latency_ratio < 1.0 and ((slack is not None and slack < 0) or (fmax_ratio is not None and fmax_ratio < 0.5)):
         issues.insert(0, "Latency headroom is ample, so it is acceptable to trade some extra cycles for better slack/Fmax and lower DSP pressure.")
@@ -1878,32 +1985,85 @@ def _build_quality_guidance(benchmark_name: str, report: dict, ground_truth_repo
     return "\n".join(f"- {line}" for line in guidance)
 
 
+def _build_quality_context(report: dict, comparison: dict, *, part: str = "", clock_ns: float | None = None) -> str:
+    """Agent-visible quality context with no absolute reference metrics."""
+    lines = [
+        "Reference data is held offline. Ratios below are directional only:",
+        "  - latency/fmax ratios are generated/reference; latency ratio < 1 is faster, fmax ratio > 1 is faster.",
+    ]
+    for key, label in [
+        ("latency_cycles", "latency_cycles"),
+        ("latency_ns", "latency_ns"),
+        ("fmax_mhz", "fmax_mhz"),
+    ]:
+        ratio = _comparison_ratio(comparison, key)
+        if ratio is not None:
+            lines.append(f"  - {label}_ratio={ratio:.3f}")
+
+    active_part = part or os.getenv("C2HLS_PART", DEFAULT_PART)
+    active_clock = clock_ns if clock_ns is not None else os.getenv("C2HLS_CLOCK_NS", str(DEFAULT_CLOCK_NS))
+    lines.append(f"Configured target: {_target_context_for_prompt(active_part, active_clock)}")
+
+    util = _resource_utilization(report, active_part)
+    if util:
+        lines.append("Device utilization:")
+        for key in ("bram", "dsp", "ff", "lut", "uram"):
+            data = util.get(key)
+            if not data:
+                continue
+            lines.append(
+                f"  - {key}: used={int(data['used'])} cap={int(data['capacity'])} "
+                f"util={100.0 * data['utilization']:.1f}%"
+            )
+
+    slack = _as_float((report or {}).get("slack_ns"))
+    est = _as_float((report or {}).get("estimated_clock_period_ns"))
+    if slack is not None or est is not None:
+        lines.append(
+            f"Timing estimate: slack_ns={slack if slack is not None else 'unknown'}, "
+            f"estimated_clock_period_ns={est if est is not None else 'unknown'}."
+        )
+
+    bottlenecks = _actionable_timing_bottlenecks(report)
+    if bottlenecks:
+        lines.append("Actionable report bottlenecks:")
+        lines.extend(f"  - {item}" for item in bottlenecks)
+    else:
+        lines.append("No actionable timing path detail was parsed; avoid blind timing-only rewrites.")
+
+    return "\n".join(lines)
+
+
 def _quality_score(benchmark_name: str, report: dict, comparison: dict) -> float:
     bench = benchmark_name or ""
     score = 0.0
 
     slack = _as_float((report or {}).get("slack_ns"))
-    if slack is not None and slack < 0:
-        score += abs(slack) * 25.0
+    if slack is not None and slack < 0 and _actionable_timing_bottlenecks(report):
+        score += abs(slack) * 5.0
 
     fmax_ratio = _comparison_ratio(comparison, "fmax_mhz")
-    if fmax_ratio is not None and fmax_ratio < 1.0:
-        score += (1.0 - fmax_ratio) * 40.0
+    if fmax_ratio is not None and fmax_ratio < 0.8:
+        score += (0.8 - fmax_ratio) * 25.0
 
-    for key, weight in [
-        ("latency_ns", 12.0),
-        ("bram", 10.0),
-        ("dsp", 8.0),
-        ("ff", 6.0),
-        ("lut", 6.0),
-    ]:
-        ratio = _comparison_ratio(comparison, key)
-        if ratio is not None and ratio > 1.0:
-            score += (ratio - 1.0) * weight
+    latency_ratio = _comparison_ratio(comparison, "latency_ns")
+    if latency_ratio is not None and latency_ratio > 1.0:
+        score += (latency_ratio - 1.0) * 35.0
+    cycles_ratio = _comparison_ratio(comparison, "latency_cycles")
+    if cycles_ratio is not None and cycles_ratio > 1.0:
+        score += (cycles_ratio - 1.0) * 20.0
+
+    part = os.getenv("C2HLS_PART", DEFAULT_PART)
+    for data in _resource_utilization(report, part).values():
+        util = data["utilization"]
+        if util > 1.0:
+            score += (util - 1.0) * 1000.0
+        elif util > 0.90:
+            score += (util - 0.90) * 25.0
 
     if bench == "nw":
         if slack is not None and slack < 0:
-            score += abs(slack) * 30.0
+            score += abs(slack) * 5.0
         if fmax_ratio is not None and fmax_ratio < 0.8:
             score += (0.8 - fmax_ratio) * 80.0
     elif bench == "spmv_crs":
@@ -1912,17 +2072,9 @@ def _quality_score(benchmark_name: str, report: dict, comparison: dict) -> float
             latency_ratio = _comparison_ratio(comparison, "latency_ns")
             if latency_ratio is not None and latency_ratio > 1.0:
                 score += (latency_ratio - 1.0) * 35.0
-        for key, weight in [("bram", 20.0), ("ff", 10.0), ("lut", 10.0), ("latency_ns", 14.0)]:
-            ratio = _comparison_ratio(comparison, key)
-            if ratio is not None and ratio > 1.0:
-                score += (ratio - 1.0) * weight
     elif bench == "StreamCluster":
         if fmax_ratio is not None and fmax_ratio < 0.5:
             score += (0.5 - fmax_ratio) * 120.0
-        for key, weight in [("ff", 20.0), ("lut", 20.0), ("dsp", 30.0), ("bram", 8.0)]:
-            ratio = _comparison_ratio(comparison, key)
-            if ratio is not None and ratio > 1.0:
-                score += (ratio - 1.0) * weight
 
     return round(score, 3)
 
@@ -1938,26 +2090,33 @@ def _quality_focus(benchmark_name: str, report: dict, comparison: dict) -> str:
     slack = _as_float((report or {}).get("slack_ns"))
     fmax_ratio = _comparison_ratio(comparison, "fmax_mhz")
     latency_ratio = _comparison_ratio(comparison, "latency_ns")
-    dsp_ratio = _comparison_ratio(comparison, "dsp")
+    part = os.getenv("C2HLS_PART", DEFAULT_PART)
+
+    if _resource_over_device(report, part):
+        return "device_budget"
 
     if bench == "spmv_crs":
-        if (slack is not None and slack < 0) or (fmax_ratio is not None and fmax_ratio < 0.8):
+        if ((slack is not None and slack < 0 and _actionable_timing_bottlenecks(report))
+                or (fmax_ratio is not None and fmax_ratio < 0.8)):
             return "timing"
         if latency_ratio is not None and latency_ratio > 1.5:
             return "latency"
-        return "area"
+        return "general"
 
     if bench == "StreamCluster":
-        if (slack is not None and slack < 0) or (fmax_ratio is not None and fmax_ratio < 0.5):
-            return "timing_dsp"
-        if dsp_ratio is not None and dsp_ratio > 1.1:
-            return "dsp"
-        return "area"
+        if ((slack is not None and slack < 0 and _actionable_timing_bottlenecks(report))
+                or (fmax_ratio is not None and fmax_ratio < 0.5)):
+            return "timing"
+        return "general"
 
     if bench == "nw":
-        if (slack is not None and slack < 0) or (fmax_ratio is not None and fmax_ratio < 0.8):
+        if ((slack is not None and slack < 0 and _actionable_timing_bottlenecks(report))
+                or (fmax_ratio is not None and fmax_ratio < 0.8)):
             return "timing"
-        return "area"
+        return "general"
+
+    if latency_ratio is not None and latency_ratio > 1.10:
+        return "latency"
 
     return "general"
 
@@ -1970,8 +2129,7 @@ def _quality_focus_improved(benchmark_name: str, focus: str, current_report: dic
     candidate_fmax = _comparison_ratio(candidate_comparison, "fmax_mhz") or 0.0
     current_latency = _comparison_ratio(current_comparison, "latency_ns") or float("inf")
     candidate_latency = _comparison_ratio(candidate_comparison, "latency_ns") or float("inf")
-    current_dsp = _comparison_ratio(current_comparison, "dsp") or 1.0
-    candidate_dsp = _comparison_ratio(candidate_comparison, "dsp") or 1.0
+    part = os.getenv("C2HLS_PART", DEFAULT_PART)
 
     timing_better = False
     if current_slack is not None and candidate_slack is not None and candidate_slack > current_slack + 0.5:
@@ -1979,14 +2137,18 @@ def _quality_focus_improved(benchmark_name: str, focus: str, current_report: dic
     if candidate_fmax > current_fmax + 0.05:
         timing_better = True
 
+    if focus == "device_budget":
+        cur_over = len(_resource_over_device(current_report, part))
+        cand_over = len(_resource_over_device(candidate_report, part))
+        if cand_over < cur_over:
+            return True
+        cur_max = max((d["utilization"] for d in _resource_utilization(current_report, part).values()), default=0.0)
+        cand_max = max((d["utilization"] for d in _resource_utilization(candidate_report, part).values()), default=0.0)
+        return cand_max < cur_max - 0.02
     if focus == "timing":
         return timing_better
     if focus == "latency":
         return candidate_latency < current_latency - 0.05
-    if focus == "timing_dsp":
-        return timing_better or (candidate_dsp < current_dsp - 0.05)
-    if focus == "dsp":
-        return (candidate_dsp < current_dsp - 0.05) or timing_better
 
     return True
 
@@ -2033,6 +2195,7 @@ class _AgentBase:
     def _call_llm(self, messages: list, max_tokens: int = None) -> str:
         return self.orch._call_llm_with_model(
             messages, model=self.model, max_tokens=max_tokens,
+            agent_name=self.AGENT_NAME,
         )
 
     def _request_code_revision(self, prompt: str) -> Optional[str]:
@@ -2249,6 +2412,8 @@ class SynthesisAgent(_AgentBase):
         if os.getenv("C2HLS_DISABLE_CORRECTNESS_REPAIR", "0").lower() in ("1", "true", "yes"):
             return "", ""
         for gate_name in ("csim", "cosim"):
+            if gate_name == "cosim" and not _cosim_required_for_correctness():
+                continue
             summary = outcome.get(gate_name)
             if not isinstance(summary, dict):
                 continue
@@ -2420,6 +2585,7 @@ class SynthesisAgent(_AgentBase):
                     synth_error=result["error"],
                     hls_code=orch.hls_code,
                     header_code=orch.header_code,
+                    target_context=_target_context_for_prompt(orch.part, orch.clock_ns),
                     benchmark_context=orch.benchmark_context,
                     repair_guidance=guidance,
                     attempt_history=history_block,
@@ -2527,8 +2693,12 @@ class QualityRepairAgent(_AgentBase):
             prompt = hls_quality_repair.format(
                 hls_code=orch.hls_code,
                 current_report=format_report_summary(orch.synth_report),
-                ground_truth_report=format_report_summary(ground_truth_report),
-                comparison_summary=json.dumps(current_comparison, indent=2),
+                quality_context=_build_quality_context(
+                    orch.synth_report,
+                    current_comparison,
+                    part=orch.part,
+                    clock_ns=orch.clock_ns,
+                ),
                 benchmark_context=orch.benchmark_context,
                 quality_guidance=quality_guidance,
             )
@@ -2926,6 +3096,7 @@ class C2HLSOrchestrator:
         # by run_multistep so callers can inspect the new robustness
         # signals without enabling dynamic routing.
         self.robustness_log: list = []
+        self.llm_usage_events: list = []
 
         # ---- Phase 3 wiring: strategy + GT-aware revert tolerance ----
         # `strategy` is the source of truth. dynamic_routing flag
@@ -2992,7 +3163,116 @@ class C2HLSOrchestrator:
         callers (multistep, run_optimization_step, anything outside the
         agent classes) continue to work unchanged."""
         return self._call_llm_with_model(messages, model=self.gpt_model,
-                                         max_tokens=max_tokens)
+                                         max_tokens=max_tokens,
+                                         agent_name="orchestrator")
+
+    @staticmethod
+    def _usage_value(obj, name: str, default: int = 0) -> int:
+        if obj is None:
+            return default
+        if isinstance(obj, dict):
+            value = obj.get(name, default)
+        else:
+            value = getattr(obj, name, default)
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return default
+
+    def _record_llm_usage(self, *, provider: str, model: str, agent_name: str,
+                          usage, messages: list, max_tokens: int) -> None:
+        """Record provider-reported token usage for bench-level accounting."""
+        if usage is None:
+            event = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "provider": provider,
+                "model": model,
+                "agent": agent_name or "unknown",
+                "message_count": len(messages or []),
+                "max_tokens": max_tokens,
+                "usage_available": False,
+            }
+            self.llm_usage_events.append(event)
+            return
+
+        if provider == "anthropic":
+            input_tokens = self._usage_value(usage, "input_tokens")
+            output_tokens = self._usage_value(usage, "output_tokens")
+            cache_creation = self._usage_value(usage, "cache_creation_input_tokens")
+            cache_read = self._usage_value(usage, "cache_read_input_tokens")
+            normalized = {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+                "cache_creation_input_tokens": cache_creation,
+                "cache_read_input_tokens": cache_read,
+            }
+        else:
+            prompt_tokens = self._usage_value(usage, "prompt_tokens")
+            completion_tokens = self._usage_value(usage, "completion_tokens")
+            total_tokens = self._usage_value(
+                usage, "total_tokens", prompt_tokens + completion_tokens
+            )
+            prompt_details = getattr(usage, "prompt_tokens_details", None)
+            completion_details = getattr(usage, "completion_tokens_details", None)
+            normalized = {
+                "input_tokens": prompt_tokens,
+                "output_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+                "cached_tokens": self._usage_value(prompt_details, "cached_tokens"),
+                "reasoning_tokens": self._usage_value(completion_details, "reasoning_tokens"),
+            }
+
+        event = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "provider": provider,
+            "model": model,
+            "agent": agent_name or "unknown",
+            "message_count": len(messages or []),
+            "max_tokens": max_tokens,
+            "usage_available": True,
+            **normalized,
+        }
+        self.llm_usage_events.append(event)
+
+    def _llm_usage_summary(self) -> dict:
+        fields = [
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "cache_creation_input_tokens",
+            "cache_read_input_tokens",
+            "cached_tokens",
+            "reasoning_tokens",
+        ]
+        totals = {field: 0 for field in fields}
+        by_agent: dict[str, dict] = {}
+        by_model: dict[str, dict] = {}
+
+        def add(bucket: dict, key: str, event: dict) -> None:
+            item = bucket.setdefault(key or "unknown", {"calls": 0, **{field: 0 for field in fields}})
+            item["calls"] += 1
+            for field in fields:
+                item[field] += int(event.get(field) or 0)
+
+        for event in self.llm_usage_events:
+            for field in fields:
+                totals[field] += int(event.get(field) or 0)
+            add(by_agent, event.get("agent"), event)
+            add(by_model, event.get("model"), event)
+
+        return {
+            "schema_version": "1.0",
+            "calls": len(self.llm_usage_events),
+            **totals,
+            "by_agent": by_agent,
+            "by_model": by_model,
+            "usage_missing_calls": sum(
+                1 for event in self.llm_usage_events
+                if not event.get("usage_available")
+            ),
+            "events": self.llm_usage_events,
+        }
 
     def _client_for_model(self, model: str):
         """Get or create the right backend client for a given model id.
@@ -3044,7 +3324,8 @@ class C2HLSOrchestrator:
         return entry
 
     def _call_llm_with_model(self, messages: list, model: str = None,
-                             max_tokens: int = None) -> str:
+                             max_tokens: int = None,
+                             agent_name: str = "orchestrator") -> str:
         """Route an LLM call to the requested model's backend. Used by
         agents to support per-agent model overrides without forcing every
         caller to manage clients.
@@ -3070,6 +3351,14 @@ class C2HLSOrchestrator:
                 system=system_text.strip() if system_text else "",
                 messages=conv_messages,
             )
+            self._record_llm_usage(
+                provider="anthropic",
+                model=model,
+                agent_name=agent_name,
+                usage=getattr(response, "usage", None),
+                messages=messages,
+                max_tokens=max_tokens,
+            )
             return response.content[0].text
 
         kwargs = {"model": model, "messages": messages}
@@ -3080,6 +3369,14 @@ class C2HLSOrchestrator:
         if "qwen" in model.lower():
             kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
         response = client.chat.completions.create(**kwargs)
+        self._record_llm_usage(
+            provider="openai",
+            model=model,
+            agent_name=agent_name,
+            usage=getattr(response, "usage", None),
+            messages=messages,
+            max_tokens=max_tokens,
+        )
         return response.choices[0].message.content
 
     def _append_history(self, role: str, content: str):
@@ -3202,6 +3499,7 @@ class C2HLSOrchestrator:
                     synth_error=result["error"],
                     hls_code=current_code,
                     header_code=self.header_code,
+                    target_context=_target_context_for_prompt(self.part, self.clock_ns),
                     benchmark_context=self.benchmark_context,
                     repair_guidance=_build_repair_guidance(result["error"]),
                     attempt_history=history_block,
@@ -3370,7 +3668,7 @@ class C2HLSOrchestrator:
         return outcome
 
     def run_phase_c(self, ground_truth_report: dict) -> dict:
-        logging.info("=== [Phase C] Comparing against validated gold baseline ===")
+        logging.info("=== [Phase C] Offline reference comparison ===")
 
         if not self.synth_report:
             logging.error("[Phase C] No synthesis report from Phase B")
@@ -3385,19 +3683,21 @@ class C2HLSOrchestrator:
             }
 
         comparison = compare_reports(self.synth_report, ground_truth_report)
-        logging.info("[Phase C] Gold baseline report:\n%s", format_report_summary(ground_truth_report))
-        logging.info("[Phase C] Comparison:")
+        logging.info("[Phase C] Reference report is kept offline from LLM prompts.")
+        logging.info("[Phase C] Ratio comparison:")
         for metric, vals in comparison.items():
             if isinstance(vals, dict) and vals.get("ratio") is not None:
                 logging.info(
-                    "  %s: gen=%s gt=%s ratio=%.3f",
+                    "  %s: ratio=%.3f",
                     metric,
-                    vals["generated"],
-                    vals["ground_truth"],
                     vals["ratio"],
                 )
 
-        self._append_history("system", f"[Phase C] Comparison: {json.dumps(comparison, indent=2)}")
+        self._append_history(
+            "system",
+            "[Phase C] Offline reference ratios recorded for controller scoring only: "
+            f"{json.dumps(_reference_ratio_summary(comparison), sort_keys=True)}",
+        )
 
         return {
             "success": True,
@@ -3875,7 +4175,19 @@ class C2HLSOrchestrator:
                             fpga=self.part,
                         )
                 if matching:
-                    skill_block = render_skill_set_for_prompt(matching, max_skills=2)
+                    avoid_matching = []
+                    if top_bottleneck_kind:
+                        avoid_matching = [
+                            sk for sk in self.skill_library.query(
+                                bottleneck_kind=top_bottleneck_kind,
+                                vitis_version=self.vitis_version,
+                                fpga=self.part,
+                                include_avoid=True,
+                            )
+                            if getattr(sk, "confidence", "") == "avoid"
+                        ][:2]
+                    prompt_skills = list(matching)[:2] + avoid_matching
+                    skill_block = render_skill_set_for_prompt(prompt_skills, max_skills=4)
                     if skill_block and "No matching skills" not in skill_block:
                         extra_blocks.append(
                             "RELEVANT SKILLS from library (pattern → strategy → "
@@ -3967,6 +4279,10 @@ class C2HLSOrchestrator:
                     "report": result["report"],
                     "code": new_code,
                 }
+                if step_name == "coalescing" or "max_widen_bitwidth" in (new_code or ""):
+                    step_result["coalescing_diagnostics"] = _coalescing_diagnostics(
+                        new_code, result.get("report")
+                    )
                 if self.synth_report:
                     step_result["vs_previous"] = compare_reports(
                         result["report"], self.synth_report,
@@ -4033,7 +4349,8 @@ class C2HLSOrchestrator:
                     and not csim_summary.get("passed")
                 )
                 cosim_failed = (
-                    isinstance(cosim_summary, dict)
+                    _cosim_required_for_correctness()
+                    and isinstance(cosim_summary, dict)
                     and cosim_summary.get("ran")
                     and not cosim_summary.get("passed")
                 )
@@ -4166,6 +4483,7 @@ class C2HLSOrchestrator:
                     synth_error=result["error"],
                     hls_code=new_code,
                     header_code=self.header_code,
+                    target_context=_target_context_for_prompt(self.part, self.clock_ns),
                     benchmark_context=self.benchmark_context,
                     repair_guidance=guidance,
                     attempt_history=history_block,
@@ -4259,13 +4577,13 @@ class C2HLSOrchestrator:
         estimated = _as_float(report.get("estimated_clock_period_ns"))
         requested = _as_float(report.get("requested_clock_period_ns"))
         if slack is not None and slack < 0:
-            timing_penalty = 1e15 + abs(slack) * 1e12
+            timing_penalty = abs(slack) * 1000.0
         elif (
             estimated is not None
             and requested is not None
             and estimated > requested + 1e-9
         ):
-            timing_penalty = 1e15 + (estimated - requested) * 1e12
+            timing_penalty = (estimated - requested) * 1000.0
         # 1e-6 weight on resources so resource ties only matter at
         # millions-of-cycles latency parity.
         return lat + timing_penalty + rsum * 1e-6
@@ -4511,7 +4829,10 @@ class C2HLSOrchestrator:
             steps = list(COMBO_PROGRESSIVE_STEPS)
 
         # Phase 2: lazy-load the skill library when dynamic routing is on.
-        if (self.dynamic_routing or self.strategy == "dynamic") and self.skill_library is None:
+        force_skill_prompts = os.getenv("C2HLS_FORCE_SKILL_PROMPTS", "").strip().lower() in {
+            "1", "true", "yes", "on",
+        }
+        if (self.dynamic_routing or self.strategy == "dynamic" or force_skill_prompts) and self.skill_library is None:
             from skill_library import make_default_library
             persist_skills = bool(int(os.getenv("C2HLS_SKILL_LIBRARY_PERSIST", "1") or "1"))
             self.skill_library = make_default_library(persist=persist_skills)
@@ -4810,6 +5131,7 @@ class C2HLSOrchestrator:
                 {k: v for k, v in (self.phase_b_fast_candidate or {}).items() if k != "code"}
                 if self.phase_b_fast_candidate else None
             ),
+            "llm_usage": self._llm_usage_summary(),
         }
 
     def save_results(self, output_dir: str, bench_name: str):
@@ -4824,6 +5146,7 @@ class C2HLSOrchestrator:
             "model_translator":     os.getenv(TRANSLATOR_MODEL_ENV)     or self.gpt_model,
             "model_synthesis":      os.getenv(SYNTHESIS_MODEL_ENV)      or self.gpt_model,
             "model_quality_repair": os.getenv(QUALITY_REPAIR_MODEL_ENV) or self.gpt_model,
+            "llm_usage": self._llm_usage_summary(),
             "messages": self.history,
         }
         with open(os.path.join(output_dir, f"{bench_name}_history.json"), "w") as f:
@@ -4862,6 +5185,7 @@ class C2HLSOrchestrator:
             "model_translator":     os.getenv(TRANSLATOR_MODEL_ENV)     or self.gpt_model,
             "model_synthesis":      os.getenv(SYNTHESIS_MODEL_ENV)      or self.gpt_model,
             "model_quality_repair": os.getenv(QUALITY_REPAIR_MODEL_ENV) or self.gpt_model,
+            "llm_usage": self._llm_usage_summary(),
             "messages": self.history,
         }
         with open(os.path.join(output_dir, f"{bench_name}_history.json"), "w") as f:
@@ -4907,6 +5231,7 @@ class C2HLSOrchestrator:
             "quality_repair": quality_repair,
             "turn_history": self.turn_results,
             "preflight_patches": self.preflight_patches,
+            "llm_usage": self._llm_usage_summary(),
         }
 
 
@@ -5619,6 +5944,9 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
     cosim_summary = outcome["cosim"]
     if cosim_summary is None:
         cosim_summary = _summarize_test_result(None, supports_cosim)
+        if supports_cosim and not run_cosim_check:
+            cosim_summary["skip_reason"] = "reference cosim disabled by C2HLS_REFERENCE_COSIM=0"
+            cosim_summary["profile_required"] = True
 
     benchmark_ready = synth_summary["status"] == "passed"
     invalid_reason = ""
@@ -5651,6 +5979,9 @@ def validate_gold_reference(inputs: dict) -> dict:
     meta = inputs["meta"]
     supports_csim = bool(meta.get("supports_csim") and inputs.get("testbench_code"))
     supports_cosim = bool(meta.get("supports_cosim") and inputs.get("testbench_code"))
+    run_reference_cosim = os.getenv("C2HLS_REFERENCE_COSIM", "1").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
     candidates = _ground_truth_candidates(inputs)
     validation_mode = os.getenv("C2HLS_REFERENCE_VALIDATE_MODE", "all").strip().lower() or "all"
     if validation_mode not in {"all", "selected", "preferred", "baseline", "external", "trusted_external"}:
@@ -5765,7 +6096,13 @@ def validate_gold_reference(inputs: dict) -> dict:
         reference_source = "direct_jsonl"
     else:
         workflow = [
-            _validate_ground_truth_candidate(candidate, inputs, supports_csim, supports_cosim)
+            _validate_ground_truth_candidate(
+                candidate,
+                inputs,
+                supports_csim,
+                supports_cosim,
+                run_cosim_check=run_reference_cosim,
+            )
             for candidate in validation_candidates
         ]
         reference_source = "local_vitis"
@@ -6164,6 +6501,9 @@ def _build_run_attribution(orchestrator, meta: dict) -> dict:
         "flow_target": getattr(hls_eval, "DEFAULT_FLOW_TARGET", "vitis"),
         "part": meta.get("part", DEFAULT_PART),
         "clock_ns": meta.get("clock_ns", DEFAULT_CLOCK_NS),
+        "skill_mode": os.getenv("C2HLS_SKILL_MODE"),
+        "skill_prompts": os.getenv("C2HLS_FORCE_SKILL_PROMPTS", "").strip().lower()
+                         in {"1", "true", "yes", "on"},
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
@@ -6552,7 +6892,18 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
 
     available_gt = set(inputs["gt_variants"].keys())
     if steps is None:
-        steps = [step for step in DEFAULT_OPT_STEPS if step in available_gt or step in OPTIMIZATION_PROMPTS]
+        env_strategy = os.getenv("C2HLS_STRATEGY", "").strip().lower()
+        if env_strategy in ("combo", "combo_full"):
+            from prompt_c2hls import COMBO_FULL_STEPS
+            steps = list(COMBO_FULL_STEPS)
+        elif env_strategy == "flash":
+            from prompt_c2hls import FLASH_STEPS
+            steps = list(FLASH_STEPS)
+        elif env_strategy == "combo_progressive":
+            from prompt_c2hls import COMBO_PROGRESSIVE_STEPS
+            steps = list(COMBO_PROGRESSIVE_STEPS)
+        else:
+            steps = [step for step in DEFAULT_OPT_STEPS if step in available_gt or step in OPTIMIZATION_PROMPTS]
 
     logging.info("Benchmark %s: running steps %s (GT available: %s)", bench_name, steps, list(available_gt))
 

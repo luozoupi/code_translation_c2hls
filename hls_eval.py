@@ -45,10 +45,44 @@ logging.basicConfig(
 #   C2HLS_COSIM_TRACE_LEVEL
 #                         Vitis cosim trace level. Default "none" avoids
 #                         simulator waveform/debug setup for batch sweeps.
-VITIS_SETTINGS = os.getenv(
-    "C2HLS_VITIS_SETTINGS",
-    "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh",
-)
+def _resolve_vitis_settings() -> str | None:
+    """Return a usable Vitis settings64.sh path, or None if vitis-run is
+    already on PATH (no `source` prepend needed).
+
+    Resolution order:
+      1. $C2HLS_VITIS_SETTINGS env var, if set AND file exists
+      2. $VITIS_SETTINGS env var, if set AND file exists (legacy name)
+      3. vitis-run already on PATH -> return None (skip the source prepend)
+      4. Canonical install paths under /tools/Xilinx, /opt/Xilinx
+      5. Fall back to whichever env value was set (even if missing) so bash
+         surfaces a clear "No such file or directory" early instead of a
+         silent failure stripped to "Synthesis report not found"
+
+    Motivated by feedback_hls_eval_vitis_settings_bug.md (2026-06-13): the
+    previous hardcoded fallback path was a developer-specific
+    /mnt/data/luo00466/... that didn't exist on most hosts; when env wasn't
+    set every Vitis call silently turned into a bash error.
+    """
+    for name in ("C2HLS_VITIS_SETTINGS", "VITIS_SETTINGS"):
+        val = os.environ.get(name, "").strip()
+        if val and os.path.isfile(val):
+            return val
+    for p in os.environ.get("PATH", "").split(os.pathsep):
+        if p and os.path.exists(os.path.join(p, "vitis-run")):
+            return None
+    for candidate in (
+        "/tools/Xilinx/Vitis_HLS/2023.2/settings64.sh",
+        "/tools/Xilinx/Vitis/2023.2/settings64.sh",
+        "/opt/Xilinx/Vitis/2023.2/settings64.sh",
+        "/opt/Xilinx/Vitis_HLS/2023.2/settings64.sh",
+    ):
+        if os.path.isfile(candidate):
+            return candidate
+    return (os.environ.get("C2HLS_VITIS_SETTINGS")
+            or os.environ.get("VITIS_SETTINGS") or None)
+
+
+VITIS_SETTINGS = _resolve_vitis_settings()
 DEFAULT_PART = os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e")
 DEFAULT_CLOCK_NS = float(os.getenv("C2HLS_CLOCK_NS", "3.33"))
 DEFAULT_FLOW_TARGET = os.getenv("C2HLS_FLOW_TARGET", "vitis")
@@ -127,7 +161,13 @@ def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
     """
     temp_root = configure_temp_env(create=True)
     temp_exports = _vitis_shell_exports(temp_root)
-    full_cmd = f"{temp_exports} && source {shlex.quote(VITIS_SETTINGS)} && {temp_exports} && {cmd}"
+    # If VITIS_SETTINGS is None it means _resolve_vitis_settings() found
+    # vitis-run already on PATH (no source needed). Skip the `source` line
+    # rather than prepending a missing file path.
+    if VITIS_SETTINGS:
+        full_cmd = f"{temp_exports} && source {shlex.quote(VITIS_SETTINGS)} && {temp_exports} && {cmd}"
+    else:
+        full_cmd = f"{temp_exports} && {cmd}"
     proc = subprocess.Popen(
         ["bash", "-lc", full_cmd],
         stdout=subprocess.PIPE,
@@ -209,7 +249,12 @@ def _run_vitis_cmd_logged(
     """
     temp_root = configure_temp_env(create=True)
     temp_exports = _vitis_shell_exports(temp_root)
-    full_cmd = f"{temp_exports} && source {shlex.quote(VITIS_SETTINGS)} && {temp_exports} && {cmd}"
+    # Mirror _run_vitis_cmd: skip the `source` prepend when VITIS_SETTINGS is
+    # None (vitis-run already on PATH).
+    if VITIS_SETTINGS:
+        full_cmd = f"{temp_exports} && source {shlex.quote(VITIS_SETTINGS)} && {temp_exports} && {cmd}"
+    else:
+        full_cmd = f"{temp_exports} && {cmd}"
     markers = [m.lower() for m in (terminal_markers or [])]
     log_path.parent.mkdir(parents=True, exist_ok=True)
 

@@ -43,6 +43,17 @@ logs/
 vitis_hls.log
 test*.log
 
+# c2hls debug-rerun artifacts — _rerun_cosim_with_log.sh / _rerun_phase_b_
+# extended_timeout.sh leave behind 200-300MB Vitis logs per debug session.
+# Always excluded; collaborators don't need our debug spelunking trails.
+**/cosim_phase_b_rerun_*/
+**/cosim_debug_*/
+
+# matrix_sweep.py rotates a backup file every time a bench entry is stripped
+# (helpers like _strip_bench_from_matrix.py). Keep one copy locally for safety
+# but never ship them to the repo — they bloat the commit graph fast.
+**/matrix.json.bak.*
+
 # Testing
 .pytest_cache/
 .coverage

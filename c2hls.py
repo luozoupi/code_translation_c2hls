@@ -439,7 +439,7 @@ def _summarize_synth_result(result: Optional[dict]) -> dict:
         }
     report = dict(result.get("report", {}) or {})
     passed = bool(result.get("success", False))
-    return {
+    out = {
         "status": _binary_status(passed),
         "ran": True,
         "success": passed,
@@ -447,6 +447,21 @@ def _summarize_synth_result(result: Optional[dict]) -> dict:
         "report": report,
         "work_dir": report.get("work_dir", ""),
     }
+    # On failure, preserve a forensic snippet of the Vitis log so future
+    # debugs don't have to re-run synth manually to see the real error.
+    # Captures the bash-error / Vitis-error class of failure that the
+    # generic "Synthesis report not found" was previously masking — see
+    # feedback_hls_eval_vitis_settings_bug.md (2026-06-13 syrk-multistep
+    # debug session) for the motivating example.
+    if not passed:
+        log = result.get("log") or ""
+        if log:
+            lines = log.splitlines()
+            err_lines = [ln for ln in lines
+                         if "ERROR" in ln or "error:" in ln.lower() or "Error:" in ln]
+            out["log_error_lines"] = err_lines[:20]
+            out["log_tail"] = lines[-50:]
+    return out
 
 
 def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:

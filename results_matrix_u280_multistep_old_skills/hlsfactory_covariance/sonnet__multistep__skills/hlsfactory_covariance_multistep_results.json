@@ -1,0 +1,2093 @@
+{
+  "phase": "multistep",
+  "baseline_report": {
+    "latency_cycles": 3574606,
+    "latency_ns": 11903000.0,
+    "bram": "76",
+    "dsp": "14",
+    "ff": "28548",
+    "lut": "11856",
+    "uram": "0",
+    "fmax_mhz": 400.96,
+    "interval": 3574607,
+    "estimated_clock_period_ns": 2.494,
+    "requested_clock_period_ns": 3.33,
+    "slack_ns": 0.836,
+    "work_dir": "/tmp/hls_synth_x41tktot"
+  },
+  "baseline_comparison": {
+    "success": true,
+    "valid_reference": true,
+    "invalid_reference": false,
+    "generated_report": {
+      "latency_cycles": 3574606,
+      "latency_ns": 11903000.0,
+      "bram": "76",
+      "dsp": "14",
+      "ff": "28548",
+      "lut": "11856",
+      "uram": "0",
+      "fmax_mhz": 400.96,
+      "interval": 3574607,
+      "estimated_clock_period_ns": 2.494,
+      "requested_clock_period_ns": 3.33,
+      "slack_ns": 0.836,
+      "work_dir": "/tmp/hls_synth_x41tktot"
+    },
+    "ground_truth_report": {
+      "latency_cycles": 5195978,
+      "latency_ns": 17303000.0,
+      "bram": "0",
+      "dsp": "14",
+      "ff": "3570",
+      "lut": "3169",
+      "uram": "0",
+      "fmax_mhz": 400.96,
+      "interval": 5195979,
+      "estimated_clock_period_ns": 2.494,
+      "requested_clock_period_ns": 3.33,
+      "slack_ns": 0.836,
+      "work_dir": "/tmp/hls_synth_h6ehximw"
+    },
+    "comparison": {
+      "latency_cycles": {
+        "generated": 3574606.0,
+        "ground_truth": 5195978.0,
+        "ratio": 0.688
+      },
+      "latency_ns": {
+        "generated": 11903000.0,
+        "ground_truth": 17303000.0,
+        "ratio": 0.688
+      },
+      "interval": {
+        "generated": 3574607.0,
+        "ground_truth": 5195979.0,
+        "ratio": 0.688
+      },
+      "bram": {
+        "generated": 76.0,
+        "ground_truth": 0.0,
+        "ratio": Infinity
+      },
+      "dsp": {
+        "generated": 14.0,
+        "ground_truth": 14.0,
+        "ratio": 1.0
+      },
+      "ff": {
+        "generated": 28548.0,
+        "ground_truth": 3570.0,
+        "ratio": 7.997
+      },
+      "lut": {
+        "generated": 11856.0,
+        "ground_truth": 3169.0,
+        "ratio": 3.741
+      },
+      "fmax_mhz": {
+        "generated": 400.96,
+        "ground_truth": 400.96,
+        "ratio": 1.0
+      }
+    }
+  },
+  "baseline_csim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "baseline_cosim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": "",
+    "measured": {
+      "simulator": "Verilog",
+      "latency_cycles_min": 1837370,
+      "latency_cycles_avg": 1837370,
+      "latency_cycles_max": 1837370,
+      "interval_min": null,
+      "interval_max": null,
+      "report_path": "/tmp/hls_cosim_iuy1xdia/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+      "report_text": "Report time       : Wed Jun 10 03:55:33 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        1837370|        1837370|        1837370|             NA|             NA|             NA|               1837370|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+    }
+  },
+  "final_report": {
+    "latency_cycles": 366542,
+    "latency_ns": 1221000.0,
+    "bram": "104",
+    "dsp": "88",
+    "ff": "71463",
+    "lut": "45925",
+    "uram": "0",
+    "fmax_mhz": 336.59,
+    "interval": 366543,
+    "estimated_clock_period_ns": 2.971,
+    "requested_clock_period_ns": 3.33,
+    "slack_ns": 0.359,
+    "work_dir": "/tmp/hls_synth_a6s66gkn"
+  },
+  "steps": [
+    {
+      "success": true,
+      "step_name": "tiling",
+      "report": {
+        "latency_cycles": 6341466,
+        "latency_ns": 21117000.0,
+        "bram": "60",
+        "dsp": "11",
+        "ff": "18773",
+        "lut": "16969",
+        "uram": "0",
+        "fmax_mhz": 310.95,
+        "interval": 6341467,
+        "estimated_clock_period_ns": 3.216,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.114,
+        "work_dir": "/tmp/hls_synth_dbsak8id"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 6341466.0,
+          "ground_truth": 3574606.0,
+          "ratio": 1.774
+        },
+        "latency_ns": {
+          "generated": 21117000.0,
+          "ground_truth": 11903000.0,
+          "ratio": 1.774
+        },
+        "interval": {
+          "generated": 6341467.0,
+          "ground_truth": 3574607.0,
+          "ratio": 1.774
+        },
+        "bram": {
+          "generated": 60.0,
+          "ground_truth": 76.0,
+          "ratio": 0.789
+        },
+        "dsp": {
+          "generated": 11.0,
+          "ground_truth": 14.0,
+          "ratio": 0.786
+        },
+        "ff": {
+          "generated": 18773.0,
+          "ground_truth": 28548.0,
+          "ratio": 0.658
+        },
+        "lut": {
+          "generated": 16969.0,
+          "ground_truth": 11856.0,
+          "ratio": 1.431
+        },
+        "fmax_mhz": {
+          "generated": 310.95,
+          "ground_truth": 400.96,
+          "ratio": 0.776
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 587470,
+          "latency_cycles_avg": 587470,
+          "latency_cycles_max": 587470,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_irh6ngyl/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 04:01:30 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         587470|         587470|         587470|             NA|             NA|             NA|                587470|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "pipeline",
+      "report": {
+        "latency_cycles": 1025946,
+        "latency_ns": 3416000.0,
+        "bram": "60",
+        "dsp": "11",
+        "ff": "18773",
+        "lut": "16969",
+        "uram": "0",
+        "fmax_mhz": 310.95,
+        "interval": 1025947,
+        "estimated_clock_period_ns": 3.216,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.114,
+        "work_dir": "/tmp/hls_synth_qelth3br"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 1025946.0,
+          "ground_truth": 6341466.0,
+          "ratio": 0.162
+        },
+        "latency_ns": {
+          "generated": 3416000.0,
+          "ground_truth": 21117000.0,
+          "ratio": 0.162
+        },
+        "interval": {
+          "generated": 1025947.0,
+          "ground_truth": 6341467.0,
+          "ratio": 0.162
+        },
+        "bram": {
+          "generated": 60.0,
+          "ground_truth": 60.0,
+          "ratio": 1.0
+        },
+        "dsp": {
+          "generated": 11.0,
+          "ground_truth": 11.0,
+          "ratio": 1.0
+        },
+        "ff": {
+          "generated": 18773.0,
+          "ground_truth": 18773.0,
+          "ratio": 1.0
+        },
+        "lut": {
+          "generated": 16969.0,
+          "ground_truth": 16969.0,
+          "ratio": 1.0
+        },
+        "fmax_mhz": {
+          "generated": 310.95,
+          "ground_truth": 310.95,
+          "ratio": 1.0
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 587470,
+          "latency_cycles_avg": 587470,
+          "latency_cycles_max": 587470,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_pzvlb1dp/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 04:07:34 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         587470|         587470|         587470|             NA|             NA|             NA|                587470|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "unroll",
+      "report": {
+        "latency_cycles": 363964,
+        "latency_ns": 1212000.0,
+        "bram": "88",
+        "dsp": "88",
+        "ff": "37873",
+        "lut": "30638",
+        "uram": "0",
+        "fmax_mhz": 336.59,
+        "interval": 363965,
+        "estimated_clock_period_ns": 2.971,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.359,
+        "work_dir": "/tmp/hls_synth_t7_4919s"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 363964.0,
+          "ground_truth": 1025946.0,
+          "ratio": 0.355
+        },
+        "latency_ns": {
+          "generated": 1212000.0,
+          "ground_truth": 3416000.0,
+          "ratio": 0.355
+        },
+        "interval": {
+          "generated": 363965.0,
+          "ground_truth": 1025947.0,
+          "ratio": 0.355
+        },
+        "bram": {
+          "generated": 88.0,
+          "ground_truth": 60.0,
+          "ratio": 1.467
+        },
+        "dsp": {
+          "generated": 88.0,
+          "ground_truth": 11.0,
+          "ratio": 8.0
+        },
+        "ff": {
+          "generated": 37873.0,
+          "ground_truth": 18773.0,
+          "ratio": 2.017
+        },
+        "lut": {
+          "generated": 30638.0,
+          "ground_truth": 16969.0,
+          "ratio": 1.806
+        },
+        "fmax_mhz": {
+          "generated": 336.59,
+          "ground_truth": 310.95,
+          "ratio": 1.082
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 268810,
+          "latency_cycles_avg": 268810,
+          "latency_cycles_max": 268810,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_vr9vt3b4/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 06:08:39 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         268810|         268810|         268810|             NA|             NA|             NA|                268810|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "doublebuffer",
+      "report": {
+        "latency_cycles": 366542,
+        "latency_ns": 1221000.0,
+        "bram": "104",
+        "dsp": "88",
+        "ff": "71445",
+        "lut": "45877",
+        "uram": "0",
+        "fmax_mhz": 336.59,
+        "interval": 366543,
+        "estimated_clock_period_ns": 2.971,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.359,
+        "work_dir": "/tmp/hls_synth_anfvxvct"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 366542.0,
+          "ground_truth": 363964.0,
+          "ratio": 1.007
+        },
+        "latency_ns": {
+          "generated": 1221000.0,
+          "ground_truth": 1212000.0,
+          "ratio": 1.007
+        },
+        "interval": {
+          "generated": 366543.0,
+          "ground_truth": 363965.0,
+          "ratio": 1.007
+        },
+        "bram": {
+          "generated": 104.0,
+          "ground_truth": 88.0,
+          "ratio": 1.182
+        },
+        "dsp": {
+          "generated": 88.0,
+          "ground_truth": 88.0,
+          "ratio": 1.0
+        },
+        "ff": {
+          "generated": 71445.0,
+          "ground_truth": 37873.0,
+          "ratio": 1.886
+        },
+        "lut": {
+          "generated": 45877.0,
+          "ground_truth": 30638.0,
+          "ratio": 1.497
+        },
+        "fmax_mhz": {
+          "generated": 336.59,
+          "ground_truth": 336.59,
+          "ratio": 1.0
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 268780,
+          "latency_cycles_avg": 268780,
+          "latency_cycles_max": 268780,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_0pb0rd40/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 09:48:36 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         268780|         268780|         268780|             NA|             NA|             NA|                268780|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "coalescing",
+      "report": {
+        "latency_cycles": 366542,
+        "latency_ns": 1221000.0,
+        "bram": "104",
+        "dsp": "88",
+        "ff": "71463",
+        "lut": "45925",
+        "uram": "0",
+        "fmax_mhz": 336.59,
+        "interval": 366543,
+        "estimated_clock_period_ns": 2.971,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.359,
+        "work_dir": "/tmp/hls_synth_a6s66gkn"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 366542.0,
+          "ground_truth": 366542.0,
+          "ratio": 1.0
+        },
+        "latency_ns": {
+          "generated": 1221000.0,
+          "ground_truth": 1221000.0,
+          "ratio": 1.0
+        },
+        "interval": {
+          "generated": 366543.0,
+          "ground_truth": 366543.0,
+          "ratio": 1.0
+        },
+        "bram": {
+          "generated": 104.0,
+          "ground_truth": 104.0,
+          "ratio": 1.0
+        },
+        "dsp": {
+          "generated": 88.0,
+          "ground_truth": 88.0,
+          "ratio": 1.0
+        },
+        "ff": {
+          "generated": 71463.0,
+          "ground_truth": 71445.0,
+          "ratio": 1.0
+        },
+        "lut": {
+          "generated": 45925.0,
+          "ground_truth": 45877.0,
+          "ratio": 1.001
+        },
+        "fmax_mhz": {
+          "generated": 336.59,
+          "ground_truth": 336.59,
+          "ratio": 1.0
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 269010,
+          "latency_cycles_avg": 269010,
+          "latency_cycles_max": 269010,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_wd6eatqm/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Thu Jun 11 01:25:23 AM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         269010|         269010|         269010|             NA|             NA|             NA|                269010|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    }
+  ],
+  "generated_step_history": [
+    {
+      "step_name": "baseline",
+      "success": true,
+      "report": {
+        "latency_cycles": 3574606,
+        "latency_ns": 11903000.0,
+        "bram": "76",
+        "dsp": "14",
+        "ff": "28548",
+        "lut": "11856",
+        "uram": "0",
+        "fmax_mhz": 400.96,
+        "interval": 3574607,
+        "estimated_clock_period_ns": 2.494,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.836,
+        "work_dir": "/tmp/hls_synth_x41tktot"
+      },
+      "comparison": {
+        "success": true,
+        "valid_reference": true,
+        "invalid_reference": false,
+        "generated_report": {
+          "latency_cycles": 3574606,
+          "latency_ns": 11903000.0,
+          "bram": "76",
+          "dsp": "14",
+          "ff": "28548",
+          "lut": "11856",
+          "uram": "0",
+          "fmax_mhz": 400.96,
+          "interval": 3574607,
+          "estimated_clock_period_ns": 2.494,
+          "requested_clock_period_ns": 3.33,
+          "slack_ns": 0.836,
+          "work_dir": "/tmp/hls_synth_x41tktot"
+        },
+        "ground_truth_report": {
+          "latency_cycles": 5195978,
+          "latency_ns": 17303000.0,
+          "bram": "0",
+          "dsp": "14",
+          "ff": "3570",
+          "lut": "3169",
+          "uram": "0",
+          "fmax_mhz": 400.96,
+          "interval": 5195979,
+          "estimated_clock_period_ns": 2.494,
+          "requested_clock_period_ns": 3.33,
+          "slack_ns": 0.836,
+          "work_dir": "/tmp/hls_synth_h6ehximw"
+        },
+        "comparison": {
+          "latency_cycles": {
+            "generated": 3574606.0,
+            "ground_truth": 5195978.0,
+            "ratio": 0.688
+          },
+          "latency_ns": {
+            "generated": 11903000.0,
+            "ground_truth": 17303000.0,
+            "ratio": 0.688
+          },
+          "interval": {
+            "generated": 3574607.0,
+            "ground_truth": 5195979.0,
+            "ratio": 0.688
+          },
+          "bram": {
+            "generated": 76.0,
+            "ground_truth": 0.0,
+            "ratio": Infinity
+          },
+          "dsp": {
+            "generated": 14.0,
+            "ground_truth": 14.0,
+            "ratio": 1.0
+          },
+          "ff": {
+            "generated": 28548.0,
+            "ground_truth": 3570.0,
+            "ratio": 7.997
+          },
+          "lut": {
+            "generated": 11856.0,
+            "ground_truth": 3169.0,
+            "ratio": 3.741
+          },
+          "fmax_mhz": {
+            "generated": 400.96,
+            "ground_truth": 400.96,
+            "ratio": 1.0
+          }
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 1837370,
+          "latency_cycles_avg": 1837370,
+          "latency_cycles_max": 1837370,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_iuy1xdia/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 03:55:33 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        1837370|        1837370|        1837370|             NA|             NA|             NA|               1837370|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "tiling",
+      "report": {
+        "latency_cycles": 6341466,
+        "latency_ns": 21117000.0,
+        "bram": "60",
+        "dsp": "11",
+        "ff": "18773",
+        "lut": "16969",
+        "uram": "0",
+        "fmax_mhz": 310.95,
+        "interval": 6341467,
+        "estimated_clock_period_ns": 3.216,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.114,
+        "work_dir": "/tmp/hls_synth_dbsak8id"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 6341466.0,
+          "ground_truth": 3574606.0,
+          "ratio": 1.774
+        },
+        "latency_ns": {
+          "generated": 21117000.0,
+          "ground_truth": 11903000.0,
+          "ratio": 1.774
+        },
+        "interval": {
+          "generated": 6341467.0,
+          "ground_truth": 3574607.0,
+          "ratio": 1.774
+        },
+        "bram": {
+          "generated": 60.0,
+          "ground_truth": 76.0,
+          "ratio": 0.789
+        },
+        "dsp": {
+          "generated": 11.0,
+          "ground_truth": 14.0,
+          "ratio": 0.786
+        },
+        "ff": {
+          "generated": 18773.0,
+          "ground_truth": 28548.0,
+          "ratio": 0.658
+        },
+        "lut": {
+          "generated": 16969.0,
+          "ground_truth": 11856.0,
+          "ratio": 1.431
+        },
+        "fmax_mhz": {
+          "generated": 310.95,
+          "ground_truth": 400.96,
+          "ratio": 0.776
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 587470,
+          "latency_cycles_avg": 587470,
+          "latency_cycles_max": 587470,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_irh6ngyl/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 04:01:30 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         587470|         587470|         587470|             NA|             NA|             NA|                587470|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "pipeline",
+      "report": {
+        "latency_cycles": 1025946,
+        "latency_ns": 3416000.0,
+        "bram": "60",
+        "dsp": "11",
+        "ff": "18773",
+        "lut": "16969",
+        "uram": "0",
+        "fmax_mhz": 310.95,
+        "interval": 1025947,
+        "estimated_clock_period_ns": 3.216,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.114,
+        "work_dir": "/tmp/hls_synth_qelth3br"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 1025946.0,
+          "ground_truth": 6341466.0,
+          "ratio": 0.162
+        },
+        "latency_ns": {
+          "generated": 3416000.0,
+          "ground_truth": 21117000.0,
+          "ratio": 0.162
+        },
+        "interval": {
+          "generated": 1025947.0,
+          "ground_truth": 6341467.0,
+          "ratio": 0.162
+        },
+        "bram": {
+          "generated": 60.0,
+          "ground_truth": 60.0,
+          "ratio": 1.0
+        },
+        "dsp": {
+          "generated": 11.0,
+          "ground_truth": 11.0,
+          "ratio": 1.0
+        },
+        "ff": {
+          "generated": 18773.0,
+          "ground_truth": 18773.0,
+          "ratio": 1.0
+        },
+        "lut": {
+          "generated": 16969.0,
+          "ground_truth": 16969.0,
+          "ratio": 1.0
+        },
+        "fmax_mhz": {
+          "generated": 310.95,
+          "ground_truth": 310.95,
+          "ratio": 1.0
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 587470,
+          "latency_cycles_avg": 587470,
+          "latency_cycles_max": 587470,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_pzvlb1dp/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 04:07:34 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         587470|         587470|         587470|             NA|             NA|             NA|                587470|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "unroll",
+      "report": {
+        "latency_cycles": 363964,
+        "latency_ns": 1212000.0,
+        "bram": "88",
+        "dsp": "88",
+        "ff": "37873",
+        "lut": "30638",
+        "uram": "0",
+        "fmax_mhz": 336.59,
+        "interval": 363965,
+        "estimated_clock_period_ns": 2.971,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.359,
+        "work_dir": "/tmp/hls_synth_t7_4919s"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 363964.0,
+          "ground_truth": 1025946.0,
+          "ratio": 0.355
+        },
+        "latency_ns": {
+          "generated": 1212000.0,
+          "ground_truth": 3416000.0,
+          "ratio": 0.355
+        },
+        "interval": {
+          "generated": 363965.0,
+          "ground_truth": 1025947.0,
+          "ratio": 0.355
+        },
+        "bram": {
+          "generated": 88.0,
+          "ground_truth": 60.0,
+          "ratio": 1.467
+        },
+        "dsp": {
+          "generated": 88.0,
+          "ground_truth": 11.0,
+          "ratio": 8.0
+        },
+        "ff": {
+          "generated": 37873.0,
+          "ground_truth": 18773.0,
+          "ratio": 2.017
+        },
+        "lut": {
+          "generated": 30638.0,
+          "ground_truth": 16969.0,
+          "ratio": 1.806
+        },
+        "fmax_mhz": {
+          "generated": 336.59,
+          "ground_truth": 310.95,
+          "ratio": 1.082
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 268810,
+          "latency_cycles_avg": 268810,
+          "latency_cycles_max": 268810,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_vr9vt3b4/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 06:08:39 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         268810|         268810|         268810|             NA|             NA|             NA|                268810|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "doublebuffer",
+      "report": {
+        "latency_cycles": 366542,
+        "latency_ns": 1221000.0,
+        "bram": "104",
+        "dsp": "88",
+        "ff": "71445",
+        "lut": "45877",
+        "uram": "0",
+        "fmax_mhz": 336.59,
+        "interval": 366543,
+        "estimated_clock_period_ns": 2.971,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.359,
+        "work_dir": "/tmp/hls_synth_anfvxvct"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 366542.0,
+          "ground_truth": 363964.0,
+          "ratio": 1.007
+        },
+        "latency_ns": {
+          "generated": 1221000.0,
+          "ground_truth": 1212000.0,
+          "ratio": 1.007
+        },
+        "interval": {
+          "generated": 366543.0,
+          "ground_truth": 363965.0,
+          "ratio": 1.007
+        },
+        "bram": {
+          "generated": 104.0,
+          "ground_truth": 88.0,
+          "ratio": 1.182
+        },
+        "dsp": {
+          "generated": 88.0,
+          "ground_truth": 88.0,
+          "ratio": 1.0
+        },
+        "ff": {
+          "generated": 71445.0,
+          "ground_truth": 37873.0,
+          "ratio": 1.886
+        },
+        "lut": {
+          "generated": 45877.0,
+          "ground_truth": 30638.0,
+          "ratio": 1.497
+        },
+        "fmax_mhz": {
+          "generated": 336.59,
+          "ground_truth": 336.59,
+          "ratio": 1.0
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 268780,
+          "latency_cycles_avg": 268780,
+          "latency_cycles_max": 268780,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_0pb0rd40/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 09:48:36 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         268780|         268780|         268780|             NA|             NA|             NA|                268780|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "coalescing",
+      "report": {
+        "latency_cycles": 366542,
+        "latency_ns": 1221000.0,
+        "bram": "104",
+        "dsp": "88",
+        "ff": "71463",
+        "lut": "45925",
+        "uram": "0",
+        "fmax_mhz": 336.59,
+        "interval": 366543,
+        "estimated_clock_period_ns": 2.971,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.359,
+        "work_dir": "/tmp/hls_synth_a6s66gkn"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 366542.0,
+          "ground_truth": 366542.0,
+          "ratio": 1.0
+        },
+        "latency_ns": {
+          "generated": 1221000.0,
+          "ground_truth": 1221000.0,
+          "ratio": 1.0
+        },
+        "interval": {
+          "generated": 366543.0,
+          "ground_truth": 366543.0,
+          "ratio": 1.0
+        },
+        "bram": {
+          "generated": 104.0,
+          "ground_truth": 104.0,
+          "ratio": 1.0
+        },
+        "dsp": {
+          "generated": 88.0,
+          "ground_truth": 88.0,
+          "ratio": 1.0
+        },
+        "ff": {
+          "generated": 71463.0,
+          "ground_truth": 71445.0,
+          "ratio": 1.0
+        },
+        "lut": {
+          "generated": 45925.0,
+          "ground_truth": 45877.0,
+          "ratio": 1.001
+        },
+        "fmax_mhz": {
+          "generated": 336.59,
+          "ground_truth": 336.59,
+          "ratio": 1.0
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 269010,
+          "latency_cycles_avg": 269010,
+          "latency_cycles_max": 269010,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_wd6eatqm/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Thu Jun 11 01:25:23 AM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         269010|         269010|         269010|             NA|             NA|             NA|                269010|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    }
+  ],
+  "benchmark": "hlsfactory_covariance",
+  "success": true,
+  "reference_validation": {
+    "benchmark_ready": true,
+    "invalid_reason": "",
+    "top_function": "kernel_covariance",
+    "synthesis": {
+      "status": "passed",
+      "ran": true,
+      "success": true,
+      "error": "",
+      "report": {
+        "latency_cycles": 5195978,
+        "latency_ns": 17303000.0,
+        "bram": "0",
+        "dsp": "14",
+        "ff": "3570",
+        "lut": "3169",
+        "uram": "0",
+        "fmax_mhz": 400.96,
+        "interval": 5195979,
+        "estimated_clock_period_ns": 2.494,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.836,
+        "work_dir": "/tmp/hls_synth_h6ehximw"
+      },
+      "work_dir": "/tmp/hls_synth_h6ehximw"
+    },
+    "csim": {
+      "status": "passed",
+      "supported": true,
+      "ran": true,
+      "success": true,
+      "passed": true,
+      "error": ""
+    },
+    "cosim": {
+      "status": "passed",
+      "supported": true,
+      "ran": true,
+      "success": true,
+      "passed": true,
+      "error": "",
+      "measured": {
+        "simulator": "Verilog",
+        "latency_cycles_min": 2667893,
+        "latency_cycles_avg": 2667893,
+        "latency_cycles_max": 2667893,
+        "interval_min": null,
+        "interval_max": null,
+        "report_path": "/tmp/hls_cosim_rqe5vivm/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+        "report_text": "Report time       : Mon Jun  1 11:42:21 AM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        2667893|        2667893|        2667893|             NA|             NA|             NA|               2667893|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+      }
+    },
+    "report": {
+      "latency_cycles": 5195978,
+      "latency_ns": 17303000.0,
+      "bram": "0",
+      "dsp": "14",
+      "ff": "3570",
+      "lut": "3169",
+      "uram": "0",
+      "fmax_mhz": 400.96,
+      "interval": 5195979,
+      "estimated_clock_period_ns": 2.494,
+      "requested_clock_period_ns": 3.33,
+      "slack_ns": 0.836,
+      "work_dir": "/tmp/hls_synth_h6ehximw"
+    },
+    "workflow": [
+      {
+        "variant_name": "hlsfactory_covariance_0_baseline",
+        "file": "hls_baseline.cpp",
+        "step_name": "0_baseline",
+        "source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/covariance/src/covariance.cpp",
+        "benchmark_ready": true,
+        "invalid_reason": "",
+        "synthesis": {
+          "status": "passed",
+          "ran": true,
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 5195978,
+            "latency_ns": 17303000.0,
+            "bram": "0",
+            "dsp": "14",
+            "ff": "3570",
+            "lut": "3169",
+            "uram": "0",
+            "fmax_mhz": 400.96,
+            "interval": 5195979,
+            "estimated_clock_period_ns": 2.494,
+            "requested_clock_period_ns": 3.33,
+            "slack_ns": 0.836,
+            "work_dir": "/tmp/hls_synth_h6ehximw"
+          },
+          "work_dir": "/tmp/hls_synth_h6ehximw"
+        },
+        "csim": {
+          "status": "passed",
+          "supported": true,
+          "ran": true,
+          "success": true,
+          "passed": true,
+          "error": ""
+        },
+        "cosim": {
+          "status": "passed",
+          "supported": true,
+          "ran": true,
+          "success": true,
+          "passed": true,
+          "error": "",
+          "measured": {
+            "simulator": "Verilog",
+            "latency_cycles_min": 2667893,
+            "latency_cycles_avg": 2667893,
+            "latency_cycles_max": 2667893,
+            "interval_min": null,
+            "interval_max": null,
+            "report_path": "/tmp/hls_cosim_rqe5vivm/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+            "report_text": "Report time       : Mon Jun  1 11:42:21 AM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        2667893|        2667893|        2667893|             NA|             NA|             NA|               2667893|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+          }
+        },
+        "report": {
+          "latency_cycles": 5195978,
+          "latency_ns": 17303000.0,
+          "bram": "0",
+          "dsp": "14",
+          "ff": "3570",
+          "lut": "3169",
+          "uram": "0",
+          "fmax_mhz": 400.96,
+          "interval": 5195979,
+          "estimated_clock_period_ns": 2.494,
+          "requested_clock_period_ns": 3.33,
+          "slack_ns": 0.836,
+          "work_dir": "/tmp/hls_synth_h6ehximw"
+        },
+        "selected": true
+      }
+    ],
+    "selected_variant_name": "hlsfactory_covariance_0_baseline",
+    "selected_variant_file": "hls_baseline.cpp",
+    "selected_variant_step": "0_baseline",
+    "selection_reason": "selected latest validated optimized variant"
+  },
+  "ground_truth_status": "valid",
+  "baseline_status": "passed",
+  "invalid_reference_reason": "",
+  "ground_truth_variant": {
+    "name": "hlsfactory_covariance_0_baseline",
+    "file": "hls_baseline.cpp",
+    "step": "0_baseline",
+    "selection_reason": "selected latest validated optimized variant"
+  },
+  "ground_truth_workflow": [
+    {
+      "variant_name": "hlsfactory_covariance_0_baseline",
+      "file": "hls_baseline.cpp",
+      "step_name": "0_baseline",
+      "source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/covariance/src/covariance.cpp",
+      "benchmark_ready": true,
+      "invalid_reason": "",
+      "synthesis": {
+        "status": "passed",
+        "ran": true,
+        "success": true,
+        "error": "",
+        "report": {
+          "latency_cycles": 5195978,
+          "latency_ns": 17303000.0,
+          "bram": "0",
+          "dsp": "14",
+          "ff": "3570",
+          "lut": "3169",
+          "uram": "0",
+          "fmax_mhz": 400.96,
+          "interval": 5195979,
+          "estimated_clock_period_ns": 2.494,
+          "requested_clock_period_ns": 3.33,
+          "slack_ns": 0.836,
+          "work_dir": "/tmp/hls_synth_h6ehximw"
+        },
+        "work_dir": "/tmp/hls_synth_h6ehximw"
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 2667893,
+          "latency_cycles_avg": 2667893,
+          "latency_cycles_max": 2667893,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_rqe5vivm/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Mon Jun  1 11:42:21 AM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        2667893|        2667893|        2667893|             NA|             NA|             NA|               2667893|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      },
+      "report": {
+        "latency_cycles": 5195978,
+        "latency_ns": 17303000.0,
+        "bram": "0",
+        "dsp": "14",
+        "ff": "3570",
+        "lut": "3169",
+        "uram": "0",
+        "fmax_mhz": 400.96,
+        "interval": 5195979,
+        "estimated_clock_period_ns": 2.494,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.836,
+        "work_dir": "/tmp/hls_synth_h6ehximw"
+      },
+      "selected": true
+    }
+  ],
+  "optimization_history": [
+    {
+      "step_name": "baseline",
+      "success": true,
+      "report": {
+        "latency_cycles": 3574606,
+        "latency_ns": 11903000.0,
+        "bram": "76",
+        "dsp": "14",
+        "ff": "28548",
+        "lut": "11856",
+        "uram": "0",
+        "fmax_mhz": 400.96,
+        "interval": 3574607,
+        "estimated_clock_period_ns": 2.494,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.836,
+        "work_dir": "/tmp/hls_synth_x41tktot"
+      },
+      "comparison": {
+        "success": true,
+        "valid_reference": true,
+        "invalid_reference": false,
+        "generated_report": {
+          "latency_cycles": 3574606,
+          "latency_ns": 11903000.0,
+          "bram": "76",
+          "dsp": "14",
+          "ff": "28548",
+          "lut": "11856",
+          "uram": "0",
+          "fmax_mhz": 400.96,
+          "interval": 3574607,
+          "estimated_clock_period_ns": 2.494,
+          "requested_clock_period_ns": 3.33,
+          "slack_ns": 0.836,
+          "work_dir": "/tmp/hls_synth_x41tktot"
+        },
+        "ground_truth_report": {
+          "latency_cycles": 5195978,
+          "latency_ns": 17303000.0,
+          "bram": "0",
+          "dsp": "14",
+          "ff": "3570",
+          "lut": "3169",
+          "uram": "0",
+          "fmax_mhz": 400.96,
+          "interval": 5195979,
+          "estimated_clock_period_ns": 2.494,
+          "requested_clock_period_ns": 3.33,
+          "slack_ns": 0.836,
+          "work_dir": "/tmp/hls_synth_h6ehximw"
+        },
+        "comparison": {
+          "latency_cycles": {
+            "generated": 3574606.0,
+            "ground_truth": 5195978.0,
+            "ratio": 0.688
+          },
+          "latency_ns": {
+            "generated": 11903000.0,
+            "ground_truth": 17303000.0,
+            "ratio": 0.688
+          },
+          "interval": {
+            "generated": 3574607.0,
+            "ground_truth": 5195979.0,
+            "ratio": 0.688
+          },
+          "bram": {
+            "generated": 76.0,
+            "ground_truth": 0.0,
+            "ratio": Infinity
+          },
+          "dsp": {
+            "generated": 14.0,
+            "ground_truth": 14.0,
+            "ratio": 1.0
+          },
+          "ff": {
+            "generated": 28548.0,
+            "ground_truth": 3570.0,
+            "ratio": 7.997
+          },
+          "lut": {
+            "generated": 11856.0,
+            "ground_truth": 3169.0,
+            "ratio": 3.741
+          },
+          "fmax_mhz": {
+            "generated": 400.96,
+            "ground_truth": 400.96,
+            "ratio": 1.0
+          }
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 1837370,
+          "latency_cycles_avg": 1837370,
+          "latency_cycles_max": 1837370,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_iuy1xdia/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 03:55:33 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        1837370|        1837370|        1837370|             NA|             NA|             NA|               1837370|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "tiling",
+      "report": {
+        "latency_cycles": 6341466,
+        "latency_ns": 21117000.0,
+        "bram": "60",
+        "dsp": "11",
+        "ff": "18773",
+        "lut": "16969",
+        "uram": "0",
+        "fmax_mhz": 310.95,
+        "interval": 6341467,
+        "estimated_clock_period_ns": 3.216,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.114,
+        "work_dir": "/tmp/hls_synth_dbsak8id"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 6341466.0,
+          "ground_truth": 3574606.0,
+          "ratio": 1.774
+        },
+        "latency_ns": {
+          "generated": 21117000.0,
+          "ground_truth": 11903000.0,
+          "ratio": 1.774
+        },
+        "interval": {
+          "generated": 6341467.0,
+          "ground_truth": 3574607.0,
+          "ratio": 1.774
+        },
+        "bram": {
+          "generated": 60.0,
+          "ground_truth": 76.0,
+          "ratio": 0.789
+        },
+        "dsp": {
+          "generated": 11.0,
+          "ground_truth": 14.0,
+          "ratio": 0.786
+        },
+        "ff": {
+          "generated": 18773.0,
+          "ground_truth": 28548.0,
+          "ratio": 0.658
+        },
+        "lut": {
+          "generated": 16969.0,
+          "ground_truth": 11856.0,
+          "ratio": 1.431
+        },
+        "fmax_mhz": {
+          "generated": 310.95,
+          "ground_truth": 400.96,
+          "ratio": 0.776
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 587470,
+          "latency_cycles_avg": 587470,
+          "latency_cycles_max": 587470,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_irh6ngyl/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 04:01:30 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         587470|         587470|         587470|             NA|             NA|             NA|                587470|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "pipeline",
+      "report": {
+        "latency_cycles": 1025946,
+        "latency_ns": 3416000.0,
+        "bram": "60",
+        "dsp": "11",
+        "ff": "18773",
+        "lut": "16969",
+        "uram": "0",
+        "fmax_mhz": 310.95,
+        "interval": 1025947,
+        "estimated_clock_period_ns": 3.216,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.114,
+        "work_dir": "/tmp/hls_synth_qelth3br"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 1025946.0,
+          "ground_truth": 6341466.0,
+          "ratio": 0.162
+        },
+        "latency_ns": {
+          "generated": 3416000.0,
+          "ground_truth": 21117000.0,
+          "ratio": 0.162
+        },
+        "interval": {
+          "generated": 1025947.0,
+          "ground_truth": 6341467.0,
+          "ratio": 0.162
+        },
+        "bram": {
+          "generated": 60.0,
+          "ground_truth": 60.0,
+          "ratio": 1.0
+        },
+        "dsp": {
+          "generated": 11.0,
+          "ground_truth": 11.0,
+          "ratio": 1.0
+        },
+        "ff": {
+          "generated": 18773.0,
+          "ground_truth": 18773.0,
+          "ratio": 1.0
+        },
+        "lut": {
+          "generated": 16969.0,
+          "ground_truth": 16969.0,
+          "ratio": 1.0
+        },
+        "fmax_mhz": {
+          "generated": 310.95,
+          "ground_truth": 310.95,
+          "ratio": 1.0
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 587470,
+          "latency_cycles_avg": 587470,
+          "latency_cycles_max": 587470,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_pzvlb1dp/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 04:07:34 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         587470|         587470|         587470|             NA|             NA|             NA|                587470|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "unroll",
+      "report": {
+        "latency_cycles": 363964,
+        "latency_ns": 1212000.0,
+        "bram": "88",
+        "dsp": "88",
+        "ff": "37873",
+        "lut": "30638",
+        "uram": "0",
+        "fmax_mhz": 336.59,
+        "interval": 363965,
+        "estimated_clock_period_ns": 2.971,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.359,
+        "work_dir": "/tmp/hls_synth_t7_4919s"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 363964.0,
+          "ground_truth": 1025946.0,
+          "ratio": 0.355
+        },
+        "latency_ns": {
+          "generated": 1212000.0,
+          "ground_truth": 3416000.0,
+          "ratio": 0.355
+        },
+        "interval": {
+          "generated": 363965.0,
+          "ground_truth": 1025947.0,
+          "ratio": 0.355
+        },
+        "bram": {
+          "generated": 88.0,
+          "ground_truth": 60.0,
+          "ratio": 1.467
+        },
+        "dsp": {
+          "generated": 88.0,
+          "ground_truth": 11.0,
+          "ratio": 8.0
+        },
+        "ff": {
+          "generated": 37873.0,
+          "ground_truth": 18773.0,
+          "ratio": 2.017
+        },
+        "lut": {
+          "generated": 30638.0,
+          "ground_truth": 16969.0,
+          "ratio": 1.806
+        },
+        "fmax_mhz": {
+          "generated": 336.59,
+          "ground_truth": 310.95,
+          "ratio": 1.082
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 268810,
+          "latency_cycles_avg": 268810,
+          "latency_cycles_max": 268810,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_vr9vt3b4/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 06:08:39 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         268810|         268810|         268810|             NA|             NA|             NA|                268810|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "doublebuffer",
+      "report": {
+        "latency_cycles": 366542,
+        "latency_ns": 1221000.0,
+        "bram": "104",
+        "dsp": "88",
+        "ff": "71445",
+        "lut": "45877",
+        "uram": "0",
+        "fmax_mhz": 336.59,
+        "interval": 366543,
+        "estimated_clock_period_ns": 2.971,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.359,
+        "work_dir": "/tmp/hls_synth_anfvxvct"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 366542.0,
+          "ground_truth": 363964.0,
+          "ratio": 1.007
+        },
+        "latency_ns": {
+          "generated": 1221000.0,
+          "ground_truth": 1212000.0,
+          "ratio": 1.007
+        },
+        "interval": {
+          "generated": 366543.0,
+          "ground_truth": 363965.0,
+          "ratio": 1.007
+        },
+        "bram": {
+          "generated": 104.0,
+          "ground_truth": 88.0,
+          "ratio": 1.182
+        },
+        "dsp": {
+          "generated": 88.0,
+          "ground_truth": 88.0,
+          "ratio": 1.0
+        },
+        "ff": {
+          "generated": 71445.0,
+          "ground_truth": 37873.0,
+          "ratio": 1.886
+        },
+        "lut": {
+          "generated": 45877.0,
+          "ground_truth": 30638.0,
+          "ratio": 1.497
+        },
+        "fmax_mhz": {
+          "generated": 336.59,
+          "ground_truth": 336.59,
+          "ratio": 1.0
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 268780,
+          "latency_cycles_avg": 268780,
+          "latency_cycles_max": 268780,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_0pb0rd40/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Wed Jun 10 09:48:36 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         268780|         268780|         268780|             NA|             NA|             NA|                268780|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    },
+    {
+      "success": true,
+      "step_name": "coalescing",
+      "report": {
+        "latency_cycles": 366542,
+        "latency_ns": 1221000.0,
+        "bram": "104",
+        "dsp": "88",
+        "ff": "71463",
+        "lut": "45925",
+        "uram": "0",
+        "fmax_mhz": 336.59,
+        "interval": 366543,
+        "estimated_clock_period_ns": 2.971,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.359,
+        "work_dir": "/tmp/hls_synth_a6s66gkn"
+      },
+      "vs_previous": {
+        "latency_cycles": {
+          "generated": 366542.0,
+          "ground_truth": 366542.0,
+          "ratio": 1.0
+        },
+        "latency_ns": {
+          "generated": 1221000.0,
+          "ground_truth": 1221000.0,
+          "ratio": 1.0
+        },
+        "interval": {
+          "generated": 366543.0,
+          "ground_truth": 366543.0,
+          "ratio": 1.0
+        },
+        "bram": {
+          "generated": 104.0,
+          "ground_truth": 104.0,
+          "ratio": 1.0
+        },
+        "dsp": {
+          "generated": 88.0,
+          "ground_truth": 88.0,
+          "ratio": 1.0
+        },
+        "ff": {
+          "generated": 71463.0,
+          "ground_truth": 71445.0,
+          "ratio": 1.0
+        },
+        "lut": {
+          "generated": 45925.0,
+          "ground_truth": 45877.0,
+          "ratio": 1.001
+        },
+        "fmax_mhz": {
+          "generated": 336.59,
+          "ground_truth": 336.59,
+          "ratio": 1.0
+        }
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 269010,
+          "latency_cycles_avg": 269010,
+          "latency_cycles_max": 269010,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_wd6eatqm/hls_proj/sol1/sim/report/kernel_covariance_cosim.rpt",
+          "report_text": "Report time       : Thu Jun 11 01:25:23 AM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         269010|         269010|         269010|             NA|             NA|             NA|                269010|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      }
+    }
+  ],
+  "coverage": {
+    "ground_truth_csim_available": true,
+    "ground_truth_csim_ran": true,
+    "ground_truth_cosim_available": true,
+    "ground_truth_cosim_ran": true,
+    "generated_csim_available": true,
+    "generated_csim_ran": true,
+    "generated_cosim_available": true,
+    "generated_cosim_ran": true
+  },
+  "skills_log": {
+    "enabled": true,
+    "skills_config_path": "/mnt/e/courses/UMN/c2hls/hls_full_optimization_skills_schema_1_1_package/skills.json",
+    "skills_config_sha1": "c6b3a08c12e32c6166cd2469ee9cc30bdf537313",
+    "n_entries": 8,
+    "unique_skill_ids": [
+      "avoid-manual-cse-inside-pipelined-loop",
+      "avoid-manual-loop-interchange-on-perfect-nest",
+      "avoid-over-unroll-axi-dep",
+      "prompt-doublebuffer",
+      "prompt-pipeline",
+      "prompt-tiling",
+      "prompt-unroll"
+    ],
+    "entries": [
+      {
+        "turn": 0,
+        "phase": "B",
+        "callsite": "translation",
+        "retriever": "retrieve_for_translation",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 4,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e"
+        },
+        "selected_ids": [
+          "prompt-tiling",
+          "prompt-pipeline",
+          "prompt-unroll",
+          "prompt-doublebuffer"
+        ],
+        "rendered_chars": 3427
+      },
+      {
+        "turn": 0,
+        "phase": "opt",
+        "callsite": "translation",
+        "retriever": "retrieve_for_translation",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 4,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e"
+        },
+        "selected_ids": [
+          "prompt-tiling",
+          "prompt-pipeline",
+          "prompt-unroll",
+          "prompt-doublebuffer"
+        ],
+        "rendered_chars": 3427
+      },
+      {
+        "turn": 0,
+        "phase": "opt",
+        "callsite": "translation",
+        "retriever": "retrieve_for_translation",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 4,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e"
+        },
+        "selected_ids": [
+          "prompt-tiling",
+          "prompt-pipeline",
+          "prompt-unroll",
+          "prompt-doublebuffer"
+        ],
+        "rendered_chars": 3427
+      },
+      {
+        "turn": 0,
+        "phase": "opt",
+        "callsite": "translation",
+        "retriever": "retrieve_for_translation",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 4,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e"
+        },
+        "selected_ids": [
+          "prompt-tiling",
+          "prompt-pipeline",
+          "prompt-unroll",
+          "prompt-doublebuffer"
+        ],
+        "rendered_chars": 3427
+      },
+      {
+        "turn": 0,
+        "phase": "opt",
+        "callsite": "translation",
+        "retriever": "retrieve_for_translation",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 4,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e"
+        },
+        "selected_ids": [
+          "prompt-tiling",
+          "prompt-pipeline",
+          "prompt-unroll",
+          "prompt-doublebuffer"
+        ],
+        "rendered_chars": 3427
+      },
+      {
+        "turn": 0,
+        "phase": "opt",
+        "callsite": "translation",
+        "retriever": "retrieve_for_translation",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 4,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e"
+        },
+        "selected_ids": [
+          "prompt-tiling",
+          "prompt-pipeline",
+          "prompt-unroll",
+          "prompt-doublebuffer"
+        ],
+        "rendered_chars": 3427
+      },
+      {
+        "turn": 0,
+        "phase": "opt",
+        "callsite": "error",
+        "retriever": "retrieve_for_error",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 5,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e",
+          "error_excerpt": "/tmp/c2hls_compile__2gj_q9s/kernel.cpp:2:10: fatal error: ../../../common/mc.h: No such file or directory\n    2 | #inclu"
+        },
+        "selected_ids": [
+          "avoid-over-unroll-axi-dep",
+          "avoid-manual-loop-interchange-on-perfect-nest",
+          "avoid-manual-cse-inside-pipelined-loop"
+        ],
+        "rendered_chars": 2547
+      },
+      {
+        "turn": 1,
+        "phase": "opt",
+        "callsite": "error",
+        "retriever": "retrieve_for_error",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 5,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e",
+          "error_excerpt": "/tmp/c2hls_compile_rmge5l66/kernel.cpp:3:10: fatal error: ap_int.h: No such file or directory\n    3 | #include <ap_int.h"
+        },
+        "selected_ids": [
+          "avoid-over-unroll-axi-dep",
+          "avoid-manual-loop-interchange-on-perfect-nest",
+          "avoid-manual-cse-inside-pipelined-loop"
+        ],
+        "rendered_chars": 2547
+      }
+    ]
+  }
+}

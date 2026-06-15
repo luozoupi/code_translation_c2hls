@@ -1,0 +1,77 @@
+{
+  "success": true,
+  "step_name": "tiling",
+  "report": {
+    "latency_cycles": 2784301,
+    "latency_ns": 10066000.0,
+    "bram": "12",
+    "dsp": "38",
+    "ff": "33185",
+    "lut": "12542",
+    "uram": "0",
+    "fmax_mhz": 276.63,
+    "interval": 2784302,
+    "estimated_clock_period_ns": 3.615,
+    "requested_clock_period_ns": 3.33,
+    "slack_ns": -0.285,
+    "work_dir": "/tmp/hls_synth_clv3uxtg"
+  },
+  "vs_previous": {
+    "latency_cycles": {
+      "generated": 2784301.0,
+      "ground_truth": 1710241.0,
+      "ratio": 1.628
+    },
+    "latency_ns": {
+      "generated": 10066000.0,
+      "ground_truth": 5695000.0,
+      "ratio": 1.768
+    },
+    "interval": {
+      "generated": 2784302.0,
+      "ground_truth": 1710242.0,
+      "ratio": 1.628
+    },
+    "bram": {
+      "generated": 12.0,
+      "ground_truth": 12.0,
+      "ratio": 1.0
+    },
+    "dsp": {
+      "generated": 38.0,
+      "ground_truth": 27.0,
+      "ratio": 1.407
+    },
+    "ff": {
+      "generated": 33185.0,
+      "ground_truth": 8139.0,
+      "ratio": 4.077
+    },
+    "lut": {
+      "generated": 12542.0,
+      "ground_truth": 8057.0,
+      "ratio": 1.557
+    },
+    "fmax_mhz": {
+      "generated": 276.63,
+      "ground_truth": 411.35,
+      "ratio": 0.672
+    }
+  },
+  "csim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "cosim": {
+    "status": "failed",
+    "supported": true,
+    "ran": true,
+    "success": false,
+    "passed": false,
+    "error": "Cosim timed out after 14400s"
+  }
+}

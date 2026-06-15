@@ -1,0 +1,87 @@
+{
+  "success": true,
+  "step_name": "doublebuffer",
+  "report": {
+    "latency_cycles": 131159,
+    "latency_ns": 563000.0,
+    "bram": "68",
+    "dsp": "691",
+    "ff": "105560",
+    "lut": "76716",
+    "uram": "0",
+    "fmax_mhz": 232.77,
+    "interval": 131160,
+    "estimated_clock_period_ns": 4.296,
+    "requested_clock_period_ns": 3.33,
+    "slack_ns": -0.966,
+    "work_dir": "/tmp/hls_synth_xwj3_2m_"
+  },
+  "vs_previous": {
+    "latency_cycles": {
+      "generated": 131159.0,
+      "ground_truth": 131293.0,
+      "ratio": 0.999
+    },
+    "latency_ns": {
+      "generated": 563000.0,
+      "ground_truth": 564000.0,
+      "ratio": 0.998
+    },
+    "interval": {
+      "generated": 131160.0,
+      "ground_truth": 131294.0,
+      "ratio": 0.999
+    },
+    "bram": {
+      "generated": 68.0,
+      "ground_truth": 52.0,
+      "ratio": 1.308
+    },
+    "dsp": {
+      "generated": 691.0,
+      "ground_truth": 176.0,
+      "ratio": 3.926
+    },
+    "ff": {
+      "generated": 105560.0,
+      "ground_truth": 48369.0,
+      "ratio": 2.182
+    },
+    "lut": {
+      "generated": 76716.0,
+      "ground_truth": 39504.0,
+      "ratio": 1.942
+    },
+    "fmax_mhz": {
+      "generated": 232.77,
+      "ground_truth": 232.77,
+      "ratio": 1.0
+    }
+  },
+  "csim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "cosim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": "",
+    "measured": {
+      "simulator": "Verilog",
+      "latency_cycles_min": 124798,
+      "latency_cycles_avg": 124798,
+      "latency_cycles_max": 124798,
+      "interval_min": null,
+      "interval_max": null,
+      "report_path": "/tmp/hls_cosim_a_qynyr2/hls_proj/sol1/sim/report/kernel_gemver_cosim.rpt",
+      "report_text": "Report time       : Fri Jun 12 01:18:51 AM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|         124798|         124798|         124798|             NA|             NA|             NA|                124798|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+    }
+  }
+}

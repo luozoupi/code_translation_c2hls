@@ -1,0 +1,55 @@
+{
+  "benchmark": "hlsfactory_gesummv",
+  "source_repo": "HLSFactory",
+  "algorithm_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/gesummv/src/gesummv.cpp",
+  "gold_hls_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/gesummv/src/gesummv.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "gesummv.cpp",
+  "header_file": "gesummv.h",
+  "baseline_variant": "hlsfactory_gesummv_0_baseline",
+  "variants": [
+    {
+      "name": "hlsfactory_gesummv_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/gesummv/src/gesummv.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "hlsfactory_gesummv_0_baseline": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/gesummv/src/gesummv.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "kernel_gesummv",
+  "hls_top": "kernel_gesummv",
+  "translated_hls_top": "kernel_gesummv",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 1,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "047c215ede485c82bee624e4898b1996bc6cd3e31e4696ea3b58136fed8c60ac",
+    "gold_hls_baseline_sha256": "047c215ede485c82bee624e4898b1996bc6cd3e31e4696ea3b58136fed8c60ac",
+    "plain_c_sha256": "6ac97515b76dda53eccdf42f2d532b5fefc2813502dd65695d3b19f974a809bf",
+    "plain_derived_from_gold_hls": true
+  },
+  "header_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/gesummv/src/gesummv.h",
+  "cosim_size_overrides": {
+    "N": 8
+  },
+  "cosim_testbench_file": "testbench_cosim.cpp",
+  "cosim_support_files": [
+    "gold_kernel_for_cosim.cpp"
+  ]
+}

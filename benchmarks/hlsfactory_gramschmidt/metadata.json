@@ -1,0 +1,56 @@
+{
+  "benchmark": "hlsfactory_gramschmidt",
+  "source_repo": "HLSFactory",
+  "algorithm_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/gramschmidt/src/gramschmidt.cpp",
+  "gold_hls_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/gramschmidt/src/gramschmidt.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "gramschmidt.cpp",
+  "header_file": "gramschmidt.h",
+  "baseline_variant": "hlsfactory_gramschmidt_0_baseline",
+  "variants": [
+    {
+      "name": "hlsfactory_gramschmidt_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/gramschmidt/src/gramschmidt.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "hlsfactory_gramschmidt_0_baseline": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/gramschmidt/src/gramschmidt.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "kernel_gramschmidt",
+  "hls_top": "kernel_gramschmidt",
+  "translated_hls_top": "kernel_gramschmidt",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 1,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "c3ffd5fd812c1db3254457a19636b1e629058895dd47d41290c10b6bdc3bb805",
+    "gold_hls_baseline_sha256": "c3ffd5fd812c1db3254457a19636b1e629058895dd47d41290c10b6bdc3bb805",
+    "plain_c_sha256": "9f60242aa7e70f1c0d8ec4f0398f74d02481b92a4be3c68b9697c4f0a1729507",
+    "plain_derived_from_gold_hls": true
+  },
+  "header_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/gramschmidt/src/gramschmidt.h",
+  "cosim_size_overrides": {
+    "M": 8,
+    "N": 8
+  },
+  "cosim_testbench_file": "testbench_cosim.cpp",
+  "cosim_support_files": [
+    "gold_kernel_for_cosim.cpp"
+  ]
+}

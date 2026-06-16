@@ -1,0 +1,119 @@
+{
+  "saved_at": "2026-05-24T00:00:00+0000",
+  "schema": "1.1",
+  "_note": "Extension to the curated skills.json that adds hard_guard rules learned from c2hls matrix sweeps. Always retrieved alongside the base skills; never filtered out.",
+  "skills": [
+    {
+      "id": "hls-guard-fp-reduction-order-preserving",
+      "kind": "hard_guard",
+      "confidence": "high",
+      "origin": "matrix_sweep_observation",
+      "bottleneck_kinds": [
+        "csim_regression",
+        "fp_reduction",
+        "unroll_reassociation",
+        "bit_exact_mismatch"
+      ],
+      "pattern": "the kernel contains a floating-point reduction such as `acc += a[i] * b[i]`, `tmp[i][j] += alpha * A[i][k] * B[k][j]`, or similar serial accumulator, AND the testbench compares output bit-for-bit (no fabs/epsilon tolerance check)",
+      "strategy": "DO NOT unroll, partial-unroll, or reorder a serial floating-point accumulator. IEEE 754 + and * are not associative, so any reassociation changes the bit-exact result and breaks csim. If the testbench does NOT have an explicit tolerance check (fabs(a-b) < EPSILON), the only safe options are: (1) keep the reduction serial and pipeline its body, or (2) use a tree reduction with explicit ordering that mathematically matches the serial one (rarely possible without algorithmic insight). Lane-parallel partial sums are NOT safe unless the testbench tolerates non-bit-exact output.",
+      "required_steps": [
+        "scan the kernel for accumulation patterns: `acc +=`, `tmp += alpha * x`, `result[i][j] += ...`",
+        "scan the testbench for tolerance checks: `fabs(`, `EPSILON`, `< 1e-6`, `relative_error`",
+        "if testbench is bit-exact and a reduction is found: do NOT apply UNROLL on the inner loop containing the accumulator",
+        "do NOT apply ARRAY_PARTITION complete on accumulator arrays",
+        "for the reduction loop, keep II=N where N is the FP add latency (typically 5-9 cycles), not II=1",
+        "if a higher-priority optimization skill (coalescing, lane-parallel) would touch a reduction loop, DEFER to this guard and skip the loop"
+      ],
+      "guards": [
+        "this is a hard_guard — applies before any other transformation skill",
+        "floating-point + and * are NOT associative under IEEE 754",
+        "bit-exact csim fails on ANY reassociation of FP reduction",
+        "polybench, machsuite, and most HLS testbenches use bit-exact dumps (no tolerance)",
+        "the c2hls matrix sweep on 2026-05-24 confirmed 3/3 csim failures in haiku multistep skills=on on reduction-heavy kernels (gemm, gemver, syrk) came from this exact violation"
+      ],
+      "tags": [
+        "hard_guard",
+        "fp",
+        "reduction",
+        "csim",
+        "correctness",
+        "kernel-independent"
+      ],
+      "template": "// SAFE: pipeline the reduction body, do NOT unroll the accumulator.\nfor (int k = 0; k < K; ++k) {\n#pragma HLS PIPELINE II=1\n    acc += a[k] * b[k];   // serial accumulator preserved\n}\n\n// UNSAFE — DO NOT WRITE:\n// for (int k = 0; k < K; k += 8) {\n// #pragma HLS UNROLL\n//     // 8 partial sums in parallel changes the math\n// }"
+    },
+    {
+      "id": "hls-guard-device-budget-artix7-100t",
+      "kind": "conditional_guard",
+      "trigger": {
+        "any_resource_ratio_above_limit_pct": 50,
+        "device_limits": {"bram": 270, "dsp": 240, "ff": 126800, "lut": 63400}
+      },
+      "confidence": "high",
+      "origin": "matrix_sweep_observation_refined",
+      "applicable_fpgas": ["xc7a100t-csg324-1"],
+      "bottleneck_kinds": [
+        "resource_explosion",
+        "device_infeasible",
+        "rubric_feasibility_zero"
+      ],
+      "pattern": "the most recent synthesis report shows resource usage already above 50% of any Artix-7 100T device limit (BRAM>135, DSP>120, FF>63400, LUT>31700) — i.e. an additional parallelism-increasing transform risks busting the budget",
+      "strategy": "Refined to be state-aware (2026-05-25): this guard fires only when an actual synth report shows resource pressure, not blanket at translation time. The c2hls rubric scores Device Feasibility on Artix-7 100T limits (BRAM 270, DSP 240, FF 126800, LUT 63400). When the current report shows you're already past 50% of any limit, BACK OFF further parallelism: reduce UNROLL factors, switch ARRAY_PARTITION complete → cyclic factor=4/8, prefer rolling buffers over full ping-pong. When the report is well within budget, this skill should NOT be retrieved — normal optimization may proceed.",
+      "required_steps": [
+        "before applying UNROLL: estimate per-iteration FP ops × unroll_factor ≤ 240 DSP",
+        "before applying ARRAY_PARTITION complete on dim=1: estimate element_count × element_bitwidth ≤ 126800 FF; if larger, use cyclic factor=4 or factor=8 instead",
+        "for an N×M matrix array, complete partitioning yields N×M registers — only safe if N×M < 1000",
+        "for double-precision FP, each mul is ~3 DSP and each add is ~2 DSP under default Vitis 2023.2 schedule",
+        "for a kernel with K nested FP multiply-adds and outer unroll factor U, expect roughly U * (K * 5) DSP — keep U * K * 5 < 240 (i.e. U * K < 48)",
+        "if the gold baseline used 0 BRAM and your design uses > 100 BRAM, you almost certainly introduced superficial tiling — back it out"
+      ],
+      "guards": [
+        "this is a conditional_guard — only retrieved when current synth report shows >50% of any device-limit",
+        "the c2hls rubric weights Feasibility at 10% and Resources at 17% — busting limits forfeits ~27% of total score",
+        "the Vitis estimator is conservative — actual usage may be 1.2-1.5x the post-synth estimate",
+        "previous 'always-on' version of this guard was too blunt: it suppressed parallelism even on benches with plenty of headroom (nussinov -20pt, bicg -13pt). State-aware version only restrains when there's evidence of pressure",
+        "do NOT apply this guard preemptively at translation time — wait for the first synth report"
+      ],
+      "tags": [
+        "hard_guard",
+        "device",
+        "artix7",
+        "feasibility",
+        "resource-budget",
+        "kernel-independent"
+      ],
+      "template": "// Before:\n// #pragma HLS UNROLL              // implicit factor = full, blows DSP\n// #pragma HLS ARRAY_PARTITION variable=buf complete dim=1\n\n// After (budget-aware):\n// #pragma HLS UNROLL factor=4    // 4 lanes, keeps DSP under budget\n// #pragma HLS ARRAY_PARTITION variable=buf cyclic factor=4 dim=1"
+    },
+    {
+      "id": "hls-translation-loop-tripcount-always",
+      "kind": "supporting_transformation",
+      "confidence": "high",
+      "origin": "matrix_sweep_observation",
+      "bottleneck_kinds": [
+        "undef_latency",
+        "rubric_latency_zero",
+        "report_unknown_bound"
+      ],
+      "pattern": "a loop has a bound that is a function argument, struct field, or any non-compile-time constant, and Vitis HLS cannot determine the trip count",
+      "strategy": "Annotate any non-compile-time-bounded loop with `#pragma HLS loop_tripcount min=N avg=N max=N` so the synthesis report has a numeric latency estimate. Without this, latency comes back as 'undef' and the c2hls rubric scores 0 on M4 (Latency, 23% of total). On polybench kernels the upper bounds are tiny (40-100), so this is essentially free.",
+      "required_steps": [
+        "scan the kernel for loops with non-constant bounds: `for (int i = 0; i < n; ++i)` where n is a parameter",
+        "for each such loop, find the actual maximum value (usually defined as a macro or constant in the header)",
+        "add `#pragma HLS loop_tripcount min=N avg=N max=N` immediately after the loop opening brace",
+        "use the max as a conservative estimate; the rubric scores based on the reported number"
+      ],
+      "guards": [
+        "loop_tripcount does NOT affect functional correctness — it only annotates for the scheduler/reporter",
+        "providing a tripcount that's smaller than the actual runtime trip count is safe (estimate vs actual)",
+        "if the loop runs at most N times statically, ALWAYS annotate it"
+      ],
+      "tags": [
+        "diagnostic",
+        "loop_tripcount",
+        "rubric",
+        "translation",
+        "kernel-independent"
+      ],
+      "template": "for (int i = 0; i < runtime_n; ++i) {\n#pragma HLS loop_tripcount min=80 avg=80 max=80\n    ...\n}"
+    }
+  ]
+}

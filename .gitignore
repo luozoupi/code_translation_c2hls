@@ -118,7 +118,11 @@ artifacts/*.pid
 benchmarks_external/
 /benchmarks_external
 results_sweeps/
-c2hls_temp.py
+# c2hls_temp.py — NOW COMMITTED (2026-06-16). The module is a required import
+# in c2hls.py/hls_eval.py/run_agentic_sweep.py; keeping it gitignored broke
+# fresh checkouts with ModuleNotFoundError. The committed version is portable
+# (scratch root via $C2HLS_TMP_ROOT, defaults to $TMPDIR/c2hls_tmp) so no
+# machine-specific path is baked in.
 
 # HLS temp dirs
 /tmp/hls_synth_*/

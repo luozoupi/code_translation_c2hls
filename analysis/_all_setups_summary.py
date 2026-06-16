@@ -16,7 +16,7 @@ import json
 from math import exp, log
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # repo root (script lives in analysis/)
 
 PHASE8 = ROOT / "results_matrix_u280_fullcosim"
 PHASE9 = ROOT / "results_matrix_u280_fullcosim_extended"

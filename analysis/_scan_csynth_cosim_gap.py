@@ -25,7 +25,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # repo root (script lives in analysis/)
 
 THRESHOLD = 0.15  # 15%
 

@@ -520,6 +520,7 @@ def _emit_for_cell(bench: str, cell_dir: Path, model: str, mode: str,
 MODEL_DIR_TO_ID = {
     "sonnet": "claude-sonnet-4-6",
     "haiku": "claude-haiku-4-5-20251001",
+    "opus": "claude-opus-4-8",
 }
 
 

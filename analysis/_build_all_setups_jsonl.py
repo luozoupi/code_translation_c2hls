@@ -17,7 +17,7 @@ run so collisions only happen if the same input file is concatenated twice.
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # repo root (script lives in analysis/)
 SCHEMAS = ROOT / "schemas"
 INPUTS = [
     SCHEMAS / "u280__flash_baseAB_skills_schema.jsonl",

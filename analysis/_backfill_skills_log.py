@@ -38,7 +38,7 @@ import sys
 from pathlib import Path
 
 # Module path setup so we can import skills.py + reuse its retrievers
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent.parent  # repo root (script lives in analysis/)
 sys.path.insert(0, str(HERE))
 
 

@@ -29,7 +29,7 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # repo root (script lives in analysis/)
 
 def _classify(j: dict) -> tuple[str, str]:
     """Return (category, short_evidence)."""

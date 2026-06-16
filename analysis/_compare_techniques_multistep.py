@@ -13,7 +13,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # repo root (script lives in analysis/)
 SETUPS = {
     "OFF": ROOT / "results_matrix_u280_fullcosim" / "{bench}" / "sonnet__flash__noskills",
     "OLD": ROOT / "results_matrix_u280_fullcosim" / "{bench}" / "sonnet__flash__skills",

@@ -15,7 +15,7 @@ Dedup rules:
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # repo root (script lives in analysis/)
 SCHEMAS = ROOT / "schemas"
 INPUTS = [
     SCHEMAS / "u280__flash_baseAB_per_revision_schema.jsonl",

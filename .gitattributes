@@ -1,0 +1,9 @@
+# Pin skill-config JSONs to LF line endings so their runtime
+# skills_config_sha1 (sha1 of the raw file bytes, computed in
+# skills.py:skills_config_sha1) reproduces the recorded sweep provenance on
+# ANY platform. With core.autocrlf=true a Windows checkout would otherwise
+# materialize these as CRLF and change the hash:
+#   skills.json  LF -> sha1 c6b3a08c12e3...  (recorded base sha1)
+#   skills.json + skills_extension.json LF -> sha1 c74de5235e6e...  (recorded EXT sha1)
+hls_full_optimization_skills_schema_1_1_package/skills.json text eol=lf
+hls_full_optimization_skills_schema_1_1_package/skills_extension.json text eol=lf

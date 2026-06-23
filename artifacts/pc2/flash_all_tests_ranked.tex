@@ -1,0 +1,98 @@
+\documentclass[11pt]{article}
+\usepackage[margin=18mm]{geometry}
+\usepackage{booktabs, longtable, array}
+\usepackage{amsmath}
+\usepackage{ragged2e}
+
+\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+
+\title{Flash synthesis tests --- ranked variants}
+\author{asa582}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\subsection*{Column definitions (win metrics)}
+
+All win columns are computed \textbf{per benchmark} over the \textbf{full pool of 49 flash runs}
+(27 scored kernels; \texttt{doitgen} excluded). \textbf{Lower synthesis latency (cycles) is better.}
+These metrics compare flash runs to each other; they are \textbf{not} vs ground truth.
+
+\begin{description}
+  \item[\textbf{Abs}] (\emph{absolute win})
+    Count of benchmarks where this variant had the \textbf{sole} lowest final csynth latency
+    among all runs (no other run tied within 0.1\%).
+  \item[\textbf{Shared}] (\emph{shared win})
+    Count of benchmarks where this variant \textbf{tied} for lowest latency with at least one
+    other run (within 0.1\% of the minimum). Tied benchmarks award no Abs win to any party.
+  \item[\textbf{Pooled}] (\emph{pooled / fractional win score})
+    $\text{Abs} + \sum_{\text{tied benches}} 1/n$, where $n$ is the number of runs tied at the
+    minimum on that bench (e.g.\ sole win $=1.0$; two-way tie $=0.5$ each; three-way $=0.33$ each).
+    Maximum possible $=27$.
+\end{description}
+
+\noindent\textbf{Geo-mean} $=$ geometric mean of (generated latency / ground-truth latency); lower is better.
+\textbf{Spd} $= 1/\textbf{Geo}$ $=$ geo-mean (GT / synth); higher is better.
+\textbf{F$<$GT} / \textbf{F$>$GT} $=$ count of benchmarks with ratio $<1$ / $>1$.
+One row per variant (best geo-mean stamp). \textbf{Sk} $=$ skills in library file; \textbf{Inj} $=$ skills injected into prompt (U280-filtered; ``cur.'' = LLM-curated subset).
+New libraries: \texttt{skills\_ii\_target\_miss\_solutions\_added(73skills).json} (73 entries, 57 positive injected);
+\texttt{skills\_ii\_target\_miss\_solutions\_added(90skills).json} (90 entries, 66 positive / 90 all injected).
+
+\begingroup
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{longtable}{@{}r L{2.4cm} c c c c c c c c c L{2.0cm}@{}}
+\caption{Flash synthesis variants ranked by geo-mean latency vs ground truth (best $\rightarrow$ worst).}
+\label{tab:flash-all-tests-ranked} \\
+\toprule
+\textbf{\#} & \textbf{Variant} & \textbf{Geo} & \textbf{Spd} & \textbf{Abs} & \textbf{Sh.} & \textbf{Pl.} &
+\textbf{F$<$} & \textbf{F$>$} & \textbf{Sk} & \textbf{Inj} & \textbf{Artifact} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{\#} & \textbf{Variant} & \textbf{Geo} & \textbf{Spd} & \textbf{Abs} & \textbf{Sh.} & \textbf{Pl.} &
+\textbf{F$<$} & \textbf{F$>$} & \textbf{Sk} & \textbf{Inj} & \textbf{Artifact} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{12}{r}{\emph{continued on next page}} \\
+\midrule
+\endfoot
+\bottomrule
+\endlastfoot
+  1 & No avoids (old) & 0.0342 & 29.24 & 1 & 2 & 1.4 & 23 & 0 & 55 & 41 & \shortstack{\ttfamily\scriptsize flash\_all\_skills\_no\_avoids\_global\\20260620\_113247} \\
+  2 & All+avoids (new) & 0.0397 & 25.19 & 1 & 1 & 1.1 & 25 & 0 & 90 & 90 & \shortstack{\ttfamily\scriptsize flash\_all\_new\_skills\_avoids\_global\\20260623\_024548} \\
+  3 & No avoids (new) & 0.0474 & 21.10 & 1 & 0 & 1.0 & 22 & 2 & 73 & 57 & \shortstack{\ttfamily\scriptsize flash\_all\_new\_skills\_no\_avoids\_global\\20260621\_075846} \\
+  4 & Noskills (old) & 0.0528 & 18.94 & 0 & 0 & 0.0 & 25 & 0 & 0 & 0 & \shortstack{\ttfamily\scriptsize flash\_noskills\\20260620\_004507} \\
+  5 & All+avoids (old) & 0.0620 & 16.13 & 0 & 1 & 0.1 & 22 & 0 & 55 & 55 & \shortstack{\ttfamily\scriptsize flash\_all\_skills\_avoids\_global\\20260621\_075846} \\
+  6 & HPC+ v1 noskills & 0.0627 & 15.95 & 0 & 2 & 0.3 & 24 & 0 & 0 & 0 & \shortstack{\ttfamily\scriptsize flash\_hpc\_positive\_v1\_noskills\\20260623\_051145} \\
+  7 & Curated All+avoids LLM (warnings) & 0.0644 & 15.53 & 1 & 0 & 1.0 & 24 & 1 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_all\_avoids\_llm\_warnings\\20260621\_104044} \\
+  8 & Curated No avoids LLM (warnings) & 0.0645 & 15.50 & 1 & 1 & 1.1 & 23 & 1 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_no\_avoids\_llm\_warnings\\20260621\_104044} \\
+  9 & Bn 2+2 (old) & 0.0653 & 15.31 & 0 & 1 & 0.5 & 26 & 0 & 55 & 4 & \shortstack{\ttfamily\scriptsize flash\_skills\\20260620\_004507} \\
+  10 & Noskills (new) & 0.0670 & 14.93 & 0 & 1 & 0.2 & 25 & 0 & 0 & 0 & \shortstack{\ttfamily\scriptsize flash\_noskills\_new\\20260622\_113723} \\
+  11 & HPC+ v2 noskills & 0.0675 & 14.81 & 0 & 2 & 0.3 & 25 & 0 & 0 & 0 & \shortstack{\ttfamily\scriptsize flash\_hpc\_positive\_v2\_noskills\\20260623\_132117} \\
+  12 & HPC+ v1 all skills & 0.0709 & 14.10 & 0 & 0 & 0.0 & 24 & 1 & 30 & 30 & \shortstack{\ttfamily\scriptsize flash\_hpc\_positive\_v1\_all\_skills\\20260623\_051145} \\
+  13 & Curated All+avoids json (bottleneck) & 0.0719 & 13.91 & 1 & 0 & 1.0 & 23 & 1 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_all\_avoids\_json\_bottleneck\\20260621\_104044} \\
+  14 & Curated Noskills (warnings) & 0.0749 & 13.35 & 0 & 2 & 0.3 & 23 & 1 & 0 & 0 & \shortstack{\ttfamily\scriptsize flash\_curated\_noskills\_warnings\\20260621\_104044} \\
+  15 & Bn 4+2 (new) & 0.0767 & 13.04 & 1 & 0 & 1.0 & 25 & 1 & 73 & 6 & \shortstack{\ttfamily\scriptsize flash\_bn\_skills\_new\_4\_2\\20260621\_075846} \\
+  16 & Curated No avoids json (combined) & 0.0812 & 12.32 & 0 & 0 & 0.0 & 22 & 1 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_no\_avoids\_json\_combined\\20260621\_104044} \\
+  17 & Curated Noskills (bottleneck) & 0.0834 & 11.99 & 0 & 1 & 0.1 & 22 & 2 & 0 & 0 & \shortstack{\ttfamily\scriptsize flash\_curated\_noskills\_bottleneck\\20260621\_104044} \\
+  18 & Bn 2+2 (new) & 0.0843 & 11.86 & 0 & 0 & 0.0 & 24 & 2 & 73 & 4 & \shortstack{\ttfamily\scriptsize flash\_bn\_skills\_new\_2\_2\\20260621\_075846} \\
+  19 & Curated Noskills (combined) & 0.0914 & 10.94 & 0 & 0 & 0.0 & 26 & 0 & 0 & 0 & \shortstack{\ttfamily\scriptsize flash\_curated\_noskills\_combined\\20260621\_104044} \\
+  20 & Curated All+avoids LLM (bottleneck) & 0.1000 & 10.00 & 0 & 0 & 0.0 & 22 & 0 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_all\_avoids\_llm\_bottleneck\\20260621\_104044} \\
+  21 & Curated No avoids LLM (combined) & 0.1048 & 9.54 & 1 & 0 & 1.0 & 21 & 3 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_no\_avoids\_llm\_combined\\20260621\_104044} \\
+  22 & HPC+ v1 Bn 4+2 & 0.1108 & 9.03 & 1 & 0 & 1.0 & 23 & 0 & 30 & 6 & \shortstack{\ttfamily\scriptsize flash\_hpc\_positive\_v1\_bn\_4\_2\\20260623\_051145} \\
+  23 & Curated All+avoids json (combined) & 0.1158 & 8.64 & 0 & 0 & 0.0 & 22 & 0 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_all\_avoids\_json\_combined\\20260621\_104044} \\
+  24 & Bn 6+2 (new) & 0.1199 & 8.34 & 0 & 1 & 0.1 & 23 & 1 & 73 & 8 & \shortstack{\ttfamily\scriptsize flash\_bn\_skills\_new\_6\_2\\20260621\_075846} \\
+  25 & HPC+ v2 all skills & 0.1299 & 7.70 & 0 & 0 & 0.0 & 23 & 1 & 34 & 34 & \shortstack{\ttfamily\scriptsize flash\_hpc\_positive\_v2\_all\_skills\\20260623\_132117} \\
+  26 & Curated No avoids LLM (bottleneck) & 0.1306 & 7.66 & 0 & 0 & 0.0 & 22 & 0 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_no\_avoids\_llm\_bottleneck\\20260621\_104044} \\
+  27 & Curated No avoids json (bottleneck) & 0.1329 & 7.52 & 1 & 1 & 1.1 & 17 & 1 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_no\_avoids\_json\_bottleneck\\20260621\_104044} \\
+  28 & Curated All+avoids LLM (combined) & 0.1333 & 7.50 & 0 & 0 & 0.0 & 20 & 2 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_all\_avoids\_llm\_combined\\20260621\_104044} \\
+  29 & Curated All+avoids json (warnings) & 0.1358 & 7.36 & 0 & 0 & 0.0 & 19 & 0 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_all\_avoids\_json\_warnings\\20260621\_104044} \\
+  30 & Curated No avoids json (warnings) & 0.1564 & 6.39 & 0 & 0 & 0.0 & 21 & 3 & 73 & cur. & \shortstack{\ttfamily\scriptsize flash\_curated\_no\_avoids\_json\_warnings\\20260621\_104044} \\
+\end{longtable}
+\endgroup
+
+\end{document}

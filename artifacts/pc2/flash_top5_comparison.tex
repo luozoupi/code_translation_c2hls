@@ -1,0 +1,149 @@
+\documentclass[11pt]{article}
+\usepackage[margin=16mm]{geometry}
+\usepackage{booktabs, longtable, array}
+\usepackage{amsmath}
+\usepackage{ragged2e}
+\usepackage[table]{xcolor}
+\usepackage{colortbl}
+
+\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+\definecolor{bestrow}{gray}{0.93}
+
+\title{Top-5 flash synthesis variants --- comparison}
+\author{asa582}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Top 5} by geo-mean lat/GT across all flash experiments (best stamp per variant).
+27 scored Polybench kernels; \texttt{doitgen} excluded. Lower \textbf{Geo} and higher \textbf{Spd} are better.
+
+\subsection*{A. Summary vs ground truth and within top-5 win pool}
+
+\begin{small}
+\begin{tabular}{@{}r L{2.2cm} r r r c c c c c c c c@{}}
+\toprule
+\textbf{\#} & \textbf{Variant} & \textbf{Geo} & \textbf{Spd} & \textbf{Mean} & \textbf{F$<$GT} & \textbf{F$>$GT} & \textbf{Tie} &
+\textbf{Abs} & \textbf{Sh.} & \textbf{Pl.} & \textbf{Sk} & \textbf{Inj} \\
+\midrule
+  1 & No avoids (old) & 0.0342 & 29.24 & 0.2332 & 23 & 0 & 3 & 5 & 1 & 5.3 & 55 & 41 \\
+  2 & All+avoids (new) & 0.0397 & 25.19 & 0.1761 & 25 & 0 & 1 & 6 & 1 & 6.3 & 90 & 90 \\
+  3 & No avoids (new) & 0.0474 & 21.10 & 0.2670 & 22 & 2 & 4 & 5 & 1 & 5.5 & 73 & 57 \\
+  4 & Noskills (old) & 0.0528 & 18.94 & 0.2167 & 25 & 0 & 2 & 4 & 0 & 4.0 & 0 & 0 \\
+  5 & All+avoids (old) & 0.0620 & 16.13 & 0.2343 & 22 & 0 & 4 & 5 & 2 & 5.8 & 55 & 55 \\
+\bottomrule
+\end{tabular}
+\end{small}
+
+\medskip
+\noindent\textbf{Table A --- column guide.}
+\begin{description}
+  \item[GT] Ground-truth HLS latency (reference gold design per kernel).
+  \item[lat/GT ratio] $\text{synth\_latency} / \text{GT\_latency}$; $<1$ faster than GT, $>1$ slower.
+  \item[\textbf{\#}] Rank by geo-mean lat/GT (1 = best).
+  \item[\textbf{Geo}] Geometric mean of per-bench lat/GT ratios; \textbf{lower is better}.
+  \item[\textbf{Spd}] Geo-mean speedup $= 1/\textbf{Geo} = \text{geo-mean}(\text{GT}/\text{synth})$; \textbf{higher is better}.
+  \item[\textbf{Mean}] Arithmetic mean of per-bench ratios.
+  \item[\textbf{F$<$GT} / \textbf{F$>$GT} / \textbf{Tie}] Kernel counts with ratio $<1$, $>1$, or $\approx 1$ vs ground truth.
+  \item[\textbf{Abs} / \textbf{Sh.} / \textbf{Pl.}] Win metrics \textbf{among these 5 modes only} (not vs GT): sole lowest synth latency (Abs); tied for lowest (Sh.); pooled score $=\text{Abs}+\sum 1/n$ on ties (Pl., max.\ 27).
+  \item[\textbf{Sk} / \textbf{Inj}] Skills in library file / skills injected into the prompt (U280-filtered).
+  \item[old / new] \textbf{old} = \texttt{skills.json} (55). \textbf{new} = frozen ii-target-miss libraries:
+    \texttt{skills\_ii\_target\_miss\_solutions\_added(90skills).json} (variant~2, stamp \texttt{20260623\_024548});
+    \texttt{skills\_ii\_target\_miss\_solutions\_added(73skills).json} (variant~3, stamp \texttt{20260621\_075846}).
+\end{description}
+
+\subsection*{B. Pairwise head-to-head (synthesis latency)}
+
+\begin{small}
+\begin{tabular}{@{}l c c c c c@{}}
+\toprule
+\textbf{Row vs Col} & \textbf{nav\_o} & \textbf{aav\_n} & \textbf{nav\_n} & \textbf{nosk\_o} & \textbf{aav\_o} \\
+\midrule
+  nav\_o & --- & 14--12 (1) & 14--11 (2) & 18--9 (0) & 12--9 (6) \\
+  aav\_n & 12--14 (1) & --- & 15--11 (1) & 18--8 (1) & 17--9 (1) \\
+  nav\_n & 11--14 (2) & 11--15 (1) & --- & 13--14 (0) & 14--10 (3) \\
+  nosk\_o & 9--18 (0) & 8--18 (1) & 14--13 (0) & --- & 11--16 (0) \\
+  aav\_o & 9--12 (6) & 9--17 (1) & 10--14 (3) & 16--11 (0) & --- \\
+\bottomrule
+\end{tabular}
+\end{small}
+
+\medskip
+\noindent\textbf{Table B --- abbreviations and how to read cells.}
+\begin{description}
+  \item[\texttt{nav\_o}] No avoids (old) --- positive skills only, old library, global injection.
+  \item[\texttt{aav\_n}] All+avoids (new) --- all skills (positive + avoid), \texttt{(90skills).json}, stamp \texttt{20260623\_024548}.
+  \item[\texttt{nav\_n}] No avoids (new) --- positive-only, \texttt{(73skills).json}, stamp \texttt{20260621\_075846}.
+  \item[\texttt{nosk\_o}] Noskills (old) --- no skills in prompt.
+  \item[\texttt{aav\_o}] All+avoids (old) --- all skills, old library.
+\end{description}
+\noindent Suffix \texttt{\_o} = old skills file; \texttt{\_n} = new.
+\texttt{nav} = no avoids; \texttt{aav} = all+avoids; \texttt{nosk} = noskills.
+Each matrix cell is \textbf{row wins}--\textbf{col wins} (ties in parentheses), out of 27 kernels, by \textbf{synthesis latency} (lower cycles wins; not lat/GT ratio).
+
+\subsection*{C. Per-benchmark lat/GT ratio (top-5 only)}
+
+{\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}L{1.6cm} r r r r r c@{}}
+\caption{Ground-truth latency ratio by kernel. \textbf{Best} = lowest synth latency among top-5 on that kernel.} \\
+\toprule
+\textbf{Kernel} & \textbf{nav\_o} & \textbf{aav\_n} & \textbf{nav\_n} & \textbf{nosk\_o} & \textbf{aav\_o} & \textbf{Best} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Kernel} & \textbf{nav\_o} & \textbf{aav\_n} & \textbf{nav\_n} & \textbf{nosk\_o} & \textbf{aav\_o} & \textbf{Best} \\
+\midrule
+\endhead
+  2mm & 0.002 & 0.002 & 0.003 & 0.003 & 0.003 & aav\_n \\
+  3mm & 1.000 & 0.002 & 0.015 & 0.002 & 1.000 & aav\_n \\
+  atax & 0.002 & 0.042 & 0.044 & 0.049 & 0.056 & nav\_o \\
+  bicg & 0.002 & 0.003 & 0.002 & 0.310 & 0.047 & nav\_n \\
+  cholesky & 0.020 & 0.039 & 0.019 & 0.058 & 0.139 & nav\_n \\
+  correlation & 0.149 & 0.002 & 0.034 & 0.034 & 0.057 & aav\_n \\
+  covariance & 0.020 & 0.032 & 1.000 & 0.059 & 0.050 & nav\_o \\
+  durbin & 0.945 & 0.534 & 1.096 & 0.876 & 1.000 & aav\_n \\
+  fdtd-2d & --- & --- & 0.012 & 0.006 & --- & nav\_o \\
+  floyd-warshall & 0.007 & 0.001 & 0.007 & 0.034 & 0.001 & aav\_n \\
+  gemm & 0.001 & 0.007 & 0.006 & 0.001 & 0.023 & nosk\_o \\
+  gemver & 0.020 & 1.000 & 0.027 & 0.117 & 0.027 & nav\_o \\
+  gesummv & 0.013 & 0.019 & 0.019 & 0.006 & 0.006 & aav\_o \\
+  gramschmidt & 1.000 & 0.574 & 1.001 & 0.571 & 1.000 & nosk\_o \\
+  heat-3d & 1.000 & 0.149 & 0.149 & 0.015 & 1.000 & nosk\_o \\
+  jacobi-1d & 0.299 & 0.321 & 0.294 & 0.318 & 0.299 & nav\_n \\
+  jacobi-2d & 0.009 & 0.206 & 0.009 & 0.009 & 0.009 & nav\_n \\
+  lu & 0.042 & 0.036 & 0.019 & 0.116 & 0.036 & nav\_n \\
+  ludcmp & 0.073 & 0.438 & 0.820 & 1.000 & 0.031 & aav\_o \\
+  mvt & 0.776 & 0.382 & 1.000 & 0.819 & 0.776 & aav\_n \\
+  nussinov & 0.566 & 0.488 & 0.048 & 1.000 & 0.034 & aav\_o \\
+  seidel-2d & 0.008 & 0.009 & 0.016 & 0.004 & 0.181 & nosk\_o \\
+  symm & 0.054 & 0.123 & 0.529 & 0.123 & 0.035 & aav\_o \\
+  syr2k & 0.002 & 0.008 & 0.009 & 0.029 & 0.021 & nav\_o \\
+  syrk & 0.007 & 0.007 & 0.004 & 0.050 & 0.118 & nav\_n \\
+  trisolv & 0.035 & 0.032 & 0.027 & 0.120 & 0.023 & aav\_o \\
+  trmm & 0.012 & 0.122 & 1.000 & 0.122 & 0.119 & nav\_o \\
+\bottomrule
+\end{longtable}
+}
+
+\medskip
+\noindent\textbf{Table C --- column guide.}
+Uses the same variant codes as Table B (\texttt{nav\_o}, \texttt{aav\_n}, \texttt{nav\_n}, \texttt{nosk\_o}, \texttt{aav\_o}).
+\begin{description}
+  \item[\textbf{Kernel}] Polybench benchmark name (\texttt{hlsfactory\_*} prefix omitted).
+  \item[\texttt{nav\_o}\ldots\texttt{aav\_o}] lat/GT ratio for that variant on that kernel ($<1$ = faster than GT).
+  \item[\textbf{Best}] Top-5 mode with the \textbf{lowest synthesis latency} on that kernel (head-to-head among the five; not necessarily the smallest ratio).
+  \item[\texttt{---}] No valid synthesis result for that variant on that kernel.
+\end{description}
+
+\subsection*{Key takeaways}
+
+\begin{itemize}
+  \item \textbf{No avoids (old)} has the best geo-mean vs GT (0.034) and never exceeds GT latency.
+  \item \textbf{All+avoids (new)} ranks 2nd on geo-mean, wins the most top-5 pooled benches (6.3/27), and is 14--12 vs no avoids (old) head-to-head.
+  \item \textbf{Noskills (old)} is a strong GT baseline (25/27 faster than GT) but wins fewer top-5 bench latencies (4.0 pooled).
+  \item Skills library size does not predict rank: 0-skill noskills beats 90-skill all+avoids (old) on geo-mean.
+\end{itemize}
+
+\end{document}

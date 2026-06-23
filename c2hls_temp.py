@@ -1,35 +1,18 @@
 """c2hls_temp — temp-directory management for the c2hls pipeline.
 
-RECONSTRUCTED (2026-06-16): the original module was gitignored on the
-c2hls_enhanced branch (.gitignore lists `c2hls_temp.py`), so a fresh checkout
-of that branch lacks it and c2hls.py / hls_eval.py fail at import with
-`ModuleNotFoundError: No module named 'c2hls_temp'`. This reconstruction
-provides the same public API the rest of the codebase imports:
-
-    C2HLS_TMP_ROOT_ENV            env var name selecting the scratch root
-    configure_temp_env(create)    -> Path : resolve (and optionally create)
-                                    the scratch root
-    make_tempdir(prefix=...)      -> str  : mkdtemp under the scratch root
-
-Purpose: keep Vitis/Vivado intermediates (which can be GBs) on a writable,
-roomy filesystem rather than scattering them in the default system temp.
-The scratch root is chosen as:
-    1. $C2HLS_TMP_ROOT if set
-    2. else $TMPDIR/c2hls_tmp  (launchers export TMPDIR=/tmp)
-    3. else <system-temp>/c2hls_tmp
-
-This is pure scratch-location plumbing — it does not affect synthesis,
-simulation, or any HLS metric; only where transient files are written.
+Scratch dirs default to ``<C2HLS_TMP_ROOT>/`` (repo ``c2hls_tmp/`` on PC2).
+Names are human-readable when ``C2HLS_TMP_TAG`` is set (benchmark, step, phase).
 """
 from __future__ import annotations
 
 import os
+import re
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
-# Env var consumers (hls_eval._vitis_shell_exports) re-export so the same
-# scratch root propagates into the Vitis subprocess shell.
 C2HLS_TMP_ROOT_ENV = "C2HLS_TMP_ROOT"
+C2HLS_TMP_TAG_ENV = "C2HLS_TMP_TAG"
 
 
 def _default_root() -> Path:
@@ -40,22 +23,78 @@ def _default_root() -> Path:
     return Path(base).expanduser() / "c2hls_tmp"
 
 
-def configure_temp_env(create: bool = True) -> Path:
-    """Resolve the c2hls scratch root and, by default, create it.
+def sanitize_temp_tag(raw: str, max_len: int = 96) -> str:
+    """Filesystem-safe slug for temp directory names."""
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", (raw or "").strip())
+    slug = re.sub(r"_+", "_", slug).strip("_")
+    if len(slug) > max_len:
+        slug = slug[:max_len].rstrip("_")
+    return slug
 
-    Also pins the resolved root back into C2HLS_TMP_ROOT so any child
-    process / later call agrees on the same location within one run.
-    Returns the root as a Path (callers do `root / "vitis_user_home"`).
-    """
+
+def join_temp_tag(*parts: str) -> str:
+    return sanitize_temp_tag("__".join(str(part) for part in parts if str(part).strip()))
+
+
+def get_temp_tag() -> str:
+    return os.getenv(C2HLS_TMP_TAG_ENV, "").strip()
+
+
+def set_temp_tag(tag: str) -> None:
+    cleaned = sanitize_temp_tag(tag)
+    if cleaned:
+        os.environ[C2HLS_TMP_TAG_ENV] = cleaned
+    else:
+        os.environ.pop(C2HLS_TMP_TAG_ENV, None)
+
+
+@contextmanager
+def temp_tag_scope(*parts: str):
+    """Temporarily set ``C2HLS_TMP_TAG`` for nested HLS work dirs."""
+    prev = os.environ.get(C2HLS_TMP_TAG_ENV)
+    tag = join_temp_tag(*parts)
+    if tag:
+        os.environ[C2HLS_TMP_TAG_ENV] = tag
+    try:
+        yield
+    finally:
+        if prev is None:
+            os.environ.pop(C2HLS_TMP_TAG_ENV, None)
+        else:
+            os.environ[C2HLS_TMP_TAG_ENV] = prev
+
+
+def configure_temp_env(create: bool = True) -> Path:
+    """Resolve the c2hls scratch root and, by default, create it."""
     root = _default_root()
     if create:
         root.mkdir(parents=True, exist_ok=True)
-    # Make the choice sticky for subprocesses and subsequent calls.
     os.environ[C2HLS_TMP_ROOT_ENV] = str(root)
     return root
 
 
-def make_tempdir(prefix: str = "c2hls_") -> str:
-    """Create and return a fresh temp directory under the scratch root."""
+def make_tempdir(prefix: str = "c2hls_", tag: str | None = None) -> str:
+    """Create a fresh directory under the scratch root.
+
+    When *tag* or ``C2HLS_TMP_TAG`` is set, names look like::
+
+        hls_synth__hlsfactory_trmm__flash__synth
+        hls_csim__hlsfactory_trmm__ref__baseline__csim
+
+    A numeric suffix is appended on collision (``_001``, ``_002``, ...).
+    """
     root = configure_temp_env(create=True)
-    return tempfile.mkdtemp(prefix=prefix, dir=str(root))
+    tag_slug = sanitize_temp_tag(tag if tag is not None else get_temp_tag())
+    stem = prefix.rstrip("_")
+    if tag_slug:
+        stem = f"{stem}__{tag_slug}"
+
+    for seq in range(10000):
+        name = stem if seq == 0 else f"{stem}_{seq:03d}"
+        path = root / name
+        try:
+            path.mkdir(parents=False)
+            return str(path)
+        except FileExistsError:
+            continue
+    raise RuntimeError(f"could not allocate temp dir under {root} for stem {stem}")

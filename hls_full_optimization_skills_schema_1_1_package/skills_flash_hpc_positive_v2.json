@@ -1,0 +1,1198 @@
+{
+  "saved_at": "2026-06-23T15:22:40+0200",
+  "schema": "1.1",
+  "skills": [
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "global_memory_latency",
+        "memory_bandwidth",
+        "ii_target_miss",
+        "load_compute_serialize"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not apply advanced optimizations on top of global-memory compute",
+        "do not skip local staging because m_axi interface pragmas exist",
+        "skip when kernel is in-place dynamic programming or triangular recurrence (table[i][j] depends on earlier table cells in same array)",
+        "skip when full-workspace staging would copy O(N^2) or O(N^3) state \u2014 use block tiling or in-place pipeline instead"
+      ],
+      "id": "hpc-gate-load-compute-store-first",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_ablation_winner",
+      "pattern": "kernel has m_axi or global array arguments and hot compute reads/writes those arrays directly",
+      "required_steps": [
+        "identify arrays touched in the hot loop",
+        "estimate compile-time working-set size",
+        "stage into local buffers (full workspace if it fits, else tiles with reuse)",
+        "add PIPELINE II=1 to every load, compute, and store loop",
+        "verify compute indexing uses local buffers only",
+        "only then apply tiling, unroll, widening, or DATAFLOW"
+      ],
+      "sec_pass": 0,
+      "strategy": "before tiling, unroll, coalescing, or DATAFLOW: split into bulk load, pipelined compute on local memory, and bulk store; never leave the hot loop on global/m_axi memory",
+      "tags": [
+        "mandatory-first",
+        "load-compute-store",
+        "m_axi",
+        "baseline",
+        "flash-positive"
+      ],
+      "template": "load: for (...) { #pragma HLS PIPELINE II=1 local[i]=global[i]; }\ncompute: for (...) { #pragma HLS PIPELINE II=1 local_out[i]=f(local[i]); }\nstore: for (...) { #pragma HLS PIPELINE II=1 global_out[i]=local_out[i]; }"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "loop_carried_dep",
+        "ii_target_miss",
+        "latency_high"
+      ],
+      "confidence": "high",
+      "guards": [
+        "preserve DP evaluation order (row/column sweep)",
+        "do not restructure into load-compute-store of full workspace"
+      ],
+      "id": "hpc-dp-recurrence-pipeline-in-place",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_hpc_positive_v1_regression",
+      "pattern": "dynamic programming or recurrence fills table[i][j] from prior cells (nussinov, floyd-warshall, triangular deps)",
+      "required_steps": [
+        "identify recurrence direction (i/j sweep)",
+        "apply PIPELINE II=1 to innermost loop in hot nest",
+        "if split loop exists, keep serial or unroll <=4 only",
+        "audit: no local_table[N][N] full staging",
+        "audit: no dependence false pragmas"
+      ],
+      "sec_pass": 0,
+      "strategy": "keep table on reference/m_axi ports; pipeline the innermost legal loop with II=1; optional small UNROLL factor (2\u20134) on independent inner ops only; never bulk-load/store entire table; never use #pragma HLS dependence inter/intra false on true recurrences",
+      "tags": [
+        "dp",
+        "recurrence",
+        "in-place",
+        "flash-positive",
+        "mandatory-first-dp"
+      ],
+      "template": "for (i = ...) {\n  for (j = ...) {\n#pragma HLS PIPELINE II=1\n    table[i][j] = f(table[...]); // in-place, no full buffer copy\n  }\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "non_pipelined_hot_loop",
+        "ii_target_miss",
+        "memory_bandwidth"
+      ],
+      "confidence": "high",
+      "guards": [
+        "preserve timestep order t then spatial updates",
+        "do not drop all pragmas and emit passive reference C"
+      ],
+      "id": "hpc-stencil-3d-pipeline-k-inner",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_hpc_positive_v1_regression",
+      "pattern": "3D stencil timestep (heat-3d, jacobi-3d style) with i,j,k nest and A/B ping-pong",
+      "required_steps": [
+        "label time_loop and inner k loop",
+        "add PIPELINE II=1 on innermost k loop",
+        "optional ARRAY_PARTITION on small k window only",
+        "if tiling: 2D plane tiles with halo, not full N^3 staging"
+      ],
+      "sec_pass": 0,
+      "strategy": "pipeline innermost k loop at II=1 on global arrays OR use plane/slab tiling with halo \u2014 never return unpipelined reference triple loops; if staging, tile 2D planes not full volume",
+      "tags": [
+        "stencil",
+        "3d",
+        "pipeline",
+        "flash-positive",
+        "mandatory-first-stencil3d"
+      ],
+      "template": "time_loop: for (t) {\n  for (i) for (j) {\n    for (k) {\n#pragma HLS PIPELINE II=1\n      B[i][j][k] = stencil(A, i,j,k);\n    }\n  }\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "loop_carried_dep",
+        "ii_target_miss"
+      ],
+      "confidence": "high",
+      "guards": [],
+      "id": "hpc-forbid-dependence-false-without-proof",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_hpc_positive_v1_regression",
+      "pattern": "kernel uses #pragma HLS dependence variable=... inter/intra false on arrays with true read-after-write recurrences",
+      "required_steps": [
+        "grep for dependence inter/intra false",
+        "if array updated from prior iterations in same nest, delete those pragmas",
+        "re-pipeline inner loop"
+      ],
+      "sec_pass": 0,
+      "strategy": "remove dependence false pragmas unless report proves no carried dependency; for DP and in-place updates dependence false causes wrong results or serializes badly \u2014 rely on pipeline on correct loop level instead",
+      "tags": [
+        "dependence",
+        "anti-pattern",
+        "flash-positive"
+      ],
+      "template": "// NEVER on DP table: #pragma HLS dependence variable=table inter false"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "global_memory_reuse",
+        "memory_bandwidth",
+        "bram_overflow"
+      ],
+      "confidence": "high",
+      "guards": [
+        "full-matrix local staging is a defect when N>=32"
+      ],
+      "id": "hpc-gemm-family-block-tile-default",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_hpc_positive_v1_regression",
+      "pattern": "syr2k, syrk, symm, gemm, trmm with large compile-time N,M and rank-update accumulation",
+      "required_steps": [
+        "pick TILE in 8..32 from BRAM for one C block",
+        "triple nested tile loops",
+        "local_C[TILE][TILE], local_A/B tiles only",
+        "pipeline inner k in tile"
+      ],
+      "sec_pass": 0,
+      "strategy": "use block tiling with TILE 8\u201332 on i,j,k; stage only tile blocks in local buffers; accumulate C tile locally; pipeline inner k; do NOT allocate local_C[N][N] for polybench N",
+      "tags": [
+        "gemm",
+        "block-tile",
+        "flash-positive",
+        "mandatory-first-gemm"
+      ],
+      "template": "const int TILE=16;\nfor (ii=0; ii<n; ii+=TILE) for (jj=0; jj<n; jj+=TILE) { load tiles; compute; store C tile; }"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
+        "ii_target_miss",
+        "port_conflict"
+      ],
+      "confidence": "high",
+      "guards": [
+        "preserve numerical semantics for floating-point reductions",
+        "handle boundary/halo regions when staging tiles"
+      ],
+      "id": "hpc-forbid-global-read-modify-write",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "hot loop reads from m_axi/global memory, computes, and writes back to the same global region in the same iteration (implicit read-modify-write on external memory)",
+      "required_steps": [
+        "detect in[i] read and out[i] write to the same logical array in one pipelined iteration",
+        "introduce local_in/local_out or tile buffers",
+        "move all arithmetic to local memory",
+        "use a separate store phase for global writes",
+        "pipeline each phase independently"
+      ],
+      "sec_pass": 0,
+      "strategy": "eliminate RMW on AXI: load the working set into local buffers, perform all updates on local memory, store once; for accumulations use local privatization or reduction trees before a single global write",
+      "tags": [
+        "axi",
+        "rmw",
+        "local-staging",
+        "flash-positive"
+      ],
+      "template": "// BAD: out[i] = f(in[i]); with both on m_axi in one loop\n// GOOD: load tile -> compute on local[] -> store tile"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "axi_dependency",
+        "global_memory_latency",
+        "ii_target_miss"
+      ],
+      "confidence": "high",
+      "guards": [
+        "keep public pointer element types unless ABI explicitly allows packed wide types"
+      ],
+      "id": "hpc-axi-stage-then-compute-local",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "m_axi latency or port conflicts block II=1 while compute is otherwise independent",
+      "required_steps": [
+        "add burst/outstanding m_axi pragmas where contiguous",
+        "write explicit load and store loops with PIPELINE II=1",
+        "run compute only on local arrays",
+        "partition local buffers if multiple ports per cycle are needed"
+      ],
+      "sec_pass": 0,
+      "strategy": "decouple memory from compute: burst-friendly pipelined loads into local buffers, pipelined compute on locals, burst-friendly stores; treat m_axi as bulk transport only",
+      "tags": [
+        "m_axi",
+        "local-staging",
+        "flash-positive"
+      ],
+      "template": "#pragma HLS INTERFACE m_axi port=in bundle=gmem max_read_burst_length=64 num_read_outstanding=16\n#pragma HLS INTERFACE m_axi port=out bundle=gmem max_write_burst_length=64 num_write_outstanding=16"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "underutilized_wide_memory",
+        "axi_burst_failed"
+      ],
+      "confidence": "high",
+      "guards": [
+        "confirm contiguous unit-stride access",
+        "handle tail when N not divisible by LANES",
+        "scale lane compute only when iterations are independent or safely reducible"
+      ],
+      "id": "hpc-axi-widen-512-lane-compute",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "bandwidth-bound loop moves one scalar element per memory beat from m_axi",
+      "required_steps": [
+        "add max_widen_bitwidth=512 and burst pragmas",
+        "compute LANES = 512 / (8 * sizeof(element))",
+        "load wide words into local lane buffers",
+        "unroll inner lane compute",
+        "partition local buffers by lane factor"
+      ],
+      "sec_pass": 0,
+      "strategy": "request 512-bit widening (max_widen_bitwidth=512), stage wide beats into lane-partitioned local buffers, and rewrite compute to process LANES elements per iteration when independent",
+      "tags": [
+        "coalescing",
+        "512-bit",
+        "lane-parallelism",
+        "u280",
+        "flash-positive"
+      ],
+      "template": "const int LANES = 512 / (8 * sizeof(T));\n#pragma HLS ARRAY_PARTITION variable=local complete dim=2"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "global_memory_latency",
+        "poor_locality"
+      ],
+      "confidence": "high",
+      "guards": [
+        "if each element is truly single-use with no reuse, still pipeline and widen access \u2014 do not leave sequential scalar AXI",
+        "for 3D stencil timestep loops, prefer PIPELINE II=1 on innermost k loop before bulk staging"
+      ],
+      "id": "hpc-no-single-element-global-stream",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "innermost hot loop performs one global read or write per iteration with no local reuse",
+      "required_steps": [
+        "identify scalar global access in hot loop",
+        "introduce local buffer or tile",
+        "pipeline load/compute/store",
+        "add widening if contiguous"
+      ],
+      "sec_pass": 0,
+      "strategy": "replace scalar streaming with tile or full-buffer staging plus pipelined local compute; widen memory interface when accesses are contiguous",
+      "tags": [
+        "anti-passive",
+        "local-staging",
+        "flash-positive"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "poor_locality",
+        "global_memory_reuse",
+        "memory_bandwidth",
+        "ii_target_miss"
+      ],
+      "confidence": "high",
+      "guards": [
+        "tile because of reuse or on-chip capacity \u2014 not only because the array is large",
+        "handle halos and boundary conditions for stencils",
+        "for GEMM/syr2k/syrk/trmm use moderate block tiles (8\u201332) not full-matrix staging"
+      ],
+      "id": "hpc-tile-for-reuse-and-locality",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "prompt",
+      "pattern": "loop nest reuses a bounded region of a large array/matrix/grid from global memory",
+      "required_steps": [
+        "identify reused global region",
+        "pick compile-time TILE from reuse and BRAM budget (not a tiny default)",
+        "outer loop over tiles",
+        "pipelined tile load, local compute, tile store",
+        "partition local tile for inner unroll"
+      ],
+      "sec_pass": 0,
+      "strategy": "reshape loops around tiles; stage reusable working set locally; rewrite compute to local indices; pipeline tile load/compute/store; unroll and partition local buffers to exploit reuse",
+      "tags": [
+        "tiling",
+        "local-buffer",
+        "reuse",
+        "flash-positive"
+      ],
+      "template": "for (int tb = 0; tb < N; tb += TILE) {\n  load_tile: for (int i = 0; i < TILE; i++) { #pragma HLS PIPELINE II=1 ... }\n  compute_tile: for (...) { #pragma HLS PIPELINE II=1 ... }\n  store_tile: for (...) { #pragma HLS PIPELINE II=1 ... }\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "tiling_overhead",
+        "repeated_global_access",
+        "memory_bandwidth"
+      ],
+      "confidence": "high",
+      "guards": [
+        "verify local tile fits synthesis mapping"
+      ],
+      "id": "hpc-choose-tile-from-reuse-not-small-default",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_ablation_winner",
+      "pattern": "kernel uses nested small tiles (e.g. 8 or 16) that reload the same global data repeatedly",
+      "required_steps": [
+        "estimate reuse per tile dimension",
+        "compare full staging vs tiled BRAM cost",
+        "increase tile size until BRAM or timing bound",
+        "avoid micro-tiles that only add reload overhead"
+      ],
+      "sec_pass": 0,
+      "strategy": "size tiles from reuse distance and on-chip budget: prefer full-workspace staging when dimensions fit BRAM; otherwise use the largest tile that still pipelines and minimizes global round-trips",
+      "tags": [
+        "tiling",
+        "anti-micro-tile",
+        "flash-positive"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "poor_locality",
+        "global_memory_reuse",
+        "loop_carried_dep"
+      ],
+      "confidence": "high",
+      "guards": [
+        "preserve timestep dependency order",
+        "size halo from stencil radius"
+      ],
+      "id": "hpc-stencil-halo-tile",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "stencil or neighbor-dependent update (jacobi, seidel, correlation-style windows) reads a halo around each tile",
+      "required_steps": [
+        "define HALO from stencil reach",
+        "load (TILE+2*HALO) window",
+        "compute on local window indices",
+        "store only valid interior points",
+        "pipeline load/compute/store"
+      ],
+      "sec_pass": 0,
+      "strategy": "tile with explicit halo width; load tile+halo into local window; compute entirely on local window; store valid interior; pipeline each phase; use double buffering when timesteps overlap load and compute",
+      "tags": [
+        "stencil",
+        "halo",
+        "tiling",
+        "flash-positive"
+      ],
+      "template": "const int HALO = R; // stencil radius\nlocal[TILE+2*HALO][...];"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "global_memory_reuse",
+        "compute_bound",
+        "memory_bandwidth"
+      ],
+      "confidence": "high",
+      "guards": [
+        "respect triangular storage for trmm/syrk variants",
+        "preserve accumulation order when FP tolerance requires",
+        "default BLOCK 8\u201332 for polybench N; do not allocate local_C[N][N] unless N is compile-time tiny (<16)"
+      ],
+      "id": "hpc-gemm-block-tile-ikj",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "matrix multiply or rank-update nest (gemm, syrk, symm, trmm) streams large arrays from global memory",
+      "required_steps": [
+        "choose BLOCK_M, BLOCK_N, BLOCK_K from BRAM",
+        "triple nested tile loops",
+        "local A_tile, B_tile, C_tile",
+        "pipeline inner k loop",
+        "unroll j or i inner dimension with matched partition"
+      ],
+      "sec_pass": 0,
+      "strategy": "use i-k-j or equivalent block tiling; stage A/B blocks locally; accumulate in local C tile; pipeline block load, multiply inner dimension, and store; partition local buffers for inner unroll",
+      "tags": [
+        "gemm",
+        "tiling",
+        "flash-positive"
+      ],
+      "template": "for (ii) for (kk) for (jj) { load blocks; compute on local; accumulate; } store C tile;"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "port_conflict",
+        "ii_target_miss",
+        "interval_exceeds_latency"
+      ],
+      "confidence": "high",
+      "guards": [
+        "complete partition only for small arrays or lane buffers \u2014 U280 has resources but routing still matters for huge complete partitions"
+      ],
+      "id": "hpc-partition-along-parallel-dimension",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "prompt",
+      "pattern": "pipelined or unrolled loop needs multiple reads/writes per cycle from the same local array dimension",
+      "required_steps": [
+        "identify parallel access dimension",
+        "match partition factor to UNROLL factor or lane count",
+        "re-run II check after partition"
+      ],
+      "sec_pass": 0,
+      "strategy": "apply ARRAY_PARTITION on the dimension accessed in parallel; choose cyclic for lane interleave, block for contiguous chunks, complete only for small lane buffers",
+      "tags": [
+        "array-partition",
+        "flash-positive"
+      ],
+      "template": "#pragma HLS ARRAY_PARTITION variable=local cyclic factor=UNROLL dim=2"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "port_conflict",
+        "ii_target_miss"
+      ],
+      "confidence": "high",
+      "guards": [],
+      "id": "hpc-match-partition-factor-to-unroll",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "inner loop is unrolled but local memory reports II>1 due to port conflicts",
+      "required_steps": [
+        "read achieved II after unroll",
+        "if port limited, partition the bottleneck array",
+        "match factor to unroll"
+      ],
+      "sec_pass": 0,
+      "strategy": "set cyclic or block partition factor equal to unroll factor on the accessed dimension; for lane buffers after AXI widen use complete partition on the lane dimension",
+      "tags": [
+        "array-partition",
+        "unroll",
+        "flash-positive"
+      ],
+      "template": "#pragma HLS UNROLL factor=8\n#pragma HLS ARRAY_PARTITION variable=buf cyclic factor=8 dim=1"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "port_conflict",
+        "ii_target_miss"
+      ],
+      "confidence": "medium",
+      "guards": [
+        "lane dimension must be compile-time small"
+      ],
+      "id": "hpc-complete-partition-small-lane-buffers",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "lane buffer after widening is small (LANES <= 16) and fully accessed in parallel each cycle",
+      "required_steps": [
+        "confirm LANES is small",
+        "complete partition lane dimension",
+        "unroll lane compute"
+      ],
+      "sec_pass": 0,
+      "strategy": "use complete partition on the lane dimension to give each lane a dedicated register port; do not shy away on U280 when lane count is small",
+      "tags": [
+        "complete-partition",
+        "lane-buffer",
+        "u280",
+        "flash-positive"
+      ],
+      "template": "T local[LANES];\n#pragma HLS ARRAY_PARTITION variable=local complete"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "load_compute_serialize",
+        "store_compute_serialize",
+        "ii_target_miss"
+      ],
+      "confidence": "high",
+      "guards": [],
+      "id": "hpc-explicit-load-compute-store-phases",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_ablation_winner",
+      "pattern": "kernel interleaves memory access and arithmetic in one loop nest",
+      "required_steps": [
+        "label phases in source",
+        "separate loop nests per phase",
+        "PIPELINE II=1 on each",
+        "audit: zero m_axi reads in compute phase"
+      ],
+      "sec_pass": 0,
+      "strategy": "factor into three labeled phases \u2014 load, compute, store \u2014 each with its own pipelined loops; compute phase must not reference m_axi pointers",
+      "tags": [
+        "load-compute-store",
+        "anti-passive",
+        "flash-positive"
+      ],
+      "template": "load_phase: ... compute_phase: ... store_phase: ..."
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "load_compute_serialize",
+        "latency_high",
+        "dataflow_blocked"
+      ],
+      "confidence": "high",
+      "guards": [
+        "ensure stage dependencies allow overlap",
+        "guard first/last tile iterations"
+      ],
+      "id": "hpc-doublebuffer-tile-overlap",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "prompt",
+      "pattern": "tile load, compute, and store run serially on consecutive tiles with no overlap",
+      "required_steps": [
+        "allocate buf[2][TILE...]",
+        "schedule load/compute on parity index",
+        "apply DATAFLOW on tile loop when legal",
+        "pipeline inside each stage"
+      ],
+      "sec_pass": 0,
+      "strategy": "ping-pong two tile buffers; overlap load of tile k+1 with compute on tile k (DATAFLOW or explicit double buffer); pipeline within each stage",
+      "tags": [
+        "doublebuffer",
+        "dataflow",
+        "tiling",
+        "flash-positive"
+      ],
+      "template": "for (int t = 0; t < NTILES+1; t++) {\n#pragma HLS DATAFLOW\n  if (t<NTILES) load(buf[t&1], t);\n  if (t>0) compute(buf[(t-1)&1], t-1);\n}"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "tiling_overhead",
+        "repeated_global_access"
+      ],
+      "confidence": "high",
+      "guards": [
+        "verify BRAM estimate before full staging",
+        "never stage entire N\u00d7N or N\u00d7M\u00d7K workspace when N,M,K are polybench-scale (typically >= 32) \u2014 use block tiles",
+        "never apply to DP table-fill (nussinov, floyd-warshall) or in-place triangular algorithms (lu, ludcmp, cholesky)"
+      ],
+      "id": "hpc-full-workspace-staging-when-fits",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_ablation_winner",
+      "pattern": "compile-time problem dimensions are bounded and total working set fits on-chip BRAM on U280",
+      "required_steps": [
+        "sum sizeof * elements for all arrays",
+        "if within budget, use full local copies",
+        "pipeline load/compute/store"
+      ],
+      "sec_pass": 0,
+      "strategy": "allocate local arrays matching problem size; one bulk load, all compute local, one bulk store \u2014 skip unnecessary tiling when full staging fits",
+      "tags": [
+        "full-staging",
+        "u280",
+        "flash-positive"
+      ],
+      "template": "double local[M][N]; // bulk load entire workspace when M*N*sizeof fits BRAM"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "non_pipelined_hot_loop",
+        "ii_target_miss",
+        "latency_high"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not use dependence inter false on true loop-carried deps",
+        "check achieved II in report",
+        "for 3D stencils and DP nests: pipeline the innermost spatial or anti-diagonal loop even when arrays stay on m_axi/reference ports"
+      ],
+      "id": "hpc-pipeline-every-hot-loop",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "prompt",
+      "pattern": "frequently executed loop lacks PIPELINE or achieved II equals trip count (sequential scheduling)",
+      "required_steps": [
+        "find hot loop by trip count",
+        "apply PIPELINE II=1",
+        "if II>1, diagnose port/bandwidth/dep",
+        "fix with partition, staging, or unroll \u2014 not by removing pipeline"
+      ],
+      "sec_pass": 0,
+      "strategy": "identify the hottest loop nest; apply PIPELINE II=1 to innermost legal loop; if II blocked, fix memory ports, local staging, or dependencies \u2014 do not leave the loop unpipelined",
+      "tags": [
+        "pipeline",
+        "anti-passive",
+        "flash-positive"
+      ],
+      "template": "for (int i = 0; i < N; i++) {\n#pragma HLS PIPELINE II=1\n  ..."
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "non_pipelined_hot_loop",
+        "memory_bandwidth"
+      ],
+      "confidence": "high",
+      "guards": [],
+      "id": "hpc-pipeline-all-load-store-loops",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "dedicated copy loops between m_axi and local buffers lack PIPELINE",
+      "required_steps": [
+        "label load/store loops",
+        "add PIPELINE II=1",
+        "verify achieved II"
+      ],
+      "sec_pass": 0,
+      "strategy": "every load and store loop gets PIPELINE II=1; inner dimension unit-stride for bursts; unpipelined bulk copy is a defect",
+      "tags": [
+        "pipeline",
+        "load-store",
+        "flash-positive"
+      ],
+      "template": "load: for (...) { #pragma HLS PIPELINE II=1 local[i]=in[i]; }"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "interval_exceeds_latency"
+      ],
+      "confidence": "high",
+      "guards": [],
+      "id": "hpc-fix-ii-blockers-not-lower-ambition",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_ablation_winner",
+      "pattern": "synthesis shows II>1 or high latency and the response is smaller unroll, smaller tiles, or removed pipeline",
+      "required_steps": [
+        "read scheduling report for II bottleneck",
+        "map bottleneck to memory vs port vs dependence",
+        "apply matching transformation",
+        "re-synthesize before reducing unroll/tile"
+      ],
+      "sec_pass": 0,
+      "strategy": "keep II=1 target and fix blockers progressively: (1) local staging, (2) partition/bank, (3) widen AXI, (4) unroll independent inner ops, (5) double buffer \u2014 do not retreat to scalar passive C",
+      "tags": [
+        "anti-passive",
+        "progressive",
+        "flash-positive"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "compute_bound",
+        "arithmetic_throughput_limited",
+        "latency_high"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not unroll across true loop-carried dependencies",
+        "confirm FP reduction tolerance",
+        "do not unroll split-point or recurrence inner loops in DP (nussinov k-loop) beyond factor 2\u20134"
+      ],
+      "id": "hpc-unroll-independent-inner-loops",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "prompt",
+      "pattern": "inner loop iterations are independent or a legal reduction tree can be used; latency is compute-dominated after local staging",
+      "required_steps": [
+        "verify independence or safe reduction",
+        "choose unroll factor 4/8/16 based on resources",
+        "partition to match",
+        "check DSP/LUT in report"
+      ],
+      "sec_pass": 0,
+      "strategy": "unroll inner loop with factor matched to available DSP/LUT and memory ports; partition local arrays to the unroll factor; prefer partial unroll 4/8/16 on U280 rather than leaving serial compute",
+      "tags": [
+        "unroll",
+        "flash-positive"
+      ],
+      "template": "for (int i = 0; i < N; i += UF) {\n#pragma HLS PIPELINE II=1\n  for (int u = 0; u < UF; u++) {\n#pragma HLS UNROLL\n    ..."
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "compute_bound",
+        "arithmetic_throughput_limited"
+      ],
+      "confidence": "high",
+      "guards": [
+        "stop increasing unroll when timing or BRAM fails \u2014 not before checking utilization",
+        "do not increase unroll on DP split loops or stencil neighbor updates with loop-carried dependencies"
+      ],
+      "id": "hpc-do-not-cap-unroll-without-evidence",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "kernel uses UNROLL factor 1 or 2 on a wide independent inner loop without resource pressure in reports",
+      "required_steps": [
+        "check utilization headroom",
+        "double unroll factor iteratively",
+        "partition arrays to match",
+        "compare latency cycles"
+      ],
+      "sec_pass": 0,
+      "strategy": "increase unroll factor until DSP/LUT/BRAM or timing binds; on U280 default target inner unroll 4\u201316 for independent numeric loops after local staging \u2014 do not leave parallelism on the table from habit",
+      "tags": [
+        "unroll",
+        "u280",
+        "anti-passive",
+        "flash-positive"
+      ],
+      "template": "#pragma HLS UNROLL factor=8  // not factor=2 by default"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "underutilized_wide_memory",
+        "compute_bound"
+      ],
+      "confidence": "high",
+      "guards": [],
+      "id": "hpc-unroll-lane-dimension-after-widen",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "512-bit widening loads multiple elements per beat but compute still processes one lane",
+      "required_steps": [
+        "define LANES",
+        "unroll lane loop completely when LANES is small",
+        "partition lane buffer"
+      ],
+      "sec_pass": 0,
+      "strategy": "fully unroll lane dimension inner loop; complete-partition small lane buffer; process all lanes per wide beat",
+      "tags": [
+        "unroll",
+        "coalescing",
+        "flash-positive"
+      ],
+      "template": "for (int lane = 0; lane < LANES; lane++) { #pragma HLS UNROLL ..."
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "global_memory_latency",
+        "ii_target_miss",
+        "poor_locality"
+      ],
+      "confidence": "high",
+      "guards": [],
+      "id": "hpc-restructure-before-pragmas-only",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_ablation_winner",
+      "pattern": "optimization attempt adds PIPELINE/UNROLL pragmas to otherwise textbook C that still indexes global arrays",
+      "required_steps": [
+        "reject reference-port global compute",
+        "introduce local buffers and new loop structure",
+        "then pipeline/unroll/partition",
+        "validate functional equivalence"
+      ],
+      "sec_pass": 0,
+      "strategy": "progressive rewrite: restructure algorithm to local load-compute-store, tile for reuse, rewrite indexing, then add pragmas; pragmas on global-memory reference C are insufficient",
+      "tags": [
+        "anti-passive",
+        "progressive",
+        "compute-restructure",
+        "flash-positive"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "poor_locality",
+        "global_memory_reuse"
+      ],
+      "confidence": "high",
+      "guards": [
+        "preserve numerical behavior"
+      ],
+      "id": "hpc-rewrite-indexing-not-reference-c",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "generated kernel mirrors polybench reference loop order but with m_axi interfaces",
+      "required_steps": [
+        "compare access pattern to reference",
+        "identify reuse opportunity",
+        "rewrite loop nest",
+        "stage locally"
+      ],
+      "sec_pass": 0,
+      "strategy": "change loop order and indexing for locality (ikj for gemm, tile-local indices for stencils); keep math equivalence; target pipelined local nests",
+      "tags": [
+        "compute-restructure",
+        "anti-passive",
+        "flash-positive"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "global_memory_reuse",
+        "repeated_global_access"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not add bulk load/store phases around entire DP tables \u2014 pipeline updates in place"
+      ],
+      "id": "hpc-multi-phase-local-algorithm",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "algorithm has distinct phases (init, update, reduction) that each touch globals",
+      "required_steps": [
+        "list phases",
+        "local buffer per phase input/output",
+        "pipeline each phase",
+        "pass locals between phases"
+      ],
+      "sec_pass": 0,
+      "strategy": "give each phase local buffers; bulk load at phase start, compute locally, bulk store at phase end; chain phases through local temporaries not globals",
+      "tags": [
+        "multi-phase",
+        "local-staging",
+        "flash-positive"
+      ],
+      "template": "phase1_local -> phase2_local -> phase3_local; no global in middle phases"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "compute_bound",
+        "latency_high",
+        "ii_target_met_but_latency_high"
+      ],
+      "confidence": "high",
+      "guards": [
+        "back off only when timing fails or BRAM overflows \u2014 not preemptively"
+      ],
+      "id": "hpc-u280-scale-parallelism",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_ablation_winner",
+      "pattern": "design stays conservative (unroll 1\u20132, tiny tiles, no partition) despite low LUT/DSP utilization on xcu280",
+      "required_steps": [
+        "read utilization after first synthesis",
+        "if LUT/DSP < 20% and latency high, increase unroll/tile/lanes",
+        "re-synthesize and compare latency"
+      ],
+      "sec_pass": 0,
+      "strategy": "U280 has abundant BRAM/DSP/LUT for polybench-scale kernels: actively scale unroll factors, tile sizes, and lane parallelism until synthesis report shows meaningful utilization or timing pressure \u2014 timid designs waste the device",
+      "tags": [
+        "u280",
+        "resource-abundance",
+        "anti-passive",
+        "flash-positive"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "latency_high",
+        "compute_bound"
+      ],
+      "confidence": "high",
+      "guards": [],
+      "id": "hpc-scale-unroll-and-tile-on-utilization-headroom",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "post-synthesis report shows low DSP and BRAM use with high cycle latency",
+      "required_steps": [
+        "capture latency and utilization",
+        "increase parallelism knob",
+        "re-run csynth",
+        "stop on timing violation or diminishing returns"
+      ],
+      "sec_pass": 0,
+      "strategy": "increase inner unroll and/or tile size and/or lane count; add partition to feed parallel ops; iterate until latency stops improving or timing binds",
+      "tags": [
+        "u280",
+        "unroll",
+        "tiling",
+        "flash-positive"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "dataflow_blocked",
+        "load_compute_serialize"
+      ],
+      "confidence": "medium",
+      "guards": [
+        "verify no circular dependencies between dataflow processes"
+      ],
+      "id": "hpc-dataflow-tile-phases-when-legal",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "prompt",
+      "pattern": "tile load, compute, store are separate procedures with clear producer-consumer relationship",
+      "required_steps": [
+        "split into load/compute/store functions or labeled regions",
+        "apply DATAFLOW on tile loop",
+        "use ping-pong buffers"
+      ],
+      "sec_pass": 0,
+      "strategy": "wrap per-tile load/compute/store in DATAFLOW to overlap tiles when dependence analysis allows; combine with double buffering",
+      "tags": [
+        "dataflow",
+        "tiling",
+        "flash-positive"
+      ],
+      "template": "#pragma HLS DATAFLOW\nload_tile(); compute_tile(); store_tile();"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "compute_bound",
+        "loop_carried_dep"
+      ],
+      "confidence": "medium",
+      "guards": [
+        "respect FP associativity tolerance"
+      ],
+      "id": "hpc-reduction-tree-after-parallel-unroll",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "partial unroll creates parallel partial sums that must be combined",
+      "required_steps": [
+        "compute partials in unrolled lanes",
+        "tree-reduce in local",
+        "one global accumulate if needed"
+      ],
+      "sec_pass": 0,
+      "strategy": "build balanced reduction tree in local registers after unrolled partial products; single write to global after local reduction",
+      "tags": [
+        "reduction",
+        "unroll",
+        "flash-positive"
+      ],
+      "template": "partial[UF]; #pragma HLS ARRAY_PARTITION complete\n// tree reduce partial -> acc"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "latency_high"
+      ],
+      "confidence": "high",
+      "guards": [],
+      "id": "hpc-pipeline-inner-after-outer-tile",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "outer tile loop serializes long inner pipelines",
+      "required_steps": [
+        "outer: tile iteration",
+        "inner: PIPELINE II=1 compute",
+        "optional DATAFLOW between tiles"
+      ],
+      "sec_pass": 0,
+      "strategy": "pipeline the innermost compute loop inside each tile; keep outer tile loop sequential unless double-buffered; never pipeline outer loop if it causes full unroll explosion",
+      "tags": [
+        "pipeline",
+        "tiling",
+        "flash-positive"
+      ],
+      "template": "for (tiles) { for (i in tile) { #pragma HLS PIPELINE II=1 ..."
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [],
+      "confidence": "high",
+      "guards": [],
+      "id": "hpc-flash-submit-checklist",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_ablation_winner",
+      "pattern": "single-shot flash kernel before submission",
+      "required_steps": [
+        "grep compute loops for global/m_axi array indexing",
+        "count PIPELINE pragmas on hot loops",
+        "confirm local staging or justified tiling",
+        "confirm partition matches unroll",
+        "confirm design is not resource-timid for U280 without evidence",
+        "if DP/recurrence: confirm NO full-table local staging and NO dependence inter/intra false",
+        "if 3D stencil: confirm inner k loop has PIPELINE II=1 (not passive reference C)",
+        "if GEMM-family: confirm block tile 8\u201332, not local_C[N][N] for large N"
+      ],
+      "sec_pass": 0,
+      "strategy": "before returning code verify: (1) no hot global/m_axi access in compute, (2) load/compute/store phases exist, (3) every load/store/compute loop has PIPELINE, (4) tiling/partition/unroll present when reuse or ports require it, (5) unroll not arbitrarily capped at 2",
+      "tags": [
+        "checklist",
+        "flash-positive",
+        "mandatory-last"
+      ],
+      "template": ""
+    }
+  ]
+}

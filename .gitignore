@@ -20,10 +20,46 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Python virtualenvs (in-repo)
+.venv/
+.venv*/
 venv/
 ENV/
 env/
+
+# In-repo Vitis/HLS scratch (PC2 default + team fallback)
+c2hls_tmp/
+
+# ---------------------------------------------------------------------------
+# Flash experiment artifacts — dual-use branch (PC2 vLLM + team commercial API)
+#
+# IGNORE: per-run directory trees (matrix.json, per-bench HLS cells, cosim).
+# KEEP (committable): summary docs directly under artifacts/pc2/ or
+#   artifacts/flash_api/  e.g. flash_top5_comparison.tex, *.md tables.
+# ---------------------------------------------------------------------------
+artifacts/pc2/*/
+artifacts/flash_api/*/
+# PC2 supervised-session state (Slurm job ids, LLM endpoint, watch logs)
+artifacts/pc2/sessions/
+artifacts/pc2/session.json
+artifacts/pc2/llm_endpoint.json
+artifacts/pc2/watch.log
+
+# Slurm / batch session noise (PC2 compute + GPU workers)
+nohup.out
+nohup*.log
+**/nohup*.log
+slurm-*.out
+slurm-*.err
+artifacts/pc2/slurm-*
+artifacts/pc2/*_stamp.txt
+**/slurm/
+
+# Logs
+*.log
+logs/
+vitis_hls.log
+test*.log
 
 # IDEs
 .vscode/
@@ -33,15 +69,10 @@ env/
 *~
 .DS_Store
 
-# Environment variables
+# Environment variables (real secrets — keep out of git)
+# PC2 machine config: local.env is committed on this branch.
 .env
 .env.local
-
-# Logs
-*.log
-logs/
-vitis_hls.log
-test*.log
 
 # c2hls debug-rerun artifacts — _rerun_cosim_with_log.sh / _rerun_phase_b_
 # extended_timeout.sh leave behind 200-300MB Vitis logs per debug session.
@@ -83,6 +114,9 @@ dialogues.json
 *.cpp.bak
 
 # HLS synthesis result directories (large, machine-generated)
+results/
+results_matrix*/
+results_sweeps/
 results_phase2/
 results_multistep/
 results_multistep_haiku/
@@ -117,7 +151,6 @@ artifacts/*.pid
 # Generated experiment/dataset workspaces
 benchmarks_external/
 /benchmarks_external
-results_sweeps/
 # c2hls_temp.py — NOW COMMITTED (2026-06-16). The module is a required import
 # in c2hls.py/hls_eval.py/run_agentic_sweep.py; keeping it gitignored broke
 # fresh checkouts with ModuleNotFoundError. The committed version is portable
@@ -126,3 +159,10 @@ results_sweeps/
 
 # HLS temp dirs
 /tmp/hls_synth_*/
+
+# Vitis / Vivado local scratch
+.Xil/
+*.jou
+
+# Editor / IDE
+.cursor/

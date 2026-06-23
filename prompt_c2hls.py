@@ -363,6 +363,8 @@ Rules:
 - Preserve the algorithm's correctness at each step.
 - Keep the `extern "C" workload()` wrapper with proper INTERFACE pragmas.
 - Each step should build on the previous code, adding ONE optimization technique.
+- Label every `for` loop with a descriptive C loop label before the `for`
+  (e.g. `load_row: for (...) { ... }`) so synthesis reports name loops clearly.
 - Always provide complete code in a ```cpp code fence.
 - Do NOT add optimizations beyond the one requested."""
 
@@ -705,6 +707,11 @@ fits the kernel:
    in [1, 256], and m_axi ports sharing the same bundle must use the same
    adapter parameters (`latency`, outstanding counts, burst lengths, etc.).
    If unsure, preserve the existing INTERFACE pragmas exactly.
+8. Label EVERY `for` loop with a descriptive C loop label (identifier
+   immediately before `for`), e.g. `load_A: for (int i = 0; i < n; ++i)`.
+   Use short snake_case names that describe each loop's role (load_row,
+   compute_tile, store_col, etc.). Do not leave rewritten or newly added
+   loops unlabeled — Vitis uses these names in bottleneck reports.
 
 Prefer a compact, synthesizable implementation over a heroic rewrite. For
 small PolyBench/HLSFactory-style kernels, simple pipelining, modest unroll,
@@ -748,3 +755,122 @@ DEFAULT_OPT_STEPS = ["tiling", "pipeline", "unroll", "doublebuffer", "coalescing
 COMBO_FULL_STEPS = ["combo_full"]
 COMBO_PROGRESSIVE_STEPS = ["combo_structural", "combo_parallel"]
 FLASH_STEPS = ["flash"]
+
+
+def build_skill_curation_user_prompt(
+    *,
+    focus: str,
+    sector: str,
+    include_avoids: bool,
+    benchmark_name: str,
+    step_name: str,
+    synth_summary: str,
+    feedback_text: str,
+    diagnostic_text: str,
+    catalog_text: str,
+    code_excerpt: str,
+) -> str:
+    """Build the user prompt for the skill-curation LLM call (flash pre-step)."""
+    focus = (focus or "bottleneck").strip().lower()
+    sector = (sector or "json_only").strip().lower()
+
+    focus_lines = {
+        "bottleneck": (
+            "CURATION FOCUS: bottleneck-oriented.\n"
+            "Analyze synthesis bottlenecks and scheduler scope data. Select catalog "
+            "skills whose bottleneck_kinds and patterns best address the top issues."
+        ),
+        "warnings": (
+            "CURATION FOCUS: warning and error oriented.\n"
+            "Prioritize HLS diagnostic warnings, errors, and rejected pragmas. "
+            "Select catalog skills that prevent or fix the reported issues."
+        ),
+        "combined": (
+            "CURATION FOCUS: bottlenecks + warnings + load-compute-store (LCST).\n"
+            "Combine bottleneck and diagnostic analysis. Then think explicitly about "
+            "load-compute-store structure: tiling, pipelining, double buffering, "
+            "memory coalescing, and local staging. Map findings to catalog skills "
+            "and (if sector allows) short problem→solution notes with optional snippets."
+        ),
+    }
+    focus_block = focus_lines.get(focus, focus_lines["bottleneck"])
+
+    if sector == "json_only":
+        sector_block = (
+            "SECTOR A (json_only): You may ONLY reference skills from the catalog "
+            "by exact `id`. Set `curated_guidance` to an empty list []. "
+            "Do not invent optimization recipes outside the catalog."
+        )
+    else:
+        sector_block = (
+            "SECTOR B (json_plus_llm): Prefer catalog skills by exact `id` when they "
+            "fit. You may also add `curated_guidance` entries with your own HLS "
+            "knowledge (problem, solution, optional code_snippet ≤ 20 lines)."
+        )
+
+    avoid_rule = (
+        "You may select avoid-tier skills in `avoid_skill_ids` when they warn against "
+        "harmful patterns for this kernel."
+        if include_avoids
+        else "Do NOT select avoid-tier skills; keep `avoid_skill_ids` empty."
+    )
+
+    sections = [
+        "You are curating optimization skills for a Vitis HLS flash rewrite.",
+        focus_block,
+        sector_block,
+        avoid_rule,
+        "",
+        f"Benchmark: {benchmark_name}",
+        f"Optimization step: {step_name}",
+        "",
+        "Baseline synthesis summary:",
+        synth_summary or "(none)",
+        "",
+        "Structured feedback:",
+        feedback_text or "(none)",
+    ]
+    if focus in ("warnings", "combined"):
+        sections.extend(["", "Diagnostics:", diagnostic_text or "(none)"])
+    if focus == "combined":
+        sections.extend([
+            "",
+            "LCST checklist (address in analysis.lcs_notes):",
+            "- Load: contiguous AXI bursts, local staging, burst-friendly access",
+            "- Compute: pipeline II=1, modest unroll, dependence handling",
+            "- Store: write-back staging, coalesced stores",
+            "- Structure: tiling, double buffering, dataflow only when phases are clear",
+        ])
+    sections.extend([
+        "",
+        "Skill catalog (select by exact id):",
+        catalog_text,
+        "",
+        "Current HLS code (excerpt):",
+        "```cpp",
+        code_excerpt[:8000],
+        "```",
+        "",
+        "Output ONLY valid JSON (no markdown fences) with this schema:",
+        "{",
+        '  "analysis": {',
+        '    "primary_bottlenecks": ["..."],',
+        '    "key_warnings": ["..."],',
+        '    "lcs_notes": "..."',
+        "  },",
+        '  "selected_skill_ids": ["skill-id", "..."],',
+        '  "avoid_skill_ids": ["avoid-skill-id", "..."],',
+        '  "curated_guidance": [',
+        "    {",
+        '      "title": "...",',
+        '      "problem": "...",',
+        '      "solution": "...",',
+        '      "code_snippet": "optional short pragma example"',
+        "    }",
+        "  ]",
+        "}",
+        "",
+        "Pick the smallest high-impact set (typically 2–8 skills). Prefer high-confidence "
+        "skills that match the active bottlenecks/warnings.",
+    ])
+    return "\n".join(sections)

@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT="${C2HLS_ROOT:-/home/luo00466/code_translation-c2hls}"
-PYTHON="${C2HLS_PYTHON:-/home/luo00466/.conda/envs/py310_2/bin/python}"
-WAIT_PID="${C2HLS_WAIT_PID:-3032124}"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/bootstrap_site.sh" "$@"
+source "$(dirname "$0")/source_local_env.sh"
+
+ROOT="${C2HLS_ROOT}"
+if [[ "${C2HLS_SITE:-team}" == "pc2" ]]; then
+  PYTHON="${C2HLS_PYTHON:-python3}"
+  SITE_FLAG=(--pc2)
+else
+  PYTHON="${C2HLS_PYTHON:-/home/luo00466/.conda/envs/py310_2/bin/python}"
+  SITE_FLAG=()
+fi
+WAIT_PID="${C2HLS_WAIT_PID:-}"
 WAIT_SECONDS="${C2HLS_XRT_WAIT_SECONDS:-300}"
 STAMP="${C2HLS_XRTINI_STAMP:-$(date +%Y%m%d_%H%M%S)}"
 
@@ -34,7 +44,7 @@ mkdir -p "$ROOT/artifacts"
 
   cd "$ROOT" || exit 2
   echo "[$(date --iso-8601=seconds)] starting xrt.ini experiment"
-  C2HLS_NW2_XRT_JSONL="$JSONL" "$PYTHON" run_nw2_xrtini_hwemu_experiment.py
+  C2HLS_NW2_XRT_JSONL="$JSONL" "${PYTHON}" "${SITE_FLAG[@]}" run_nw2_xrtini_hwemu_experiment.py
   run_rc=$?
   echo "[$(date --iso-8601=seconds)] experiment exit=$run_rc"
 
@@ -42,11 +52,11 @@ mkdir -p "$ROOT/artifacts"
     exit "$run_rc"
   fi
 
-  "$PYTHON" export_schema_jsonl.py --validate-jsonl "$JSONL"
+  "${PYTHON}" export_schema_jsonl.py --validate-jsonl "$JSONL"
   validate_rc=$?
   echo "[$(date --iso-8601=seconds)] schema validation exit=$validate_rc"
 
-  "$PYTHON" compare_jsonl_to_references.py "$JSONL" --output "$DELTA"
+  "${PYTHON}" compare_jsonl_to_references.py "$JSONL" --output "$DELTA"
   compare_rc=$?
   echo "[$(date --iso-8601=seconds)] reference comparison exit=$compare_rc"
 

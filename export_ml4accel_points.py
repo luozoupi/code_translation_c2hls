@@ -48,7 +48,9 @@ from typing import Iterable, Optional
 
 REPO_ROOT = Path(__file__).resolve().parent
 
-DEFAULT_DATASET_ROOT = Path("/home/luo00466/ML4Accel-Dataset")
+from c2hls_paths import configure_site, ml4accel_repo_root
+
+configure_site()
 
 # Kernel name alias map: raw dataset string -> canonical lowercase form.
 # Canonical names align with our 17-benchmark suite where possible.
@@ -376,10 +378,18 @@ def export(dataset_root: Path, output_dir: Path, verbose: bool = False) -> dict:
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--dataset-root", default=str(DEFAULT_DATASET_ROOT))
+    default_root = ml4accel_repo_root()
+    p.add_argument(
+        "--dataset-root",
+        default=str(default_root) if default_root is not None else None,
+        help="ML4Accel-Dataset root (or set C2HLS_ML4ACCEL_ROOT in local.env)",
+    )
     p.add_argument("--output", default=str(REPO_ROOT / "artifacts" / "rl_corpus"))
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args()
+    if not args.dataset_root:
+        print("Set C2HLS_ML4ACCEL_ROOT in local.env or pass --dataset-root", file=sys.stderr)
+        return 2
 
     manifest = export(Path(args.dataset_root), Path(args.output), verbose=args.verbose)
     print(f"wrote {manifest['record_count']} metric_points records "

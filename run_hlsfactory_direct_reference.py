@@ -29,14 +29,10 @@ from typing import Any
 REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 
-os.environ.setdefault(
-    "C2HLS_VITIS_SETTINGS",
-    "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh",
-)
-os.environ.setdefault("C2HLS_VITIS_VERSION", "2023.2")
-os.environ.setdefault("C2HLS_PART", "xcu280-fsvh2892-2L-e")
-os.environ.setdefault("C2HLS_CLOCK_NS", "3.33")
-os.environ.setdefault("C2HLS_FLOW_TARGET", "vitis")
+from c2hls_paths import BENCHMARKS_EXTERNAL_DIR, apply_runtime_defaults, configure_site
+
+configure_site()
+apply_runtime_defaults()
 
 import hls_eval  # noqa: E402
 from c2hls import _ground_truth_candidates, _load_benchmark_inputs  # noqa: E402
@@ -56,7 +52,7 @@ STAMP = os.getenv("C2HLS_HLSFACTORY_DIRECT_STAMP") or datetime.now().strftime("%
 HLSFACTORY_ROOT = Path(
     os.getenv(
         "C2HLS_HLSFACTORY_ROOT",
-        str(REPO / "benchmarks_external" / "HLSFactory" / "polybench_float_small"),
+        str(BENCHMARKS_EXTERNAL_DIR / "HLSFactory" / "polybench_float_small"),
     )
 )
 OUT_JSONL = Path(

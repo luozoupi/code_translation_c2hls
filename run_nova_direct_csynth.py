@@ -19,13 +19,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 
-os.environ.setdefault(
-    "C2HLS_VITIS_SETTINGS",
-    "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh",
-)
-os.environ.setdefault("C2HLS_VITIS_VERSION", "2023.2")
-os.environ.setdefault("C2HLS_PART", "xcu280-fsvh2892-2L-e")
-os.environ.setdefault("C2HLS_CLOCK_NS", "3.33")
+from c2hls_paths import apply_runtime_defaults, configure_site
+
+configure_site()
+apply_runtime_defaults()
 
 from c2hls import _load_benchmark_inputs, _ground_truth_candidates  # noqa: E402
 import hls_eval  # noqa: E402

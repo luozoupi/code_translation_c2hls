@@ -2,7 +2,7 @@
 """Synthesize nw / pathfinder / knn variants on Vitis 2023.2 + xcu280, then
 compare against the reference JSONL at csynth_vitis_2023.2__device_xilinx_u280_*.jsonl.
 
-Pre-req: source /mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh
+Pre-req: set C2HLS_VITIS_SETTINGS in local.env (see local.env.example).
 Override env: C2HLS_PART=xcu280-fsvh2892-2L-e  C2HLS_CLOCK_NS=3.33
 
 Outputs:
@@ -20,13 +20,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 
-os.environ.setdefault(
-    "C2HLS_VITIS_SETTINGS",
-    "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh",
-)
-os.environ.setdefault("C2HLS_VITIS_VERSION", "2023.2")
-os.environ.setdefault("C2HLS_PART", "xcu280-fsvh2892-2L-e")
-os.environ.setdefault("C2HLS_CLOCK_NS", "3.33")
+from c2hls_paths import apply_runtime_defaults, configure_site
+
+configure_site()
+apply_runtime_defaults()
 
 REFERENCE_PATH = REPO / "csynth_vitis_2023.2__device_xilinx_u280_gen3x16_xdma_1_202211_1.jsonl"
 OUR_OUT_PATH = REPO / "artifacts" / "run_2023_2_xcu280.jsonl"

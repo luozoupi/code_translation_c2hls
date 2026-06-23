@@ -48,6 +48,29 @@ TIER_AVOID = "avoid"
 CONFIDENCE_TIERS = (TIER_HIGH, TIER_MEDIUM, TIER_LOW, TIER_AVOID)
 _TIER_RANK = {TIER_HIGH: 0, TIER_MEDIUM: 1, TIER_LOW: 2, TIER_AVOID: 3}
 
+# Baseline-first skills for global prompt injection (regression-driven ordering).
+# Listed skills are moved to the front of ``global_skills_for_prompt`` output so
+# load-compute-store gating and related avoid rules precede advanced recipes.
+_BASELINE_FIRST_SKILL_IDS: Tuple[str, ...] = (
+    "hls-baseline-load-compute-store-gate",
+    "hls-avoid-zero-pipeline-submit",
+    "hls-avoid-reference-fallback-under-avoid-noise",
+    "hls-multi-phase-local-pipeline",
+    "hls-iterative-stencil-timestep-local-volume",
+    "hls-chained-gemm-local-temporary",
+    "hls-chain-intermediate-results-locally",
+    "hls-multi-pass-stats-local-staging",
+    "hls-prefer-full-workspace-staging-when-fits",
+    "hls-mandatory-pipeline-load-store-loops",
+    "hls-neighbor-access-requires-local-window",
+    "hls-avoid-reference-port-global-compute",
+    "hls-avoid-partial-staging-global-in-compute",
+    "hls-avoid-iterative-spatial-tile-global-roundtrip",
+    "hls-avoid-global-intermediate-between-phases",
+    "hls-avoid-micro-tile-complete-partition-nest",
+    "hls-avoid-global-reload-in-blocking-loop",
+)
+
 # Default store path — relative to the repo root (the parent of this file).
 SCHEMA_VERSION = "1.1"
 _REPO_ROOT = Path(__file__).resolve().parent
@@ -57,6 +80,27 @@ _PACKAGED_SKILLS = (
     / "hls_full_optimization_skills_schema_1_1_package"
     / "skills.json"
 )
+
+
+def _packaged_skills_path() -> Path:
+    """Resolve curated skills JSON (override via ``C2HLS_PACKAGED_SKILLS_JSON``)."""
+    override = os.getenv("C2HLS_PACKAGED_SKILLS_JSON", "").strip()
+    if override:
+        return Path(override)
+    return _PACKAGED_SKILLS
+
+
+def _packaged_skills_only() -> bool:
+    """When true, load only the packaged JSON (no mutable store / bootstrap).
+
+    Requires ``C2HLS_PACKAGED_SKILLS_JSON`` so legacy runs never accidentally
+    enter this path.
+    """
+    if not os.getenv("C2HLS_PACKAGED_SKILLS_JSON", "").strip():
+        return False
+    return os.getenv("C2HLS_PACKAGED_SKILLS_ONLY", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
 
 
 @dataclass
@@ -334,6 +378,60 @@ class SkillLibrary:
         return cands
 
 
+def _baseline_first_order(skills: List[Skill]) -> List[Skill]:
+    """Move baseline-gate skills to the front while preserving relative order elsewhere."""
+    by_id = {sk.id: sk for sk in skills}
+    ordered: List[Skill] = []
+    seen: set[str] = set()
+    for sid in _BASELINE_FIRST_SKILL_IDS:
+        sk = by_id.get(sid)
+        if sk is not None:
+            ordered.append(sk)
+            seen.add(sid)
+    for sk in skills:
+        if sk.id not in seen:
+            ordered.append(sk)
+    return ordered
+
+
+def global_skills_for_prompt(
+    library: SkillLibrary,
+    *,
+    include_avoids: bool,
+    vitis_version: Optional[str] = None,
+    fpga: Optional[str] = None,
+) -> List[Skill]:
+    """Return the full applicable skill library for global prompt injection.
+
+    Positive skills (non-avoid tiers) are listed first in library rank order;
+    when *include_avoids* is true, all avoid-tier skills are appended.
+    Baseline-gate skills (see ``_BASELINE_FIRST_SKILL_IDS``) are always moved
+    to the front so load-compute-store rules precede advanced optimizations.
+    """
+    positive = library.query(
+        vitis_version=vitis_version,
+        fpga=fpga,
+        include_avoid=False,
+    )
+    if not include_avoids:
+        return _baseline_first_order(positive)
+    avoids = [
+        sk for sk in library.query(
+            vitis_version=vitis_version,
+            fpga=fpga,
+            include_avoid=True,
+        )
+        if sk.confidence == TIER_AVOID
+    ]
+    seen = {sk.id for sk in positive}
+    out = list(positive)
+    for sk in avoids:
+        if sk.id not in seen:
+            out.append(sk)
+            seen.add(sk.id)
+    return _baseline_first_order(out)
+
+
 # === Bootstrap from existing OPTIMIZATION_PROMPTS =========================
 
 
@@ -606,7 +704,9 @@ def _default_avoid_skills() -> List[Skill]:
     ]
 
 
-def _load_packaged_skills(path: Path = _PACKAGED_SKILLS) -> List[Skill]:
+def _load_packaged_skills(path: Optional[Path] = None) -> List[Skill]:
+    if path is None:
+        path = _packaged_skills_path()
     """Load the schema-1.1 curated skill package when present.
 
     The package is benchmark-independent and intentionally lives outside the
@@ -638,7 +738,17 @@ def make_default_library(store_path: Optional[Path] = None,
     curated schema-1.1 package, when present, refreshes recipe text,
     guardrails, and required-step checklists while keeping observed pass-rate
     statistics from the mutable store.
+
+    When ``C2HLS_PACKAGED_SKILLS_ONLY=1`` and ``C2HLS_PACKAGED_SKILLS_JSON`` is
+    set, load exclusively from that JSON (PC2 new-skills matrix runs).
     """
+    if _packaged_skills_only():
+        lib = SkillLibrary(store_path or _packaged_skills_path())
+        lib._skills = {}
+        for sk in _load_packaged_skills():
+            lib.add(sk, overwrite=True)
+        return lib
+
     lib = SkillLibrary(store_path or _DEFAULT_STORE).load()
     before = {sk.id: asdict(sk) for sk in lib.all()}
     for sk in _bootstrap_skills_from_prompts():
@@ -690,3 +800,210 @@ def render_skill_set_for_prompt(skills: Iterable[Skill],
     if not skills_list:
         return "No matching skills in library — fall back to your own reasoning."
     return "\n".join(render_skill_for_prompt(sk) for sk in skills_list)
+
+
+def render_skill_catalog_for_curation(
+    library: SkillLibrary,
+    *,
+    include_avoids: bool,
+    vitis_version: Optional[str] = None,
+    fpga: Optional[str] = None,
+    max_skills: int = 73,
+) -> str:
+    """Compact skill index for LLM curation (id | tier | bottlenecks | pattern)."""
+    skills = global_skills_for_prompt(
+        library,
+        include_avoids=include_avoids,
+        vitis_version=vitis_version,
+        fpga=fpga,
+    )[:max_skills]
+    lines: List[str] = []
+    for sk in skills:
+        kinds = ", ".join(sk.bottleneck_kinds[:6]) if sk.bottleneck_kinds else "-"
+        pattern = (sk.pattern or "").replace("\n", " ").strip()
+        if len(pattern) > 120:
+            pattern = pattern[:117] + "..."
+        lines.append(f"- {sk.id} | {sk.confidence} | {kinds} | {pattern}")
+    return "\n".join(lines) if lines else "(empty skill catalog)"
+
+
+def _extract_json_object(raw: str) -> Optional[dict]:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    try:
+        return json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return None
+
+
+def parse_skill_curation_response(raw: str) -> dict:
+    """Parse LLM curation JSON; returns normalized dict (may be partial)."""
+    parsed = _extract_json_object(raw) or {}
+    analysis = parsed.get("analysis") if isinstance(parsed.get("analysis"), dict) else {}
+    guidance = parsed.get("curated_guidance")
+    if not isinstance(guidance, list):
+        guidance = []
+    return {
+        "analysis": {
+            "primary_bottlenecks": list(analysis.get("primary_bottlenecks") or []),
+            "key_warnings": list(analysis.get("key_warnings") or []),
+            "lcs_notes": str(analysis.get("lcs_notes") or ""),
+        },
+        "selected_skill_ids": [
+            str(x) for x in (parsed.get("selected_skill_ids") or []) if x
+        ],
+        "avoid_skill_ids": [
+            str(x) for x in (parsed.get("avoid_skill_ids") or []) if x
+        ],
+        "curated_guidance": [
+            g for g in guidance if isinstance(g, dict)
+        ],
+    }
+
+
+def validate_and_resolve_curation(
+    parsed: dict,
+    library: SkillLibrary,
+    *,
+    sector: str,
+    include_avoids: bool,
+    vitis_version: Optional[str] = None,
+    fpga: Optional[str] = None,
+) -> dict:
+    """Validate skill IDs and normalize sector rules."""
+    sector = (sector or "json_only").strip().lower()
+    known = {sk.id: sk for sk in library.all()}
+    selected: List[Skill] = []
+    avoids: List[Skill] = []
+    unknown: List[str] = []
+    for sid in parsed.get("selected_skill_ids") or []:
+        sk = known.get(sid)
+        if sk is None:
+            unknown.append(sid)
+            continue
+        if sk.confidence == TIER_AVOID:
+            if include_avoids:
+                avoids.append(sk)
+            continue
+        selected.append(sk)
+    for sid in parsed.get("avoid_skill_ids") or []:
+        if not include_avoids:
+            continue
+        sk = known.get(sid)
+        if sk is None:
+            unknown.append(sid)
+            continue
+        if sk.confidence == TIER_AVOID and sk not in avoids:
+            avoids.append(sk)
+
+    guidance = []
+    if sector == "json_plus_llm":
+        for item in parsed.get("curated_guidance") or []:
+            guidance.append({
+                "title": str(item.get("title") or "").strip(),
+                "problem": str(item.get("problem") or "").strip(),
+                "solution": str(item.get("solution") or "").strip(),
+                "code_snippet": str(item.get("code_snippet") or "").strip(),
+            })
+    return {
+        "sector": sector,
+        "include_avoids": include_avoids,
+        "selected_skills": selected,
+        "avoid_skills": avoids,
+        "curated_guidance": guidance,
+        "unknown_skill_ids": unknown,
+        "analysis": parsed.get("analysis") or {},
+    }
+
+
+def fallback_bottleneck_skills(
+    library: SkillLibrary,
+    synth_report: Optional[dict],
+    *,
+    include_avoids: bool,
+    positive_limit: int = 4,
+    avoid_limit: int = 2,
+    vitis_version: Optional[str] = None,
+    fpga: Optional[str] = None,
+) -> List[Skill]:
+    """Top-N bottleneck-matched skills when curation parse fails."""
+    feedback = (synth_report or {}).get("feedback") or {}
+    bns = feedback.get("bottlenecks") or []
+    top_kind = bns[0].get("kind") if bns else None
+    matching: List[Skill] = []
+    if top_kind:
+        matching = library.query(
+            bottleneck_kind=top_kind,
+            vitis_version=vitis_version,
+            fpga=fpga,
+        )
+    if not matching:
+        matching = library.query(vitis_version=vitis_version, fpga=fpga)
+    positive = [sk for sk in matching if sk.confidence != TIER_AVOID][:positive_limit]
+    avoids: List[Skill] = []
+    if include_avoids and top_kind:
+        avoids = [
+            sk for sk in library.query(
+                bottleneck_kind=top_kind,
+                vitis_version=vitis_version,
+                fpga=fpga,
+                include_avoid=True,
+            )
+            if sk.confidence == TIER_AVOID
+        ][:avoid_limit]
+    return positive + avoids
+
+
+def build_curated_skill_prompt_block(
+    resolved: dict,
+    *,
+    step_name: str,
+    used_fallback: bool = False,
+) -> str:
+    """Render curated skills + optional LLM guidance for flash codegen prompt."""
+    selected = resolved.get("selected_skills") or []
+    avoids = resolved.get("avoid_skills") or []
+    all_skills = list(selected) + [sk for sk in avoids if sk not in selected]
+    parts: List[str] = []
+    header = (
+        "LLM-CURATED SKILL GUIDANCE"
+        + (" (fallback: bottleneck-matched catalog)" if used_fallback else "")
+        + f" for `{step_name}` step:\n\n"
+    )
+    if all_skills:
+        block = render_skill_set_for_prompt(all_skills, max_skills=len(all_skills))
+        if block and "No matching skills" not in block:
+            parts.append(header + block)
+    elif not (resolved.get("curated_guidance") or []):
+        return ""
+
+    guidance = resolved.get("curated_guidance") or []
+    if guidance:
+        if not parts:
+            parts.append(header)
+        parts.append("Additional curated optimization notes:")
+        for idx, item in enumerate(guidance, 1):
+            title = item.get("title") or f"Note {idx}"
+            parts.append(f"\n### {title}")
+            if item.get("problem"):
+                parts.append(f"Problem: {item['problem']}")
+            if item.get("solution"):
+                parts.append(f"Solution: {item['solution']}")
+            snippet = item.get("code_snippet") or ""
+            if snippet:
+                parts.append("Example snippet:")
+                parts.append("```cpp")
+                snippet_lines = snippet.strip().splitlines()
+                if len(snippet_lines) > 20:
+                    snippet_lines = snippet_lines[:20] + ["// ..."]
+                parts.append("\n".join(snippet_lines))
+                parts.append("```")
+    return "\n".join(parts)

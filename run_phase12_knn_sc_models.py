@@ -25,6 +25,10 @@ from typing import Any
 REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 
+from c2hls_paths import apply_runtime_defaults, configure_site
+
+configure_site()
+
 STAMP = os.getenv("C2HLS_PHASE12_STAMP") or datetime.now().strftime("%Y%m%d_%H%M%S")
 BENCHES = ["knn", "StreamCluster"]
 MODELS = [
@@ -46,14 +50,7 @@ PREVIOUS_RESULTS = {
 
 
 def _set_default_env() -> None:
-    os.environ.setdefault("C2HLS_VITIS_SETTINGS", "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh")
-    os.environ.setdefault("C2HLS_VITIS_VERSION", "2023.2")
-    os.environ.setdefault("C2HLS_PART", "xcu280-fsvh2892-2L-e")
-    os.environ.setdefault("C2HLS_CLOCK_NS", "3.33")
-    os.environ.setdefault("C2HLS_FLOW_TARGET", "vitis")
-    os.environ.setdefault("C2HLS_EMU_ENV_SCRIPT", str(REPO / "scripts" / "setup_emu_env.sh"))
-    os.environ.setdefault("C2HLS_DEVICE_PLATFORM", "xilinx_u280_gen3x16_xdma_1_202211_1")
-    os.environ.setdefault("C2HLS_CLAUDE_KEY_FILE", "/home/luo00466/claude-api-key.txt")
+    apply_runtime_defaults()
     os.environ.setdefault("C2HLS_STRATEGY", "dynamic")
     os.environ.setdefault("C2HLS_PHASE8_BASELINE_ALIGN", "1")
     os.environ.setdefault("C2HLS_PHASE8_FMAX_FLOOR", "0.80")

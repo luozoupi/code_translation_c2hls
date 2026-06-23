@@ -1401,3 +1401,40 @@ def render_feedback_for_prompt(feedback: Dict[str, Any], *, max_scopes: int = 12
             f"slack={s.get('slack_ns')}"
         )
     return "\n".join(lines)
+
+
+def render_diagnostic_for_prompt(feedback: Dict[str, Any], *, max_examples: int = 12) -> str:
+    """Compact render of HLS diagnostic warnings/errors for curation prompts."""
+    if not feedback:
+        return ""
+    extras = feedback.get("static_extras") or {}
+    diag = extras.get("diagnostic") or {}
+    if not diag:
+        return ""
+
+    lines: List[str] = []
+    lines.append(
+        f"HLS diagnostics: {diag.get('warnings', 0)} warnings, "
+        f"{diag.get('errors', 0)} errors, "
+        f"{len(diag.get('rejected_pragmas') or [])} rejected pragmas."
+    )
+    rejected = diag.get("rejected_pragmas") or []
+    if rejected:
+        lines.append("Rejected / invalid pragmas:")
+        for rec in rejected[:max_examples]:
+            loc = rec.get("loc") or "?"
+            body = (rec.get("body") or "").strip()
+            lines.append(f"  - [{rec.get('id')}] {loc}: {body[:240]}")
+    examples = diag.get("examples") or []
+    if examples:
+        lines.append("Other warnings/errors:")
+        shown = 0
+        for rec in examples:
+            if shown >= max_examples:
+                break
+            sev = rec.get("severity") or "?"
+            loc = rec.get("loc") or "?"
+            body = (rec.get("body") or "").strip()
+            lines.append(f"  - [{sev}] {rec.get('id')} {loc}: {body[:240]}")
+            shown += 1
+    return "\n".join(lines)

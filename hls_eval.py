@@ -366,14 +366,16 @@ def _normalize_extra_files(extra_files) -> list:
         return []
     normalized = []
     for item in extra_files:
+        tb = True
         if isinstance(item, dict):
             rel_path = item.get("path")
             content = item.get("content", "")
+            tb = bool(item.get("tb", True))
         else:
             rel_path, content = item
         if not rel_path:
             continue
-        normalized.append((rel_path, content))
+        normalized.append((rel_path, content, tb))
     return normalized
 
 
@@ -402,7 +404,7 @@ def _materialize_inputs(work_dir: str, hls_code: str, header_code: str, header_n
             f.write(header_code)
 
     materialized = []
-    for rel_path, content in _normalize_extra_files(extra_files):
+    for rel_path, content, _tb in _normalize_extra_files(extra_files):
         out_path = os.path.join(work_dir, rel_path)
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         with open(out_path, "w") as f:
@@ -810,8 +812,12 @@ add_files {src_file}
     if DEFAULT_COSIM_TRACE_LEVEL:
         cosim_cmd += f" -trace_level {DEFAULT_COSIM_TRACE_LEVEL}"
 
-    tcl_content += f"""add_files -tb {tb_file}
-open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
+    tcl_content += f"add_files -tb {tb_file}\n"
+    for rel_path, _content, tb in _normalize_extra_files(extra_files):
+        if rel_path.endswith(".cpp") and tb:
+            extra_path = os.path.join(work_dir, rel_path)
+            tcl_content += f"add_files -tb {extra_path}\n"
+    tcl_content += f"""open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default
 csynth_design

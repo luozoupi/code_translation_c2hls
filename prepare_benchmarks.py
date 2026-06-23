@@ -17,10 +17,18 @@ import shutil
 from pathlib import Path
 
 
-ROOT = Path("/home/luo00466/code_translation-c2hls")
-BENCHMARKS_DIR = ROOT / "benchmarks"
-RODINIA_DIR = Path("/home/luo00466/rodinia-hls/Benchmarks")
-ML4ACCEL_DIR = Path("/home/luo00466/ML4Accel-Dataset/fpga_ml_dataset/HLS_dataset")
+from c2hls_paths import (
+    BENCHMARKS_DIR,
+    active_site,
+    configure_site,
+    ml4accel_dataset_dir,
+    rodinia_hls_benchmarks_dir,
+)
+
+configure_site()
+
+RODINIA_DIR = rodinia_hls_benchmarks_dir()
+ML4ACCEL_DIR = ml4accel_dataset_dir()
 
 RODINIA_COMMON_DIR = RODINIA_DIR / "common"
 
@@ -398,6 +406,18 @@ def _prepare_single_benchmark(bench_name: str) -> dict:
 
 
 def main():
+    if RODINIA_DIR is None or not RODINIA_DIR.is_dir():
+        if active_site() == "pc2":
+            raise SystemExit(
+                "Set C2HLS_RODINIA_HLS_DIR in local.env (see local.env.example)."
+            )
+        raise SystemExit(f"Rodinia HLS benchmarks not found: {RODINIA_DIR}")
+    if ML4ACCEL_DIR is None or not ML4ACCEL_DIR.is_dir():
+        if active_site() == "pc2":
+            raise SystemExit(
+                "Set C2HLS_ML4ACCEL_DIR in local.env (see local.env.example)."
+            )
+        raise SystemExit(f"ML4Accel dataset not found: {ML4ACCEL_DIR}")
     benchmark_names = _benchmark_names()
     results = []
 

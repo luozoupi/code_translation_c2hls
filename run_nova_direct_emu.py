@@ -21,18 +21,20 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 
-os.environ.setdefault(
-    "C2HLS_VITIS_SETTINGS",
-    "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh",
-)
-os.environ.setdefault("C2HLS_EMU_ENV_SCRIPT", str(REPO / "scripts" / "setup_emu_env.sh"))
-os.environ.setdefault("C2HLS_DEVICE_PLATFORM", "xilinx_u280_gen3x16_xdma_1_202211_1")
-os.environ.setdefault("C2HLS_VITIS_VERSION", "2023.2")
+from c2hls_paths import active_site, apply_runtime_defaults, configure_site, rodinia_nova_benchmarks_dir
+
+configure_site()
+apply_runtime_defaults()
 
 import hls_eval  # noqa: E402
 from export_schema_jsonl import SCHEMA_VERSION, validate_jsonl  # noqa: E402
 
-NOVA_ROOT = Path("/home/luo00466/rodinia-hls-nova/Benchmarks")
+_nova = rodinia_nova_benchmarks_dir()
+if _nova is None or not _nova.is_dir():
+    if active_site() == "pc2":
+        raise SystemExit("Set C2HLS_RODINIA_NOVA_DIR in local.env (see local.env.example).")
+    raise SystemExit(f"Nova benchmarks not found: {_nova}")
+NOVA_ROOT = _nova
 REF_DIR = REPO / "results" / "references_philip"
 SW_EMU_REF = REF_DIR / "sw_emu_vitis_2023.2__device_xilinx_u280_gen3x16_xdma_1_202211_1.jsonl"
 HW_EMU_REF = REF_DIR / "hw_emu_vitis_2023.2__device_xilinx_u280_gen3x16_xdma_1_202211_1.jsonl"

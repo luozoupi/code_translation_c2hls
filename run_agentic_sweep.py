@@ -22,7 +22,7 @@ Use environment filters:
   C2HLS_SWEEP_STRATEGY=flash
   C2HLS_SWEEP_SKILL_MODES=off,on
   C2HLS_SWEEP_COSIM_REQUIRED=0
-  C2HLS_SWEEP_TMP_ROOT=/mnt/data/luo00466/tmp
+  C2HLS_SWEEP_TMP_ROOT=/mnt/data/luo00466/tmp  (team default; override in local.env with --pc2)
 """
 
 from __future__ import annotations
@@ -35,13 +35,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from c2hls_paths import BENCHMARKS_DIR as _REPO_BENCHMARKS, apply_runtime_defaults, configure_site
+
 REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 
 from c2hls_temp import configure_temp_env
 
+configure_site()
+
 STAMP = os.getenv("C2HLS_SWEEP_STAMP") or datetime.now().strftime("%Y%m%d_%H%M%S")
-BENCHMARKS_DIR = Path(os.getenv("C2HLS_SWEEP_BENCHMARKS_DIR", str(REPO / "benchmarks")))
+BENCHMARKS_DIR = Path(os.getenv("C2HLS_SWEEP_BENCHMARKS_DIR", str(_REPO_BENCHMARKS)))
 OUT_ROOT = REPO / "results_sweeps" / f"agentic_no_streamcluster_{STAMP}"
 OUT_JSONL = REPO / "artifacts" / f"agentic_no_streamcluster_{STAMP}.jsonl"
 SUMMARY_JSON = REPO / "artifacts" / f"agentic_no_streamcluster_{STAMP}.summary.json"
@@ -58,16 +62,11 @@ def _split_csv(raw: str) -> list[str]:
 
 
 def _set_default_env() -> None:
-    os.environ.setdefault("C2HLS_TMP_ROOT", os.getenv("C2HLS_SWEEP_TMP_ROOT", "/mnt/data/luo00466/tmp"))
+    apply_runtime_defaults(profile="sweep")
+    sweep_tmp = os.getenv("C2HLS_SWEEP_TMP_ROOT") or os.getenv("C2HLS_TMP_ROOT")
+    if sweep_tmp:
+        os.environ.setdefault("C2HLS_TMP_ROOT", sweep_tmp)
     configure_temp_env(create=True)
-    os.environ.setdefault("C2HLS_VITIS_SETTINGS", "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh")
-    os.environ.setdefault("C2HLS_VITIS_VERSION", "2023.2")
-    os.environ.setdefault("C2HLS_PART", "xcu280-fsvh2892-2L-e")
-    os.environ.setdefault("C2HLS_CLOCK_NS", "3.33")
-    os.environ.setdefault("C2HLS_FLOW_TARGET", "vitis")
-    os.environ.setdefault("C2HLS_EMU_ENV_SCRIPT", str(REPO / "scripts" / "setup_emu_env.sh"))
-    os.environ.setdefault("C2HLS_DEVICE_PLATFORM", "xilinx_u280_gen3x16_xdma_1_202211_1")
-    os.environ.setdefault("C2HLS_CLAUDE_KEY_FILE", "/home/luo00466/claude-api-key.txt")
     sweep_strategy = os.getenv("C2HLS_SWEEP_STRATEGY", "").strip()
     if sweep_strategy:
         os.environ["C2HLS_STRATEGY"] = sweep_strategy

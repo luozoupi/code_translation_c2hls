@@ -17,22 +17,24 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 
-os.environ.setdefault(
-    "C2HLS_VITIS_SETTINGS",
-    "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh",
-)
-os.environ.setdefault("C2HLS_EMU_ENV_SCRIPT", str(REPO / "scripts" / "setup_emu_env.sh"))
-os.environ.setdefault("C2HLS_DEVICE_PLATFORM", "xilinx_u280_gen3x16_xdma_1_202211_1")
-os.environ.setdefault("C2HLS_VITIS_VERSION", "2023.2")
+from c2hls_paths import apply_runtime_defaults, configure_site, rodinia_nova_benchmarks_dir
+
+configure_site()
+apply_runtime_defaults()
 
 import hls_eval  # noqa: E402
 from export_schema_jsonl import SCHEMA_VERSION, validate_jsonl  # noqa: E402
 
 DEVICE = os.getenv("C2HLS_DEVICE_PLATFORM", "xilinx_u280_gen3x16_xdma_1_202211_1")
 VITIS_VERSION = os.getenv("C2HLS_VITIS_VERSION", "2023.2")
+_nova_default = (
+    rodinia_nova_benchmarks_dir() / "nw" / "nw_2_pipeline"
+    if rodinia_nova_benchmarks_dir() is not None
+    else None
+)
 NOVA_VARIANT = Path(os.getenv(
     "C2HLS_NW2_VARIANT_DIR",
-    "/home/luo00466/rodinia-hls-nova/Benchmarks/nw/nw_2_pipeline",
+    str(_nova_default) if _nova_default is not None else "",
 ))
 OUT_JSONL = Path(os.getenv(
     "C2HLS_NW2_XRT_JSONL",

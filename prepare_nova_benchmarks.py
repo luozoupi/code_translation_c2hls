@@ -32,20 +32,30 @@ from prepare_benchmarks import (  # noqa: E402
     _sha256,
 )
 
-NOVA_DIR = Path("/home/luo00466/rodinia-hls-nova/Benchmarks")
-BENCHMARKS_DIR = REPO / "benchmarks"
+from c2hls_paths import BENCHMARKS_DIR, active_site, configure_site, rodinia_nova_benchmarks_dir
+
+configure_site()
+
+NOVA_DIR = rodinia_nova_benchmarks_dir()
+
+
+def _nova_benches() -> list[tuple[str, Path, str]]:
+    if NOVA_DIR is None or not NOVA_DIR.is_dir():
+        if active_site() == "pc2":
+            raise RuntimeError(
+                "Set C2HLS_RODINIA_NOVA_DIR in local.env (see local.env.example)."
+            )
+        raise RuntimeError(f"Nova benchmarks not found: {NOVA_DIR}")
+    return [
+        ("cfd_flux",         NOVA_DIR / "cfd"        / "cfd_flux",         "cfd_flux"),
+        ("cfd_step_factor",  NOVA_DIR / "cfd"        / "cfd_step_factor",  "cfd_step_factor"),
+        ("lc_gicov",         NOVA_DIR / "leukocyte"  / "lc_gicov",         "lc_gicov"),
+        ("lc_mgvf",          NOVA_DIR / "leukocyte"  / "lc_mgvf",          "lc_mgvf"),
+        ("lc_dilate",        NOVA_DIR / "leukocyte"  / "lc_dilate",        "dilate"),
+    ]
 
 # (benchmark_name, parent_dir, sub_kernel_dir, kernel_file_basename)
 # kernel_file_basename is the cpp/.h stem expected under <variant>/src/.
-NOVA_BENCHES = [
-    ("cfd_flux",         NOVA_DIR / "cfd"        / "cfd_flux",         "cfd_flux"),
-    ("cfd_step_factor",  NOVA_DIR / "cfd"        / "cfd_step_factor",  "cfd_step_factor"),
-    ("lc_gicov",         NOVA_DIR / "leukocyte"  / "lc_gicov",         "lc_gicov"),
-    ("lc_mgvf",          NOVA_DIR / "leukocyte"  / "lc_mgvf",          "lc_mgvf"),
-    ("lc_dilate",        NOVA_DIR / "leukocyte"  / "lc_dilate",        "dilate"),
-]
-
-# Files we expect under <bench>/<variant>/src.
 def _read_variant(variant_dir: Path, kernel_basename: str) -> dict | None:
     src_dir = variant_dir / "src"
     cpp = src_dir / f"{kernel_basename}.cpp"
@@ -183,7 +193,7 @@ def _prepare_one(bench_name: str, parent: Path, sub_kernel_dir: Path,
 def main() -> int:
     summaries = []
     metadata_by_bench = {}
-    for bench_name, sub_kernel_dir, kernel_basename in NOVA_BENCHES:
+    for bench_name, sub_kernel_dir, kernel_basename in _nova_benches():
         if not sub_kernel_dir.exists():
             print(f"  SKIP {bench_name}: missing {sub_kernel_dir}")
             continue

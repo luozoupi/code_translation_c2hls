@@ -20,9 +20,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
+from c2hls_paths import active_site, configure_site, rodinia_variant_roots
 from dotenv import load_dotenv
 from openai import OpenAI
-from c2hls_temp import make_tempdir
+from c2hls_temp import get_temp_tag, join_temp_tag, make_tempdir, temp_tag_scope
 
 try:
     import anthropic
@@ -47,6 +48,7 @@ from hls_eval import (
     run_hls_synthesis,
 )
 
+configure_site()
 load_dotenv()
 
 logging.basicConfig(
@@ -63,14 +65,11 @@ TRUSTED_EXTERNAL_REFERENCE_REPOS = {"rodinia-hls", "rodinia-hls-nova"}
 _DIRECT_REFERENCE_CACHE: dict | None = None
 
 # Paths to API key files (used only when ANTHROPIC_API_KEY / OPENAI_API_KEY
-# environment variables are unset). The defaults point at the developer's
-# local keys; set C2HLS_CLAUDE_KEY_FILE / C2HLS_OPENAI_KEY_FILE to override.
-CLAUDE_API_KEY_FILE = Path(
-    os.getenv("C2HLS_CLAUDE_KEY_FILE", "/home/luo00466/claude-api-key.txt")
-)
-OPENAI_API_KEY_FILE = Path(
-    os.getenv("C2HLS_OPENAI_KEY_FILE", "/home/luo00466/gpt-key.txt")
-)
+# environment variables are unset). Team defaults apply unless --pc2 / C2HLS_SITE=pc2.
+from c2hls_paths import claude_key_file, openai_key_file
+
+CLAUDE_API_KEY_FILE = claude_key_file() or Path("__unset__")
+OPENAI_API_KEY_FILE = openai_key_file() or Path("__unset__")
 
 # Hosted OpenAI API endpoint. Override with C2HLS_OPENAI_BASE_URL when using
 # a compatible gateway (e.g. Together, OpenRouter).
@@ -95,6 +94,86 @@ EXHAUSTIVE_CANDIDATE_ATTEMPTS_ENV = "C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS"
 # (10% regression triggers a one-shot retry with regression-aware guidance,
 # then revert if still regressing). Set to 0 to disable the guard entirely.
 STEP_REGRESSION_THRESHOLD = float(os.getenv("C2HLS_STEP_REGRESSION_THRESHOLD", "1.10"))
+
+# PC2-only global skill prompt modes (see scripts/pc2/run_flash_all_skills_*_batch.py).
+GLOBAL_SKILL_PROMPT_MODES = frozenset({
+    "all_skills_avoids_global",
+    "all_skills_no_avoids_global",
+    "llm_curated",
+})
+
+CURATION_FOCUS_VALUES = frozenset({"bottleneck", "warnings", "combined"})
+CURATION_SECTOR_VALUES = frozenset({"json_only", "json_plus_llm"})
+
+
+def _bottleneck_skill_limits() -> tuple[int, int]:
+    """(positive_count, avoid_count) for bottleneck-selected prompt injection."""
+    try:
+        positive = int(os.getenv("C2HLS_BOTTLENECK_POSITIVE_SKILLS", "2"))
+    except ValueError:
+        positive = 2
+    try:
+        avoid = int(os.getenv("C2HLS_BOTTLENECK_AVOID_SKILLS", "2"))
+    except ValueError:
+        avoid = 2
+    return max(0, positive), max(0, avoid)
+
+
+def _flash_experiment_enabled() -> bool:
+    """Flash-matrix skill modes (global injection, curation) outside the PC2 cluster.
+
+    Set by ``scripts/flash_api/*`` via ``C2HLS_FLASH_EXPERIMENT=1`` so commercial
+    API runs on the team site mirror PC2 flash configs without ``--pc2`` paths.
+    """
+    return os.getenv("C2HLS_FLASH_EXPERIMENT", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _skill_prompt_mode() -> str:
+    mode = os.getenv("C2HLS_SKILL_PROMPT_MODE", "bottleneck").strip().lower()
+    if (
+        mode in GLOBAL_SKILL_PROMPT_MODES
+        and active_site() != "pc2"
+        and not _flash_experiment_enabled()
+    ):
+        logging.warning(
+            "C2HLS_SKILL_PROMPT_MODE=%s ignored outside pc2; using bottleneck",
+            mode,
+        )
+        return "bottleneck"
+    if mode not in GLOBAL_SKILL_PROMPT_MODES and mode not in {"", "bottleneck"}:
+        logging.warning("unknown C2HLS_SKILL_PROMPT_MODE=%s; using bottleneck", mode)
+        return "bottleneck"
+    return mode if mode else "bottleneck"
+
+
+def _skill_curation_enabled() -> bool:
+    return os.getenv("C2HLS_SKILL_CURATION_ENABLED", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _skill_curation_focus() -> str:
+    focus = os.getenv("C2HLS_SKILL_CURATION_FOCUS", "bottleneck").strip().lower()
+    if focus not in CURATION_FOCUS_VALUES:
+        logging.warning("unknown C2HLS_SKILL_CURATION_FOCUS=%s; using bottleneck", focus)
+        return "bottleneck"
+    return focus
+
+
+def _skill_curation_sector() -> str:
+    sector = os.getenv("C2HLS_SKILL_CURATION_SECTOR", "json_only").strip().lower()
+    if sector not in CURATION_SECTOR_VALUES:
+        logging.warning("unknown C2HLS_SKILL_CURATION_SECTOR=%s; using json_only", sector)
+        return "json_only"
+    return sector
+
+
+def _skill_curation_include_avoids() -> bool:
+    return os.getenv("C2HLS_SKILL_CURATION_INCLUDE_AVOIDS", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
 
 # Max seconds for the g++ compile-check used in Phase A and before each
 # Vitis synthesis attempt. Kept small since compile-check is quick.
@@ -241,7 +320,8 @@ def compile_check_cpp(
 ) -> Tuple[bool, str]:
     """Check if code compiles with g++ -c."""
     if work_dir is None:
-        work_dir = make_tempdir(prefix="c2hls_compile_")
+        with temp_tag_scope(get_temp_tag() or "run", "compile"):
+            work_dir = make_tempdir(prefix="c2hls_compile_")
     os.makedirs(work_dir, exist_ok=True)
 
     src_file = os.path.join(work_dir, "kernel.cpp")
@@ -527,6 +607,11 @@ def _cosim_required_for_correctness() -> bool:
     return raw in ("1", "true", "yes", "on")
 
 
+def _run_cosim_enabled() -> bool:
+    raw = os.getenv("C2HLS_RUN_COSIM", "1").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
 def _run_synth_csim_cosim(
     hls_code: str,
     header_code: str,
@@ -541,6 +626,7 @@ def _run_synth_csim_cosim(
     cosim_depths: Optional[dict] = None,
     cosim_requires_csim_pass: bool = False,
     log_prefix: str = "",
+    temp_tag: str = "",
 ) -> dict:
     """Synthesize HLS code, then optionally run csim and cosim.
 
@@ -552,23 +638,10 @@ def _run_synth_csim_cosim(
     Returns {synth, csim, cosim} where synth is the raw synthesis result and
     csim/cosim are _summarize_test_result dicts (or None when skipped).
     """
-    synth_result = run_hls_synthesis(
-        hls_code,
-        header_code,
-        header_name=header_name,
-        top_function=top_function,
-        part=part,
-        clock_ns=clock_ns,
-        extra_files=extra_files,
-    )
-
-    csim_summary = None
-    if synth_result.get("success") and testbench_code and run_csim_check:
-        if log_prefix:
-            logging.info("%s Running C-simulation (csim)...", log_prefix)
-        csim_result = run_csim(
+    base_tag = temp_tag or get_temp_tag() or "run"
+    with temp_tag_scope(base_tag, "synth"):
+        synth_result = run_hls_synthesis(
             hls_code,
-            testbench_code,
             header_code,
             header_name=header_name,
             top_function=top_function,
@@ -576,6 +649,22 @@ def _run_synth_csim_cosim(
             clock_ns=clock_ns,
             extra_files=extra_files,
         )
+
+    csim_summary = None
+    if synth_result.get("success") and testbench_code and run_csim_check:
+        if log_prefix:
+            logging.info("%s Running C-simulation (csim)...", log_prefix)
+        with temp_tag_scope(base_tag, "csim"):
+            csim_result = run_csim(
+                hls_code,
+                testbench_code,
+                header_code,
+                header_name=header_name,
+                top_function=top_function,
+                part=part,
+                clock_ns=clock_ns,
+                extra_files=extra_files,
+            )
         csim_summary = _summarize_test_result(csim_result, True)
 
     cosim_gate_open = (
@@ -592,17 +681,18 @@ def _run_synth_csim_cosim(
     ):
         if log_prefix:
             logging.info("%s Running co-simulation (cosim)...", log_prefix)
-        cosim_result = run_cosim(
-            hls_code,
-            testbench_code,
-            header_code,
-            header_name=header_name,
-            top_function=top_function,
-            part=part,
-            clock_ns=clock_ns,
-            extra_files=extra_files,
-            interface_depths=cosim_depths or {},
-        )
+        with temp_tag_scope(base_tag, "cosim"):
+            cosim_result = run_cosim(
+                hls_code,
+                testbench_code,
+                header_code,
+                header_name=header_name,
+                top_function=top_function,
+                part=part,
+                clock_ns=clock_ns,
+                extra_files=extra_files,
+                interface_depths=cosim_depths or {},
+            )
         cosim_summary = _summarize_test_result(cosim_result, True)
 
     return {"synth": synth_result, "csim": csim_summary, "cosim": cosim_summary}
@@ -2184,6 +2274,7 @@ TRANSLATOR_MODEL_ENV     = "C2HLS_TRANSLATOR_MODEL"
 SYNTHESIS_MODEL_ENV      = "C2HLS_SYNTHESIS_MODEL"
 QUALITY_REPAIR_MODEL_ENV = "C2HLS_QUALITY_REPAIR_MODEL"
 FEEDBACK_MODEL_ENV       = "C2HLS_FEEDBACK_MODEL"
+CURATION_MODEL_ENV       = "C2HLS_CURATION_MODEL"
 
 
 class _AgentBase:
@@ -3006,6 +3097,155 @@ class FeedbackAgent(_AgentBase):
             return prior_template or self.render(kind, **render_kwargs)
 
 
+class SkillCurationAgent(_AgentBase):
+    """Pre-flash LLM skill curation: select catalog skills (+ optional guidance)."""
+
+    AGENT_NAME = "skill_curation"
+    MODEL_ENV = CURATION_MODEL_ENV
+
+    def curate_for_flash(self, step_name: str) -> tuple[str, dict]:
+        """Return (prompt_block, record) for injection into flash codegen."""
+        orch = self.orch
+        empty: dict = {"enabled": False, "step_name": step_name}
+        if not _skill_curation_enabled() or orch.skill_library is None:
+            return "", empty
+        if orch.synth_report is None:
+            return "", {**empty, "error": "no synth_report"}
+
+        from hls_feedback import render_diagnostic_for_prompt, render_feedback_for_prompt
+        from prompt_c2hls import build_skill_curation_user_prompt
+        from skill_library import (
+            TIER_AVOID,
+            build_curated_skill_prompt_block,
+            fallback_bottleneck_skills,
+            parse_skill_curation_response,
+            render_skill_catalog_for_curation,
+            validate_and_resolve_curation,
+        )
+
+        focus = _skill_curation_focus()
+        sector = _skill_curation_sector()
+        include_avoids = _skill_curation_include_avoids()
+        feedback = (orch.synth_report or {}).get("feedback") or {}
+        feedback_text = render_feedback_for_prompt(feedback)
+        diagnostic_text = render_diagnostic_for_prompt(feedback)
+        catalog_text = render_skill_catalog_for_curation(
+            orch.skill_library,
+            include_avoids=include_avoids,
+            vitis_version=orch.vitis_version,
+            fpga=orch.part,
+        )
+        synth_summary = (
+            format_report_summary(orch.synth_report)
+            if orch.synth_report else "(no report)"
+        )
+        user_prompt = build_skill_curation_user_prompt(
+            focus=focus,
+            sector=sector,
+            include_avoids=include_avoids,
+            benchmark_name=orch.benchmark_name or "unknown",
+            step_name=step_name,
+            synth_summary=synth_summary,
+            feedback_text=feedback_text,
+            diagnostic_text=diagnostic_text,
+            catalog_text=catalog_text,
+            code_excerpt=orch.hls_code or "",
+        )
+
+        raw_reply = ""
+        used_fallback = False
+        parse_error = ""
+        try:
+            messages = [{"role": "user", "content": user_prompt}]
+            raw_reply = self._call_llm(messages, max_tokens=2500)
+            parsed = parse_skill_curation_response(raw_reply)
+            if not parsed.get("selected_skill_ids") and not parsed.get("avoid_skill_ids"):
+                if sector == "json_plus_llm" and parsed.get("curated_guidance"):
+                    resolved = validate_and_resolve_curation(
+                        parsed,
+                        orch.skill_library,
+                        sector=sector,
+                        include_avoids=include_avoids,
+                        vitis_version=orch.vitis_version,
+                        fpga=orch.part,
+                    )
+                else:
+                    raise ValueError("curation JSON contained no skill ids")
+            else:
+                resolved = validate_and_resolve_curation(
+                    parsed,
+                    orch.skill_library,
+                    sector=sector,
+                    include_avoids=include_avoids,
+                    vitis_version=orch.vitis_version,
+                    fpga=orch.part,
+                )
+            if (
+                not resolved.get("selected_skills")
+                and not resolved.get("avoid_skills")
+                and not resolved.get("curated_guidance")
+            ):
+                raise ValueError("no valid skills or guidance after validation")
+        except Exception as exc:
+            parse_error = str(exc)
+            logging.warning(
+                "Skill curation parse/validate failed (%s); using bottleneck fallback",
+                exc,
+            )
+            used_fallback = True
+            fallback_skills = fallback_bottleneck_skills(
+                orch.skill_library,
+                orch.synth_report,
+                include_avoids=include_avoids,
+                vitis_version=orch.vitis_version,
+                fpga=orch.part,
+            )
+            resolved = {
+                "sector": sector,
+                "include_avoids": include_avoids,
+                "selected_skills": [
+                    sk for sk in fallback_skills if sk.confidence != TIER_AVOID
+                ],
+                "avoid_skills": [
+                    sk for sk in fallback_skills if sk.confidence == TIER_AVOID
+                ],
+                "curated_guidance": [],
+                "unknown_skill_ids": [],
+                "analysis": {},
+            }
+            parsed = parse_skill_curation_response(raw_reply) if raw_reply else {}
+
+        block = build_curated_skill_prompt_block(
+            resolved,
+            step_name=step_name,
+            used_fallback=used_fallback,
+        )
+        record = {
+            "enabled": True,
+            "step_name": step_name,
+            "focus": focus,
+            "sector": sector,
+            "include_avoids": include_avoids,
+            "used_fallback": used_fallback,
+            "parse_error": parse_error,
+            "raw_reply": raw_reply,
+            "parsed": parsed,
+            "selected_skill_ids": [sk.id for sk in resolved.get("selected_skills") or []],
+            "avoid_skill_ids": [sk.id for sk in resolved.get("avoid_skills") or []],
+            "unknown_skill_ids": resolved.get("unknown_skill_ids") or [],
+            "curated_guidance": resolved.get("curated_guidance") or [],
+            "analysis": resolved.get("analysis") or {},
+            "injected_block_chars": len(block),
+        }
+        orch._skill_curation_record = record
+        orch._append_history(
+            "system",
+            f"[SkillCuration] focus={focus} sector={sector} "
+            f"skills={record['selected_skill_ids']} fallback={used_fallback}",
+        )
+        return block, record
+
+
 # =============================================================================
 
 
@@ -3150,6 +3390,8 @@ class C2HLSOrchestrator:
         self.synthesis = SynthesisAgent(self)
         self.quality_repair = QualityRepairAgent(self)
         self.feedback = FeedbackAgent(self)
+        self.skill_curation = SkillCurationAgent(self)
+        self._skill_curation_record: Optional[dict] = None
 
     def configure_benchmark(
         self,
@@ -3431,10 +3673,18 @@ class C2HLSOrchestrator:
             self._append_history("system", f"[{context}] ABI preflight: {note}")
         return normalized
 
-    def _synth_and_test(self, code: str, log_prefix: str = "") -> dict:
+    def _synth_and_test(self, code: str, log_prefix: str = "", step_name: str = "") -> dict:
         """Synthesize `code` with the orchestrator's current config and run
         csim/cosim if a testbench is available. Returns the same shape as
         _run_synth_csim_cosim: {synth, csim, cosim}."""
+        if step_name:
+            tag = join_temp_tag(self.benchmark_name, step_name)
+        elif "Phase B" in log_prefix:
+            tag = join_temp_tag(self.benchmark_name, "phase_b")
+        elif self.benchmark_name:
+            tag = join_temp_tag(self.benchmark_name, "step")
+        else:
+            tag = "run"
         return _run_synth_csim_cosim(
             code,
             header_code=self.header_code,
@@ -3445,9 +3695,12 @@ class C2HLSOrchestrator:
             extra_files=self.extra_files,
             testbench_code=self.testbench_code,
             run_csim_check=bool(self.testbench_code),
-            run_cosim_check=bool(self.testbench_code and self.supports_cosim),
+            run_cosim_check=bool(
+                self.testbench_code and self.supports_cosim and _run_cosim_enabled()
+            ),
             cosim_depths=self.cosim_depths,
             log_prefix=log_prefix,
+            temp_tag=tag,
         )
 
     def _evaluate_candidate_with_repairs(self, candidate_code: str, label: str) -> dict:
@@ -3739,6 +3992,54 @@ class C2HLSOrchestrator:
             if r:
                 return r
         return self._gt_baseline_report or None
+
+    def _resolve_ground_truth_report(
+        self,
+        step_name: str,
+        gt_code: str | None = None,
+        gt_header_code: str | None = None,
+    ) -> tuple[Optional[dict], Optional[dict]]:
+        """Ground-truth synthesis report for gen-vs-GT comparison.
+
+        Rodinia-style benches may ship per-step GT variants (tiling, pipeline,
+        …) keyed by *step_name*. HLSFactory benches typically have a single gold
+        HLS kernel (``hls_baseline.cpp``) — already csynth'd once in the
+        reference gate and stored on ``_gt_baseline_report``. When
+        ``C2HLS_GT_BASELINE_FALLBACK=1`` (default on PC2 via ``--pc2``),
+        reuse that report for steps like ``flash`` that have no matching GT
+        variant file.
+        """
+        cached = self._gt_step_reports.get(step_name)
+        if cached:
+            return cached, {"status": "passed", "source": "gt_step_cache"}
+
+        if gt_code:
+            gt_hdr = gt_header_code if gt_header_code else self.header_code
+            gt_result = run_hls_synthesis(
+                gt_code,
+                gt_hdr,
+                header_name=self.header_name,
+                top_function=self.reference_hls_top,
+                part=self.part,
+                clock_ns=self.clock_ns,
+                extra_files=self.extra_files,
+            )
+            if gt_result.get("success") and gt_result.get("report"):
+                report = gt_result["report"]
+                if step_name:
+                    self._gt_step_reports[step_name] = report
+                return report, {"status": "passed", "source": "gt_variant_synth"}
+            return None, _summarize_synth_result(gt_result)
+
+        if (
+            self._gt_baseline_report
+            and bool(int(os.getenv("C2HLS_GT_BASELINE_FALLBACK", "0") or "0"))
+        ):
+            return dict(self._gt_baseline_report), {
+                "status": "passed",
+                "source": "reference_gate_gold_hls",
+            }
+        return None, None
 
     def run_optimization_step(self, step_name: str, gt_code: str = None,
                                gt_header_code: str = None,
@@ -4171,46 +4472,92 @@ class C2HLSOrchestrator:
         # name. Off when skill_library is None (static order, no router).
         if self.skill_library is not None and self.synth_report is not None:
             try:
-                from skill_library import render_skill_set_for_prompt
-                matching = []
-                selected_skill = self.skill_library.get(skill_id) if skill_id else None
-                if selected_skill:
-                    matching = [selected_skill]
-                    top_bottleneck_kind = None
+                from skill_library import (
+                    TIER_AVOID,
+                    global_skills_for_prompt,
+                    render_skill_set_for_prompt,
+                )
+                pos_limit, avoid_limit = _bottleneck_skill_limits()
+                skill_mode = _skill_prompt_mode()
+                prompt_skills = []
+                top_bottleneck_kind = None
+                skill_header = ""
+
+                if skill_mode == "all_skills_avoids_global":
+                    prompt_skills = global_skills_for_prompt(
+                        self.skill_library,
+                        include_avoids=True,
+                        vitis_version=self.vitis_version,
+                        fpga=self.part,
+                    )
+                    skill_header = (
+                        "GLOBAL SKILL LIBRARY — all applicable optimization recipes "
+                        "plus avoid rules (same set for every kernel on PC2). "
+                        "Pattern → strategy → required steps → guardrails → "
+                        f"template/example for the `{step_name}` step:\n\n"
+                    )
+                elif skill_mode == "all_skills_no_avoids_global":
+                    prompt_skills = global_skills_for_prompt(
+                        self.skill_library,
+                        include_avoids=False,
+                        vitis_version=self.vitis_version,
+                        fpga=self.part,
+                    )
+                    skill_header = (
+                        "GLOBAL SKILL LIBRARY — all applicable optimization recipes "
+                        "(no avoid rules; same set for every kernel on PC2). "
+                        "Pattern → strategy → required steps → guardrails → "
+                        f"template/example for the `{step_name}` step:\n\n"
+                    )
+                elif skill_mode == "llm_curated" and _skill_curation_enabled():
+                    curation_block, _record = self.skill_curation.curate_for_flash(step_name)
+                    if curation_block:
+                        extra_blocks.append(curation_block)
+                    prompt_skills = []
                 else:
-                    feedback = (self.synth_report or {}).get("feedback") or {}
-                    top_bottleneck_kind = None
-                    bns = feedback.get("bottlenecks") or []
-                    if bns:
-                        top_bottleneck_kind = bns[0].get("kind")
-                    if top_bottleneck_kind:
-                        matching = self.skill_library.query(
-                            bottleneck_kind=top_bottleneck_kind,
-                            vitis_version=self.vitis_version,
-                            fpga=self.part,
-                        )
-                if matching:
-                    avoid_matching = []
-                    if top_bottleneck_kind:
-                        avoid_matching = [
-                            sk for sk in self.skill_library.query(
+                    matching = []
+                    selected_skill = self.skill_library.get(skill_id) if skill_id else None
+                    if selected_skill:
+                        matching = [selected_skill]
+                    else:
+                        feedback = (self.synth_report or {}).get("feedback") or {}
+                        bns = feedback.get("bottlenecks") or []
+                        if bns:
+                            top_bottleneck_kind = bns[0].get("kind")
+                        if top_bottleneck_kind:
+                            matching = self.skill_library.query(
                                 bottleneck_kind=top_bottleneck_kind,
                                 vitis_version=self.vitis_version,
                                 fpga=self.part,
-                                include_avoid=True,
                             )
-                            if getattr(sk, "confidence", "") == "avoid"
-                        ][:2]
-                    prompt_skills = list(matching)[:2] + avoid_matching
-                    skill_block = render_skill_set_for_prompt(prompt_skills, max_skills=4)
-                    if skill_block and "No matching skills" not in skill_block:
-                        extra_blocks.append(
+                    if matching:
+                        avoid_matching = []
+                        if top_bottleneck_kind:
+                            avoid_matching = [
+                                sk for sk in self.skill_library.query(
+                                    bottleneck_kind=top_bottleneck_kind,
+                                    vitis_version=self.vitis_version,
+                                    fpga=self.part,
+                                    include_avoid=True,
+                                )
+                                if getattr(sk, "confidence", "") == TIER_AVOID
+                            ][:avoid_limit]
+                        prompt_skills = list(matching)[:pos_limit] + avoid_matching
+                        skill_header = (
                             "RELEVANT SKILLS from library (pattern → strategy → "
                             "required steps → guardrails → template/example). "
                             "Apply the highest-confidence one that "
                             f"addresses the bottleneck/route '{top_bottleneck_kind or skill_id}' "
-                            f"on the `{step_name}` step:\n\n" + skill_block
+                            f"on the `{step_name}` step:\n\n"
                         )
+
+                if prompt_skills:
+                    skill_block = render_skill_set_for_prompt(
+                        prompt_skills,
+                        max_skills=len(prompt_skills),
+                    )
+                    if skill_block and "No matching skills" not in skill_block:
+                        extra_blocks.append(skill_header + skill_block)
             except Exception as exc:  # pragma: no cover - skill injection best-effort
                 logging.warning("Phase 5b skill-template injection failed: %s", exc)
 
@@ -4281,7 +4628,7 @@ class C2HLSOrchestrator:
                     new_code = fixed
                 continue
 
-            outcome = self._synth_and_test(new_code, log_prefix=f"[Step: {step_name}]")
+            outcome = self._synth_and_test(new_code, log_prefix=f"[Step: {step_name}]", step_name=step_name)
             result = outcome["synth"]
 
             if result["success"]:
@@ -4303,45 +4650,18 @@ class C2HLSOrchestrator:
                         result["report"], self.synth_report,
                     )
 
-                if gt_code:
-                    cached_gt_report = self._gt_step_reports.get(step_name)
-                    if cached_gt_report:
-                        step_result["vs_ground_truth"] = compare_reports(
-                            result["report"], cached_gt_report,
-                        )
-                        step_result["gt_report"] = cached_gt_report
-                        step_result["gt_report_status"] = {
-                            "status": "passed",
-                            "source": "trusted_external_direct_jsonl",
-                        }
-                    else:
-                        # Per-variant headers carry step-specific `#define`s
-                        # (TILE_SIZE, COALESCING_5_512bit, …). Falling back to the
-                        # local header here makes GT synth fail with "undeclared
-                        # identifier", which silently zeroes the per-step gen-vs-gt
-                        # comparison.
-                        gt_hdr = gt_header_code if gt_header_code else self.header_code
-                        gt_result = run_hls_synthesis(
-                            gt_code,
-                            gt_hdr,
-                            header_name=self.header_name,
-                            top_function=self.reference_hls_top,
-                            part=self.part,
-                            clock_ns=self.clock_ns,
-                            extra_files=self.extra_files,
-                        )
-                        if gt_result["success"]:
-                            step_result["vs_ground_truth"] = compare_reports(
-                                result["report"], gt_result["report"],
-                            )
-                            step_result["gt_report"] = gt_result["report"]
-                            # Phase 3: cache the GT step report so
-                            # _previous_gt_report_for_step can find it later
-                            # when the alignment check kicks in.
-                            if step_name and gt_result.get("report"):
-                                self._gt_step_reports[step_name] = gt_result["report"]
-                        else:
-                            step_result["gt_report_status"] = _summarize_synth_result(gt_result)
+                gt_report, gt_status = self._resolve_ground_truth_report(
+                    step_name,
+                    gt_code=gt_code,
+                    gt_header_code=gt_header_code,
+                )
+                if gt_report:
+                    step_result["vs_ground_truth"] = compare_reports(
+                        result["report"], gt_report,
+                    )
+                    step_result["gt_report"] = gt_report
+                    if gt_status:
+                        step_result["gt_report_status"] = gt_status
 
                 if outcome["csim"] is not None:
                     step_result["csim"] = outcome["csim"]
@@ -4811,12 +5131,13 @@ class C2HLSOrchestrator:
                     continue
                 gt_hdr = (gt_variant_headers or {}).get(gt_step_name) or self.header_code
                 try:
-                    gt_result = run_hls_synthesis(
-                        gt_code, gt_hdr, header_name=self.header_name,
-                        top_function=self.reference_hls_top,
-                        part=self.part, clock_ns=self.clock_ns,
-                        extra_files=self.extra_files,
-                    )
+                    with temp_tag_scope(self.benchmark_name, "gt", gt_step_name):
+                        gt_result = run_hls_synthesis(
+                            gt_code, gt_hdr, header_name=self.header_name,
+                            top_function=self.reference_hls_top,
+                            part=self.part, clock_ns=self.clock_ns,
+                            extra_files=self.extra_files,
+                        )
                     if gt_result.get("success") and gt_result.get("report"):
                         self._gt_step_reports[gt_step_name] = gt_result["report"]
                         logging.info(
@@ -5192,8 +5513,14 @@ class C2HLSOrchestrator:
         results_save = {key: value for key, value in results.items() if key != "hls_code"}
         for step in results_save.get("steps", []):
             step.pop("code", None)
+        if getattr(self, "_skill_curation_record", None):
+            results_save["skill_curation"] = self._skill_curation_record
         with open(os.path.join(output_dir, f"{bench_name}_multistep_results.json"), "w") as f:
             json.dump(results_save, f, indent=2, default=str)
+
+        if getattr(self, "_skill_curation_record", None):
+            with open(os.path.join(output_dir, "skill_curation.json"), "w") as f:
+                json.dump(self._skill_curation_record, f, indent=2, default=str)
 
         history_payload = {
             "model": self.gpt_model,
@@ -5944,6 +6271,11 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
         run_cosim_check=supports_cosim and run_cosim_check and not csim_signature_mismatch,
         cosim_depths=meta.get("cosim_depths", {}),
         cosim_requires_csim_pass=True,
+        temp_tag=join_temp_tag(
+            inputs.get("bench_name", meta.get("benchmark", "bench")),
+            "ref",
+            candidate.get("step_name", "baseline"),
+        ),
     )
     synth_result = outcome["synth"]
     synth_summary = _summarize_synth_result(synth_result)
@@ -6610,12 +6942,8 @@ def _parse_variant_dir_name(name: str) -> dict:
 
 
 def _rodinia_variant_parents(bench_name: str) -> list[tuple[Path, str]]:
-    roots = [
-        (Path("/home/luo00466/rodinia-hls-nova/Benchmarks"), "rodinia-hls-nova"),
-        (Path("/home/luo00466/rodinia-hls/Benchmarks"), "rodinia-hls"),
-    ]
     parents: list[tuple[Path, str]] = []
-    for root, source_repo in roots:
+    for root, source_repo in rodinia_variant_roots():
         if not root.is_dir():
             continue
         for parent in (
@@ -6922,6 +7250,27 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
 
     logging.info("Benchmark %s: running steps %s (GT available: %s)", bench_name, steps, list(available_gt))
 
+    with temp_tag_scope(bench_name):
+        return _run_benchmark_multistep_body(
+            inputs,
+            bench_name,
+            output_dir,
+            gpt_model,
+            turns_limitation,
+            steps,
+            quality_repair_turns,
+        )
+
+
+def _run_benchmark_multistep_body(
+    inputs: dict,
+    bench_name: str,
+    output_dir: str,
+    gpt_model: str,
+    turns_limitation: int,
+    steps: list,
+    quality_repair_turns: int,
+) -> dict:
     orchestrator = C2HLSOrchestrator(
         gpt_model=gpt_model,
         turns_limitation=turns_limitation,
@@ -7052,7 +7401,10 @@ def _print_multistep_summary(results: dict):
 if __name__ == "__main__":
     import argparse
 
+    from c2hls_paths import add_site_argument
+
     parser = argparse.ArgumentParser(description="C-to-HLS Translation Pipeline")
+    add_site_argument(parser)
     parser.add_argument("--bench", type=str, default="nw", help="Benchmark name (from benchmarks/ directory)")
     parser.add_argument("--bench-dir", type=str, default=None, help="Direct path to benchmark directory")
     parser.add_argument("--output-dir", type=str, default=None, help="Output directory for results")

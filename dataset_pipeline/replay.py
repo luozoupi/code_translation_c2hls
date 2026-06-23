@@ -8,8 +8,8 @@ is kept intact; this module produces a v2.0 jsonl alongside.
 Usage:
     from dataset_pipeline.replay import replay_existing_results
     summary = replay_existing_results(
-        results_dirs=["/home/luo00466/code_translation-c2hls/results_multistep"],
-        output_jsonl="${C2HLS_TMP_ROOT:-/mnt/data/luo00466/tmp}/c2hls_trajectory_v2.jsonl",
+        results_dirs=["results_multistep"],
+        output_jsonl="artifacts/c2hls_trajectory_v2.jsonl",
         run_meta=RunMeta(vitis_version="2023.2",
                          device="xcu280-fsvh2892-2L-e",
                          clock_ns=3.33),

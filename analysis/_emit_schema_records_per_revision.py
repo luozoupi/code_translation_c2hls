@@ -67,7 +67,7 @@ def _emit_step_variants_multistep(
 
     mode = "multistep"
     steps = data.get("steps") or []
-    cand_origin_version = _compose_origin_version(mode, skills, setup_label)
+    cand_origin_version = _compose_origin_version(model, mode, skills, setup_label)
 
     # Shared A/B knob block for all of this cell's variants
     base_ab_meta = {
@@ -203,7 +203,7 @@ def _emit_phase_b_plus_final_flash(
         return []
 
     mode = "flash"
-    cand_origin_version = _compose_origin_version(mode, skills, setup_label)
+    cand_origin_version = _compose_origin_version(model, mode, skills, setup_label)
 
     base_ab_meta = {"model": model, "mode": mode, "skills": skills}
     skills_log = data.get("skills_log") or {}

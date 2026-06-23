@@ -329,18 +329,28 @@ def _status_from_flags(block: dict | None) -> str | None:
     return "fail"
 
 
-def _compose_origin_version(mode: str, skills: str, setup_label: str) -> str:
-    """Build origin_version = <git_sha>__<mode>__<skill_setup>.
+_MODEL_ID_TO_SHORT = {
+    "claude-sonnet-4-6": "sonnet",
+    "claude-opus-4-8": "opus",
+    "claude-haiku-4-5-20251001": "haiku",
+}
 
-    For skills=off, the skill part is always 'no_skills' regardless of the
-    sweep's setup_label (skills_off cells don't load the configured skill
-    package; they don't load anything).
+
+def _model_short(model: str) -> str:
+    return _MODEL_ID_TO_SHORT.get(model, model)
+
+
+def _compose_origin_version(model: str, mode: str, skills: str, setup_label: str) -> str:
+    """Build origin_version = <git_sha>__<model>__<mode>__<skill_setup>.
+
+    Model is included because Opus-run vs Sonnet-run are SEPARATE orchestrator
+    runs and must be distinct origin_versions (per the collaborator's rule that
+    meaningful run-harness changes are distinguished by version, not variant).
+    For skills=off the skill part is always 'no_skills' (off cells load no
+    skill package regardless of setup_label).
     """
-    if skills == "off":
-        skill_part = "no_skills"
-    else:
-        skill_part = (setup_label or "base_skills").strip()
-    return f"{ORCHESTRATOR_GIT_COMMIT}__{mode}__{skill_part}"
+    skill_part = "no_skills" if skills == "off" else (setup_label or "base_skills").strip()
+    return f"{ORCHESTRATOR_GIT_COMMIT}__{_model_short(model)}__{mode}__{skill_part}"
 
 
 def _emit_for_cell(bench: str, cell_dir: Path, model: str, mode: str,
@@ -426,7 +436,7 @@ def _emit_for_cell(bench: str, cell_dir: Path, model: str, mode: str,
     # value per orchestrator run), and variant denotes the code revision
     # within that run. Until per-step emission lands (B-flavor extension),
     # every cell emits exactly one accepted revision, named "final".
-    cand_origin_version = _compose_origin_version(mode, skills, setup_label)
+    cand_origin_version = _compose_origin_version(model, mode, skills, setup_label)
     cand_variant = {"index": 0, "name": "final"}
     gold_variant = {"index": 0, "name": "baseline"}
 

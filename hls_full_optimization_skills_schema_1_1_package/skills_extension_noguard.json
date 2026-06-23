@@ -1,0 +1,39 @@
+{
+  "saved_at": "2026-05-24T00:00:00+0000",
+  "schema": "1.1",
+  "_note": "ABLATION VARIANT of skills_extension.json with the two preventative guard skills REMOVED (hls-guard-fp-reduction-order-preserving, hls-guard-device-budget-artix7-100t). Only the constructive loop_tripcount skill remains. Built 2026-06-17 to test whether the preventative 'avoid/DO NOT' instructions are what drove the Phase-9 extended-skills regression (geomean 1.27x vs base-skills 0.72x). Compare a Sonnet flash sweep using base.json:skills_extension_noguard.json against the Phase-9 base.json:skills_extension.json run.",
+  "skills": [
+    {
+      "id": "hls-translation-loop-tripcount-always",
+      "kind": "supporting_transformation",
+      "confidence": "high",
+      "origin": "matrix_sweep_observation",
+      "bottleneck_kinds": [
+        "undef_latency",
+        "rubric_latency_zero",
+        "report_unknown_bound"
+      ],
+      "pattern": "a loop has a bound that is a function argument, struct field, or any non-compile-time constant, and Vitis HLS cannot determine the trip count",
+      "strategy": "Annotate any non-compile-time-bounded loop with `#pragma HLS loop_tripcount min=N avg=N max=N` so the synthesis report has a numeric latency estimate. Without this, latency comes back as 'undef' and the c2hls rubric scores 0 on M4 (Latency, 23% of total). On polybench kernels the upper bounds are tiny (40-100), so this is essentially free.",
+      "required_steps": [
+        "scan the kernel for loops with non-constant bounds: `for (int i = 0; i < n; ++i)` where n is a parameter",
+        "for each such loop, find the actual maximum value (usually defined as a macro or constant in the header)",
+        "add `#pragma HLS loop_tripcount min=N avg=N max=N` immediately after the loop opening brace",
+        "use the max as a conservative estimate; the rubric scores based on the reported number"
+      ],
+      "guards": [
+        "loop_tripcount does NOT affect functional correctness — it only annotates for the scheduler/reporter",
+        "providing a tripcount that's smaller than the actual runtime trip count is safe (estimate vs actual)",
+        "if the loop runs at most N times statically, ALWAYS annotate it"
+      ],
+      "tags": [
+        "diagnostic",
+        "loop_tripcount",
+        "rubric",
+        "translation",
+        "kernel-independent"
+      ],
+      "template": "for (int i = 0; i < runtime_n; ++i) {\n#pragma HLS loop_tripcount min=80 avg=80 max=80\n    ...\n}"
+    }
+  ]
+}

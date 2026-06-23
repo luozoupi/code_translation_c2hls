@@ -1,0 +1,898 @@
+{
+  "phase": "complete",
+  "hls_code": "#include \"syr2k.h\"\n\nextern \"C\" {\nvoid kernel_syr2k(\n\t\t  double alpha,\n\t\t  double beta,\n\t\t  double C[ N + 0][N + 0],\n\t\t  double A[ N + 0][M + 0],\n\t\t  double B[ N + 0][M + 0])\n{\n#pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem0\n#pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem1\n#pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem2\n#pragma HLS INTERFACE s_axilite port=alpha bundle=control\n#pragma HLS INTERFACE s_axilite port=beta bundle=control\n#pragma HLS INTERFACE s_axilite port=C bundle=control\n#pragma HLS INTERFACE s_axilite port=A bundle=control\n#pragma HLS INTERFACE s_axilite port=B bundle=control\n#pragma HLS INTERFACE s_axilite port=return bundle=control\n\n    const int n = N;\n    const int m = M;\n\n  int i, j, k;\n\n  // Cache full A and B rows locally to avoid repeated AXI reads and\n  // memory-port conflicts inside the inner loops.\n  static double A_buf[N][M];\n  static double B_buf[N][M];\n#pragma HLS ARRAY_PARTITION variable=A_buf cyclic factor=2 dim=2\n#pragma HLS ARRAY_PARTITION variable=B_buf cyclic factor=2 dim=2\n\n  for (i = 0; i < n; i++) {\n    for (k = 0; k < m; k++) {\n#pragma HLS PIPELINE II=1\n      A_buf[i][k] = A[i][k];\n      B_buf[i][k] = B[i][k];\n    }\n  }\n\n  for (i = 0; i < n; i++) {\n    // Local accumulation row, initialized with beta-scaled C.\n    double C_row[N];\n#pragma HLS ARRAY_PARTITION variable=C_row cyclic factor=4 dim=1\n\n    for (j = 0; j <= i; j++) {\n#pragma HLS PIPELINE II=1\n      C_row[j] = C[i][j] * beta;\n    }\n\n    for (k = 0; k < m; k++) {\n      double a_ik = A_buf[i][k];\n      double b_ik = B_buf[i][k];\n      for (j = 0; j <= i; j++) {\n#pragma HLS PIPELINE II=1\n#pragma HLS DEPENDENCE variable=C_row inter false\n\tC_row[j] += A_buf[j][k]*alpha*b_ik + B_buf[j][k]*alpha*a_ik;\n      }\n    }\n\n    // Write back the computed row.\n    for (j = 0; j <= i; j++) {\n#pragma HLS PIPELINE II=1\n      C[i][j] = C_row[j];\n    }\n  }\n\n}\n}",
+  "synth_report": {
+    "latency_cycles": 407214,
+    "latency_ns": 1356000.0,
+    "bram": "12",
+    "dsp": "38",
+    "ff": "8635",
+    "lut": "7990",
+    "uram": "4",
+    "fmax_mhz": 400.96,
+    "interval": 407215,
+    "estimated_clock_period_ns": 2.494,
+    "requested_clock_period_ns": 3.33,
+    "slack_ns": 0.836,
+    "work_dir": "/tmp/hls_synth_mzu3mzz5"
+  },
+  "comparison": {
+    "success": true,
+    "valid_reference": true,
+    "invalid_reference": false,
+    "generated_report": {
+      "latency_cycles": 407214,
+      "latency_ns": 1356000.0,
+      "bram": "12",
+      "dsp": "38",
+      "ff": "8635",
+      "lut": "7990",
+      "uram": "4",
+      "fmax_mhz": 400.96,
+      "interval": 407215,
+      "estimated_clock_period_ns": 2.494,
+      "requested_clock_period_ns": 3.33,
+      "slack_ns": 0.836,
+      "work_dir": "/tmp/hls_synth_mzu3mzz5"
+    },
+    "ground_truth_report": {
+      "latency_cycles": 3082401,
+      "latency_ns": 10264000.0,
+      "bram": "0",
+      "dsp": "14",
+      "ff": "3060",
+      "lut": "2323",
+      "uram": "0",
+      "fmax_mhz": 430.48,
+      "interval": 3082402,
+      "estimated_clock_period_ns": 2.323,
+      "requested_clock_period_ns": 3.33,
+      "slack_ns": 1.007,
+      "work_dir": "/tmp/hls_synth_tmkg6jil"
+    },
+    "comparison": {
+      "latency_cycles": {
+        "generated": 407214.0,
+        "ground_truth": 3082401.0,
+        "ratio": 0.132
+      },
+      "latency_ns": {
+        "generated": 1356000.0,
+        "ground_truth": 10264000.0,
+        "ratio": 0.132
+      },
+      "interval": {
+        "generated": 407215.0,
+        "ground_truth": 3082402.0,
+        "ratio": 0.132
+      },
+      "bram": {
+        "generated": 12.0,
+        "ground_truth": 0.0,
+        "ratio": Infinity
+      },
+      "dsp": {
+        "generated": 38.0,
+        "ground_truth": 14.0,
+        "ratio": 2.714
+      },
+      "ff": {
+        "generated": 8635.0,
+        "ground_truth": 3060.0,
+        "ratio": 2.822
+      },
+      "lut": {
+        "generated": 7990.0,
+        "ground_truth": 2323.0,
+        "ratio": 3.44
+      },
+      "fmax_mhz": {
+        "generated": 400.96,
+        "ground_truth": 430.48,
+        "ratio": 0.931
+      }
+    }
+  },
+  "csim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "cosim": {
+    "status": "failed",
+    "supported": true,
+    "ran": true,
+    "success": false,
+    "passed": false,
+    "error": "Cosim failed",
+    "measured": {
+      "simulator": "Verilog",
+      "latency_cycles_min": 212822,
+      "latency_cycles_avg": 212822,
+      "latency_cycles_max": 212822,
+      "interval_min": null,
+      "interval_max": null,
+      "report_path": "/tmp/hls_cosim_fz5b2oiu/hls_proj/sol1/sim/report/kernel_syr2k_cosim.rpt",
+      "report_text": "Report time       : Wed Jun 17 06:35:48 AM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Fail|         212822|         212822|         212822|             NA|             NA|             NA|                212822|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+    }
+  },
+  "quality_repair": {
+    "attempted": true,
+    "applied": true,
+    "attempts": [
+      {
+        "turn": 0,
+        "focus": "general",
+        "score_before": 52.47,
+        "candidate_score": -20.832,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 407214.0,
+            "ground_truth": 3082401.0,
+            "ratio": 0.132
+          },
+          "latency_ns": {
+            "generated": 1356000.0,
+            "ground_truth": 10264000.0,
+            "ratio": 0.132
+          },
+          "interval": {
+            "generated": 407215.0,
+            "ground_truth": 3082402.0,
+            "ratio": 0.132
+          },
+          "bram": {
+            "generated": 12.0,
+            "ground_truth": 0.0,
+            "ratio": Infinity
+          },
+          "dsp": {
+            "generated": 38.0,
+            "ground_truth": 14.0,
+            "ratio": 2.714
+          },
+          "ff": {
+            "generated": 8635.0,
+            "ground_truth": 3060.0,
+            "ratio": 2.822
+          },
+          "lut": {
+            "generated": 7990.0,
+            "ground_truth": 2323.0,
+            "ratio": 3.44
+          },
+          "fmax_mhz": {
+            "generated": 400.96,
+            "ground_truth": 430.48,
+            "ratio": 0.931
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "accepted"
+      },
+      {
+        "turn": 1,
+        "focus": "general",
+        "score_before": -20.832,
+        "candidate_score": -20.832,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 407214.0,
+            "ground_truth": 3082401.0,
+            "ratio": 0.132
+          },
+          "latency_ns": {
+            "generated": 1356000.0,
+            "ground_truth": 10264000.0,
+            "ratio": 0.132
+          },
+          "interval": {
+            "generated": 407215.0,
+            "ground_truth": 3082402.0,
+            "ratio": 0.132
+          },
+          "bram": {
+            "generated": 12.0,
+            "ground_truth": 0.0,
+            "ratio": Infinity
+          },
+          "dsp": {
+            "generated": 38.0,
+            "ground_truth": 14.0,
+            "ratio": 2.714
+          },
+          "ff": {
+            "generated": 8635.0,
+            "ground_truth": 3060.0,
+            "ratio": 2.822
+          },
+          "lut": {
+            "generated": 7990.0,
+            "ground_truth": 2323.0,
+            "ratio": 3.44
+          },
+          "fmax_mhz": {
+            "generated": 400.96,
+            "ground_truth": 430.48,
+            "ratio": 0.931
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "rejected",
+        "rejection_reason": "Quality score did not improve enough (-20.832 vs -20.832)"
+      },
+      {
+        "turn": 2,
+        "focus": "general",
+        "score_before": -20.832,
+        "candidate_score": -20.832,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 407214.0,
+            "ground_truth": 3082401.0,
+            "ratio": 0.132
+          },
+          "latency_ns": {
+            "generated": 1356000.0,
+            "ground_truth": 10264000.0,
+            "ratio": 0.132
+          },
+          "interval": {
+            "generated": 407215.0,
+            "ground_truth": 3082402.0,
+            "ratio": 0.132
+          },
+          "bram": {
+            "generated": 12.0,
+            "ground_truth": 0.0,
+            "ratio": Infinity
+          },
+          "dsp": {
+            "generated": 38.0,
+            "ground_truth": 14.0,
+            "ratio": 2.714
+          },
+          "ff": {
+            "generated": 8635.0,
+            "ground_truth": 3060.0,
+            "ratio": 2.822
+          },
+          "lut": {
+            "generated": 7990.0,
+            "ground_truth": 2323.0,
+            "ratio": 3.44
+          },
+          "fmax_mhz": {
+            "generated": 400.96,
+            "ground_truth": 430.48,
+            "ratio": 0.931
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "rejected",
+        "rejection_reason": "Quality score did not improve enough (-20.832 vs -20.832)"
+      },
+      {
+        "turn": 3,
+        "focus": "general",
+        "score_before": -20.832,
+        "candidate_score": -20.832,
+        "comparison": {
+          "latency_cycles": {
+            "generated": 407214.0,
+            "ground_truth": 3082401.0,
+            "ratio": 0.132
+          },
+          "latency_ns": {
+            "generated": 1356000.0,
+            "ground_truth": 10264000.0,
+            "ratio": 0.132
+          },
+          "interval": {
+            "generated": 407215.0,
+            "ground_truth": 3082402.0,
+            "ratio": 0.132
+          },
+          "bram": {
+            "generated": 12.0,
+            "ground_truth": 0.0,
+            "ratio": Infinity
+          },
+          "dsp": {
+            "generated": 38.0,
+            "ground_truth": 14.0,
+            "ratio": 2.714
+          },
+          "ff": {
+            "generated": 8635.0,
+            "ground_truth": 3060.0,
+            "ratio": 2.822
+          },
+          "lut": {
+            "generated": 7990.0,
+            "ground_truth": 2323.0,
+            "ratio": 3.44
+          },
+          "fmax_mhz": {
+            "generated": 400.96,
+            "ground_truth": 430.48,
+            "ratio": 0.931
+          }
+        },
+        "tests_preserved": true,
+        "focus_improved": true,
+        "status": "rejected",
+        "rejection_reason": "Quality score did not improve enough (-20.832 vs -20.832)"
+      }
+    ],
+    "initial_score": 52.47,
+    "initial_comparison": {
+      "latency_cycles": {
+        "generated": 7306881.0,
+        "ground_truth": 3082401.0,
+        "ratio": 2.371
+      },
+      "latency_ns": {
+        "generated": 32179000.000000004,
+        "ground_truth": 10264000.0,
+        "ratio": 3.135
+      },
+      "interval": {
+        "generated": 7306882.0,
+        "ground_truth": 3082402.0,
+        "ratio": 2.371
+      },
+      "bram": {
+        "generated": 12.0,
+        "ground_truth": 0.0,
+        "ratio": Infinity
+      },
+      "dsp": {
+        "generated": 11.0,
+        "ground_truth": 14.0,
+        "ratio": 0.786
+      },
+      "ff": {
+        "generated": 6339.0,
+        "ground_truth": 3060.0,
+        "ratio": 2.072
+      },
+      "lut": {
+        "generated": 6803.0,
+        "ground_truth": 2323.0,
+        "ratio": 2.929
+      },
+      "fmax_mhz": {
+        "generated": 227.07,
+        "ground_truth": 430.48,
+        "ratio": 0.527
+      }
+    },
+    "final_score": -20.832,
+    "final_comparison": {
+      "latency_cycles": {
+        "generated": 407214.0,
+        "ground_truth": 3082401.0,
+        "ratio": 0.132
+      },
+      "latency_ns": {
+        "generated": 1356000.0,
+        "ground_truth": 10264000.0,
+        "ratio": 0.132
+      },
+      "interval": {
+        "generated": 407215.0,
+        "ground_truth": 3082402.0,
+        "ratio": 0.132
+      },
+      "bram": {
+        "generated": 12.0,
+        "ground_truth": 0.0,
+        "ratio": Infinity
+      },
+      "dsp": {
+        "generated": 38.0,
+        "ground_truth": 14.0,
+        "ratio": 2.714
+      },
+      "ff": {
+        "generated": 8635.0,
+        "ground_truth": 3060.0,
+        "ratio": 2.822
+      },
+      "lut": {
+        "generated": 7990.0,
+        "ground_truth": 2323.0,
+        "ratio": 3.44
+      },
+      "fmax_mhz": {
+        "generated": 400.96,
+        "ground_truth": 430.48,
+        "ratio": 0.931
+      }
+    }
+  },
+  "turn_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 7306881,
+        "latency_ns": 32179000.000000004,
+        "bram": "12",
+        "dsp": "11",
+        "ff": "6339",
+        "lut": "6803",
+        "uram": "0",
+        "fmax_mhz": 227.07,
+        "interval": 7306882,
+        "estimated_clock_period_ns": 4.404,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": -1.074,
+        "work_dir": "/tmp/hls_synth_dw7vu5o8"
+      },
+      "error": ""
+    }
+  ],
+  "benchmark": "hlsfactory_syr2k",
+  "success": true,
+  "reference_validation": {
+    "benchmark_ready": true,
+    "invalid_reason": "",
+    "top_function": "kernel_syr2k",
+    "synthesis": {
+      "status": "passed",
+      "ran": true,
+      "success": true,
+      "error": "",
+      "report": {
+        "latency_cycles": 3082401,
+        "latency_ns": 10264000.0,
+        "bram": "0",
+        "dsp": "14",
+        "ff": "3060",
+        "lut": "2323",
+        "uram": "0",
+        "fmax_mhz": 430.48,
+        "interval": 3082402,
+        "estimated_clock_period_ns": 2.323,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 1.007,
+        "work_dir": "/tmp/hls_synth_tmkg6jil"
+      },
+      "work_dir": "/tmp/hls_synth_tmkg6jil"
+    },
+    "csim": {
+      "status": "passed",
+      "supported": true,
+      "ran": true,
+      "success": true,
+      "passed": true,
+      "error": ""
+    },
+    "cosim": {
+      "status": "passed",
+      "supported": true,
+      "ran": true,
+      "success": true,
+      "passed": true,
+      "error": "",
+      "measured": {
+        "simulator": "Verilog",
+        "latency_cycles_min": 1562121,
+        "latency_cycles_avg": 1562121,
+        "latency_cycles_max": 1562121,
+        "interval_min": null,
+        "interval_max": null,
+        "report_path": "/tmp/hls_cosim_umoe7mx4/hls_proj/sol1/sim/report/kernel_syr2k_cosim.rpt",
+        "report_text": "Report time       : Mon Jun  1 11:07:49 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        1562121|        1562121|        1562121|             NA|             NA|             NA|               1562121|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+      }
+    },
+    "report": {
+      "latency_cycles": 3082401,
+      "latency_ns": 10264000.0,
+      "bram": "0",
+      "dsp": "14",
+      "ff": "3060",
+      "lut": "2323",
+      "uram": "0",
+      "fmax_mhz": 430.48,
+      "interval": 3082402,
+      "estimated_clock_period_ns": 2.323,
+      "requested_clock_period_ns": 3.33,
+      "slack_ns": 1.007,
+      "work_dir": "/tmp/hls_synth_tmkg6jil"
+    },
+    "workflow": [
+      {
+        "variant_name": "hlsfactory_syr2k_0_baseline",
+        "file": "hls_baseline.cpp",
+        "step_name": "0_baseline",
+        "source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/syr2k/src/syr2k.cpp",
+        "benchmark_ready": true,
+        "invalid_reason": "",
+        "synthesis": {
+          "status": "passed",
+          "ran": true,
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 3082401,
+            "latency_ns": 10264000.0,
+            "bram": "0",
+            "dsp": "14",
+            "ff": "3060",
+            "lut": "2323",
+            "uram": "0",
+            "fmax_mhz": 430.48,
+            "interval": 3082402,
+            "estimated_clock_period_ns": 2.323,
+            "requested_clock_period_ns": 3.33,
+            "slack_ns": 1.007,
+            "work_dir": "/tmp/hls_synth_tmkg6jil"
+          },
+          "work_dir": "/tmp/hls_synth_tmkg6jil"
+        },
+        "csim": {
+          "status": "passed",
+          "supported": true,
+          "ran": true,
+          "success": true,
+          "passed": true,
+          "error": ""
+        },
+        "cosim": {
+          "status": "passed",
+          "supported": true,
+          "ran": true,
+          "success": true,
+          "passed": true,
+          "error": "",
+          "measured": {
+            "simulator": "Verilog",
+            "latency_cycles_min": 1562121,
+            "latency_cycles_avg": 1562121,
+            "latency_cycles_max": 1562121,
+            "interval_min": null,
+            "interval_max": null,
+            "report_path": "/tmp/hls_cosim_umoe7mx4/hls_proj/sol1/sim/report/kernel_syr2k_cosim.rpt",
+            "report_text": "Report time       : Mon Jun  1 11:07:49 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        1562121|        1562121|        1562121|             NA|             NA|             NA|               1562121|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+          }
+        },
+        "report": {
+          "latency_cycles": 3082401,
+          "latency_ns": 10264000.0,
+          "bram": "0",
+          "dsp": "14",
+          "ff": "3060",
+          "lut": "2323",
+          "uram": "0",
+          "fmax_mhz": 430.48,
+          "interval": 3082402,
+          "estimated_clock_period_ns": 2.323,
+          "requested_clock_period_ns": 3.33,
+          "slack_ns": 1.007,
+          "work_dir": "/tmp/hls_synth_tmkg6jil"
+        },
+        "selected": true
+      }
+    ],
+    "selected_variant_name": "hlsfactory_syr2k_0_baseline",
+    "selected_variant_file": "hls_baseline.cpp",
+    "selected_variant_step": "0_baseline",
+    "selection_reason": "selected latest validated optimized variant"
+  },
+  "ground_truth_report": {
+    "latency_cycles": 3082401,
+    "latency_ns": 10264000.0,
+    "bram": "0",
+    "dsp": "14",
+    "ff": "3060",
+    "lut": "2323",
+    "uram": "0",
+    "fmax_mhz": 430.48,
+    "interval": 3082402,
+    "estimated_clock_period_ns": 2.323,
+    "requested_clock_period_ns": 3.33,
+    "slack_ns": 1.007,
+    "work_dir": "/tmp/hls_synth_tmkg6jil"
+  },
+  "ground_truth_status": "valid",
+  "baseline_status": "passed",
+  "invalid_reference_reason": "",
+  "ground_truth_variant": {
+    "name": "hlsfactory_syr2k_0_baseline",
+    "file": "hls_baseline.cpp",
+    "step": "0_baseline",
+    "selection_reason": "selected latest validated optimized variant"
+  },
+  "ground_truth_workflow": [
+    {
+      "variant_name": "hlsfactory_syr2k_0_baseline",
+      "file": "hls_baseline.cpp",
+      "step_name": "0_baseline",
+      "source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/syr2k/src/syr2k.cpp",
+      "benchmark_ready": true,
+      "invalid_reason": "",
+      "synthesis": {
+        "status": "passed",
+        "ran": true,
+        "success": true,
+        "error": "",
+        "report": {
+          "latency_cycles": 3082401,
+          "latency_ns": 10264000.0,
+          "bram": "0",
+          "dsp": "14",
+          "ff": "3060",
+          "lut": "2323",
+          "uram": "0",
+          "fmax_mhz": 430.48,
+          "interval": 3082402,
+          "estimated_clock_period_ns": 2.323,
+          "requested_clock_period_ns": 3.33,
+          "slack_ns": 1.007,
+          "work_dir": "/tmp/hls_synth_tmkg6jil"
+        },
+        "work_dir": "/tmp/hls_synth_tmkg6jil"
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 1562121,
+          "latency_cycles_avg": 1562121,
+          "latency_cycles_max": 1562121,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_umoe7mx4/hls_proj/sol1/sim/report/kernel_syr2k_cosim.rpt",
+          "report_text": "Report time       : Mon Jun  1 11:07:49 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        1562121|        1562121|        1562121|             NA|             NA|             NA|               1562121|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      },
+      "report": {
+        "latency_cycles": 3082401,
+        "latency_ns": 10264000.0,
+        "bram": "0",
+        "dsp": "14",
+        "ff": "3060",
+        "lut": "2323",
+        "uram": "0",
+        "fmax_mhz": 430.48,
+        "interval": 3082402,
+        "estimated_clock_period_ns": 2.323,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 1.007,
+        "work_dir": "/tmp/hls_synth_tmkg6jil"
+      },
+      "selected": true
+    }
+  ],
+  "optimization_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 7306881,
+        "latency_ns": 32179000.000000004,
+        "bram": "12",
+        "dsp": "11",
+        "ff": "6339",
+        "lut": "6803",
+        "uram": "0",
+        "fmax_mhz": 227.07,
+        "interval": 7306882,
+        "estimated_clock_period_ns": 4.404,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": -1.074,
+        "work_dir": "/tmp/hls_synth_dw7vu5o8"
+      },
+      "error": ""
+    }
+  ],
+  "generated_status": "passed",
+  "csim_status": {
+    "ground_truth": "passed",
+    "generated": "passed"
+  },
+  "cosim_status": {
+    "ground_truth": "passed",
+    "generated": "failed"
+  },
+  "coverage": {
+    "ground_truth_csim_available": true,
+    "ground_truth_csim_ran": true,
+    "ground_truth_cosim_available": true,
+    "ground_truth_cosim_ran": true,
+    "generated_csim_available": true,
+    "generated_csim_ran": true,
+    "generated_cosim_available": true,
+    "generated_cosim_ran": true
+  },
+  "skills_log": {
+    "enabled": false,
+    "skills_config_path": null,
+    "skills_config_sha1": null,
+    "n_entries": 5,
+    "unique_skill_ids": [],
+    "entries": [
+      {
+        "turn": 0,
+        "phase": "B",
+        "callsite": "translation",
+        "retriever": "retrieve_for_translation",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 4,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e"
+        },
+        "selected_ids": [],
+        "rendered_chars": 0
+      },
+      {
+        "turn": 0,
+        "phase": "quality_repair",
+        "callsite": "quality",
+        "retriever": "retrieve_for_quality",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 6,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e",
+          "report_keys": [
+            "bram",
+            "dsp",
+            "estimated_clock_period_ns",
+            "ff",
+            "fmax_mhz",
+            "interval",
+            "latency_cycles",
+            "latency_ns"
+          ],
+          "comparison_keys": [
+            "bram",
+            "dsp",
+            "ff",
+            "fmax_mhz",
+            "interval",
+            "latency_cycles",
+            "latency_ns",
+            "lut"
+          ],
+          "slack_ns": -1.074,
+          "latency_ratio": 3.135,
+          "fmax_ratio": 0.527
+        },
+        "selected_ids": [],
+        "rendered_chars": 0
+      },
+      {
+        "turn": 1,
+        "phase": "quality_repair",
+        "callsite": "quality",
+        "retriever": "retrieve_for_quality",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 6,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e",
+          "report_keys": [
+            "bram",
+            "dsp",
+            "estimated_clock_period_ns",
+            "ff",
+            "fmax_mhz",
+            "interval",
+            "latency_cycles",
+            "latency_ns"
+          ],
+          "comparison_keys": [
+            "bram",
+            "dsp",
+            "ff",
+            "fmax_mhz",
+            "interval",
+            "latency_cycles",
+            "latency_ns",
+            "lut"
+          ],
+          "slack_ns": 0.836,
+          "latency_ratio": 0.132,
+          "fmax_ratio": 0.931
+        },
+        "selected_ids": [],
+        "rendered_chars": 0
+      },
+      {
+        "turn": 2,
+        "phase": "quality_repair",
+        "callsite": "quality",
+        "retriever": "retrieve_for_quality",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 6,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e",
+          "report_keys": [
+            "bram",
+            "dsp",
+            "estimated_clock_period_ns",
+            "ff",
+            "fmax_mhz",
+            "interval",
+            "latency_cycles",
+            "latency_ns"
+          ],
+          "comparison_keys": [
+            "bram",
+            "dsp",
+            "ff",
+            "fmax_mhz",
+            "interval",
+            "latency_cycles",
+            "latency_ns",
+            "lut"
+          ],
+          "slack_ns": 0.836,
+          "latency_ratio": 0.132,
+          "fmax_ratio": 0.931
+        },
+        "selected_ids": [],
+        "rendered_chars": 0
+      },
+      {
+        "turn": 3,
+        "phase": "quality_repair",
+        "callsite": "quality",
+        "retriever": "retrieve_for_quality",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 6,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e",
+          "report_keys": [
+            "bram",
+            "dsp",
+            "estimated_clock_period_ns",
+            "ff",
+            "fmax_mhz",
+            "interval",
+            "latency_cycles",
+            "latency_ns"
+          ],
+          "comparison_keys": [
+            "bram",
+            "dsp",
+            "ff",
+            "fmax_mhz",
+            "interval",
+            "latency_cycles",
+            "latency_ns",
+            "lut"
+          ],
+          "slack_ns": 0.836,
+          "latency_ratio": 0.132,
+          "fmax_ratio": 0.931
+        },
+        "selected_ids": [],
+        "rendered_chars": 0
+      }
+    ]
+  }
+}

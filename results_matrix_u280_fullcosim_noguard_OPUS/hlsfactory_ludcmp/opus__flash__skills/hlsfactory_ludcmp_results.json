@@ -1,0 +1,471 @@
+{
+  "phase": "complete",
+  "hls_code": "#include \"ludcmp.h\"\n\n\nextern \"C\" {\nvoid kernel_ludcmp(\n\t\t   double A[ N + 0][N + 0],\n\t\t   double b[ N + 0],\n\t\t   double x[ N + 0],\n\t\t   double y[ N + 0])\n{\n#pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem0\n#pragma HLS INTERFACE m_axi port=b offset=slave bundle=gmem1\n#pragma HLS INTERFACE m_axi port=x offset=slave bundle=gmem2\n#pragma HLS INTERFACE m_axi port=y offset=slave bundle=gmem3\n#pragma HLS INTERFACE s_axilite port=A bundle=control\n#pragma HLS INTERFACE s_axilite port=b bundle=control\n#pragma HLS INTERFACE s_axilite port=x bundle=control\n#pragma HLS INTERFACE s_axilite port=y bundle=control\n#pragma HLS INTERFACE s_axilite port=return bundle=control\n\n    const int n = N;\n\n  int i, j, k;\n\n  double w;\n\n  for (i = 0; i < n; i++) {\n    for (j = 0; j <i; j++) {\n       w = A[i][j];\n       for (k = 0; k < j; k++) {\n#pragma HLS PIPELINE II=1\n          w -= A[i][k] * A[k][j];\n       }\n        A[i][j] = w / A[j][j];\n    }\n   for (j = i; j < n; j++) {\n       w = A[i][j];\n       for (k = 0; k < i; k++) {\n#pragma HLS PIPELINE II=1\n          w -= A[i][k] * A[k][j];\n       }\n       A[i][j] = w;\n    }\n  }\n\n  for (i = 0; i < n; i++) {\n     w = b[i];\n     for (j = 0; j < i; j++) {\n#pragma HLS PIPELINE II=1\n        w -= A[i][j] * y[j];\n     }\n     y[i] = w;\n  }\n\n   for (i = n-1; i >=0; i--) {\n     w = y[i];\n     for (j = i+1; j < n; j++) {\n#pragma HLS PIPELINE II=1\n        w -= A[i][j] * x[j];\n     }\n     x[i] = w / A[i][i];\n  }\n\n}\n}",
+  "synth_report": {
+    "latency_cycles": 18852491,
+    "latency_ns": 62779000.0,
+    "bram": "16",
+    "dsp": "8",
+    "ff": "8595",
+    "lut": "9278",
+    "uram": "0",
+    "fmax_mhz": 411.35,
+    "interval": 18852492,
+    "estimated_clock_period_ns": 2.431,
+    "requested_clock_period_ns": 3.33,
+    "slack_ns": 0.899,
+    "work_dir": "/tmp/hls_synth_grtpqhxh"
+  },
+  "comparison": {
+    "success": true,
+    "valid_reference": true,
+    "invalid_reference": false,
+    "generated_report": {
+      "latency_cycles": 18852491,
+      "latency_ns": 62779000.0,
+      "bram": "16",
+      "dsp": "8",
+      "ff": "8595",
+      "lut": "9278",
+      "uram": "0",
+      "fmax_mhz": 411.35,
+      "interval": 18852492,
+      "estimated_clock_period_ns": 2.431,
+      "requested_clock_period_ns": 3.33,
+      "slack_ns": 0.899,
+      "work_dir": "/tmp/hls_synth_grtpqhxh"
+    },
+    "ground_truth_report": {
+      "latency_cycles": 25029603,
+      "latency_ns": 83349000.0,
+      "bram": "0",
+      "dsp": "11",
+      "ff": "3039",
+      "lut": "2720",
+      "uram": "0",
+      "fmax_mhz": 424.81,
+      "interval": 25029604,
+      "estimated_clock_period_ns": 2.354,
+      "requested_clock_period_ns": 3.33,
+      "slack_ns": 0.976,
+      "work_dir": "/tmp/hls_synth_gk8rz55v"
+    },
+    "comparison": {
+      "latency_cycles": {
+        "generated": 18852491.0,
+        "ground_truth": 25029603.0,
+        "ratio": 0.753
+      },
+      "latency_ns": {
+        "generated": 62779000.0,
+        "ground_truth": 83349000.0,
+        "ratio": 0.753
+      },
+      "interval": {
+        "generated": 18852492.0,
+        "ground_truth": 25029604.0,
+        "ratio": 0.753
+      },
+      "bram": {
+        "generated": 16.0,
+        "ground_truth": 0.0,
+        "ratio": Infinity
+      },
+      "dsp": {
+        "generated": 8.0,
+        "ground_truth": 11.0,
+        "ratio": 0.727
+      },
+      "ff": {
+        "generated": 8595.0,
+        "ground_truth": 3039.0,
+        "ratio": 2.828
+      },
+      "lut": {
+        "generated": 9278.0,
+        "ground_truth": 2720.0,
+        "ratio": 3.411
+      },
+      "fmax_mhz": {
+        "generated": 411.35,
+        "ground_truth": 424.81,
+        "ratio": 0.968
+      }
+    }
+  },
+  "csim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": ""
+  },
+  "cosim": {
+    "status": "passed",
+    "supported": true,
+    "ran": true,
+    "success": true,
+    "passed": true,
+    "error": "",
+    "measured": {
+      "simulator": "Verilog",
+      "latency_cycles_min": 5117740,
+      "latency_cycles_avg": 5117740,
+      "latency_cycles_max": 5117740,
+      "interval_min": null,
+      "interval_max": null,
+      "report_path": "/tmp/hls_cosim_yzd7ym2l/hls_proj/sol1/sim/report/kernel_ludcmp_cosim.rpt",
+      "report_text": "Report time       : Mon Jun 22 05:00:20 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        5117740|        5117740|        5117740|             NA|             NA|             NA|               5117740|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+    }
+  },
+  "quality_repair": {
+    "attempted": false,
+    "applied": false,
+    "attempts": [],
+    "reason": "Design fits device caps and passes correctness; no quality-repair trigger"
+  },
+  "turn_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 18852491,
+        "latency_ns": 62779000.0,
+        "bram": "16",
+        "dsp": "8",
+        "ff": "8595",
+        "lut": "9278",
+        "uram": "0",
+        "fmax_mhz": 411.35,
+        "interval": 18852492,
+        "estimated_clock_period_ns": 2.431,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.899,
+        "work_dir": "/tmp/hls_synth_grtpqhxh"
+      },
+      "error": ""
+    }
+  ],
+  "benchmark": "hlsfactory_ludcmp",
+  "success": true,
+  "reference_validation": {
+    "benchmark_ready": true,
+    "invalid_reason": "",
+    "top_function": "kernel_ludcmp",
+    "synthesis": {
+      "status": "passed",
+      "ran": true,
+      "success": true,
+      "error": "",
+      "report": {
+        "latency_cycles": 25029603,
+        "latency_ns": 83349000.0,
+        "bram": "0",
+        "dsp": "11",
+        "ff": "3039",
+        "lut": "2720",
+        "uram": "0",
+        "fmax_mhz": 424.81,
+        "interval": 25029604,
+        "estimated_clock_period_ns": 2.354,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.976,
+        "work_dir": "/tmp/hls_synth_gk8rz55v"
+      },
+      "work_dir": "/tmp/hls_synth_gk8rz55v"
+    },
+    "csim": {
+      "status": "passed",
+      "supported": true,
+      "ran": true,
+      "success": true,
+      "passed": true,
+      "error": ""
+    },
+    "cosim": {
+      "status": "passed",
+      "supported": true,
+      "ran": true,
+      "success": true,
+      "passed": true,
+      "error": "",
+      "measured": {
+        "simulator": "Verilog",
+        "latency_cycles_min": 4577543,
+        "latency_cycles_avg": 4577543,
+        "latency_cycles_max": 4577543,
+        "interval_min": null,
+        "interval_max": null,
+        "report_path": "/tmp/hls_cosim_804xi1lu/hls_proj/sol1/sim/report/kernel_ludcmp_cosim.rpt",
+        "report_text": "Report time       : Mon Jun  1 05:12:34 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        4577543|        4577543|        4577543|             NA|             NA|             NA|               4577543|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+      }
+    },
+    "report": {
+      "latency_cycles": 25029603,
+      "latency_ns": 83349000.0,
+      "bram": "0",
+      "dsp": "11",
+      "ff": "3039",
+      "lut": "2720",
+      "uram": "0",
+      "fmax_mhz": 424.81,
+      "interval": 25029604,
+      "estimated_clock_period_ns": 2.354,
+      "requested_clock_period_ns": 3.33,
+      "slack_ns": 0.976,
+      "work_dir": "/tmp/hls_synth_gk8rz55v"
+    },
+    "workflow": [
+      {
+        "variant_name": "hlsfactory_ludcmp_0_baseline",
+        "file": "hls_baseline.cpp",
+        "step_name": "0_baseline",
+        "source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/ludcmp/src/ludcmp.cpp",
+        "benchmark_ready": true,
+        "invalid_reason": "",
+        "synthesis": {
+          "status": "passed",
+          "ran": true,
+          "success": true,
+          "error": "",
+          "report": {
+            "latency_cycles": 25029603,
+            "latency_ns": 83349000.0,
+            "bram": "0",
+            "dsp": "11",
+            "ff": "3039",
+            "lut": "2720",
+            "uram": "0",
+            "fmax_mhz": 424.81,
+            "interval": 25029604,
+            "estimated_clock_period_ns": 2.354,
+            "requested_clock_period_ns": 3.33,
+            "slack_ns": 0.976,
+            "work_dir": "/tmp/hls_synth_gk8rz55v"
+          },
+          "work_dir": "/tmp/hls_synth_gk8rz55v"
+        },
+        "csim": {
+          "status": "passed",
+          "supported": true,
+          "ran": true,
+          "success": true,
+          "passed": true,
+          "error": ""
+        },
+        "cosim": {
+          "status": "passed",
+          "supported": true,
+          "ran": true,
+          "success": true,
+          "passed": true,
+          "error": "",
+          "measured": {
+            "simulator": "Verilog",
+            "latency_cycles_min": 4577543,
+            "latency_cycles_avg": 4577543,
+            "latency_cycles_max": 4577543,
+            "interval_min": null,
+            "interval_max": null,
+            "report_path": "/tmp/hls_cosim_804xi1lu/hls_proj/sol1/sim/report/kernel_ludcmp_cosim.rpt",
+            "report_text": "Report time       : Mon Jun  1 05:12:34 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        4577543|        4577543|        4577543|             NA|             NA|             NA|               4577543|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+          }
+        },
+        "report": {
+          "latency_cycles": 25029603,
+          "latency_ns": 83349000.0,
+          "bram": "0",
+          "dsp": "11",
+          "ff": "3039",
+          "lut": "2720",
+          "uram": "0",
+          "fmax_mhz": 424.81,
+          "interval": 25029604,
+          "estimated_clock_period_ns": 2.354,
+          "requested_clock_period_ns": 3.33,
+          "slack_ns": 0.976,
+          "work_dir": "/tmp/hls_synth_gk8rz55v"
+        },
+        "selected": true
+      }
+    ],
+    "selected_variant_name": "hlsfactory_ludcmp_0_baseline",
+    "selected_variant_file": "hls_baseline.cpp",
+    "selected_variant_step": "0_baseline",
+    "selection_reason": "selected latest validated optimized variant"
+  },
+  "ground_truth_report": {
+    "latency_cycles": 25029603,
+    "latency_ns": 83349000.0,
+    "bram": "0",
+    "dsp": "11",
+    "ff": "3039",
+    "lut": "2720",
+    "uram": "0",
+    "fmax_mhz": 424.81,
+    "interval": 25029604,
+    "estimated_clock_period_ns": 2.354,
+    "requested_clock_period_ns": 3.33,
+    "slack_ns": 0.976,
+    "work_dir": "/tmp/hls_synth_gk8rz55v"
+  },
+  "ground_truth_status": "valid",
+  "baseline_status": "passed",
+  "invalid_reference_reason": "",
+  "ground_truth_variant": {
+    "name": "hlsfactory_ludcmp_0_baseline",
+    "file": "hls_baseline.cpp",
+    "step": "0_baseline",
+    "selection_reason": "selected latest validated optimized variant"
+  },
+  "ground_truth_workflow": [
+    {
+      "variant_name": "hlsfactory_ludcmp_0_baseline",
+      "file": "hls_baseline.cpp",
+      "step_name": "0_baseline",
+      "source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/ludcmp/src/ludcmp.cpp",
+      "benchmark_ready": true,
+      "invalid_reason": "",
+      "synthesis": {
+        "status": "passed",
+        "ran": true,
+        "success": true,
+        "error": "",
+        "report": {
+          "latency_cycles": 25029603,
+          "latency_ns": 83349000.0,
+          "bram": "0",
+          "dsp": "11",
+          "ff": "3039",
+          "lut": "2720",
+          "uram": "0",
+          "fmax_mhz": 424.81,
+          "interval": 25029604,
+          "estimated_clock_period_ns": 2.354,
+          "requested_clock_period_ns": 3.33,
+          "slack_ns": 0.976,
+          "work_dir": "/tmp/hls_synth_gk8rz55v"
+        },
+        "work_dir": "/tmp/hls_synth_gk8rz55v"
+      },
+      "csim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": ""
+      },
+      "cosim": {
+        "status": "passed",
+        "supported": true,
+        "ran": true,
+        "success": true,
+        "passed": true,
+        "error": "",
+        "measured": {
+          "simulator": "Verilog",
+          "latency_cycles_min": 4577543,
+          "latency_cycles_avg": 4577543,
+          "latency_cycles_max": 4577543,
+          "interval_min": null,
+          "interval_max": null,
+          "report_path": "/tmp/hls_cosim_804xi1lu/hls_proj/sol1/sim/report/kernel_ludcmp_cosim.rpt",
+          "report_text": "Report time       : Mon Jun  1 05:12:34 PM CDT 2026.\nSolution          : sol1.\nSimulation tool   : xsim.\n\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|          |          |             Latency(Clock Cycles)             |              Interval(Clock Cycles)           | Total Execution Time |\n+   RTL    +  Status  +-----------------------------------------------+-----------------------------------------------+    (Clock Cycles)    +\n|          |          |      min      |      avg      |      max      |      min      |      avg      |      max      |                      |\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n|      VHDL|        NA|             NA|             NA|             NA|             NA|             NA|             NA|                    NA|\n|   Verilog|      Pass|        4577543|        4577543|        4577543|             NA|             NA|             NA|               4577543|\n+----------+----------+-----------------------------------------------+-----------------------------------------------+----------------------+\n"
+        }
+      },
+      "report": {
+        "latency_cycles": 25029603,
+        "latency_ns": 83349000.0,
+        "bram": "0",
+        "dsp": "11",
+        "ff": "3039",
+        "lut": "2720",
+        "uram": "0",
+        "fmax_mhz": 424.81,
+        "interval": 25029604,
+        "estimated_clock_period_ns": 2.354,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.976,
+        "work_dir": "/tmp/hls_synth_gk8rz55v"
+      },
+      "selected": true
+    }
+  ],
+  "optimization_history": [
+    {
+      "turn": 0,
+      "phase": "B",
+      "success": true,
+      "report": {
+        "latency_cycles": 18852491,
+        "latency_ns": 62779000.0,
+        "bram": "16",
+        "dsp": "8",
+        "ff": "8595",
+        "lut": "9278",
+        "uram": "0",
+        "fmax_mhz": 411.35,
+        "interval": 18852492,
+        "estimated_clock_period_ns": 2.431,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.899,
+        "work_dir": "/tmp/hls_synth_grtpqhxh"
+      },
+      "error": ""
+    }
+  ],
+  "generated_status": "passed",
+  "csim_status": {
+    "ground_truth": "passed",
+    "generated": "passed"
+  },
+  "cosim_status": {
+    "ground_truth": "passed",
+    "generated": "passed"
+  },
+  "coverage": {
+    "ground_truth_csim_available": true,
+    "ground_truth_csim_ran": true,
+    "ground_truth_cosim_available": true,
+    "ground_truth_cosim_ran": true,
+    "generated_csim_available": true,
+    "generated_csim_ran": true,
+    "generated_cosim_available": true,
+    "generated_cosim_ran": true
+  },
+  "skills_log": {
+    "enabled": true,
+    "skills_config_path": "/mnt/e/courses/UMN/c2hls/hls_full_optimization_skills_schema_1_1_package/skills.json:/mnt/e/courses/UMN/c2hls/hls_full_optimization_skills_schema_1_1_package/skills_extension_noguard.json",
+    "skills_config_sha1": "c6b3a08c12e32c6166cd2469ee9cc30bdf537313",
+    "n_entries": 1,
+    "unique_skill_ids": [
+      "prompt-doublebuffer",
+      "prompt-pipeline",
+      "prompt-tiling",
+      "prompt-unroll"
+    ],
+    "entries": [
+      {
+        "turn": 0,
+        "phase": "B",
+        "callsite": "translation",
+        "retriever": "retrieve_for_translation",
+        "target_part": "xcu280-fsvh2892-2L-e",
+        "top_k": 4,
+        "inputs_digest": {
+          "target_part": "xcu280-fsvh2892-2L-e"
+        },
+        "selected_ids": [
+          "prompt-tiling",
+          "prompt-pipeline",
+          "prompt-unroll",
+          "prompt-doublebuffer"
+        ],
+        "rendered_chars": 3427
+      }
+    ]
+  }
+}

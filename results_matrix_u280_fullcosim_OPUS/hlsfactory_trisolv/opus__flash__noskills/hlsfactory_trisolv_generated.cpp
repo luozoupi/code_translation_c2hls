@@ -1,0 +1,34 @@
+#include "trisolv.h"
+
+extern "C" {
+void kernel_trisolv(
+		    double L[ N + 0][N + 0],
+		    double x[ N + 0],
+		    double b[ N + 0])
+{
+#pragma HLS INTERFACE m_axi port=L offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=x offset=slave bundle=gmem1
+#pragma HLS INTERFACE m_axi port=b offset=slave bundle=gmem2
+#pragma HLS INTERFACE s_axilite port=L bundle=control
+#pragma HLS INTERFACE s_axilite port=x bundle=control
+#pragma HLS INTERFACE s_axilite port=b bundle=control
+#pragma HLS INTERFACE s_axilite port=return bundle=control
+
+    const int n = N;
+
+  int i, j;
+
+  for (i = 0; i < n; i++)
+    {
+      x[i] = b[i];
+    inner_loop:
+      for (j = 0; j <i; j++)
+      {
+#pragma HLS PIPELINE II=1
+        x[i] -= L[i][j] * x[j];
+      }
+      x[i] = x[i] / L[i][i];
+    }
+
+}
+}

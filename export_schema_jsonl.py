@@ -422,6 +422,28 @@ def _available_resources_for(part: Optional[str]) -> Optional[dict]:
     return None
 
 
+_DEVICE_PRODUCT_FAMILY = {
+    "xcu280-fsvh2892-2L-e": "virtexuplusHBM",
+    "xcu50-fsvh2104-2-e": "virtexuplusHBM",
+}
+
+
+def _product_family_for_part(part: Optional[str]) -> Optional[str]:
+    if not part:
+        return None
+    return _DEVICE_PRODUCT_FAMILY.get(part) or _DEVICE_PRODUCT_FAMILY.get(part.lower())
+
+
+def _clock_uncertainty_ns(clock_ns: Optional[float]) -> Optional[str]:
+    """Vitis default: 27% of target period (3.33 ns -> 0.90)."""
+    if clock_ns is None:
+        return None
+    try:
+        return f"{float(clock_ns) * 0.27:.2f}"
+    except (TypeError, ValueError):
+        return None
+
+
 def _build_hls_synth_payload(report: dict, part: Optional[str],
                              clock_ns: Optional[float],
                              status: str = "pass") -> dict:
@@ -442,15 +464,15 @@ def _build_hls_synth_payload(report: dict, part: Optional[str],
         }
 
     vitis_version = _vitis_version_from_env()
+    target_clock = report.get("requested_clock_period_ns") or clock_ns
 
     user_assignments = {
         "unit": "ns",
-        "ProductFamily": None,  # not tracked in our flat report
+        "ProductFamily": _product_family_for_part(part),
         "Part": part,
         "TopModelName": "workload",
-        "TargetClockPeriod": _stringify(report.get("requested_clock_period_ns")
-                                        or clock_ns),
-        "ClockUncertainty": None,
+        "TargetClockPeriod": _stringify(target_clock),
+        "ClockUncertainty": _clock_uncertainty_ns(target_clock),
         "FlowTarget": "vitis",
     }
 
@@ -1019,7 +1041,7 @@ def _validate_record(record: dict) -> list[str]:
             errors.append(f"{rt} payload is not an object")
         else:
             status = payload.get("status")
-            if status not in {"pass", "fail", "timeout"}:
+            if status not in {"pass", "fail", "timeout", "missing"}:
                 errors.append(f"{rt}.status invalid: {status!r}")
             if rt == "hls_synth" and "metrics" in payload:
                 errors.append("hls_synth.metrics is non-canonical")

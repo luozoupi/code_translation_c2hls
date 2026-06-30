@@ -67,6 +67,13 @@ _DIRECT_REFERENCE_CACHE: dict | None = None
 # Paths to API key files (used only when ANTHROPIC_API_KEY / OPENAI_API_KEY
 # environment variables are unset). Team defaults apply unless --pc2 / C2HLS_SITE=pc2.
 from c2hls_paths import claude_key_file, openai_key_file
+from flash_flow_artifacts import (
+    capture_step_skills,
+    record_flow_enabled,
+    record_flow_legacy_steps_enabled,
+    write_flow_artifacts,
+    write_multistep_flow_artifacts,
+)
 
 CLAUDE_API_KEY_FILE = claude_key_file() or Path("__unset__")
 OPENAI_API_KEY_FILE = openai_key_file() or Path("__unset__")
@@ -2331,6 +2338,14 @@ class TranslatorAgent(_AgentBase):
         orch.header_code = header_code
         orch.header_name = header_name
 
+        if getattr(orch, "skip_phase_a", False):
+            logging.info("=== [Phase A] Skipped (plain retains HLS-native types) ===")
+            orch._append_history(
+                "system",
+                "[Phase A] Skipped: benchmark plain.cpp retains HLS-native types.",
+            )
+            return True
+
         logging.info("=== [Phase A] Validating C code compilation ===")
         orch._append_history("system", Instruction_c2hls)
 
@@ -3309,6 +3324,10 @@ class C2HLSOrchestrator:
         self.header_name = "kernel.h"
         self.phaseb_mode = os.getenv(PHASEB_MODE_ENV, "").strip().lower()
         self.phase_b_fast_candidate = None
+        self._flow_phase_b_code = None
+        self._flow_phase_b_report = None
+        self._flow_skills_context = None
+        self._flow_step_skills_records: list[dict] = []
         self.hls_code = None
         self.synth_report = None
         self.testbench_code = ""
@@ -3813,6 +3832,760 @@ class C2HLSOrchestrator:
             return self.synthesis.synthesize_with_repair()
         finally:
             self._phaseb_multistep_context = prev_context
+
+    # ---- Pipelined flash (codegen / synth workers) ----
+
+    def pipelined_export_state(self) -> dict:
+        """Serialize orchestrator fields for cross-worker bench resume."""
+        extra = getattr(self, "_pipelined_ctx", None) or {}
+        return {
+            "version": 1,
+            "hls_code": self.hls_code,
+            "c_code": self.c_code,
+            "header_code": self.header_code,
+            "header_name": self.header_name,
+            "phaseb_mode": self.phaseb_mode,
+            "messages": self.messages,
+            "history": self.history,
+            "turn_results": self.turn_results,
+            "synth_report": self.synth_report,
+            "generated_csim": self.generated_csim,
+            "generated_cosim": self.generated_cosim,
+            "preflight_patches": self.preflight_patches,
+            "_baseline_report": getattr(self, "_baseline_report", None),
+            "_flow_phase_b_code": self._flow_phase_b_code,
+            "_flow_phase_b_report": self._flow_phase_b_report,
+            "_flow_skills_context": self._flow_skills_context,
+            "_flow_step_skills_records": getattr(self, "_flow_step_skills_records", None) or [],
+            "pipelined_ctx": extra,
+        }
+
+    def pipelined_import_state(self, state: dict) -> None:
+        """Restore orchestrator fields saved by ``pipelined_export_state``."""
+        self.hls_code = state.get("hls_code")
+        self.c_code = state.get("c_code")
+        self.header_code = state.get("header_code") or ""
+        self.header_name = state.get("header_name") or "kernel.h"
+        self.phaseb_mode = state.get("phaseb_mode") or self.phaseb_mode
+        self.messages = list(state.get("messages") or [])
+        self.history = list(state.get("history") or [])
+        self.turn_results = list(state.get("turn_results") or [])
+        self.synth_report = state.get("synth_report")
+        self.generated_csim = state.get("generated_csim")
+        self.generated_cosim = state.get("generated_cosim")
+        self.preflight_patches = list(state.get("preflight_patches") or [])
+        if state.get("_baseline_report") is not None:
+            self._baseline_report = dict(state["_baseline_report"])
+        self._flow_phase_b_code = state.get("_flow_phase_b_code")
+        self._flow_phase_b_report = state.get("_flow_phase_b_report")
+        self._flow_skills_context = state.get("_flow_skills_context")
+        self._flow_step_skills_records = list(state.get("_flow_step_skills_records") or [])
+        self._pipelined_ctx = dict(state.get("pipelined_ctx") or {})
+
+    def pipelined_phase_b_translate(self) -> dict:
+        """Initial Phase B LLM translate (codegen worker)."""
+        prev_context = getattr(self, "_phaseb_multistep_context", False)
+        self._phaseb_multistep_context = True
+        self.phaseb_mode = _normalize_phaseb_mode(
+            os.getenv(PHASEB_MODE_ENV, ""),
+            multistep=True,
+        )
+        try:
+            hls_code = self.translator.translate_initial()
+            if not hls_code:
+                return {"ok": False, "error": "no code in translate response"}
+            self.hls_code = hls_code
+            return {"ok": True}
+        finally:
+            self._phaseb_multistep_context = prev_context
+
+    def pipelined_phase_b_repair_codegen(self, repair_ctx: dict) -> dict:
+        """Phase B repair LLM turn after compile/synth/csim failure."""
+        orch = self
+        ctx = getattr(orch, "_pipelined_ctx", {})
+        kind = repair_ctx.get("kind") or "compile"
+        err = repair_ctx.get("error") or ""
+        turn = int(repair_ctx.get("attempt") or 0)
+
+        if kind == "compile":
+            fix_prompt = c_compilation_fix.format(
+                compile_error=err,
+                hls_code=orch.hls_code,
+                benchmark_context=orch.benchmark_context,
+                repair_guidance=orch.synthesis._compose_repair_guidance(err, report=None),
+                attempt_history=_format_attempt_history(orch.turn_results, "B"),
+            )
+        elif kind in ("csim", "cosim"):
+            fix_prompt = hls_correctness_repair_fix.format(
+                step_name="initial translation",
+                gate_name=kind,
+                gate_error=err[:2000],
+                hls_code=orch.hls_code,
+                header_code=orch.header_code,
+                benchmark_context=orch.benchmark_context,
+                attempt_history=_format_attempt_history(orch.turn_results, "B"),
+            )
+        else:
+            is_timeout = "timed out" in err.lower()
+            guidance = orch.synthesis._compose_repair_guidance(
+                err, report=repair_ctx.get("report"),
+            )
+            history_block = _format_attempt_history(orch.turn_results, "B")
+            if is_timeout:
+                fix_prompt = hls_synthesis_timeout_fix.format(
+                    timeout=600,
+                    hls_code=orch.hls_code,
+                    header_code=orch.header_code,
+                    benchmark_context=orch.benchmark_context,
+                    repair_guidance=guidance,
+                    attempt_history=history_block,
+                )
+            else:
+                fix_prompt = hls_synthesis_fix.format(
+                    synth_error=err,
+                    hls_code=orch.hls_code,
+                    header_code=orch.header_code,
+                    target_context=_target_context_for_prompt(orch.part, orch.clock_ns),
+                    benchmark_context=orch.benchmark_context,
+                    repair_guidance=guidance,
+                    attempt_history=history_block,
+                )
+
+        orch.messages.append({"role": "user", "content": fix_prompt})
+        reply = orch._call_llm(orch.messages)
+        orch.messages.append({"role": "assistant", "content": reply})
+        orch._append_history("user", fix_prompt)
+        orch._append_history("assistant", reply)
+        fixed = extract_cpp_code(reply)
+        if not fixed:
+            return {"ok": False, "error": f"no code in Phase B repair response (turn {turn})"}
+        orch.hls_code = fixed
+        ctx["phase_b_attempt"] = turn + 1
+        orch._pipelined_ctx = ctx
+        return {"ok": True}
+
+    def pipelined_phase_b_synth_once(self, attempt: int) -> dict:
+        """One Phase B compile+synth+csim iteration (synth worker)."""
+        orch = self
+        ctx = getattr(orch, "_pipelined_ctx", {})
+        if ctx.get("phase_b_best_state") is None:
+            ctx["phase_b_best_state"] = None
+        if ctx.get("phase_b_error_history") is None:
+            ctx["phase_b_error_history"] = []
+        best_state = ctx.get("phase_b_best_state")
+        error_class_history = ctx["phase_b_error_history"]
+        threshold = orch.synthesis.revert_threshold
+
+        logging.info("[Phase B] Synthesis attempt %d (pipelined)", attempt)
+        orch.hls_code = orch._preflight_generated_hls_code(
+            orch.hls_code, f"Phase B attempt {attempt}",
+        )
+
+        ok, err = compile_check_cpp(
+            orch.hls_code, orch.header_code, orch.header_name,
+            extra_files=orch.extra_files,
+        )
+        if not ok:
+            error_class_history.append(_classify_synth_error(err))
+            orch.turn_results.append({
+                "turn": attempt, "phase": "B", "success": False, "error": err,
+            })
+            if orch.synthesis._should_revert(error_class_history, best_state, threshold):
+                restored = orch.synthesis._revert_and_exit(
+                    error_class_history, best_state, threshold,
+                )
+                ctx["phase_b_done"] = restored
+                ctx["phase_b_success"] = restored
+                orch._pipelined_ctx = ctx
+                return {"status": "phase_b_done", "success": restored}
+            if attempt >= orch.turns_limitation - 1:
+                ctx["phase_b_done"] = True
+                ctx["phase_b_success"] = False
+                orch._pipelined_ctx = ctx
+                return {"status": "phase_b_done", "success": False, "error": err}
+            return {
+                "status": "need_codegen",
+                "repair": {"kind": "compile", "error": err, "attempt": attempt},
+            }
+
+        outcome = orch._synth_and_test(orch.hls_code, log_prefix="[Phase B]")
+        result = outcome["synth"]
+        orch.turn_results.append({
+            "turn": attempt,
+            "phase": "B",
+            "success": result["success"],
+            "report": result.get("report", {}),
+            "error": result.get("error", ""),
+        })
+
+        if result["success"]:
+            orch.synth_report = result["report"]
+            orch.generated_csim = outcome["csim"]
+            orch.generated_cosim = outcome["cosim"]
+            gate_name, gate_error = orch.synthesis._correctness_gate_failure(outcome)
+            if gate_name:
+                failure = f"{gate_name}_failed: {gate_error[:300]}"
+                orch.turn_results.append({
+                    "turn": attempt,
+                    "phase": "B",
+                    "success": False,
+                    "stage": gate_name,
+                    "report": result.get("report", {}),
+                    "csim": outcome.get("csim"),
+                    "cosim": outcome.get("cosim"),
+                    "error": failure,
+                })
+                error_class_history.append(f"{gate_name}_failed")
+                if orch.synthesis._should_revert(error_class_history, best_state, threshold):
+                    restored = orch.synthesis._revert_and_exit(
+                        error_class_history, best_state, threshold,
+                    )
+                    ctx["phase_b_done"] = True
+                    ctx["phase_b_success"] = restored
+                    orch._pipelined_ctx = ctx
+                    return {"status": "phase_b_done", "success": restored}
+                if attempt >= orch.turns_limitation - 1:
+                    ctx["phase_b_done"] = True
+                    ctx["phase_b_success"] = False
+                    orch._pipelined_ctx = ctx
+                    return {"status": "phase_b_done", "success": False, "error": failure}
+                return {
+                    "status": "need_codegen",
+                    "repair": {
+                        "kind": gate_name,
+                        "error": gate_error,
+                        "attempt": attempt,
+                    },
+                }
+            ctx["phase_b_best_state"] = orch.synthesis._record_best(
+                orch.hls_code, result, outcome,
+            )
+            ctx["phase_b_done"] = True
+            ctx["phase_b_success"] = True
+            if record_flow_enabled():
+                orch._flow_phase_b_code = orch.hls_code
+                orch._flow_phase_b_report = dict(orch.synth_report or {})
+            orch._baseline_report = dict(orch.synth_report or {})
+            orch._pipelined_ctx = ctx
+            return {"status": "phase_b_done", "success": True}
+
+        error_class_history.append(_classify_synth_error(result["error"]))
+        if orch.synthesis._should_revert(error_class_history, best_state, threshold):
+            restored = orch.synthesis._revert_and_exit(
+                error_class_history, best_state, threshold,
+            )
+            ctx["phase_b_done"] = True
+            ctx["phase_b_success"] = restored
+            orch._pipelined_ctx = ctx
+            return {"status": "phase_b_done", "success": restored}
+        if attempt >= orch.turns_limitation - 1:
+            ctx["phase_b_done"] = True
+            ctx["phase_b_success"] = False
+            orch._pipelined_ctx = ctx
+            return {
+                "status": "phase_b_done",
+                "success": False,
+                "error": result.get("error", ""),
+            }
+        return {
+            "status": "need_codegen",
+            "repair": {
+                "kind": "synth",
+                "error": result.get("error", ""),
+                "report": result.get("report"),
+                "attempt": attempt,
+            },
+        }
+
+    def pipelined_flash_codegen(self, repair_ctx: dict | None = None) -> dict:
+        """Flash-step LLM codegen (initial or repair)."""
+        step_name = "flash"
+        if repair_ctx:
+            return self._pipelined_flash_repair_codegen(step_name, repair_ctx)
+
+        new_code = self._optimization_step_initial_codegen(
+            step_name,
+            additional_guidance="",
+            skill_id=None,
+            candidate_index=0,
+            candidate_count=1,
+        )
+        if not new_code:
+            return {"ok": False, "error": "no code in flash LLM response"}
+        ctx = getattr(self, "_pipelined_ctx", {})
+        ctx["flash_pending_code"] = new_code
+        ctx["flash_step_turn_records"] = []
+        ctx["flash_attempt_results"] = []
+        self._pipelined_ctx = ctx
+        return {"ok": True, "code": new_code}
+
+    def _pipelined_flash_repair_codegen(self, step_name: str, repair_ctx: dict) -> dict:
+        ctx = getattr(self, "_pipelined_ctx", {})
+        kind = repair_ctx.get("kind") or "compile"
+        err = repair_ctx.get("error") or ""
+        new_code = ctx.get("flash_pending_code") or self.hls_code or ""
+        step_turn_records = list(ctx.get("flash_step_turn_records") or [])
+
+        if kind == "compile":
+            fix_prompt = c_compilation_fix.format(
+                compile_error=err,
+                hls_code=new_code,
+                benchmark_context=self.benchmark_context,
+                repair_guidance=self.synthesis._compose_repair_guidance(err, report=None),
+                attempt_history=_format_attempt_history(step_turn_records, "B"),
+            )
+        elif kind in ("csim", "cosim"):
+            fix_prompt = hls_correctness_repair_fix.format(
+                step_name=step_name,
+                gate_name=kind,
+                gate_error=err[:2000],
+                hls_code=new_code,
+                header_code=self.header_code,
+                benchmark_context=self.benchmark_context,
+                attempt_history=_format_attempt_history(step_turn_records, "B"),
+            )
+        else:
+            is_timeout = "timed out" in err.lower()
+            guidance = self.synthesis._compose_repair_guidance(
+                err, report=repair_ctx.get("report"),
+            )
+            history_block = _format_attempt_history(step_turn_records, "B")
+            if is_timeout:
+                fix_prompt = hls_synthesis_timeout_fix.format(
+                    timeout=600,
+                    hls_code=new_code,
+                    header_code=self.header_code,
+                    benchmark_context=self.benchmark_context,
+                    repair_guidance=guidance,
+                    attempt_history=history_block,
+                )
+            else:
+                fix_prompt = hls_synthesis_fix.format(
+                    synth_error=err,
+                    hls_code=new_code,
+                    header_code=self.header_code,
+                    target_context=_target_context_for_prompt(self.part, self.clock_ns),
+                    benchmark_context=self.benchmark_context,
+                    repair_guidance=guidance,
+                    attempt_history=history_block,
+                )
+
+        self.messages.append({"role": "user", "content": fix_prompt})
+        reply = self._call_llm(self.messages)
+        self.messages.append({"role": "assistant", "content": reply})
+        self._append_history("assistant", reply)
+        fixed = extract_cpp_code(reply)
+        if not fixed:
+            return {"ok": False, "error": "no code in flash repair response"}
+        ctx["flash_pending_code"] = fixed
+        self._pipelined_ctx = ctx
+        return {"ok": True, "code": fixed}
+
+    def pipelined_flash_synth_once(self, attempt: int) -> dict:
+        """One flash-step compile+synth+csim iteration (synth worker)."""
+        ctx = getattr(self, "_pipelined_ctx", {})
+        step_name = "flash"
+        new_code = ctx.get("flash_pending_code")
+        if not new_code:
+            return {"status": "flash_done", "success": False, "error": "missing flash code"}
+
+        step_turn_records = list(ctx.get("flash_step_turn_records") or [])
+        attempt_results = list(ctx.get("flash_attempt_results") or [])
+
+        logging.info("[Step: %s] Synthesis attempt %d (pipelined)", step_name, attempt)
+        new_code = self._preflight_generated_hls_code(
+            new_code, f"Step {step_name} attempt {attempt}",
+        )
+        ctx["flash_pending_code"] = new_code
+
+        ok, err = compile_check_cpp(
+            new_code, self.header_code, self.header_name,
+            extra_files=self.extra_files,
+        )
+        if not ok:
+            attempt_results.append({
+                "attempt_index": attempt,
+                "success": False,
+                "stage": "compile_check",
+                "error": err,
+            })
+            step_turn_records.append({"turn": attempt, "phase": "B", "success": False, "error": err})
+            ctx["flash_step_turn_records"] = step_turn_records
+            ctx["flash_attempt_results"] = attempt_results
+            self._pipelined_ctx = ctx
+            if attempt >= self.turns_limitation - 1:
+                ctx["flash_step_result"] = {
+                    "success": False,
+                    "step_name": step_name,
+                    "error": err,
+                    "attempt_results": attempt_results,
+                }
+                return {"status": "flash_done", "success": False, "error": err}
+            return {
+                "status": "need_codegen",
+                "repair": {"kind": "compile", "error": err, "attempt": attempt},
+            }
+
+        outcome = self._synth_and_test(
+            new_code, log_prefix=f"[Step: {step_name}]", step_name=step_name,
+        )
+        result = outcome["synth"]
+
+        if result["success"]:
+            step_result = {
+                "success": True,
+                "step_name": step_name,
+                "report": result["report"],
+                "code": new_code,
+            }
+            if self.synth_report:
+                step_result["vs_previous"] = compare_reports(
+                    result["report"], self.synth_report,
+                )
+            if outcome["csim"] is not None:
+                step_result["csim"] = outcome["csim"]
+            if outcome["cosim"] is not None:
+                step_result["cosim"] = outcome["cosim"]
+
+            csim_summary = outcome["csim"]
+            cosim_summary = outcome["cosim"]
+            csim_failed = (
+                isinstance(csim_summary, dict)
+                and csim_summary.get("ran")
+                and not csim_summary.get("passed")
+            )
+            cosim_failed = (
+                _cosim_required_for_correctness()
+                and isinstance(cosim_summary, dict)
+                and cosim_summary.get("ran")
+                and not cosim_summary.get("passed")
+            )
+            correctness_disabled = bool(int(
+                os.getenv("C2HLS_DISABLE_CORRECTNESS_REPAIR", "0") or "0"
+            ))
+            if (csim_failed or cosim_failed) and not correctness_disabled:
+                gate_name = "csim" if csim_failed else "cosim"
+                gate_summary = csim_summary if csim_failed else cosim_summary
+                gate_error = (
+                    (gate_summary.get("error") or "").strip() + "\n"
+                    + (gate_summary.get("log_excerpt") or "").strip()
+                ).strip() or "(testbench reported a mismatch)"
+                ctx["flash_step_turn_records"] = step_turn_records
+                ctx["flash_attempt_results"] = attempt_results
+                self._pipelined_ctx = ctx
+                if attempt >= self.turns_limitation - 1:
+                    ctx["flash_step_result"] = {
+                        "success": False,
+                        "step_name": step_name,
+                        "error": f"{gate_name}_failed",
+                    }
+                    return {"status": "flash_done", "success": False}
+                return {
+                    "status": "need_codegen",
+                    "repair": {
+                        "kind": gate_name,
+                        "error": gate_error,
+                        "attempt": attempt,
+                    },
+                }
+
+            self.hls_code = new_code
+            self.synth_report = result["report"]
+            ctx["flash_step_result"] = step_result
+            ctx["flash_done"] = True
+            self._pipelined_ctx = ctx
+            return {"status": "flash_done", "success": True, "step_result": step_result}
+
+        attempt_results.append({
+            "attempt_index": attempt,
+            "success": False,
+            "stage": "synthesis",
+            "report": result.get("report"),
+            "error": result.get("error", ""),
+        })
+        step_turn_records.append({
+            "turn": attempt, "phase": "B", "success": False,
+            "error": result.get("error", ""),
+        })
+        ctx["flash_step_turn_records"] = step_turn_records
+        ctx["flash_attempt_results"] = attempt_results
+        self._pipelined_ctx = ctx
+        if attempt >= self.turns_limitation - 1:
+            ctx["flash_step_result"] = {
+                "success": False,
+                "step_name": step_name,
+                "error": result.get("error", ""),
+            }
+            return {"status": "flash_done", "success": False}
+        return {
+            "status": "need_codegen",
+            "repair": {
+                "kind": "synth",
+                "error": result.get("error", ""),
+                "report": result.get("report"),
+                "attempt": attempt,
+            },
+        }
+
+    def _pipelined_step_pending_key(self, step_name: str) -> str:
+        return "flash_pending_code" if step_name == "flash" else f"{step_name}_pending_code"
+
+    def _pipelined_step_turn_key(self, step_name: str) -> str:
+        return "flash_step_turn_records" if step_name == "flash" else f"{step_name}_step_turn_records"
+
+    def _pipelined_step_attempt_key(self, step_name: str) -> str:
+        return "flash_attempt_results" if step_name == "flash" else f"{step_name}_attempt_results"
+
+    def _pipelined_step_result_key(self, step_name: str) -> str:
+        return "flash_step_result" if step_name == "flash" else f"{step_name}_step_result"
+
+    def _pipelined_step_done_status(self, step_name: str) -> str:
+        return "flash_done" if step_name == "flash" else "step_done"
+
+    def pipelined_multistep_step_codegen(
+        self,
+        step_name: str,
+        repair_ctx: dict | None = None,
+    ) -> dict:
+        """Multistep optimization-step LLM codegen (initial or repair)."""
+        if step_name == "flash":
+            return self.pipelined_flash_codegen(repair_ctx)
+        if repair_ctx:
+            return self._pipelined_opt_step_repair_codegen(step_name, repair_ctx)
+
+        new_code = self._optimization_step_initial_codegen(
+            step_name,
+            additional_guidance="",
+            skill_id=None,
+            candidate_index=0,
+            candidate_count=1,
+        )
+        if not new_code:
+            return {"ok": False, "error": f"no code in {step_name} LLM response"}
+        ctx = getattr(self, "_pipelined_ctx", {})
+        ctx[self._pipelined_step_pending_key(step_name)] = new_code
+        ctx[self._pipelined_step_turn_key(step_name)] = []
+        ctx[self._pipelined_step_attempt_key(step_name)] = []
+        self._pipelined_ctx = ctx
+        return {"ok": True, "code": new_code}
+
+    def _pipelined_opt_step_repair_codegen(self, step_name: str, repair_ctx: dict) -> dict:
+        ctx = getattr(self, "_pipelined_ctx", {})
+        pending_key = self._pipelined_step_pending_key(step_name)
+        turn_key = self._pipelined_step_turn_key(step_name)
+        kind = repair_ctx.get("kind") or "compile"
+        err = repair_ctx.get("error") or ""
+        new_code = ctx.get(pending_key) or self.hls_code or ""
+        step_turn_records = list(ctx.get(turn_key) or [])
+
+        if kind == "compile":
+            fix_prompt = c_compilation_fix.format(
+                compile_error=err,
+                hls_code=new_code,
+                benchmark_context=self.benchmark_context,
+                repair_guidance=self.synthesis._compose_repair_guidance(err, report=None),
+                attempt_history=_format_attempt_history(step_turn_records, "B"),
+            )
+        elif kind in ("csim", "cosim"):
+            fix_prompt = hls_correctness_repair_fix.format(
+                step_name=step_name,
+                gate_name=kind,
+                gate_error=err[:2000],
+                hls_code=new_code,
+                header_code=self.header_code,
+                benchmark_context=self.benchmark_context,
+                attempt_history=_format_attempt_history(step_turn_records, "B"),
+            )
+        else:
+            is_timeout = "timed out" in err.lower()
+            guidance = self.synthesis._compose_repair_guidance(
+                err, report=repair_ctx.get("report"),
+            )
+            history_block = _format_attempt_history(step_turn_records, "B")
+            if is_timeout:
+                fix_prompt = hls_synthesis_timeout_fix.format(
+                    timeout=600,
+                    hls_code=new_code,
+                    header_code=self.header_code,
+                    benchmark_context=self.benchmark_context,
+                    repair_guidance=guidance,
+                    attempt_history=history_block,
+                )
+            else:
+                fix_prompt = hls_synthesis_fix.format(
+                    synth_error=err,
+                    hls_code=new_code,
+                    header_code=self.header_code,
+                    target_context=_target_context_for_prompt(self.part, self.clock_ns),
+                    benchmark_context=self.benchmark_context,
+                    repair_guidance=guidance,
+                    attempt_history=history_block,
+                )
+
+        self.messages.append({"role": "user", "content": fix_prompt})
+        reply = self._call_llm(self.messages)
+        self.messages.append({"role": "assistant", "content": reply})
+        self._append_history("assistant", reply)
+        fixed = extract_cpp_code(reply)
+        if not fixed:
+            return {"ok": False, "error": f"no code in {step_name} repair response"}
+        ctx[pending_key] = fixed
+        self._pipelined_ctx = ctx
+        return {"ok": True, "code": fixed}
+
+    def pipelined_multistep_step_synth_once(self, step_name: str, attempt: int) -> dict:
+        """One multistep optimization compile+synth+csim iteration (synth worker)."""
+        if step_name == "flash":
+            return self.pipelined_flash_synth_once(attempt)
+
+        ctx = getattr(self, "_pipelined_ctx", {})
+        pending_key = self._pipelined_step_pending_key(step_name)
+        turn_key = self._pipelined_step_turn_key(step_name)
+        attempt_key = self._pipelined_step_attempt_key(step_name)
+        result_key = self._pipelined_step_result_key(step_name)
+        done_status = self._pipelined_step_done_status(step_name)
+
+        new_code = ctx.get(pending_key)
+        if not new_code:
+            return {"status": done_status, "success": False, "error": f"missing {step_name} code"}
+
+        step_turn_records = list(ctx.get(turn_key) or [])
+        attempt_results = list(ctx.get(attempt_key) or [])
+
+        logging.info("[Step: %s] Synthesis attempt %d (pipelined)", step_name, attempt)
+        new_code = self._preflight_generated_hls_code(
+            new_code, f"Step {step_name} attempt {attempt}",
+        )
+        ctx[pending_key] = new_code
+
+        ok, err = compile_check_cpp(
+            new_code, self.header_code, self.header_name,
+            extra_files=self.extra_files,
+        )
+        if not ok:
+            attempt_results.append({
+                "attempt_index": attempt,
+                "success": False,
+                "stage": "compile_check",
+                "error": err,
+            })
+            step_turn_records.append({"turn": attempt, "phase": "B", "success": False, "error": err})
+            ctx[turn_key] = step_turn_records
+            ctx[attempt_key] = attempt_results
+            self._pipelined_ctx = ctx
+            if attempt >= self.turns_limitation - 1:
+                ctx[result_key] = {
+                    "success": False,
+                    "step_name": step_name,
+                    "error": err,
+                    "attempt_results": attempt_results,
+                }
+                return {"status": done_status, "success": False, "error": err}
+            return {
+                "status": "need_codegen",
+                "repair": {"kind": "compile", "error": err, "attempt": attempt},
+            }
+
+        outcome = self._synth_and_test(
+            new_code, log_prefix=f"[Step: {step_name}]", step_name=step_name,
+        )
+        result = outcome["synth"]
+
+        if result["success"]:
+            step_result = {
+                "success": True,
+                "step_name": step_name,
+                "report": result["report"],
+                "code": new_code,
+            }
+            if self.synth_report:
+                step_result["vs_previous"] = compare_reports(
+                    result["report"], self.synth_report,
+                )
+            if outcome["csim"] is not None:
+                step_result["csim"] = outcome["csim"]
+            if outcome["cosim"] is not None:
+                step_result["cosim"] = outcome["cosim"]
+
+            csim_summary = outcome["csim"]
+            cosim_summary = outcome["cosim"]
+            csim_failed = (
+                isinstance(csim_summary, dict)
+                and csim_summary.get("ran")
+                and not csim_summary.get("passed")
+            )
+            cosim_failed = (
+                _cosim_required_for_correctness()
+                and isinstance(cosim_summary, dict)
+                and cosim_summary.get("ran")
+                and not cosim_summary.get("passed")
+            )
+            correctness_disabled = bool(int(
+                os.getenv("C2HLS_DISABLE_CORRECTNESS_REPAIR", "0") or "0"
+            ))
+            if (csim_failed or cosim_failed) and not correctness_disabled:
+                gate_name = "csim" if csim_failed else "cosim"
+                gate_summary = csim_summary if csim_failed else cosim_summary
+                gate_error = (
+                    (gate_summary.get("error") or "").strip() + "\n"
+                    + (gate_summary.get("log_excerpt") or "").strip()
+                ).strip() or "(testbench reported a mismatch)"
+                ctx[turn_key] = step_turn_records
+                ctx[attempt_key] = attempt_results
+                self._pipelined_ctx = ctx
+                if attempt >= self.turns_limitation - 1:
+                    ctx[result_key] = {
+                        "success": False,
+                        "step_name": step_name,
+                        "error": f"{gate_name}_failed",
+                    }
+                    return {"status": done_status, "success": False}
+                return {
+                    "status": "need_codegen",
+                    "repair": {
+                        "kind": gate_name,
+                        "error": gate_error,
+                        "attempt": attempt,
+                    },
+                }
+
+            self.hls_code = new_code
+            self.synth_report = result["report"]
+            ctx[result_key] = step_result
+            ctx[f"{step_name}_done"] = True
+            self._pipelined_ctx = ctx
+            return {"status": done_status, "success": True, "step_result": step_result}
+
+        attempt_results.append({
+            "attempt_index": attempt,
+            "success": False,
+            "stage": "synthesis",
+            "report": result.get("report"),
+            "error": result.get("error", ""),
+        })
+        step_turn_records.append({
+            "turn": attempt, "phase": "B", "success": False,
+            "error": result.get("error", ""),
+        })
+        ctx[turn_key] = step_turn_records
+        ctx[attempt_key] = attempt_results
+        self._pipelined_ctx = ctx
+        if attempt >= self.turns_limitation - 1:
+            ctx[result_key] = {
+                "success": False,
+                "step_name": step_name,
+                "error": result.get("error", ""),
+            }
+            return {"status": done_status, "success": False}
+        return {
+            "status": "need_codegen",
+            "repair": {
+                "kind": "synth",
+                "error": result.get("error", ""),
+                "report": result.get("report"),
+                "attempt": attempt,
+            },
+        }
 
     def _baseline_alignment_loop(
         self,
@@ -4373,20 +5146,16 @@ class C2HLSOrchestrator:
         )
         return chosen
 
-    def _optimization_step_attempt_single(self, step_name: str, gt_code: str = None,
-                                          additional_guidance: str = "",
-                                          gt_header_code: str = None,
-                                          skill_id: Optional[str] = None,
-                                          candidate_index: int = 0,
-                                          candidate_count: int = 1) -> dict:
-        """One optimization-step pass: LLM → synth + repair loop. Returns a
-        step_result dict with success / code / report / vs_previous / vs_ground_truth.
-
-        Does NOT commit self.hls_code / self.synth_report — the outer
-        run_optimization_step decides whether to accept based on the
-        regression check. This deferred-commit design is what makes the
-        regression guard possible.
-        """
+    def _optimization_step_initial_codegen(
+        self,
+        step_name: str,
+        *,
+        additional_guidance: str = "",
+        skill_id: Optional[str] = None,
+        candidate_index: int = 0,
+        candidate_count: int = 1,
+    ) -> Optional[str]:
+        """LLM-only first pass for an optimization step (no synth)."""
         exhaustive = _exhaustive_candidate_attempts_enabled()
         attempt_limit = (
             _candidate_attempt_count(self.turns_limitation)
@@ -4413,9 +5182,6 @@ class C2HLSOrchestrator:
                 current_code=self.hls_code,
             )
 
-        # Inject profile-signal hints + (if retrying) regression guidance into
-        # the prompt as an additional section. Keeps prompt templates
-        # untouched while letting the LLM see the actual bottlenecks.
         signal = _build_profile_signal(
             self.synth_report or {}, part=self.part,
             requested_clock_ns=self.clock_ns,
@@ -4439,10 +5205,6 @@ class C2HLSOrchestrator:
         if signal:
             extra_blocks.append(signal)
 
-        # Pillar 1: inject baseline-vs-current per-loop scope diff so the LLM
-        # understands which loops regressed and which new bottlenecks were
-        # introduced by the intermediate steps. Only injected when the baseline
-        # report has scope data and we are past the first optimization step.
         if (self._baseline_report
                 and step_name != "baseline"
                 and self.synth_report
@@ -4453,11 +5215,6 @@ class C2HLSOrchestrator:
             if scope_diff:
                 extra_blocks.append(scope_diff)
 
-        # Inject per-step resource constraints so the LLM knows its budget
-        # before generating code. Prevents aggressive over-parallelization
-        # (e.g. 30× DSP growth to fix II=144) that the regression guard would
-        # catch and revert, wasting a synthesis run and degrading subsequent
-        # steps. Always injected when we have a prior report to measure from.
         if self.synth_report and step_name:
             constraints = _render_step_resource_constraints(
                 step_name, self.synth_report, part=self.part
@@ -4465,11 +5222,6 @@ class C2HLSOrchestrator:
             if constraints:
                 extra_blocks.append(constraints)
 
-        # Phase 5b: when a skill library is loaded (dynamic-routing path) and
-        # the bottleneck-router has matched a skill for this step's bottleneck
-        # kind, inject the skill's pattern / strategy / template into the
-        # prompt so the LLM sees the proven recipe — not just the bare step
-        # name. Off when skill_library is None (static order, no router).
         if self.skill_library is not None and self.synth_report is not None:
             try:
                 from skill_library import (
@@ -4482,6 +5234,8 @@ class C2HLSOrchestrator:
                 prompt_skills = []
                 top_bottleneck_kind = None
                 skill_header = ""
+                curation_block = ""
+                skill_block = ""
 
                 if skill_mode == "all_skills_avoids_global":
                     prompt_skills = global_skills_for_prompt(
@@ -4558,8 +5312,30 @@ class C2HLSOrchestrator:
                     )
                     if skill_block and "No matching skills" not in skill_block:
                         extra_blocks.append(skill_header + skill_block)
-            except Exception as exc:  # pragma: no cover - skill injection best-effort
+
+                if record_flow_enabled():
+                    injected_parts = [part for part in (curation_block, skill_header + skill_block if skill_block else "") if part]
+                    self._record_flow_step_skills(
+                        step_name=step_name,
+                        skill_prompt_mode=skill_mode,
+                        skill_header=skill_header,
+                        prompt_skills=prompt_skills,
+                        injected_prompt_text="\n\n".join(injected_parts),
+                        top_bottleneck_kind=top_bottleneck_kind,
+                        skill_id=skill_id,
+                    )
+            except Exception as exc:  # pragma: no cover
                 logging.warning("Phase 5b skill-template injection failed: %s", exc)
+        elif record_flow_enabled():
+            self._record_flow_step_skills(
+                step_name=step_name,
+                skill_prompt_mode=_skill_prompt_mode(),
+                skill_header="",
+                prompt_skills=[],
+                injected_prompt_text="",
+                top_bottleneck_kind=None,
+                skill_id=skill_id,
+            )
 
         if additional_guidance:
             extra_blocks.append(additional_guidance)
@@ -4572,13 +5348,43 @@ class C2HLSOrchestrator:
         ]
 
         reply = self._call_llm(self.messages)
-        self._append_history("user", f"[Step: {step_name}] {prompt[:200]}...")
+        self._append_history("user", f"[Step: {step_name}] {prompt}")
         self._append_history("assistant", reply)
         self.messages.append({"role": "assistant", "content": reply})
 
         new_code = extract_cpp_code(reply)
         if not new_code:
             logging.error("[Step: %s] No code in LLM response", step_name)
+            return None
+        return new_code
+
+    def _optimization_step_attempt_single(self, step_name: str, gt_code: str = None,
+                                          additional_guidance: str = "",
+                                          gt_header_code: str = None,
+                                          skill_id: Optional[str] = None,
+                                          candidate_index: int = 0,
+                                          candidate_count: int = 1) -> dict:
+        """One optimization-step pass: LLM → synth + repair loop. Returns a
+        step_result dict with success / code / report / vs_previous / vs_ground_truth.
+
+        Does NOT commit self.hls_code / self.synth_report — the outer
+        run_optimization_step decides whether to accept based on the
+        regression check. This deferred-commit design is what makes the
+        regression guard possible.
+        """
+        exhaustive = _exhaustive_candidate_attempts_enabled()
+        attempt_limit = (
+            _candidate_attempt_count(self.turns_limitation)
+            if exhaustive else self.turns_limitation
+        )
+        new_code = self._optimization_step_initial_codegen(
+            step_name,
+            additional_guidance=additional_guidance,
+            skill_id=skill_id,
+            candidate_index=candidate_index,
+            candidate_count=candidate_count,
+        )
+        if not new_code:
             return {"success": False, "step_name": step_name,
                     "error": "No code in response",
                     "candidate_index": candidate_index,
@@ -5096,6 +5902,9 @@ class C2HLSOrchestrator:
         self._record_phase_b_fast_candidate(reference_report)
 
         baseline_report = dict(self.synth_report) if self.synth_report else {}
+        if record_flow_enabled():
+            self._flow_phase_b_code = self.hls_code
+            self._flow_phase_b_report = dict(baseline_report)
         # Store on self so _optimization_step_attempt can diff per-loop
         # bottlenecks of any subsequent step against the baseline (Pillar 1).
         self._baseline_report = baseline_report
@@ -5470,6 +6279,35 @@ class C2HLSOrchestrator:
             "llm_usage": self._llm_usage_summary(),
         }
 
+    def _record_flow_step_skills(
+        self,
+        *,
+        step_name: str,
+        skill_prompt_mode: str,
+        skill_header: str,
+        prompt_skills: list,
+        injected_prompt_text: str,
+        top_bottleneck_kind: Optional[str],
+        skill_id: Optional[str],
+    ) -> None:
+        record = capture_step_skills(
+            step_name=step_name,
+            skill_prompt_mode=skill_prompt_mode,
+            skill_header=skill_header,
+            prompt_skills=prompt_skills,
+            injected_prompt_text=injected_prompt_text,
+            top_bottleneck_kind=top_bottleneck_kind,
+            skill_id=skill_id,
+            skill_curation_record=getattr(self, "_skill_curation_record", None),
+            skill_library=self.skill_library,
+        )
+        if self.strategy == "flash":
+            self._flow_skills_context = record
+        else:
+            if self._flow_step_skills_records is None:
+                self._flow_step_skills_records = []
+            self._flow_step_skills_records.append(record)
+
     def save_results(self, output_dir: str, bench_name: str):
         os.makedirs(output_dir, exist_ok=True)
 
@@ -5492,23 +6330,70 @@ class C2HLSOrchestrator:
             with open(os.path.join(output_dir, f"{bench_name}_synth_report.json"), "w") as f:
                 json.dump(self.synth_report, f, indent=2)
 
+    def _save_flow_artifacts(self, output_dir: str, bench_name: str, results: dict) -> None:
+        """Persist pipeline artifacts when ``C2HLS_RECORD_FLOW=1``."""
+        if self.strategy == "flash":
+            flash_step = next(
+                (s for s in (results.get("steps") or []) if s.get("step_name") == "flash"),
+                None,
+            )
+            write_flow_artifacts(
+                output_dir,
+                bench_name,
+                plain_code=self.c_code or "",
+                phase_b_code=self._flow_phase_b_code or "",
+                phase_b_report=self._flow_phase_b_report or results.get("baseline_report") or {},
+                flash_opt_code=(flash_step or {}).get("code") or "",
+                flash_opt_report=(flash_step or {}).get("report") or {},
+                selected_code=self.hls_code or "",
+                selected_report=self.synth_report or results.get("final_report") or {},
+                results=results,
+                skills_context=self._flow_skills_context,
+            )
+            return
+
+        step_artifacts = []
+        for step in results.get("steps") or []:
+            step_artifacts.append({
+                "step_name": step.get("step_name"),
+                "code": step.get("code") or "",
+                "report": step.get("report") or {},
+                "success": bool(step.get("success")),
+            })
+        write_multistep_flow_artifacts(
+            output_dir,
+            bench_name,
+            plain_code=self.c_code or "",
+            phase_b_code=self._flow_phase_b_code or "",
+            phase_b_report=self._flow_phase_b_report or results.get("baseline_report") or {},
+            step_artifacts=step_artifacts,
+            selected_code=self.hls_code or "",
+            selected_report=self.synth_report or results.get("final_report") or {},
+            results=results,
+            skills_records=self._flow_step_skills_records or None,
+        )
+
     def save_multistep_results(self, output_dir: str, bench_name: str, results: dict):
         os.makedirs(output_dir, exist_ok=True)
+        record_flow = record_flow_enabled()
 
-        if self.hls_code:
+        if record_flow:
+            self._save_flow_artifacts(output_dir, bench_name, results)
+        elif self.hls_code:
             with open(os.path.join(output_dir, f"{bench_name}_final.cpp"), "w") as f:
                 f.write(self.hls_code)
 
-        steps_dir = os.path.join(output_dir, "steps")
-        os.makedirs(steps_dir, exist_ok=True)
-        for index, step in enumerate(results.get("steps", [])):
-            step_name = step.get("step_name", f"step_{index}")
-            if step.get("code"):
-                with open(os.path.join(steps_dir, f"{index}_{step_name}.cpp"), "w") as f:
-                    f.write(step["code"])
-            step_save = {key: value for key, value in step.items() if key != "code"}
-            with open(os.path.join(steps_dir, f"{index}_{step_name}_report.json"), "w") as f:
-                json.dump(step_save, f, indent=2, default=str)
+        if record_flow_legacy_steps_enabled() or not record_flow:
+            steps_dir = os.path.join(output_dir, "steps")
+            os.makedirs(steps_dir, exist_ok=True)
+            for index, step in enumerate(results.get("steps", [])):
+                step_name = step.get("step_name", f"step_{index}")
+                if step.get("code"):
+                    with open(os.path.join(steps_dir, f"{index}_{step_name}.cpp"), "w") as f:
+                        f.write(step["code"])
+                step_save = {key: value for key, value in step.items() if key != "code"}
+                with open(os.path.join(steps_dir, f"{index}_{step_name}_report.json"), "w") as f:
+                    json.dump(step_save, f, indent=2, default=str)
 
         results_save = {key: value for key, value in results.items() if key != "hls_code"}
         for step in results_save.get("steps", []):
@@ -5577,6 +6462,31 @@ class C2HLSOrchestrator:
         }
 
 
+def _is_benchmarks_cosim_corpus(meta: dict) -> bool:
+    return (meta.get("corpus") or "").strip() == "benchmarks_cosim"
+
+
+def _resolve_gold_baseline_file(meta: dict, bench_dir: Path) -> str:
+    """Pick the gold HLS kernel file for reference validation and GT fallback.
+
+    ``benchmarks_cosim`` benches ship ``hls_baseline_cosim.cpp`` (verified
+    cosim kernel). Legacy ``metadata.json`` variants still point at naive
+    ``hls_baseline.cpp`` from ``benchmarks/``; prefer the cosim kernel there.
+    """
+    preferred = meta.get("preferred_gt_file")
+    if preferred and (bench_dir / preferred).exists():
+        return preferred
+    if _is_benchmarks_cosim_corpus(meta):
+        cosim_file = meta.get("cosim_kernel_file", "hls_baseline_cosim.cpp")
+        if (bench_dir / cosim_file).exists():
+            return cosim_file
+    for variant in reversed(meta.get("variants", [])):
+        vfile = variant.get("file")
+        if vfile and (bench_dir / vfile).exists():
+            return vfile
+    return meta.get("gold_hls_baseline_file", "hls_baseline.cpp")
+
+
 def _load_benchmark_inputs(bench_dir: str) -> dict:
     bench_dir = Path(bench_dir)
     meta_path = bench_dir / "metadata.json"
@@ -5596,35 +6506,15 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
             header_code = f.read()
 
     ground_truth_code = None
-    gt_file = meta.get("gold_hls_baseline_file", "hls_baseline.cpp")
-
-    # GT-variant selection.
-    # Order of preference:
-    #   1. metadata["preferred_gt_file"]      — explicit override when a
-    #                                           specific variant must be used
-    #                                           (e.g. it's the only one whose
-    #                                           top signature matches the
-    #                                           testbench).
-    #   2. variants[-1]                       — the last (most optimized)
-    #                                           variant in the workflow.
-    #   3. gold_hls_baseline_file             — plain baseline fallback.
-    #
-    # Vitis HLS is the sole validator. We deliberately do NOT run a g++
-    # compile-check on GT variants: gold HLS code routinely uses HLS-only
-    # headers (ap_int.h via mc.h) that g++ cannot compile, so a preflight
-    # would false-reject valid variants. If Vitis later rejects the selected
-    # variant, validate_gold_reference()'s fallback-to-baseline handles it.
-    preferred = meta.get("preferred_gt_file")
-    if preferred and (bench_dir / preferred).exists():
-        gt_file = preferred
-        logging.info(f"Using preferred GT variant '{preferred}'")
+    gt_file = _resolve_gold_baseline_file(meta, bench_dir)
+    if _is_benchmarks_cosim_corpus(meta) and gt_file == meta.get("cosim_kernel_file", "hls_baseline_cosim.cpp"):
+        logging.info("Using benchmarks_cosim gold kernel '%s'", gt_file)
+    elif meta.get("preferred_gt_file") == gt_file:
+        logging.info("Using preferred GT variant '%s'", gt_file)
     else:
-        variants = meta.get("variants", [])
-        for variant in reversed(variants):
-            vfile = variant["file"]
-            if (bench_dir / vfile).exists():
-                gt_file = vfile
-                logging.info(f"Using last variant '{variant['name']}' as ground truth")
+        for variant in reversed(meta.get("variants", [])):
+            if variant.get("file") == gt_file:
+                logging.info("Using last variant '%s' as ground truth", variant.get("name"))
                 break
 
     gt_path = bench_dir / gt_file
@@ -5646,6 +6536,10 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
     # identifier". Pair the variant cpp with its sibling header from upstream.
     gt_variants = {}
     gt_variant_headers = {}
+    if _is_benchmarks_cosim_corpus(meta):
+        cosim_gt = bench_dir / gt_file
+        if cosim_gt.exists():
+            gt_variants["baseline"] = cosim_gt.read_text()
     for variant in meta.get("variants", []):
         vname = variant["name"]
         vfile = variant["file"]
@@ -5653,6 +6547,8 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
         if not vpath.exists():
             continue
         step_key = _normalize_variant_step_name(vname)
+        if _is_benchmarks_cosim_corpus(meta) and step_key == "baseline":
+            continue
         with open(vpath, "r") as f:
             gt_variants[step_key] = f.read()
         # Prefer the upstream variant's own header so per-variant `#define`s
@@ -5692,6 +6588,15 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
                 continue
             extra_files.append({"path": rel_path, "content": file_path.read_text()})
             extra_file_paths.add(rel_path)
+
+    # Ship every bench-local header so gold kernels that #include "params.h"
+    # (or other siblings of header_file) resolve during reference validation.
+    for header_path in sorted(bench_dir.glob("*.h")):
+        rel_path = header_path.name
+        if rel_path in extra_file_paths:
+            continue
+        extra_files.append({"path": rel_path, "content": header_path.read_text()})
+        extra_file_paths.add(rel_path)
 
     # GT code is deliberately NOT passed here. _build_benchmark_context may
     # only look at plain C, the header, the testbench-visible signature, and
@@ -5767,6 +6672,22 @@ def _ground_truth_candidates(inputs: dict) -> list[dict]:
     seen_files = set()
     default_header_name = meta.get("header_file") or inputs.get("header_name") or "kernel.h"
     default_header_code = inputs.get("header_code", "")
+
+    if _is_benchmarks_cosim_corpus(meta):
+        cosim_file = _resolve_gold_baseline_file(meta, bench_dir)
+        cosim_path = bench_dir / cosim_file
+        if cosim_path.exists():
+            return [
+                {
+                    "variant_name": f"{meta.get('benchmark', bench_dir.name)}_cosim_baseline",
+                    "file": cosim_file,
+                    "step_name": "baseline",
+                    "source_path": meta.get("algorithm_source_path", ""),
+                    "header_name": default_header_name,
+                    "header_code": default_header_code,
+                    "code": cosim_path.read_text(),
+                }
+            ]
 
     for variant in meta.get("variants", []):
         variant_file = variant.get("file")
@@ -7169,6 +8090,7 @@ def run_benchmark(bench_dir: str, output_dir: str = None,
         benchmark_name=bench_name,
         benchmark_context=inputs.get("benchmark_context", ""),
     )
+    orchestrator.skip_phase_a = bool(inputs["meta"].get("skip_phase_a"))
 
     reference_validation = validate_gold_reference(inputs)
 
@@ -7288,6 +8210,7 @@ def _run_benchmark_multistep_body(
         benchmark_name=bench_name,
         benchmark_context=inputs.get("benchmark_context", ""),
     )
+    orchestrator.skip_phase_a = bool(inputs["meta"].get("skip_phase_a"))
 
     reference_validation = validate_gold_reference(inputs)
     if not reference_validation.get("benchmark_ready"):

@@ -59,9 +59,9 @@ if [[ -n "${FIRST_CELL}" ]]; then
 import json, os, sys
 from pathlib import Path
 sys.path.insert(0, os.environ["C2HLS_ROOT"])
-from scripts.pc2.flash_cosim_lib import CosimCell, load_cosim_inputs
+from scripts.pc2.flash_cosim_lib import CosimCell, cosim_benchmarks_root, load_cosim_inputs
 cell = CosimCell(**json.loads(os.environ["FIRST_CELL"]))
-bench_dir = Path(os.environ["C2HLS_ROOT"]) / "benchmarks" / cell.bench
+bench_dir = cosim_benchmarks_root() / cell.bench
 inputs = load_cosim_inputs(bench_dir)
 print(f"cell_id={cell.cell_id}")
 print(f"bench={cell.bench} top={inputs['top_function']}")

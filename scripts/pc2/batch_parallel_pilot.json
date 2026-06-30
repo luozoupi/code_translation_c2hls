@@ -1,0 +1,27 @@
+{
+  "synth_nodes_per_variant": 2,
+  "synth_workers_per_node": 4,
+  "cosim_nodes_per_variant": 4,
+  "cosim_workers_per_node": 2,
+  "worker_cpus": 8,
+  "worker_mem_gb": 32,
+  "gpu_batch_threshold": 5,
+  "gpu_batch_flush_s": 3600,
+  "park_threshold_s": 7200,
+  "long_cosim_park_s": 3600,
+  "park_grace_s": 1800,
+  "cosim_timeout_s": 43200,
+  "bench_order": "short_first",
+  "bench_seeding": "short_first_waves",
+  "max_inflight_benches": 3,
+  "poll_sec": 2.0,
+  "coordinator_poll_sec": 15.0,
+  "pilot": {
+    "variant": "aav_n",
+    "benches": ["hlsfactory_jacobi-1d", "hlsfactory_gesummv", "hlsfactory_correlation", "hlsfactory_fdtd-2d"],
+    "workflow": "flash",
+    "failure_policy": "ignore",
+    "model": "devstral2",
+    "turns": 4
+  }
+}

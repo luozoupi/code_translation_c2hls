@@ -16,6 +16,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from c2hls_temp import C2HLS_TMP_ROOT_ENV, configure_temp_env, make_tempdir
+from hls_log_compact import compact_cosim_work_dir_logs
 
 # Pillar 1: fine-grained per-scope HLS feedback (per-loop II / Slack / Issue,
 # scheduler-blame, typed bottleneck records). Imported lazily inside
@@ -45,6 +46,10 @@ logging.basicConfig(
 #   C2HLS_COSIM_TRACE_LEVEL
 #                         Vitis cosim trace level. Default "none" avoids
 #                         simulator waveform/debug setup for batch sweeps.
+#   C2HLS_COSIM_COMPACT_LOGS
+#                         When enabled (default), replace oversized Vitis/XSim
+#                         work-dir logs (hls_run_tcl.log, xsim.log) with a
+#                         compact header + last N warnings + tail after cosim.
 def _resolve_vitis_settings() -> str | None:
     """Return a usable Vitis settings64.sh path, or None if vitis-run is
     already on PATH (no `source` prepend needed).
@@ -732,8 +737,12 @@ add_files {src_file}
 """
     if hdr_file:
         tcl_content += f"add_files {hdr_file}\n"
-    tcl_content += f"""add_files -tb {tb_file}
-open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
+    tcl_content += f"add_files -tb {tb_file}\n"
+    for rel_path, _content, tb in _normalize_extra_files(extra_files):
+        if rel_path.endswith(".cpp") and tb:
+            extra_path = os.path.join(work_dir, rel_path)
+            tcl_content += f"add_files -tb {extra_path}\n"
+    tcl_content += f"""open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default
 csim_design
@@ -866,6 +875,8 @@ exit
     if kernel_runtime_cycles is not None and kernel_clock_freq_mhz:
         kernel_runtime_us = kernel_runtime_cycles / kernel_clock_freq_mhz
 
+    compact_stats = compact_cosim_work_dir_logs(work_dir)
+
     return {
         "success": success,
         "passed": passed,
@@ -875,6 +886,7 @@ exit
         "kernel_runtime_cycles": kernel_runtime_cycles,
         "kernel_runtime_us": kernel_runtime_us,
         "kernel_clock_freq_mhz": kernel_clock_freq_mhz,
+        "log_compact_stats": compact_stats,
     }
 
 

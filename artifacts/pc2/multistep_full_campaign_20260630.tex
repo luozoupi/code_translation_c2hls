@@ -1,0 +1,258 @@
+\documentclass[11pt]{article}
+\usepackage[margin=18mm]{geometry}
+\usepackage{booktabs, longtable, array, multirow}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{ragged2e}
+\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+
+\title{Multistep Fixed-Cosim Campaign --- Full 28-Bench Corpus}
+\author{C2HLS / PC2}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\section*{Executive summary}
+
+Full-corpus multistep pipelined runs on \textbf{28} HLSFactory \texttt{benchmarks\_cosim} kernels
+(Xilinx \texttt{xcu280-fsvh2892-2L-e}, 4\,ns target clock). Workflow per benchmark:
+Phase~A (C$\rightarrow$HLS reference validation), Phase~B (initial HLS translate + csynth/csim),
+then five sequential single-technique optimization steps:
+\emph{coalescing}, \emph{tiling}, \emph{pipeline}, \emph{unroll}, \emph{doublebuffer}.
+\textbf{RTL cosim was not executed} (csynth + csim only).
+LLM: \texttt{mistralai/Devstral-2-123B-Instruct-2512}.
+Pipelined runner with 4 synth workers; GPU session + compute node.
+
+\begin{itemize}
+  \item \textbf{nav\_n}: 90-skill library, all skills injected, \emph{no avoids}.
+  \item \textbf{noskills}: skills disabled (LLM-only multistep baseline).
+  \item \textbf{aav\_n} (90 skills + avoids): full corpus submitted separately; results pending at report time.
+\end{itemize}
+
+Both completed campaigns reported here: \textbf{26/28 OK}, \textbf{2 failures} each.
+Selected result = lowest-latency successful step among phase\_b and the five optimization steps.
+
+\section{Aggregate csynth speedup (26 OK benches)}
+
+\begin{table}[h]
+\centering
+\caption{Geometric and median speedup of \emph{selected} kernel vs phase\_b and ground-truth synthesis latency.}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Variant} & \textbf{OK} & \textbf{Fail} & \textbf{Gmean vs phase\_b} & \textbf{Gmean vs GT} & \textbf{Median vs GT} \\
+\midrule
+nav\_n & 26 & 2 & 26.17$\times$ & 16.51$\times$ & 9.93$\times$ \\
+noskills & 26 & 2 & 18.72$\times$ & 10.55$\times$ & 5.70$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Campaign configuration}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Variant} & \textbf{Stamp} & \textbf{Skills} & \textbf{JSONL export} \\
+\midrule
+nav\_n & \texttt{20260630\_fixed\_cosim\_multistep\_nav\_n\_pipelined} & 90 (all injected, no avoids) & \texttt{misc/hlsfactory\_fixed\_cosim\_multistep\_nav\_n\_u280\_20260630.jsonl} \\
+noskills & \texttt{20260630\_fixed\_cosim\_multistep\_noskills\_pipelined} & 0 (skills disabled) & \texttt{misc/hlsfactory\_fixed\_cosim\_multistep\_noskills\_u280\_20260630.jsonl} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Per-benchmark results}
+
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.12}
+\begin{longtable}{@{}l cc cc cc L{1.6cm} L{1.6cm}@{}}
+\caption{Per-bench phase\_b and selected csynth latency (cycles) with speedup vs phase\_b.}\\
+\toprule
+\textbf{Bench} & \multicolumn{2}{c}{\textbf{phase\_b}} & \multicolumn{2}{c}{\textbf{selected}} & \multicolumn{2}{c}{\textbf{spd vs ph.B}} & \textbf{nav step} & \textbf{nos step} \\
+ & nav & nos & nav & nos & nav & nos & & \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Bench} & \multicolumn{2}{c}{\textbf{phase\_b}} & \multicolumn{2}{c}{\textbf{selected}} & \multicolumn{2}{c}{\textbf{spd vs ph.B}} & \textbf{nav step} & \textbf{nos step} \\
+ & nav & nos & nav & nos & nav & nos & & \\
+\midrule
+\endhead
+\midrule
+\multicolumn{9}{r}{\emph{continued on next page}}\\
+\midrule
+\endfoot
+\bottomrule
+\endlastfoot
+2mm & \textbf{FAIL} & 2.13M & \textbf{FAIL} & 165.4k & \textbf{FAIL} & 12.9$\times$ & fail & coalescing \\
+3mm & 44.04M & 44.04M & 2.22M & 0 & 19.8$\times$ & --- & doublebuffer & doublebuffer \\
+atax & 2.33M & 2.33M & 195 & 94.7k & 11940$\times$ & 24.6$\times$ & doublebuffer & unroll \\
+bicg & 2.27M & 2.27M & 187 & 120.7k & 12146$\times$ & 18.8$\times$ & doublebuffer & unroll \\
+cholesky & 66.22M & 66.22M & 5.92M & 8.91M & 11.2$\times$ & 7.44$\times$ & pipeline & unroll \\
+correlation & 52.27M & 52.27M & 1.42M & 1.61M & 36.8$\times$ & 32.5$\times$ & tiling & unroll \\
+covariance & 62.47M & 62.47M & 2.42M & 4.54M & 25.8$\times$ & 13.8$\times$ & pipeline & tiling \\
+doitgen & 272.0k & 272.0k & 203.0k & 111.3k & 1.34$\times$ & 2.44$\times$ & tiling & doublebuffer \\
+durbin & 99.6k & 99.6k & 53.0k & 99.6k & 1.88$\times$ & 1.00$\times$ & tiling & phase\_b \\
+fdtd-2d & 92.81M & 92.81M & 600.8k & 1.82M & 154$\times$ & 50.9$\times$ & tiling & coalescing \\
+floyd-warshall & 833.98M & 833.98M & 16.69M & 1.68M & 50.0$\times$ & 495$\times$ & unroll & unroll \\
+gemm & 52.60M & 52.60M & 105.5k & 996.3k & 498$\times$ & 52.8$\times$ & unroll & doublebuffer \\
+gemver & 2.54M & \textbf{FAIL} & 165.1k & \textbf{FAIL} & 15.4$\times$ & \textbf{FAIL} & unroll & fail \\
+gesummv & 1.36M & 1.36M & 0 & 21.3k & --- & 63.8$\times$ & doublebuffer & pipeline \\
+gramschmidt & 1.68M & 1.68M & 989.5k & 18.6k & 1.69$\times$ & 90.1$\times$ & doublebuffer & doublebuffer \\
+heat-3d & 3.28M & 3.28M & 2.99M & 1.42M & 1.10$\times$ & 2.32$\times$ & unroll & coalescing \\
+jacobi-1d & 41.1k & 41.1k & 17.4k & 20.4k & 2.36$\times$ & 2.02$\times$ & doublebuffer & doublebuffer \\
+jacobi-2d & 3.11M & 3.11M & 2.79M & 1.36M & 1.12$\times$ & 2.28$\times$ & pipeline & coalescing \\
+lu & 130.16M & 130.16M & 4.19M & 0 & 31.1$\times$ & --- & unroll & doublebuffer \\
+ludcmp & 8.34M & 8.34M & 4.83M & 2.70M & 1.73$\times$ & 3.09$\times$ & tiling & doublebuffer \\
+mvt & 198.8k & 198.8k & 26.0k & 130.7k & 7.64$\times$ & 1.52$\times$ & doublebuffer & unroll \\
+nussinov & 209.51M & 209.51M & 5.83M & 32.5k & 35.9$\times$ & 6452$\times$ & tiling & doublebuffer \\
+seidel-2d & 119.19M & 119.19M & 548.1k & 16.34M & 217$\times$ & 7.29$\times$ & tiling & pipeline \\
+symm & \textbf{FAIL} & 22.75M & \textbf{FAIL} & 2.08M & \textbf{FAIL} & 10.9$\times$ & fail & pipeline \\
+syr2k & 31.89M & 31.89M & 0 & 199.7k & --- & 160$\times$ & doublebuffer & unroll \\
+syrk & 30.35M & 30.35M & 213.2k & 142.3k & 142$\times$ & 213$\times$ & unroll & coalescing \\
+trisolv & 1.12M & 1.12M & 82.2k & 105.7k & 13.7$\times$ & 10.6$\times$ & pipeline & tiling \\
+trmm & 21.89M & \textbf{FAIL} & 287.1k & \textbf{FAIL} & 76.2$\times$ & \textbf{FAIL} & pipeline & fail \\
+\end{longtable}
+\normalsize
+
+\section{Per-step latency (nav\_n)}
+
+\footnotesize
+\begin{longtable}{@{}lrrrrrr@{}}
+\caption{nav\_n: csynth latency per optimization step (cycles).}\\
+\toprule
+\textbf{Bench} & \textbf{GT} & \textbf{ph.B} & \textbf{coal.} & \textbf{tile} & \textbf{pipe} & \textbf{unroll} & \textbf{dblbuf} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Bench} & \textbf{GT} & \textbf{ph.B} & \textbf{coal.} & \textbf{tile} & \textbf{pipe} & \textbf{unroll} & \textbf{dblbuf} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+2mm & \multicolumn{7}{l}{\textbf{FAIL}: pipeline step failed} \\
+3mm & 2.38M & 44.04M & 2.22M & 14.72M & 44.04M & 6.48M & 2.22M \\
+atax & 2.29M & 2.33M & 195 & 2.15M & 16.5k & 16.5k & 195 \\
+bicg & 2.19M & 2.27M & 187 & 2.09M & 91.5k & 89.6k & 187 \\
+cholesky & 68.34M & 66.22M & 385.45M & 6.26M & 5.92M & 5.92M & 387.16M \\
+correlation & 2.70M & 52.27M & --- & 1.42M & 2.72M & 2.71M & --- \\
+covariance & 2.65M & 62.47M & 2.81M & 3.13M & 2.42M & 2.42M & 2.81M \\
+doitgen & 318.5k & 272.0k & 2.27M & 203.0k & 1.91M & 2.24M & 2.28M \\
+durbin & 123.5k & 99.6k & 401.4k & 53.0k & 95.1k & 525.6k & 401.4k \\
+fdtd-2d & 57.06M & 92.81M & 909.6k & 600.8k & 2.29M & 797.2k & 909.6k \\
+floyd-warshall & 833.98M & 833.98M & 16.69M & --- & 21.68M & 16.69M & 16.69M \\
+gemm & 50.15M & 52.60M & --- & 355.1k & 355.1k & 105.5k & --- \\
+gemver & 2.55M & 2.54M & 4.50M & 1.25M & 724.8k & 165.1k & 4.50M \\
+gesummv & 65.0k & 1.36M & 0 & 17.4k & 17.4k & 17.4k & 0 \\
+gramschmidt & 2.27M & 1.68M & 989.5k & 2.37M & 2.37M & 1.88M & 989.5k \\
+heat-3d & 3.28M & 3.28M & 2.99M & 3.02M & 3.02M & 2.99M & 3.02M \\
+jacobi-1d & 41.8k & 41.1k & 19.4k & 35.8k & 29.3k & 25.2k & 17.4k \\
+jacobi-2d & 3.11M & 3.11M & 2.79M & 10.46M & 2.79M & 2.79M & 2.79M \\
+lu & 134.37M & 130.16M & 4.19M & 6.38M & 6.33M & 4.19M & 4.19M \\
+ludcmp & 10.04M & 8.34M & 260.46M & 4.83M & 11.48M & 11.48M & 260.46M \\
+mvt & 216.4k & 198.8k & 26.0k & 156.4k & 156.4k & 156.4k & 26.0k \\
+nussinov & 209.51M & 209.51M & 2411.88M & 5.83M & 7.52M & 20.64M & 1879.69M \\
+seidel-2d & 132.56M & 119.19M & 31.22M & 548.1k & 548.1k & 548.1k & 31.22M \\
+symm & \multicolumn{7}{l}{\textbf{FAIL}: /scratch/hpc-prf-llmfpga/asa582/projects/c2hls/c2hls\_tmp/c2hls\_compile\_\_hlsfa...} \\
+syr2k & 28.63M & 31.89M & 0 & 798.6k & 222.9k & 414.9k & 0 \\
+syrk & 28.63M & 30.35M & 426.4k & 791.4k & 800.5k & 213.2k & 426.4k \\
+trisolv & 89.2k & 1.12M & 5.52M & 1.08M & 82.2k & 2.77M & 5.52M \\
+trmm & 22.59M & 21.89M & 287.1k & --- & 287.1k & 287.1k & 287.1k \\
+\end{longtable}
+\normalsize
+
+\section{Per-step latency (noskills)}
+
+\footnotesize
+\begin{longtable}{@{}lrrrrrr@{}}
+\caption{noskills: csynth latency per optimization step (cycles).}\\
+\toprule
+\textbf{Bench} & \textbf{GT} & \textbf{ph.B} & \textbf{coal.} & \textbf{tile} & \textbf{pipe} & \textbf{unroll} & \textbf{dblbuf} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Bench} & \textbf{GT} & \textbf{ph.B} & \textbf{coal.} & \textbf{tile} & \textbf{pipe} & \textbf{unroll} & \textbf{dblbuf} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+2mm & 1.28M & 2.13M & 165.4k & 772.1k & 166.1k & 166.1k & 166.1k \\
+3mm & 2.38M & 44.04M & 0 & 1.52M & 2.19M & 2.29M & 0 \\
+atax & 2.29M & 2.33M & 96.6k & 2.15M & 106.0k & 94.7k & 96.5k \\
+bicg & 2.19M & 2.27M & --- & 2.19M & 132.9k & 120.7k & --- \\
+cholesky & 68.34M & 66.22M & 8.91M & 21.27M & 8.94M & 8.91M & 8.91M \\
+correlation & 2.70M & 52.27M & 81.92M & 1.62M & 1.62M & 1.61M & 81.92M \\
+covariance & 2.65M & 62.47M & 6.92M & 4.54M & 6.94M & 6.93M & 6.93M \\
+doitgen & 318.5k & 272.0k & 111.3k & 272.0k & 271.5k & 271.5k & 111.3k \\
+durbin & 123.5k & 99.6k & 166.3k & 178.8k & 164.6k & 224.8k & 226.5k \\
+fdtd-2d & 57.06M & 92.81M & 1.82M & --- & 2.22M & 3.47M & 1.83M \\
+floyd-warshall & 833.98M & 833.98M & 12.17M & 11.73M & 5.90M & 1.68M & 12.17M \\
+gemm & 50.15M & 52.60M & 1.31M & 1.86M & 1.86M & 1.23M & 996.3k \\
+gemver & \multicolumn{7}{l}{\textbf{FAIL}: tiling step failed} \\
+gesummv & 65.0k & 1.36M & 59.0k & 65.5k & 21.3k & 21.3k & 59.0k \\
+gramschmidt & 2.27M & 1.68M & 18.6k & 293.5k & 1.31M & 1.31M & 18.6k \\
+heat-3d & 3.28M & 3.28M & 1.42M & 1.42M & 1.42M & 2.71M & 2.71M \\
+jacobi-1d & 41.8k & 41.1k & 51.9k & 52.8k & 51.7k & 44.7k & 20.4k \\
+jacobi-2d & 3.11M & 3.11M & 1.36M & 1.85M & 1.85M & 2.45M & 1.82M \\
+lu & 134.37M & 130.16M & 0 & 172.94M & 115.52M & 115.52M & 0 \\
+ludcmp & 10.04M & 8.34M & 2.70M & 29.08M & 2.71M & 2.71M & 2.70M \\
+mvt & 216.4k & 198.8k & 277.2k & 188.3k & 130.8k & 130.7k & 277.2k \\
+nussinov & 209.51M & 209.51M & 32.5k & --- & 1.67M & 5.64M & 32.5k \\
+seidel-2d & 132.56M & 119.19M & 18.36M & 198.40M & 16.34M & 18.36M & 18.36M \\
+symm & 3.35M & 22.75M & 17.82M & 21.42M & 2.08M & 6.77M & 257837.13M \\
+syr2k & 28.63M & 31.89M & 35.21M & 1.18M & 221.1k & 199.7k & 30.62M \\
+syrk & 28.63M & 30.35M & 142.3k & 1.19M & 271.9k & 740.2k & 145.2k \\
+trisolv & 89.2k & 1.12M & 6.02M & 105.7k & 106.1k & 106.1k & 5.58M \\
+trmm & \multicolumn{7}{l}{\textbf{FAIL}: doublebuffer step failed} \\
+\end{longtable}
+\normalsize
+
+\section{Failures}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llL{7cm}@{}}
+\toprule
+\textbf{Variant} & \textbf{Bench} & \textbf{Error (truncated)} \\
+\midrule
+nav\_n & 2mm & pipeline step failed \\
+noskills & gemver & tiling step failed \\
+nav\_n & symm & /scratch/hpc-prf-llmfpga/asa582/projects/c2hls/c2hls\_tmp/c2hls\_compile\_\_hlsfa... \\
+noskills & trmm & doublebuffer step failed \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Head-to-head notes}
+
+\begin{itemize}
+  \item \textbf{nav\_n $\gg$ noskills} (selected speedup vs phase\_b $\geq 5\times$ higher): \texttt{atax}, \texttt{bicg}, \texttt{gemm}, \texttt{mvt}, \texttt{seidel-2d}.
+  \item \textbf{noskills $\gg$ nav\_n}: \texttt{floyd-warshall}, \texttt{gramschmidt}, \texttt{nussinov}.
+  \item \textbf{nav\_n failed / noskills OK}: \texttt{2mm}, \texttt{symm}.
+  \item \textbf{noskills failed / nav\_n OK}: \texttt{gemver}, \texttt{trmm}.
+\end{itemize}
+
+\section{Data exports and analysis CSVs}
+
+\begin{itemize}
+  \item \textbf{nav\_n}: \texttt{misc/hlsfactory\_fixed\_cosim\_multistep\_nav\_n\_u280\_20260630.jsonl}
+  \item CSV: \texttt{artifacts/pc2/analysis/20260630_fixed_cosim_multistep_nav_n_pipelined/csynth\_speedup\_per\_bench.csv}
+  \item CSV: \texttt{artifacts/pc2/analysis/20260630_fixed_cosim_multistep_nav_n_pipelined/csynth\_speedup\_step\_progression.csv}
+  \item Summary MD: \texttt{artifacts/pc2/analysis/20260630_fixed_cosim_multistep_nav_n_pipelined/summary.md}
+  \item \textbf{noskills}: \texttt{misc/hlsfactory\_fixed\_cosim\_multistep\_noskills\_u280\_20260630.jsonl}
+  \item CSV: \texttt{artifacts/pc2/analysis/20260630_fixed_cosim_multistep_noskills_pipelined/csynth\_speedup\_per\_bench.csv}
+  \item CSV: \texttt{artifacts/pc2/analysis/20260630_fixed_cosim_multistep_noskills_pipelined/csynth\_speedup\_step\_progression.csv}
+  \item Summary MD: \texttt{artifacts/pc2/analysis/20260630_fixed_cosim_multistep_noskills_pipelined/summary.md}
+\end{itemize}
+
+\section{Artifact roots}
+
+\begin{verbatim}
+/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/artifacts/pc2/multistep_fixed_cosim_nav_n_20260630_fixed_cosim_multistep_nav_n_pipelined
+/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/artifacts/pc2/multistep_fixed_cosim_noskills_20260630_fixed_cosim_multistep_noskills_pipelined
+\end{verbatim}
+
+\end{document}

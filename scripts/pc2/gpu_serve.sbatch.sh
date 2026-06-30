@@ -11,6 +11,11 @@ _REPO_ROOT="${C2HLS_ROOT:-${SLURM_SUBMIT_DIR:?missing SLURM_SUBMIT_DIR}}"
 SCRIPT_DIR="${_REPO_ROOT}/scripts/pc2"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/common.sh"
+if [[ -n "${BATCH_PARALLEL_CAMPAIGN_ROOT:-}" ]]; then
+  export PC2_SESSION_DIR="${BATCH_PARALLEL_CAMPAIGN_ROOT}"
+  export PC2_ENDPOINT_FILE="${BATCH_PARALLEL_CAMPAIGN_ROOT}/llm_endpoint.json"
+  export PC2_WATCH_LOG="${BATCH_PARALLEL_CAMPAIGN_ROOT}/flow/watch.log"
+fi
 cd "${C2HLS_ROOT}"
 mkdir -p "${PC2_SESSION_DIR}"
 

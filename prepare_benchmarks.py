@@ -158,15 +158,55 @@ def _localize_hls_support(text: str) -> str:
     )
 
 
-def _strip_hls_constructs(text: str) -> tuple[str, dict]:
+def _strip_pragma_hls_macro_blocks(text: str) -> tuple[str, int]:
+    """Remove PRAGMA_HLS(...) / PRAGMA_SUB(...) call sites (possibly multi-line)."""
+    removed = 0
+    patterns = (r"\bPRAGMA_HLS\s*\(", r"\bPRAGMA_SUB\s*\(")
+    while True:
+        start = None
+        for pat in patterns:
+            m = re.search(pat, text, flags=re.IGNORECASE)
+            if m and (start is None or m.start() < start):
+                start = m.start()
+        if start is None:
+            break
+        open_paren = text.find("(", start)
+        if open_paren < 0:
+            break
+        depth = 0
+        end = open_paren
+        for idx in range(open_paren, len(text)):
+            if text[idx] == "(":
+                depth += 1
+            elif text[idx] == ")":
+                depth -= 1
+                if depth == 0:
+                    end = idx + 1
+                    break
+        text = text[:start] + text[end:]
+        removed += 1
+    return text, removed
+
+
+def _strip_hls_constructs(
+    text: str,
+    *,
+    keep_ap_includes: bool = False,
+) -> tuple[str, dict]:
     report = {
         "removed_hls_pragmas": 0,
         "removed_accel_pragmas": 0,
+        "removed_pragma_hls_macros": 0,
+        "removed_vpragma_hls": 0,
+        "removed_pragma_macro_defines": 0,
         "removed_support_includes": 0,
         "removed_ap_int_includes": 0,
         "removed_extern_c_blocks": 0,
         "removed_hls_artifact_comment_blocks": 0,
     }
+
+    text, macro_removed = _strip_pragma_hls_macro_blocks(text)
+    report["removed_pragma_hls_macros"] = macro_removed
 
     lines = []
     for line in text.splitlines():
@@ -176,13 +216,19 @@ def _strip_hls_constructs(text: str) -> tuple[str, dict]:
         if re.match(r"\s*(?://+\s*)?#pragma\s+ACCEL\b", line, re.IGNORECASE):
             report["removed_accel_pragmas"] += 1
             continue
+        if re.match(r'^\s*_Pragma\s*\(\s*"HLS\b', line, re.IGNORECASE):
+            report["removed_vpragma_hls"] += 1
+            continue
+        if re.match(r"^\s*#\s*define\s+PRAGMA_(?:HLS|SUB)\b", line, re.IGNORECASE):
+            report["removed_pragma_macro_defines"] += 1
+            continue
         if re.match(r'\s*#include\s+"(?:\.\./)*common/mc\.h"', line):
             report["removed_support_includes"] += 1
             continue
         if re.match(r'\s*#include\s+"support/common/mc\.h"', line):
             report["removed_support_includes"] += 1
             continue
-        if re.match(r'\s*#include\s+[<"]ap_int\.h[>"]', line):
+        if not keep_ap_includes and re.match(r'\s*#include\s+[<"]ap_int\.h[>"]', line):
             report["removed_ap_int_includes"] += 1
             continue
         lines.append(line)
@@ -212,7 +258,11 @@ def _strip_hls_constructs(text: str) -> tuple[str, dict]:
 
     stripped = re.sub(r"/\*.*?\*/", _drop_hls_artifact_comment, stripped, flags=re.DOTALL)
 
-    report["plain_contains_hls_pragmas"] = bool(re.search(r"#pragma\s+HLS\b", stripped))
+    report["plain_contains_hls_pragmas"] = bool(
+        re.search(r"#pragma\s+HLS\b", stripped, re.IGNORECASE)
+        or re.search(r"\bPRAGMA_HLS\s*\(", stripped, re.IGNORECASE)
+        or re.search(r'^\s*_Pragma\s*\(\s*"HLS\b', stripped, re.IGNORECASE | re.MULTILINE)
+    )
     report["plain_contains_accel_pragmas"] = bool(re.search(r"#pragma\s+ACCEL\b", stripped))
     report["plain_contains_ap_uint"] = "ap_uint<" in stripped or "MARS_WIDE_BUS_TYPE" in stripped
     return stripped, report

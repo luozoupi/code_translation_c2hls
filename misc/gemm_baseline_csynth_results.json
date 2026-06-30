@@ -1,0 +1,41 @@
+[
+  {
+    "label": "team_functional_m_axi",
+    "source": "misc/teams/team_gemm_functional_baseline/kernel.cpp",
+    "success": true,
+    "error": "",
+    "latency_cycles": 54298622,
+    "bram": 30,
+    "dsp": 11,
+    "lut": 18707,
+    "ff": 11441,
+    "fmax_mhz": 411.35,
+    "work_dir": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/c2hls_tmp/hls_synth"
+  },
+  {
+    "label": "ours_hls_baseline_top_only",
+    "source": "misc/ours_gemm_hls_baseline/kernel.cpp",
+    "success": true,
+    "error": "",
+    "latency_cycles": 54298622,
+    "bram": 30,
+    "dsp": 11,
+    "lut": 18707,
+    "ff": 11441,
+    "fmax_mhz": 411.35,
+    "work_dir": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/c2hls_tmp/hls_synth_001"
+  },
+  {
+    "label": "benchmarks_hls_baseline",
+    "source": "benchmarks/hlsfactory_gemm/hls_baseline.cpp",
+    "success": true,
+    "error": "",
+    "latency_cycles": 54298622,
+    "bram": 30,
+    "dsp": 11,
+    "lut": 18707,
+    "ff": 11441,
+    "fmax_mhz": 411.35,
+    "work_dir": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/c2hls_tmp/hls_synth_002"
+  }
+]

@@ -15,6 +15,8 @@ if str(REPO) not in sys.path:
 
 from scripts.pc2.flash_cosim_lib import (  # noqa: E402
     PC2_ARTIFACTS,
+    cosim_full_size_enabled,
+    cosim_kernel_source,
     cosim_run_root,
     discover_cells,
     write_manifest,
@@ -29,7 +31,28 @@ def main() -> int:
     parser.add_argument("--bench", action="append", default=[], help="Limit to benchmark name")
     parser.add_argument("--run-root", default="", help="Override cosim output root parent")
     parser.add_argument("--dry-run", action="store_true", help="Print summary only")
+    parser.add_argument(
+        "--full-size",
+        action="store_true",
+        help="Cosim at header problem size (no cosim_size_overrides; matches csynth N)",
+    )
+    parser.add_argument(
+        "--kernel-source",
+        default="",
+        choices=["", "selected", "phase_b", "flash_opt"],
+        help="Record-flow kernel to cosim (default: selected, or C2HLS_FLASH_COSIM_KERNEL)",
+    )
     args = parser.parse_args()
+
+    if args.kernel_source:
+        import os
+
+        os.environ["C2HLS_FLASH_COSIM_KERNEL"] = args.kernel_source
+
+    if args.full_size:
+        import os
+
+        os.environ["C2HLS_FLASH_COSIM_FULL_SIZE"] = "1"
 
     if args.run_root:
         import os
@@ -54,13 +77,23 @@ def main() -> int:
         "artifact_dirs": sorted({c.artifact_basename for c in cells}),
         "benches": sorted({c.bench for c in cells}),
         "supports_cosim": sum(1 for c in cells if c.supports_cosim),
+        "cosim_size_mode": "full" if cosim_full_size_enabled() else "override",
+        "kernel_source": cosim_kernel_source(),
     }
     print(json.dumps(summary, indent=2))
 
     if args.dry_run:
         return 0
 
-    path = write_manifest(run_root, cells, extra={"artifact_glob": args.artifact_glob})
+    path = write_manifest(
+        run_root,
+        cells,
+        extra={
+            "artifact_glob": args.artifact_glob,
+            "cosim_size_mode": "full" if cosim_full_size_enabled() else "override",
+            "kernel_source": cosim_kernel_source(),
+        },
+    )
     print(f"manifest: {path}")
     return 0
 

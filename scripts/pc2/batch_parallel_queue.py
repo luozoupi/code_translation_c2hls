@@ -1,0 +1,583 @@
+"""SQLite queue for batch_parallel campaigns (codegen / synth / cosim + node slots)."""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+import time
+import uuid
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Iterator
+
+TERMINAL_BENCH = frozenset({"done", "failed"})
+JOB_KINDS = frozenset({"codegen", "synth", "cosim"})
+
+
+@dataclass(frozen=True)
+class BatchParallelJob:
+    id: int
+    variant: str
+    bench: str
+    kind: str
+    phase: str
+    attempt: int
+    stage: str
+    meta: dict[str, Any]
+    assigned_node: int | None = None
+    assigned_slot: int | None = None
+    assigned_role: str | None = None
+
+
+class BatchParallelQueue:
+    def __init__(self, db_path: Path) -> None:
+        self.db_path = db_path.resolve()
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    @contextmanager
+    def _conn(self) -> Iterator[sqlite3.Connection]:
+        conn = sqlite3.connect(str(self.db_path), timeout=120.0)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def _init_db(self) -> None:
+        with self._conn() as conn:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    variant TEXT NOT NULL,
+                    bench TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    phase TEXT NOT NULL,
+                    attempt INTEGER NOT NULL DEFAULT 0,
+                    stage TEXT NOT NULL DEFAULT '',
+                    meta_json TEXT NOT NULL DEFAULT '{}',
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    worker_id TEXT,
+                    assigned_role TEXT,
+                    assigned_node INTEGER,
+                    assigned_slot INTEGER,
+                    created_at REAL NOT NULL,
+                    claimed_at REAL,
+                    finished_at REAL,
+                    error TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_jobs_pending
+                    ON jobs(status, kind, variant, created_at);
+
+                CREATE TABLE IF NOT EXISTS bench_lock (
+                    variant TEXT NOT NULL,
+                    bench TEXT NOT NULL,
+                    active_job_id INTEGER,
+                    bench_status TEXT NOT NULL DEFAULT 'queued',
+                    PRIMARY KEY(variant, bench)
+                );
+
+                CREATE TABLE IF NOT EXISTS node_slots (
+                    variant TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    node_index INTEGER NOT NULL,
+                    worker_slot INTEGER NOT NULL,
+                    active_job_id INTEGER,
+                    hostname TEXT,
+                    slurm_job_id TEXT,
+                    last_heartbeat REAL,
+                    PRIMARY KEY(variant, role, node_index, worker_slot)
+                );
+
+                CREATE TABLE IF NOT EXISTS meta (
+                    key TEXT PRIMARY KEY,
+                    value_json TEXT NOT NULL
+                );
+                """
+            )
+
+    def register_benches(self, variant: str, benches: list[str]) -> None:
+        with self._conn() as conn:
+            for bench in benches:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO bench_lock(variant, bench, bench_status)
+                    VALUES (?, ?, 'queued')
+                    """,
+                    (variant, bench),
+                )
+
+    def seed_bench(self, variant: str, bench: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO bench_lock(variant, bench, bench_status)
+                VALUES (?, ?, 'active')
+                ON CONFLICT(variant, bench) DO UPDATE SET bench_status='active'
+                """,
+                (variant, bench),
+            )
+            row = conn.execute(
+                """
+                SELECT id FROM jobs
+                WHERE variant=? AND bench=? AND status IN ('pending','claimed')
+                LIMIT 1
+                """,
+                (variant, bench),
+            ).fetchone()
+            if row:
+                return
+            conn.execute(
+                """
+                INSERT INTO jobs(variant, bench, kind, phase, attempt, stage, meta_json, status, created_at)
+                VALUES (?, ?, 'codegen', 'phase_b', 0, 'translate', '{}', 'pending', ?)
+                """,
+                (variant, bench, time.time()),
+            )
+
+    def seed_initial_wave(
+        self,
+        variant: str,
+        benches: list[str],
+        *,
+        max_inflight: int,
+    ) -> list[str]:
+        seeded: list[str] = []
+        for bench in benches[:max_inflight]:
+            self.seed_bench(variant, bench)
+            seeded.append(bench)
+        for bench in benches[max_inflight:]:
+            with self._conn() as conn:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO bench_lock(variant, bench, bench_status)
+                    VALUES (?, ?, 'queued')
+                    """,
+                    (variant, bench),
+                )
+        return seeded
+
+    def count_benches(self, *, variant: str, status: str) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM bench_lock WHERE variant=? AND bench_status=?",
+                (variant, status),
+            ).fetchone()
+            return int(row["c"] if row else 0)
+
+    def count_in_flight_benches(self, variant: str) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM bench_lock
+                WHERE variant=? AND bench_status NOT IN ('done','failed','queued')
+                """,
+                (variant,),
+            ).fetchone()
+            return int(row["c"] if row else 0)
+
+    def next_queued_bench(self, variant: str, benches_order: list[str]) -> str | None:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT bench FROM bench_lock
+                WHERE variant=? AND bench_status='queued'
+                """,
+                (variant,),
+            ).fetchall()
+        queued = {r["bench"] for r in rows}
+        for bench in benches_order:
+            if bench in queued:
+                return bench
+        return None
+
+    def maybe_seed_next_bench(
+        self,
+        variant: str,
+        benches_order: list[str],
+        *,
+        max_inflight: int,
+    ) -> str | None:
+        if self.count_benches(variant=variant, status="queued") == 0:
+            return None
+        if self.count_in_flight_benches(variant) >= max_inflight:
+            return None
+        bench = self.next_queued_bench(variant, benches_order)
+        if not bench:
+            return None
+        self.seed_bench(variant, bench)
+        return bench
+
+    def enqueue(
+        self,
+        *,
+        variant: str,
+        bench: str,
+        kind: str,
+        phase: str,
+        attempt: int,
+        stage: str,
+        meta: dict[str, Any] | None = None,
+    ) -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO jobs(variant, bench, kind, phase, attempt, stage, meta_json, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+                """,
+                (
+                    variant,
+                    bench,
+                    kind,
+                    phase,
+                    attempt,
+                    stage,
+                    json.dumps(meta or {}),
+                    time.time(),
+                ),
+            )
+            return int(cur.lastrowid)
+
+    def _row_to_job(self, row: sqlite3.Row) -> BatchParallelJob:
+        return BatchParallelJob(
+            id=int(row["id"]),
+            variant=row["variant"],
+            bench=row["bench"],
+            kind=row["kind"],
+            phase=row["phase"],
+            attempt=int(row["attempt"]),
+            stage=row["stage"] or "",
+            meta=json.loads(row["meta_json"] or "{}"),
+            assigned_node=int(row["assigned_node"]) if row["assigned_node"] is not None else None,
+            assigned_slot=int(row["assigned_slot"]) if row["assigned_slot"] is not None else None,
+            assigned_role=row["assigned_role"],
+        )
+
+    def register_node_slot(
+        self,
+        *,
+        variant: str,
+        role: str,
+        node_index: int,
+        worker_slot: int,
+        hostname: str = "",
+        slurm_job_id: str = "",
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO node_slots(variant, role, node_index, worker_slot, hostname, slurm_job_id, last_heartbeat)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(variant, role, node_index, worker_slot) DO UPDATE SET
+                    hostname=excluded.hostname,
+                    slurm_job_id=excluded.slurm_job_id,
+                    last_heartbeat=excluded.last_heartbeat
+                """,
+                (variant, role, node_index, worker_slot, hostname, slurm_job_id, time.time()),
+            )
+
+    def heartbeat_node_slot(
+        self,
+        *,
+        variant: str,
+        role: str,
+        node_index: int,
+        worker_slot: int,
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE node_slots SET last_heartbeat=?
+                WHERE variant=? AND role=? AND node_index=? AND worker_slot=?
+                """,
+                (time.time(), variant, role, node_index, worker_slot),
+            )
+
+    def claim(
+        self,
+        *,
+        kind: str,
+        variant: str | None = None,
+        role: str | None = None,
+        node_index: int | None = None,
+        worker_slot: int | None = None,
+        worker_id: str | None = None,
+    ) -> BatchParallelJob | None:
+        wid = worker_id or f"worker-{uuid.uuid4().hex[:8]}"
+        now = time.time()
+        with self._conn() as conn:
+            if role is not None and node_index is not None and worker_slot is not None:
+                slot = conn.execute(
+                    """
+                    SELECT active_job_id FROM node_slots
+                    WHERE variant=? AND role=? AND node_index=? AND worker_slot=?
+                    """,
+                    (variant, role, node_index, worker_slot),
+                ).fetchone()
+                if slot and slot["active_job_id"]:
+                    return None
+
+            params: list[Any] = [kind]
+            variant_clause = ""
+            if variant:
+                variant_clause = "AND j.variant=?"
+                params.append(variant)
+
+            row = conn.execute(
+                f"""
+                SELECT j.id
+                FROM jobs j
+                LEFT JOIN bench_lock bl ON bl.variant=j.variant AND bl.bench=j.bench
+                WHERE j.status='pending'
+                  AND j.kind=?
+                  {variant_clause}
+                  AND (bl.active_job_id IS NULL OR bl.active_job_id=0)
+                ORDER BY j.created_at ASC, j.id ASC
+                LIMIT 1
+                """,
+                tuple(params),
+            ).fetchone()
+            if not row:
+                return None
+            job_id = int(row["id"])
+            updated = conn.execute(
+                """
+                UPDATE jobs
+                SET status='claimed', worker_id=?, claimed_at=?,
+                    assigned_role=?, assigned_node=?, assigned_slot=?
+                WHERE id=? AND status='pending'
+                """,
+                (wid, now, role, node_index, worker_slot, job_id),
+            ).rowcount
+            if not updated:
+                return None
+            job_row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            assert job_row is not None
+            conn.execute(
+                """
+                INSERT INTO bench_lock(variant, bench, active_job_id, bench_status)
+                VALUES (?, ?, ?, 'running')
+                ON CONFLICT(variant, bench) DO UPDATE SET
+                    active_job_id=excluded.active_job_id,
+                    bench_status='running'
+                """,
+                (job_row["variant"], job_row["bench"], job_id),
+            )
+            if role is not None and node_index is not None and worker_slot is not None:
+                conn.execute(
+                    """
+                    UPDATE node_slots SET active_job_id=?
+                    WHERE variant=? AND role=? AND node_index=? AND worker_slot=?
+                    """,
+                    (job_id, variant, role, node_index, worker_slot),
+                )
+            return self._row_to_job(job_row)
+
+    def requeue(self, job_id: int) -> bool:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if not row or row["kind"] != "codegen":
+                return False
+            if row["status"] not in ("claimed", "failed"):
+                return False
+            conn.execute(
+                """
+                UPDATE jobs
+                SET status='pending', worker_id=NULL, claimed_at=NULL,
+                    assigned_role=NULL, assigned_node=NULL, assigned_slot=NULL,
+                    finished_at=NULL, error=''
+                WHERE id=? AND kind='codegen' AND status IN ('claimed', 'failed')
+                """,
+                (job_id,),
+            )
+            conn.execute(
+                """
+                UPDATE bench_lock SET active_job_id=NULL
+                WHERE variant=? AND bench=?
+                """,
+                (row["variant"], row["bench"]),
+            )
+            return True
+
+    def complete(self, job_id: int, *, error: str = "") -> None:
+        now = time.time()
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if not row:
+                return
+            conn.execute(
+                """
+                UPDATE jobs
+                SET status=?, finished_at=?, error=?
+                WHERE id=?
+                """,
+                ("failed" if error else "done", now, error, job_id),
+            )
+            conn.execute(
+                """
+                UPDATE bench_lock SET active_job_id=NULL
+                WHERE variant=? AND bench=?
+                """,
+                (row["variant"], row["bench"]),
+            )
+            if row["assigned_role"] and row["assigned_node"] is not None and row["assigned_slot"] is not None:
+                conn.execute(
+                    """
+                    UPDATE node_slots SET active_job_id=NULL
+                    WHERE variant=? AND role=? AND node_index=? AND worker_slot=?
+                    """,
+                    (row["variant"], row["assigned_role"], row["assigned_node"], row["assigned_slot"]),
+                )
+
+    def set_bench_status(self, variant: str, bench: str, status: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO bench_lock(variant, bench, bench_status)
+                VALUES (?, ?, ?)
+                ON CONFLICT(variant, bench) DO UPDATE SET bench_status=excluded.bench_status
+                """,
+                (variant, bench, status),
+            )
+
+    def pending_count(self, *, variant: str | None = None, kind: str | None = None) -> int:
+        with self._conn() as conn:
+            clauses = ["status IN ('pending','claimed')"]
+            params: list[Any] = []
+            if variant:
+                clauses.append("variant=?")
+                params.append(variant)
+            if kind:
+                clauses.append("kind=?")
+                params.append(kind)
+            where = " AND ".join(clauses)
+            row = conn.execute(f"SELECT COUNT(*) AS c FROM jobs WHERE {where}", tuple(params)).fetchone()
+            return int(row["c"] if row else 0)
+
+    def pending_codegen(self) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM jobs WHERE kind='codegen' AND status='pending'"
+            ).fetchone()
+            return int(row["c"] if row else 0)
+
+    def claimed_codegen(self) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM jobs WHERE kind='codegen' AND status='claimed'"
+            ).fetchone()
+            return int(row["c"] if row else 0)
+
+    def claimed_cosim_jobs(self) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, variant, bench, phase, claimed_at
+                FROM jobs
+                WHERE kind='cosim' AND status='claimed'
+                ORDER BY claimed_at ASC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def pending_or_claimed_count(self, *, kinds: tuple[str, ...]) -> int:
+        placeholders = ",".join("?" for _ in kinds)
+        with self._conn() as conn:
+            row = conn.execute(
+                f"""
+                SELECT COUNT(*) AS c FROM jobs
+                WHERE kind IN ({placeholders}) AND status IN ('pending','claimed')
+                """,
+                kinds,
+            ).fetchone()
+            return int(row["c"] if row else 0)
+
+    def pending_count_global(self) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM jobs WHERE status IN ('pending','claimed')"
+            ).fetchone()
+            return int(row["c"] if row else 0)
+
+    def claimed_count_global(self) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM jobs WHERE status='claimed'"
+            ).fetchone()
+            return int(row["c"] if row else 0)
+
+    def benches_non_terminal(self, variant: str | None = None) -> int:
+        with self._conn() as conn:
+            if variant:
+                row = conn.execute(
+                    """
+                    SELECT COUNT(*) AS c FROM bench_lock
+                    WHERE variant=? AND bench_status NOT IN ('done','failed')
+                    """,
+                    (variant,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT COUNT(*) AS c FROM bench_lock
+                    WHERE bench_status NOT IN ('done','failed')
+                    """
+                ).fetchone()
+            return int(row["c"] if row else 0)
+
+    def all_benches_terminal(self, variant: str) -> bool:
+        return self.benches_non_terminal(variant) == 0
+
+    def campaign_complete(self, active_variants: list[str]) -> bool:
+        for variant in active_variants:
+            if not self.all_benches_terminal(variant):
+                return False
+        return self.pending_count_global() == 0 and self.claimed_count_global() == 0
+
+    def snapshot_node_map(self) -> dict[str, Any]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT ns.*, j.bench, j.phase, j.kind
+                FROM node_slots ns
+                LEFT JOIN jobs j ON j.id = ns.active_job_id
+                ORDER BY ns.variant, ns.role, ns.node_index, ns.worker_slot
+                """
+            ).fetchall()
+        out: dict[str, Any] = {}
+        for row in rows:
+            variant = row["variant"]
+            role = row["role"]
+            node_key = f"node_{row['node_index']}"
+            slot_key = f"slot_{row['worker_slot']}"
+            out.setdefault(variant, {}).setdefault(role, {}).setdefault(node_key, {})
+            if row["active_job_id"]:
+                out[variant][role][node_key][slot_key] = f"{row['bench']}/{row['phase']}"
+            else:
+                out[variant][role][node_key][slot_key] = None
+        return out
+
+    def set_meta(self, key: str, value: Any) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO meta(key, value_json) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json
+                """,
+                (key, json.dumps(value)),
+            )
+
+    def get_meta(self, key: str, default: Any = None) -> Any:
+        with self._conn() as conn:
+            row = conn.execute("SELECT value_json FROM meta WHERE key=?", (key,)).fetchone()
+            if not row:
+                return default
+            return json.loads(row["value_json"])

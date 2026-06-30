@@ -4,6 +4,8 @@ Run the **same flash test matrix** as the PC2 Devstral experiments, on the **tea
 server** with **Claude / OpenAI APIs**. No PC2 cluster, no `local.env`, no vLLM,
 no `--pc2`.
 
+**Full LLM history + skill sidecars:** see [FULL_HISTORY_AND_RECORD_FLOW.md](FULL_HISTORY_AND_RECORD_FLOW.md).
+
 ## Zero extra setup (if you already run agentic sweeps)
 
 These scripts use the **same paths and API key files** as `run_agentic_sweep.py`:

@@ -13,6 +13,7 @@ REPO = Path(__file__).resolve().parents[2]
 
 # Flash pilot flags for team API runs (cosim controlled separately — see apply_flash_cosim_env).
 FLASH_PILOT_ENV: dict[str, str] = {
+    "C2HLS_RECORD_FLOW": "1",
     "C2HLS_PHASEB_MODE": "functional",
     "C2HLS_PHASE8_BASELINE_ALIGN": "0",
     "C2HLS_PHASE5_GT_PREPOP": "0",

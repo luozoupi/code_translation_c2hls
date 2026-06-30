@@ -12,13 +12,6 @@ git checkout c2hls_enhanced_l_pc2_api_layout
 git pull
 ```
 
-Alternatively, stay on `c2hls_enhanced_l` and cherry-pick:
-
-```bash
-git fetch origin
-git cherry-pick 82c1933 578ca6e
-```
-
 ## 2. Run flash via API (not `scripts/pc2/`)
 
 ```bash

@@ -50,10 +50,14 @@ pc2_log "compute allocated on $(hostname -s); waiting for gpu+llm before worker"
 
 wait_llm=$((SECONDS + PC2_COMPUTE_LLM_WAIT_SEC))
 while (( SECONDS < wait_llm )); do
-  if pc2_gpu_serving "${GPU_JOB_ID}"; then
+  if pc2_session_is_borrowed_gpu; then
+    if pc2_llm_ready; then
+      break
+    fi
+  elif pc2_gpu_serving "${GPU_JOB_ID}"; then
     break
   fi
-  if [[ -n "${GPU_JOB_ID}" ]] && ! pc2_job_is_running "${GPU_JOB_ID}"; then
+  if [[ -n "${GPU_JOB_ID}" ]] && ! pc2_session_is_borrowed_gpu && ! pc2_job_is_running "${GPU_JOB_ID}"; then
     pc2_log "ERROR: gpu job ${GPU_JOB_ID} not running after compute allocation"
     pc2_session_py set compute_state failed
     pc2_session_py set last_error '"gpu job ended before worker start"'
@@ -62,10 +66,17 @@ while (( SECONDS < wait_llm )); do
   sleep 15
 done
 
-if ! pc2_gpu_serving "${GPU_JOB_ID}"; then
+if ! pc2_gpu_serving "${GPU_JOB_ID}" && ! pc2_session_is_borrowed_gpu; then
   pc2_log "ERROR: gpu+llm not ready within ${PC2_COMPUTE_LLM_WAIT_SEC}s"
   pc2_session_py set compute_state failed
   pc2_session_py set last_error '"llm endpoint not ready while gpu running"'
+  exit 2
+fi
+
+if pc2_session_is_borrowed_gpu && ! pc2_llm_ready; then
+  pc2_log "ERROR: borrowed LLM endpoint not ready within ${PC2_COMPUTE_LLM_WAIT_SEC}s"
+  pc2_session_py set compute_state failed
+  pc2_session_py set last_error '"borrowed llm endpoint not ready"'
   exit 2
 fi
 

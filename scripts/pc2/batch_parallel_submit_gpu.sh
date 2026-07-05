@@ -26,7 +26,7 @@ job_id="$(
   sbatch --parsable \
     --chdir="${C2HLS_ROOT}" \
     --export=ALL,BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}",PC2_SESSION_ID="${PC2_SESSION_ID}",PC2_ENDPOINT_FILE="${PC2_ENDPOINT_FILE}" \
-    --job-name="bp-llm-${PC2_SESSION_ID}" \
+    --job-name="$(pc2_batch_job_prefix "${CAMPAIGN_ROOT}")-gpu-${PC2_JOB_TAG:-${PC2_SESSION_ID}}" \
     --output="${CAMPAIGN_ROOT}/slurm-gpu-%j.out" \
     --error="${CAMPAIGN_ROOT}/slurm-gpu-%j.err" \
     "${account_args[@]}" \

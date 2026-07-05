@@ -1,0 +1,28 @@
+{
+  "synth_nodes_per_variant": 4,
+  "synth_workers_per_node": 3,
+  "cosim_nodes_per_variant": 0,
+  "cosim_workers_per_node": 0,
+  "worker_cpus": 8,
+  "worker_mem_gb": 32,
+  "gpu_policy": "always_on",
+  "gpu_batch_threshold": 5,
+  "gpu_batch_flush_s": 3600,
+  "max_inflight_benches": 10,
+  "bench_order": "listed",
+  "bench_seeding": "short_first_waves",
+  "poll_sec": 2.0,
+  "coordinator_poll_sec": 15.0,
+  "pilot": {
+    "variant": "tier_a_90",
+    "workflow": "tier_a_flash",
+    "corpus": "tier_A_ready",
+    "benches": [
+      "spector_hls_dct",
+      "hp_fft_n256__UF1"
+    ],
+    "failure_policy": "ignore",
+    "model": "mistralai/Devstral-2-123B-Instruct-2512",
+    "turns": 4
+  }
+}

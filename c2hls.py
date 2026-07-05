@@ -34,6 +34,7 @@ except ImportError:
 from prompt_c2hls import *
 from prompt_c2hls import (
     DEFAULT_OPT_STEPS,
+    Instruction_c2hls_flash,
     Instruction_c2hls_multistep,
     OPTIMIZATION_PROMPTS,
     hls_synthesis_timeout_fix,
@@ -318,6 +319,37 @@ def _normalize_extra_files(extra_files=None) -> List[Tuple[str, str]]:
     return normalized
 
 
+def _vitis_hls_compile_include_paths() -> List[str]:
+    """Include dirs for Phase A g++ checks (ap_fixed.h, hls_math.h, etc.)."""
+    manual = os.getenv("C2HLS_COMPILE_INCLUDE_PATHS", "").strip()
+    if manual:
+        return [p for p in manual.split(os.pathsep) if p and os.path.isdir(p)]
+
+    paths: List[str] = []
+    for env_name in ("XILINX_HLS",):
+        root = os.getenv(env_name, "").strip()
+        if root:
+            inc = os.path.join(root, "include")
+            if os.path.isdir(inc):
+                paths.append(inc)
+
+    if paths:
+        return paths
+
+    version = os.getenv("C2HLS_VITIS_VERSION", "2023.2").strip() or "2023.2"
+    candidates: List[str] = []
+    settings = os.getenv("C2HLS_VITIS_SETTINGS", "").strip()
+    if settings:
+        vitis_ver_dir = os.path.dirname(settings)
+        fpga_root = os.path.dirname(os.path.dirname(vitis_ver_dir))
+        candidates.append(os.path.join(fpga_root, "Vitis_HLS", version, "include"))
+    candidates.append(f"/opt/software/FPGA/Xilinx/Vitis_HLS/{version}/include")
+    for candidate in candidates:
+        if os.path.isdir(candidate):
+            return [candidate]
+    return []
+
+
 def compile_check_cpp(
     code: str,
     header_code: str = "",
@@ -325,7 +357,7 @@ def compile_check_cpp(
     work_dir: str = None,
     extra_files=None,
 ) -> Tuple[bool, str]:
-    """Check if code compiles with g++ -c."""
+    """Check if code compiles with g++ -c (Vitis HLS include paths when available)."""
     if work_dir is None:
         with temp_tag_scope(get_temp_tag() or "run", "compile"):
             work_dir = make_tempdir(prefix="c2hls_compile_")
@@ -347,7 +379,10 @@ def compile_check_cpp(
         with open(file_path, "w") as f:
             f.write(content)
 
-    cmd = ["g++", "-c", f"-I{work_dir}", "-o", "/dev/null", src_file]
+    cmd = ["g++", "-c", f"-I{work_dir}"]
+    for inc in _vitis_hls_compile_include_paths():
+        cmd.append(f"-I{inc}")
+    cmd.extend(["-o", "/dev/null", src_file])
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT_LIMIT, text=True)
         if result.returncode == 0:
@@ -867,6 +902,49 @@ def _normalize_vitis_s_axilite_bundles(hls_code: str) -> tuple[str, str]:
     return "\n".join(final_lines) + ("\n" if hls_code.endswith("\n") else ""), "; ".join(notes)
 
 
+def resolve_metadata_top(meta: dict) -> str:
+    """Return the testbench-visible top function from metadata.json fields."""
+    for key in ("translated_hls_top", "hls_top", "kernel_top"):
+        val = str(meta.get(key) or "").strip()
+        if val:
+            return val
+    return "workload"
+
+
+def top_function_policy_hint(meta: dict) -> str:
+    """Corpus-specific top-function rule derived from metadata.json."""
+    bench = str(meta.get("benchmark") or "unknown")
+    wrapper_top = resolve_metadata_top(meta)
+    kernel_top = str(meta.get("kernel_top") or "").strip()
+    repo = str(meta.get("source_repo") or "").lower()
+
+    if bench.startswith("hlsfactory_") or repo == "hlsfactory":
+        return (
+            f"Metadata corpus: **HLSFactory**. `metadata.json` sets "
+            f"`translated_hls_top` = `{wrapper_top}`. The testbench calls that "
+            f"`kernel_*` function directly. Emit exactly one `extern \"C\"` top named "
+            f"`{wrapper_top}` with all INTERFACE pragmas. Never rename to `workload` "
+            f"and never add a forwarding `workload()` wrapper."
+        )
+    if wrapper_top == "workload":
+        helper = (
+            f" Keep `{kernel_top}` and other plain-C algorithm helpers `static` "
+            f"and call them only from inside `workload`."
+            if kernel_top and kernel_top != "workload"
+            else ""
+        )
+        return (
+            f"Metadata corpus: **Rodinia/MachSuite**. `metadata.json` sets "
+            f"`translated_hls_top` = `workload`. The testbench calls `workload()` "
+            f"directly. Emit exactly one `extern \"C\" void workload(...)` with all "
+            f"INTERFACE pragmas.{helper} Do not export a second `extern \"C\"` top."
+        )
+    return (
+        f"`metadata.json` sets `translated_hls_top` = `{wrapper_top}`. Use exactly "
+        f"that name as the sole `extern \"C\"` top; do not add alias wrappers."
+    )
+
+
 def _build_benchmark_context(meta: dict, header_name: str, header_code: str,
                              c_code: str,
                              testbench_code: str = "") -> str:
@@ -881,13 +959,12 @@ def _build_benchmark_context(meta: dict, header_name: str, header_code: str,
     """
     hints = []
     bench = meta.get("benchmark", "unknown")
-    wrapper_top = meta.get("translated_hls_top", "workload")
+    wrapper_top = resolve_metadata_top(meta)
     kernel_top = meta.get("kernel_top")
 
     hints.append(f"Benchmark name: `{bench}`.")
-    hints.append(f"Required HLS wrapper top function: `{wrapper_top}`.")
-    if kernel_top and kernel_top != wrapper_top:
-        hints.append(f"Preserve or call the existing kernel/helper function `{kernel_top}` inside `{wrapper_top}`.")
+    hints.append(top_function_policy_hint(meta))
+    hints.append(f"Required HLS top function (metadata.json `translated_hls_top`): `{wrapper_top}`.")
     if header_name:
         hints.append(f"Include `{header_name}` exactly once and reuse its declarations.")
 
@@ -984,6 +1061,32 @@ def _build_repair_guidance(error: str) -> str:
         hints.append(
             "- For every `m_axi port=<name> offset=slave ...` pragma, also add a separate "
             "`#pragma HLS INTERFACE s_axilite port=<name> bundle=control` line."
+        )
+    if (
+        "200-1013" in error
+        or "200-984" in error
+        or "bundled bus interface" in error_lower
+        or ("gmem" in error_lower and "only one" in error_lower)
+        or "port limit" in error_lower
+    ):
+        hints.append(
+            "- Assign each top-level pointer port its own m_axi bundle: "
+            "`bundle=gmem0`, `bundle=gmem1`, `bundle=gmem2`, … in argument order. "
+            "Never share `bundle=gmem` across multiple pointer ports."
+        )
+        hints.append(
+            "- If using DATAFLOW with concurrent load/store tasks, only parallelize "
+            "ports that already use distinct `gmemN` bundles; otherwise fuse reads/writes "
+            "into one task per bundle."
+        )
+    if (
+        "read-modify-write" in error_lower
+        or "read modify write" in error_lower
+        or ("m_axi" in error_lower and "bandwidth" in error_lower)
+    ):
+        hints.append(
+            "- Do not RMW `m_axi` ports in inner loops. Load into locals, compute on "
+            "locals/private accumulators, store once per output element."
         )
     if not hints:
         hints.append("- Preserve the existing helper/kernel structure and make the smallest change that fixes the reported error.")
@@ -5342,8 +5445,13 @@ class C2HLSOrchestrator:
         if extra_blocks:
             prompt = prompt + "\n\n" + "\n\n".join(extra_blocks)
 
+        system_instruction = (
+            Instruction_c2hls_flash
+            if step_name == "flash"
+            else Instruction_c2hls_multistep
+        )
         self.messages = [
-            {"role": "system", "content": Instruction_c2hls_multistep},
+            {"role": "system", "content": system_instruction},
             {"role": "user", "content": prompt},
         ]
 
@@ -8081,8 +8189,8 @@ def run_benchmark(bench_dir: str, output_dir: str = None,
     orchestrator.testbench_code = inputs.get("testbench_code", "")
     orchestrator.configure_benchmark(
         extra_files=inputs.get("extra_files", []),
-        translated_hls_top=inputs["meta"].get("translated_hls_top", "workload"),
-        reference_hls_top=inputs["meta"].get("hls_top", "workload"),
+        translated_hls_top=resolve_metadata_top(inputs["meta"]),
+        reference_hls_top=inputs["meta"].get("hls_top") or resolve_metadata_top(inputs["meta"]),
         part=inputs["meta"].get("part", DEFAULT_PART),
         clock_ns=inputs["meta"].get("clock_ns", DEFAULT_CLOCK_NS),
         supports_cosim=bool(inputs["meta"].get("supports_cosim")),
@@ -8201,8 +8309,8 @@ def _run_benchmark_multistep_body(
     orchestrator.testbench_code = inputs.get("testbench_code", "")
     orchestrator.configure_benchmark(
         extra_files=inputs.get("extra_files", []),
-        translated_hls_top=inputs["meta"].get("translated_hls_top", "workload"),
-        reference_hls_top=inputs["meta"].get("hls_top", "workload"),
+        translated_hls_top=resolve_metadata_top(inputs["meta"]),
+        reference_hls_top=inputs["meta"].get("hls_top") or resolve_metadata_top(inputs["meta"]),
         part=inputs["meta"].get("part", DEFAULT_PART),
         clock_ns=inputs["meta"].get("clock_ns", DEFAULT_CLOCK_NS),
         supports_cosim=bool(inputs["meta"].get("supports_cosim")),
@@ -8274,6 +8382,23 @@ def _run_benchmark_multistep_body(
     )
     results = sanitize_saved_result_record(results, reference_validation)
     orchestrator.save_multistep_results(output_dir, bench_name, results)
+
+    if success:
+        try:
+            from c2hls_paths import BENCHMARKS_DIR
+            from post_flash_pragma_opt import maybe_chain_pragma_opt
+
+            maybe_chain_pragma_opt(
+                bench=bench_name,
+                bench_dir=BENCHMARKS_DIR / bench_name,
+                cell_dir=Path(output_dir),
+                orchestrator=orchestrator,
+                source_role="flash_final",
+                skip_existing=True,
+            )
+        except Exception as exc:
+            logging.warning("[pragma_opt] flash chain skipped for %s: %s", bench_name, exc)
+
     return results
 
 

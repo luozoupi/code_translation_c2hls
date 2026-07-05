@@ -26,7 +26,7 @@ _pc2_configure_session_paths
 
 PC2_GPU_PARTITION="${PC2_GPU_PARTITION:-gpu_h100}"
 PC2_COMPUTE_PARTITION="${PC2_COMPUTE_PARTITION:-normal}"
-PC2_SLURM_ACCOUNT="${PC2_SLURM_ACCOUNT:-}"
+PC2_SLURM_ACCOUNT="${PC2_SLURM_ACCOUNT:-hpc-prf-llmfpga}"
 if [[ -n "${PC2_FORCE_WALLTIME:-}" ]]; then
   PC2_WALLTIME="${PC2_FORCE_WALLTIME}"
 else
@@ -125,9 +125,62 @@ pc2_cancel_job() {
   fi
 }
 
+# Resolve Slurm job-name prefix for batch_parallel (env > campaign.json > default).
+pc2_batch_job_prefix() {
+  if [[ -n "${PC2_BATCH_JOB_PREFIX:-}" ]]; then
+    echo "${PC2_BATCH_JOB_PREFIX}"
+    return 0
+  fi
+  local root="${1:-${BATCH_PARALLEL_CAMPAIGN_ROOT:-}}"
+  if [[ -n "${root}" && -f "${root}/campaign.json" ]]; then
+    "${C2HLS_PYTHON:-python3}" - <<PY
+import json, sys
+from pathlib import Path
+sys.path.insert(0, "${C2HLS_ROOT}/scripts/pc2")
+from batch_parallel_config import campaign_job_prefix
+doc = json.loads(Path("${root}/campaign.json").read_text())
+print(campaign_job_prefix(doc))
+PY
+    return 0
+  fi
+  echo "bpcplx"
+}
+
+pc2_cancel_batch_parallel_named_jobs() {
+  local prefix="${1:?job prefix required}"
+  local name
+  for name in "${prefix}-synth" "${prefix}-cosim" "${prefix}-gpu"; do
+    while IFS= read -r job_id; do
+      [[ -n "${job_id}" ]] || continue
+      pc2_cancel_job "${job_id}"
+    done < <(squeue -u "$(whoami)" -h -n "${name}" -o "%i" 2>/dev/null || true)
+  done
+  # Legacy prefixes from older runs.
+  for name in bp-synth bp-cosim bpcplx-synth bpcplx-cosim bpcplx-gpu; do
+    while IFS= read -r job_id; do
+      [[ -n "${job_id}" ]] || continue
+      pc2_cancel_job "${job_id}"
+    done < <(squeue -u "$(whoami)" -h -n "${name}" -o "%i" 2>/dev/null || true)
+  done
+}
+
 pc2_gpu_serving() {
   local gpu_job_id="$1"
-  pc2_job_is_running "${gpu_job_id}" && pc2_endpoint_healthy
+  pc2_endpoint_healthy || return 1
+  if pc2_session_is_borrowed_gpu; then
+    return 0
+  fi
+  pc2_job_is_running "${gpu_job_id}"
+}
+
+pc2_session_is_borrowed_gpu() {
+  local borrowed
+  borrowed="$(pc2_session_py get gpu_borrowed 2>/dev/null || echo false)"
+  [[ "${borrowed}" == "True" || "${borrowed}" == "true" || "${borrowed}" == "1" ]]
+}
+
+pc2_llm_ready() {
+  pc2_endpoint_healthy
 }
 
 pc2_endpoint_healthy() {

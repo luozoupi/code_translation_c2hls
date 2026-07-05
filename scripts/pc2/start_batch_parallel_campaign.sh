@@ -12,6 +12,7 @@ STAMP="${BATCH_PARALLEL_STAMP:-$(date -u +%Y%m%d_%H%M%S)}"
 VARIANT="${BATCH_PARALLEL_VARIANT:-}"
 DRY_RUN=0
 FOREGROUND_COORD=0
+BORROW_GPU=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -20,11 +21,27 @@ while [[ $# -gt 0 ]]; do
     --variant) shift; VARIANT="$1"; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --foreground-coordinator) FOREGROUND_COORD=1; shift ;;
+    --borrow-gpu) BORROW_GPU=1; shift ;;
+    --no-borrow-gpu) BORROW_GPU=0; shift ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
 
 export BATCH_PARALLEL_CONFIG="${CONFIG}"
+export PC2_JOB_TAG="${PC2_JOB_TAG:-${STAMP}}"
+if [[ -z "${PC2_BATCH_JOB_PREFIX:-}" ]]; then
+  PC2_BATCH_JOB_PREFIX="$("${PY}" - <<'PY'
+import json, os
+from pathlib import Path
+p = Path(os.environ["BATCH_PARALLEL_CONFIG"])
+d = json.loads(p.read_text())
+print(d.get("job_prefix", "bpcplx"))
+PY
+)"
+fi
+export PC2_BATCH_JOB_PREFIX
+# Slurm walltime must exceed cosim_timeout_s (default 12h); common.sh defaults to 3h.
+export PC2_FORCE_WALLTIME="${PC2_BATCH_PARALLEL_WALLTIME:-13:00:00}"
 PY="${C2HLS_PYTHON:-${C2HLS_ROOT}/.venv/bin/python}"
 if [[ ! -x "${PY}" ]]; then
   PY="${C2HLS_PYTHON:-python3}"
@@ -40,7 +57,8 @@ PY
 )"
 fi
 
-CAMPAIGN_ROOT="${C2HLS_ROOT}/artifacts/pc2/batch_parallel_${STAMP}"
+ARTIFACT_PREFIX="${BATCH_PARALLEL_ARTIFACT_PREFIX:-batch_parallel}"
+CAMPAIGN_ROOT="${C2HLS_ROOT}/artifacts/pc2/${ARTIFACT_PREFIX}_${STAMP}"
 export BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}"
 rm -rf "${CAMPAIGN_ROOT}"
 mkdir -p "${CAMPAIGN_ROOT}/flow/snapshots" "${CAMPAIGN_ROOT}/variants"
@@ -58,15 +76,16 @@ PY
 "${PY}" - <<PY
 import sys
 sys.path.insert(0, "${C2HLS_ROOT}/scripts/pc2")
-from batch_parallel_config import init_campaign_json, load_config, campaign_paths
+from batch_parallel_config import init_campaign_json, load_config, campaign_paths, benches_for_config, seed_kwargs_for_workflow
 from batch_parallel_queue import BatchParallelQueue
 cfg = load_config()
 paths = campaign_paths(__import__("pathlib").Path("${CAMPAIGN_ROOT}"))
 init_campaign_json(paths["root"], cfg, stamp="${STAMP}", active_variants=["${VARIANT}"])
 queue = BatchParallelQueue(paths["queue_db"])
-benches = cfg.sort_benches(cfg.pilot_benches)
+benches = cfg.sort_benches(benches_for_config(cfg))
 queue.register_benches("${VARIANT}", benches)
-seeded = queue.seed_initial_wave("${VARIANT}", benches, max_inflight=cfg.max_inflight_benches)
+seed_kw = seed_kwargs_for_workflow(cfg.pilot_workflow)
+seeded = queue.seed_initial_wave("${VARIANT}", benches, max_inflight=cfg.max_inflight_benches, seed_kwargs=seed_kw)
 print("campaign_root=${CAMPAIGN_ROOT}")
 print("config=${CONFIG}")
 print("variant=${VARIANT}")
@@ -85,17 +104,42 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   exit 0
 fi
 
-GPU_JOB="$(
-  BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}" \
-    "${SCRIPT_DIR}/batch_parallel_submit_gpu.sh"
+GPU_JOB=""
+GPU_BORROWED=0
+if [[ "${BORROW_GPU}" -eq 1 ]]; then
+  export BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}"
+  export PC2_SESSION_DIR="${CAMPAIGN_ROOT}"
+  export PC2_ENDPOINT_FILE="${CAMPAIGN_ROOT}/llm_endpoint.json"
+  export PC2_WATCH_LOG="${CAMPAIGN_ROOT}/flow/watch.log"
+  mkdir -p "${CAMPAIGN_ROOT}/flow"
+  if ! "${PY}" "${SCRIPT_DIR}/pc2_llm_discovery.py" adopt "${PC2_ENDPOINT_FILE}" --require-job-running; then
+    echo "ERROR: --borrow-gpu set but no healthy borrowable endpoint found" >&2
+    exit 1
+  fi
+  GPU_JOB="$("${PY}" - <<'PY'
+import json, os
+from pathlib import Path
+p = Path(os.environ["PC2_ENDPOINT_FILE"])
+doc = json.loads(p.read_text())
+print(doc.get("job_id") or "")
+PY
 )"
+  GPU_BORROWED=1
+  echo "borrowed GPU endpoint (job=${GPU_JOB:-unknown}); no new gpu_h100 job submitted"
+else
+  GPU_JOB="$(
+    BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}" \
+      "${SCRIPT_DIR}/batch_parallel_submit_gpu.sh"
+  )"
+fi
 "${PY}" - <<PY
 import json
 from pathlib import Path
 p = Path("${CAMPAIGN_ROOT}") / "campaign.json"
 doc = json.loads(p.read_text())
-doc["gpu_job_id"] = "${GPU_JOB}"
+doc["gpu_job_id"] = "${GPU_JOB}" or None
 doc["gpu_mode"] = "up"
+doc["gpu_borrowed"] = bool(int("${GPU_BORROWED}"))
 p.write_text(json.dumps(doc, indent=2) + "\\n")
 PY
 

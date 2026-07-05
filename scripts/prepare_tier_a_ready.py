@@ -33,6 +33,24 @@ DEFAULT_OUTPUT = _REPO / "related_work/benchmarks/HLSFactory_benchmarks/tier_A_r
 TARGET_PART = "xcu280-fsvh2892-2L-e"
 TARGET_CLOCK_NS = 3.33
 
+# Per-bench gold-gate synth timeouts (seconds); mirrored in tier_a_flash_lib.BENCH_SYNTH_TIMEOUT_S.
+BENCH_SYNTH_TIMEOUT_S: dict[str, int] = {
+    "forgebench_mlp": 3600,
+    "forgebench_mult_op_p1": 3600,
+}
+BENCH_SYNTH_TIMEOUT_PREFIX_S: dict[str, int] = {
+    "forgebench_mult_op_": 3600,
+}
+
+
+def synth_timeout_s_for_bench(bench_name: str) -> int | None:
+    if bench_name in BENCH_SYNTH_TIMEOUT_S:
+        return BENCH_SYNTH_TIMEOUT_S[bench_name]
+    for prefix, timeout in BENCH_SYNTH_TIMEOUT_PREFIX_S.items():
+        if bench_name.startswith(prefix):
+            return timeout
+    return None
+
 SET_TOP_RE = re.compile(r"^\s*set_top\s+(\S+)", re.MULTILINE | re.IGNORECASE)
 ADD_FILES_RE = re.compile(
     r"^\s*add_files(?:\s+-tb)?\s+(\S+)",
@@ -117,10 +135,239 @@ def _ensure_kernel_prototype_header(
     return proto_name
 
 
+def _patch_normals_testbench_vmap(tb: str) -> str:
+    """Use spatially varying vmap data so cross products are not always zero (avoids FPE in normalized())."""
+    old = (
+        "    for (int i = 0; i < rows * cols * 3; i++)\n"
+        "        vmap[i] = 1;\n"
+    )
+    new = (
+        "    for (int i = 0; i < rows * cols; i++) {\n"
+        "        const int r = i / cols;\n"
+        "        const int c = i % cols;\n"
+        "        vmap[i * 3 + 0] = r + 1;\n"
+        "        vmap[i * 3 + 1] = c + 1;\n"
+        "        vmap[i * 3 + 2] = (r * 3 + c) % 17 + 1;\n"
+        "    }\n"
+    )
+    if old in tb:
+        return tb.replace(old, new, 1)
+    return tb
+
+
+_HLS_SQRT_CALL_RE = re.compile(r"hls::sqrt\(((?:[^()]+|\([^()]*\))*)\)")
+_FORGEBENCH_ATTN_SCALE_RE = re.compile(
+    r"((?:const\s+)?data_t\s+scale\s*=\s*\(data_t\))1\.0\s*/\s*hls::sqrt\(\(data_t\)(head_dim|HEAD_DIM)\);"
+)
+
+
+def _ensure_cmath_include(text: str) -> str:
+    if "#include <cmath>" in text or "#include <math.h>" in text:
+        return text
+    if "#include <cstdint>" in text:
+        return text.replace("#include <cstdint>", "#include <cstdint>\n#include <cmath>", 1)
+    if "#include <cstdlib>" in text:
+        return text.replace("#include <cstdlib>", "#include <cstdlib>\n#include <cmath>", 1)
+    return "#include <cmath>\n" + text
+
+
+def _patch_forgebench_ap_fixed_sqrt(gold: str) -> str:
+    """Replace hls::sqrt(ap_fixed expr) with std::sqrt cast — csim returns 0 for some inputs."""
+    if "hls::sqrt" not in gold and "std::sqrt" not in gold:
+        return gold
+    patched = _FORGEBENCH_ATTN_SCALE_RE.sub(
+        r"\1(1.0 / std::sqrt((double)\2));",
+        gold,
+    )
+    patched = _HLS_SQRT_CALL_RE.sub(
+        r"(data_t)std::sqrt((double)(\1))",
+        patched,
+    )
+    patched = _patch_forgebench_rms_norm_division(patched)
+    return _ensure_cmath_include(patched)
+
+
+_RMS_NORM_DIV_RE = re.compile(
+    r"        data_t rms = \(data_t\)std::sqrt\(\(double\)\(sum_sq / \(data_t\)(\d+) \+ \(data_t\)0\.01\)\)\);\n"
+    r"        for \(int j = 0; j < \1; j\+\+\) \{\n"
+    r"            output\[i\]\[j\] = gamma\[j\] \* input\[i\]\[j\] / rms;"
+)
+
+
+def _patch_forgebench_rms_norm_division(gold: str) -> str:
+    """Keep rms in double — casting tiny std::sqrt results to ap_fixed<16,5> yields 0 and FPEs."""
+    old = (
+        "        data_t rms = (data_t)std::sqrt((double)(sum_sq / (data_t)32 + (data_t)0.01));\n"
+        "        for (int j = 0; j < 32; j++) {\n"
+        "            output[i][j] = gamma[j] * input[i][j] / rms;\n"
+    )
+    new = (
+        "        const double rms = std::sqrt((double)sum_sq / 32.0 + 0.01);\n"
+        "        for (int j = 0; j < 32; j++) {\n"
+        "            output[i][j] = (data_t)((double)(gamma[j] * input[i][j]) / rms);\n"
+    )
+    if old in gold:
+        return gold.replace(old, new, 1)
+    old2 = (
+        "        const double rms = std::sqrt((double)(sum_sq / (data_t)32 + (data_t)0.01));\n"
+        "        for (int j = 0; j < 32; j++) {\n"
+        "            output[i][j] = (data_t)((double)(gamma[j] * input[i][j]) / rms);\n"
+    )
+    if old2 in gold:
+        return gold.replace(old2, new, 1)
+    old3 = (
+        "        data_t rms = hls::sqrt(sum_sq / (data_t)32 + (data_t)0.01);\n"
+        "        for (int j = 0; j < 32; j++) {\n"
+        "            output[i][j] = gamma[j] * input[i][j] / rms;\n"
+    )
+    if old3 in gold:
+        return gold.replace(old3, new, 1)
+    return _RMS_NORM_DIV_RE.sub(
+        lambda m: (
+            f"        const double rms = std::sqrt((double)(sum_sq / (data_t){m.group(1)} + (data_t)0.01));\n"
+            f"        for (int j = 0; j < {m.group(1)}; j++) {{\n"
+            f"            output[i][j] = (data_t)((double)(gamma[j] * input[i][j]) / rms);"
+        ),
+        gold,
+    )
+
+
+def _patch_normals_gold_normalized(gold: str) -> str:
+    """Skip normalize when cross-product magnitude is zero (avoids csim FPE)."""
+    old = (
+        "void normalized(int v[3]) {\n"
+        "    float t = sqrt(1 / int((v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2])));\n"
+    )
+    new = (
+        "void normalized(int v[3]) {\n"
+        "    const int mag_sq = (v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]);\n"
+        "    if (mag_sq == 0)\n"
+        "        return;\n"
+        "    float t = sqrt(1.0f / float(mag_sq));\n"
+    )
+    if old in gold:
+        return gold.replace(old, new, 1)
+    return gold
+
+
+def _patch_mergesort_gold_copy_loop(gold: str) -> str:
+    """Remove block partitions + ping-pong copy that trigger SYNCHK 200-43 on partitioned arrays."""
+    patched = gold.replace("#pragma HLS array_partition variable=in type=block factor=2\n", "")
+    patched = patched.replace("#pragma HLS array_partition variable=out type=block factor=2\n", "")
+    tmp_old = (
+        "        int tmp[no_size];\n"
+        "#pragma HLS array_partition variable=tmp type=block factor=2\n"
+        "        for (int k = 0; k < no_size; k++)\n"
+        "#pragma HLS unroll factor=2\n"
+        "            tmp[k] = out[k];\n"
+        "        for (int k = 0; k < no_size; k++)\n"
+        "#pragma HLS unroll factor=2\n"
+        "            in[k] = tmp[k];\n"
+    )
+    simple_copy = (
+        "        for (int k = 0; k < no_size; k++)\n"
+        "#pragma HLS unroll factor=2\n"
+        "            in[k] = out[k];\n"
+    )
+    if tmp_old in patched:
+        return patched.replace(tmp_old, simple_copy, 1)
+    old = (
+        "        for (int k = 0; k < no_size; k++)\n"
+        "#pragma HLS unroll factor=2\n"
+        "        in[k] = out[k];\n"
+    )
+    if old in patched:
+        return patched.replace(old, simple_copy, 1)
+    return patched
+
+
 def _patch_testbench_includes(tb: str, include_name: str) -> str:
     if f'"{include_name}"' in tb or f"<{include_name}>" in tb:
         return tb
     return f'#include "{include_name}"\n' + tb
+
+
+def _patch_testbench_data_paths(tb: str, data_rel_paths: List[str]) -> str:
+    """Keep bare data filenames in the TB.
+
+    Vitis csim copies ``add_files -tb`` data files flat into ``csim/build/`` (not under
+    ``support/``). Upstream forgebench TBs already use bare names; strip any ``support/``
+  prefix if present from older materializations.
+    """
+    for rel in sorted(data_rel_paths, key=lambda p: len(Path(p).name), reverse=True):
+        basename = Path(rel).name
+        for quote in ('"', "'"):
+            prefixed = f"{quote}{rel}{quote}"
+            bare = f"{quote}{basename}{quote}"
+            if prefixed in tb:
+                tb = tb.replace(prefixed, bare)
+    return tb
+
+
+def _normalize_params_header(text: str) -> str:
+    """Strip illegal trailing semicolons from #defines and ensure an include guard."""
+    lines_out: List[str] = []
+    for line in text.splitlines():
+        stripped = line.rstrip()
+        if re.match(r"\s*#define\b", stripped) and stripped.endswith(";"):
+            stripped = stripped[:-1].rstrip()
+        lines_out.append(stripped)
+    normalized = "\n".join(lines_out)
+    if text.endswith("\n"):
+        normalized += "\n"
+    if normalized.strip() and "#ifndef" not in normalized[:250]:
+        guard = "TIER_A_PARAMS_H_"
+        normalized = f"#ifndef {guard}\n#define {guard}\n{normalized.rstrip()}\n#endif\n"
+    return normalized
+
+
+def _align_top_declaration_in_header(header_text: str, gold: str, top: str) -> str:
+    """Replace legacy unnamed prototype params with the gold kernel's named signature."""
+    decl = _extract_top_declaration(gold, top)
+    if not decl:
+        return header_text
+    pattern = rf"void\s+{re.escape(top)}\s*\([^)]*\)\s*;"
+    if re.search(pattern, header_text):
+        return re.sub(pattern, decl, header_text, count=1)
+    return header_text
+
+
+def _ensure_testbench_top_declaration(tb: str, gold: str, top: str) -> str:
+    decl = _extract_top_declaration(gold, top)
+    if not decl or decl in tb:
+        return tb
+    lines = tb.splitlines()
+    insert_at = 0
+    for idx, line in enumerate(lines):
+        if line.strip().startswith("#include"):
+            insert_at = idx + 1
+    lines[insert_at:insert_at] = ["", decl]
+    out = "\n".join(lines)
+    return out + ("\n" if tb.endswith("\n") else "")
+
+
+def _rewrite_sobel_header(header_text: str, gold: str, top: str) -> str:
+    decl = _extract_top_declaration(gold, top)
+    if not decl:
+        return _align_top_declaration_in_header(header_text, gold, top)
+    includes = [line for line in header_text.splitlines() if line.strip().startswith("#include")]
+    body = "\n".join(includes + ["", decl, ""])
+    guard = "SOBEL_H_"
+    return f"#ifndef {guard}\n#define {guard}\n{body}\n#endif\n"
+
+
+def _patch_testbench_static_arrays(tb: str) -> str:
+    """Use static storage for array locals inside main() only (csim stack safety)."""
+    parts = re.split(r"(int\s+main\s*\([^)]*\)\s*\{)", tb, maxsplit=1)
+    if len(parts) < 3:
+        return tb
+    head, main_open, body = parts
+    body = re.sub(
+        r"(?m)^(\s*)(?:static\s+)?((?:int|float|double|char)\s+\w+\s*\[)",
+        r"\1static \2",
+        body,
+    )
+    return head + main_open + body
 
 
 def _parse_set_top(tcl_paths: List[Path]) -> Optional[str]:
@@ -211,7 +458,17 @@ def materialize_bench(spec: BenchSpec, output_root: Path) -> dict[str, Any]:
     ]
     defines = parse_defines(kernel_raw, *header_texts)
 
+    top = spec.top_function or _parse_set_top(
+        list(spec.source_dir.glob("*.tcl"))
+    ) or infer_top_function(kernel_raw, fallback=spec.design)
+
     gold_kernel = normalize_gold_source(kernel_raw, header_texts)
+    if spec.dataset == "forgebench":
+        gold_kernel = _patch_forgebench_ap_fixed_sqrt(gold_kernel)
+    if spec.bench_name == "spector_hls_normals":
+        gold_kernel = _patch_normals_gold_normalized(gold_kernel)
+    if spec.bench_name == "spector_hls_mergesort":
+        gold_kernel = _patch_mergesort_gold_copy_loop(gold_kernel)
     plain_kernel, strip_report = _strip_hls_constructs(kernel_raw, keep_ap_includes=True)
 
     if _plain_has_pragma_leak(strip_report):
@@ -231,10 +488,17 @@ def materialize_bench(spec: BenchSpec, output_root: Path) -> dict[str, Any]:
     header_names: List[str] = []
     primary_header: Optional[str] = None
     header_contents: Dict[str, str] = {}
+
     for hp in spec.header_paths:
         if not hp.is_file():
             continue
         plain_header = remove_pragma_macro_definitions(hp.read_text(encoding="utf-8", errors="ignore"))
+        if hp.name == "params.h":
+            plain_header = _normalize_params_header(plain_header)
+        elif hp.name == "sobel.h" and top:
+            plain_header = _rewrite_sobel_header(plain_header, gold_kernel, top)
+        elif top:
+            plain_header = _align_top_declaration_in_header(plain_header, gold_kernel, top)
         dest = out_dir / hp.name
         dest.write_text(plain_header, encoding="utf-8")
         header_names.append(hp.name)
@@ -243,10 +507,6 @@ def materialize_bench(spec: BenchSpec, output_root: Path) -> dict[str, Any]:
             primary_header = hp.name
     if not primary_header and header_names:
         primary_header = header_names[0]
-
-    top = spec.top_function or _parse_set_top(
-        list(spec.source_dir.glob("*.tcl"))
-    ) or infer_top_function(gold_kernel, fallback=spec.design)
 
     proto_name = _ensure_kernel_prototype_header(
         out_dir,
@@ -289,6 +549,13 @@ def materialize_bench(spec: BenchSpec, output_root: Path) -> dict[str, Any]:
         tb_gold = normalize_vitis_pragmas(tb_raw, defines)
         if proto_name:
             tb_gold = _patch_testbench_includes(tb_gold, proto_name)
+        if tb_data_rel:
+            tb_gold = _patch_testbench_data_paths(tb_gold, tb_data_rel)
+        if top and spec.design.startswith("sobel_filter_"):
+            tb_gold = _ensure_testbench_top_declaration(tb_gold, gold_kernel, top)
+        if spec.bench_name == "spector_hls_normals":
+            tb_gold = _patch_normals_testbench_vmap(tb_gold)
+        tb_gold = _patch_testbench_static_arrays(tb_gold)
         (out_dir / "testbench.cpp").write_text(tb_gold, encoding="utf-8")
         tb_dest_name = "testbench.cpp"
 
@@ -376,6 +643,9 @@ def materialize_bench(spec: BenchSpec, output_root: Path) -> dict[str, Any]:
     }
     if spec.extra_notes:
         meta["notes"] = spec.extra_notes
+    synth_timeout = synth_timeout_s_for_bench(spec.bench_name)
+    if synth_timeout is not None:
+        meta["synth_timeout_s"] = synth_timeout
     (out_dir / "metadata.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
 
     return {

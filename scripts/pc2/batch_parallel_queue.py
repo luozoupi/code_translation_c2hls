@@ -115,7 +115,23 @@ class BatchParallelQueue:
                     (variant, bench),
                 )
 
-    def seed_bench(self, variant: str, bench: str) -> None:
+    def seed_bench(
+        self,
+        variant: str,
+        bench: str,
+        *,
+        initial_kind: str = "codegen",
+        initial_phase: str = "phase_b",
+        initial_stage: str = "",
+    ) -> None:
+        if initial_stage:
+            stage = initial_stage
+        elif initial_phase == "reference":
+            stage = "gold_gate"
+        elif initial_kind == "codegen" and initial_phase == "phase_b":
+            stage = "translate"
+        else:
+            stage = ""
         with self._conn() as conn:
             conn.execute(
                 """
@@ -138,9 +154,9 @@ class BatchParallelQueue:
             conn.execute(
                 """
                 INSERT INTO jobs(variant, bench, kind, phase, attempt, stage, meta_json, status, created_at)
-                VALUES (?, ?, 'codegen', 'phase_b', 0, 'translate', '{}', 'pending', ?)
+                VALUES (?, ?, ?, ?, 0, ?, '{}', 'pending', ?)
                 """,
-                (variant, bench, time.time()),
+                (variant, bench, initial_kind, initial_phase, stage, time.time()),
             )
 
     def seed_initial_wave(
@@ -149,10 +165,12 @@ class BatchParallelQueue:
         benches: list[str],
         *,
         max_inflight: int,
+        seed_kwargs: dict[str, str] | None = None,
     ) -> list[str]:
+        kw = seed_kwargs or {}
         seeded: list[str] = []
         for bench in benches[:max_inflight]:
-            self.seed_bench(variant, bench)
+            self.seed_bench(variant, bench, **kw)
             seeded.append(bench)
         for bench in benches[max_inflight:]:
             with self._conn() as conn:
@@ -205,6 +223,7 @@ class BatchParallelQueue:
         benches_order: list[str],
         *,
         max_inflight: int,
+        seed_kwargs: dict[str, str] | None = None,
     ) -> str | None:
         if self.count_benches(variant=variant, status="queued") == 0:
             return None
@@ -213,7 +232,7 @@ class BatchParallelQueue:
         bench = self.next_queued_bench(variant, benches_order)
         if not bench:
             return None
-        self.seed_bench(variant, bench)
+        self.seed_bench(variant, bench, **(seed_kwargs or {}))
         return bench
 
     def enqueue(
@@ -384,28 +403,65 @@ class BatchParallelQueue:
     def requeue(self, job_id: int) -> bool:
         with self._conn() as conn:
             row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
-            if not row or row["kind"] != "codegen":
+            if not row:
                 return False
             if row["status"] not in ("claimed", "failed"):
                 return False
-            conn.execute(
+            updated = conn.execute(
                 """
                 UPDATE jobs
                 SET status='pending', worker_id=NULL, claimed_at=NULL,
                     assigned_role=NULL, assigned_node=NULL, assigned_slot=NULL,
                     finished_at=NULL, error=''
-                WHERE id=? AND kind='codegen' AND status IN ('claimed', 'failed')
+                WHERE id=? AND status IN ('claimed', 'failed')
                 """,
                 (job_id,),
-            )
+            ).rowcount
+            if not updated:
+                return False
             conn.execute(
                 """
                 UPDATE bench_lock SET active_job_id=NULL
-                WHERE variant=? AND bench=?
+                WHERE variant=? AND bench=? AND active_job_id=?
                 """,
-                (row["variant"], row["bench"]),
+                (row["variant"], row["bench"], job_id),
             )
+            if row["assigned_role"] and row["assigned_node"] is not None and row["assigned_slot"] is not None:
+                conn.execute(
+                    """
+                    UPDATE node_slots SET active_job_id=NULL
+                    WHERE variant=? AND role=? AND node_index=? AND worker_slot=?
+                    """,
+                    (row["variant"], row["assigned_role"], row["assigned_node"], row["assigned_slot"]),
+                )
             return True
+
+    def requeue_orphaned_claimed(self, *, kinds: tuple[str, ...] = ("cosim", "synth", "codegen")) -> list[int]:
+        """Reset claimed jobs back to pending (e.g. after Slurm TIMEOUT)."""
+        placeholders = ",".join("?" for _ in kinds)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT id FROM jobs
+                WHERE kind IN ({placeholders}) AND status='claimed'
+                ORDER BY id
+                """,
+                kinds,
+            ).fetchall()
+        requeued: list[int] = []
+        for row in rows:
+            if self.requeue(int(row["id"])):
+                requeued.append(int(row["id"]))
+        return requeued
+
+    def clear_node_slot_assignments(self, *, role: str | None = None) -> int:
+        with self._conn() as conn:
+            if role:
+                return conn.execute(
+                    "UPDATE node_slots SET active_job_id=NULL WHERE role=?",
+                    (role,),
+                ).rowcount
+            return conn.execute("UPDATE node_slots SET active_job_id=NULL").rowcount
 
     def complete(self, job_id: int, *, error: str = "") -> None:
         now = time.time()
@@ -487,6 +543,37 @@ class BatchParallelQueue:
                 """
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def codegen_demand_count(self) -> int:
+        """Benches that still need GPU codegen (queued or not yet enqueued after phase_b)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(DISTINCT b.bench) AS c
+                FROM bench_lock b
+                WHERE b.bench_status NOT IN ('done', 'failed', 'queued')
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM jobs j
+                      WHERE j.bench = b.bench AND j.kind = 'codegen'
+                        AND j.status IN ('pending', 'claimed')
+                    )
+                    OR (
+                      EXISTS (
+                        SELECT 1 FROM jobs j
+                        WHERE j.bench = b.bench AND j.phase = 'phase_b'
+                          AND j.kind = 'cosim' AND j.status = 'done'
+                      )
+                      AND NOT EXISTS (
+                        SELECT 1 FROM jobs j
+                        WHERE j.bench = b.bench AND j.phase = 'flash'
+                          AND j.kind = 'codegen' AND j.status = 'done'
+                      )
+                    )
+                  )
+                """
+            ).fetchone()
+        return int(row["c"] if row else 0)
 
     def pending_or_claimed_count(self, *, kinds: tuple[str, ...]) -> int:
         placeholders = ",".join("?" for _ in kinds)

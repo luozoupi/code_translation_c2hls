@@ -44,6 +44,14 @@ while [[ $# -gt 0 ]]; do
       AUTO_STOP_ON_COMPLETE=1
       shift
       ;;
+    --borrow-gpu)
+      export PC2_BORROW_GPU=1
+      shift
+      ;;
+    --no-borrow-gpu)
+      export PC2_BORROW_GPU=0
+      shift
+      ;;
     *)
       echo "Unknown option: $1" >&2
       exit 2
@@ -69,7 +77,17 @@ if [[ "${PC2_AUTO_STOP_ON_COMPLETE}" == "1" ]]; then
   pc2_log "auto-stop on worker success: delay=${PC2_AUTO_STOP_DELAY_SEC}s"
 fi
 
-"${SCRIPT_DIR}/submit_gpu.sh" >/dev/null
+if [[ "${PC2_BORROW_GPU:-0}" == "1" ]]; then
+  pc2_log "attempting to borrow an active GPU vLLM endpoint before submitting gpu job"
+  if "${SCRIPT_DIR}/borrow_gpu.sh"; then
+    pc2_log "using borrowed GPU endpoint (no local gpu job submitted)"
+  else
+    pc2_log "no borrowable GPU found; submitting dedicated gpu job"
+    "${SCRIPT_DIR}/submit_gpu.sh" >/dev/null
+  fi
+else
+  "${SCRIPT_DIR}/submit_gpu.sh" >/dev/null
+fi
 
 if [[ "${FOREGROUND_WATCH}" -eq 1 ]]; then
   exec "${SCRIPT_DIR}/watch_session.sh" "${PC2_SESSION_ID:-}"

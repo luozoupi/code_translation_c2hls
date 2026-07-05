@@ -18,10 +18,10 @@ SCRIPT_DIR = REPO / "scripts" / "pc2"
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from batch_parallel_config import campaign_paths, load_campaign, load_config, save_campaign
+from batch_parallel_config import campaign_paths, gpu_parking_enabled, gpu_policy_from_campaign, load_campaign, load_config, save_campaign
 from batch_parallel_flow import BatchParallelFlow
 from batch_parallel_gpu_state import gpu_must_stay_up, snapshot_gpu_busy
-from batch_parallel_park import can_hard_park, evaluate_park_request
+from batch_parallel_park import can_hard_park, evaluate_park_request, should_unpark
 from batch_parallel_queue import BatchParallelQueue
 
 
@@ -57,8 +57,23 @@ def _endpoint_healthy(endpoint_file: Path) -> bool:
     return False
 
 
-def _scancel(job_id: str | None) -> None:
+def _gpu_borrowed(campaign: dict, endpoint_file: Path) -> bool:
+    if campaign.get("gpu_borrowed"):
+        return True
+    if not endpoint_file.is_file():
+        return False
+    try:
+        payload = json.loads(endpoint_file.read_text(encoding="utf-8"))
+        return bool(payload.get("borrowed"))
+    except Exception:
+        return False
+
+
+def _scancel(job_id: str | None, *, campaign: dict | None = None, endpoint_file: Path | None = None) -> None:
     if not job_id or job_id in ("None", "null"):
+        return
+    if campaign is not None and endpoint_file is not None and _gpu_borrowed(campaign, endpoint_file):
+        logging.info("skip scancel gpu job %s (borrowed endpoint)", job_id)
         return
     subprocess.run(["scancel", str(job_id)], check=False)
 
@@ -76,25 +91,6 @@ def _submit_gpu(campaign_root: Path) -> str:
 
 def vitis_pipeline_busy(queue: BatchParallelQueue) -> bool:
     return queue.pending_or_claimed_count(kinds=("synth", "cosim")) > 0
-
-
-def should_unpark(queue: BatchParallelQueue, cfg, campaign: dict) -> str | None:
-    gpu_mode = str(campaign.get("gpu_mode") or "up")
-    if gpu_mode != "parked":
-        return None
-    pending = queue.pending_codegen()
-    if pending == 0:
-        return None
-    if pending >= cfg.gpu_batch_threshold:
-        return "batch_threshold"
-    flush_s = int(cfg.gpu_batch_flush_s or 0)
-    since = campaign.get("parked_codegen_since")
-    if flush_s > 0 and since:
-        if time.time() - float(since) >= flush_s:
-            return "batch_flush"
-    if not vitis_pipeline_busy(queue) and queue.benches_non_terminal() > 0:
-        return "pipeline_idle"
-    return None
 
 
 def _clear_park_pending(campaign: dict) -> None:
@@ -135,7 +131,9 @@ def main() -> int:
 
         flow.write_status({
             "gpu_mode": gpu_mode,
+            "gpu_policy": gpu_policy_from_campaign(campaign, cfg),
             **snapshot_gpu_busy(queue, campaign_root),
+            "codegen_demand": queue.codegen_demand_count(),
             "pending_synth": queue.pending_or_claimed_count(kinds=("synth",)),
             "pending_cosim": queue.pending_or_claimed_count(kinds=("cosim",)),
             "claimed_cosim": len(queue.claimed_cosim_jobs()),
@@ -159,7 +157,7 @@ def main() -> int:
                 while queue.pending_codegen() > 0 or queue.claimed_codegen() > 0:
                     time.sleep(cfg.poll_sec)
             if _job_active(campaign.get("gpu_job_id")):
-                _scancel(campaign.get("gpu_job_id"))
+                _scancel(campaign.get("gpu_job_id"), campaign=campaign, endpoint_file=paths["endpoint"])
             campaign = load_campaign(campaign_root)
             campaign["campaign_status"] = "complete"
             campaign["gpu_mode"] = "parked"
@@ -194,40 +192,50 @@ def main() -> int:
             else:
                 logging.warning("GPU endpoint not healthy after unpark")
 
-        if gpu_must_stay_up(queue, campaign_root, campaign) and campaign.get("park_pending_at"):
-            _clear_park_pending(campaign)
-            save_campaign(campaign_root, campaign)
-
-        park_reason = evaluate_park_request(queue, campaign, cfg, campaign_root)
-        if park_reason and _job_active(campaign.get("gpu_job_id")):
-            if not campaign.get("park_pending_at"):
-                campaign["park_pending_at"] = time.time()
-                campaign["park_pending_reason"] = park_reason
+        elif str(campaign.get("gpu_mode") or "up") == "pending_unpark":
+            if _endpoint_healthy(paths["endpoint"]):
+                campaign = load_campaign(campaign_root)
+                campaign["gpu_mode"] = "up"
+                campaign["parked_codegen_since"] = None
+                _clear_park_pending(campaign)
                 save_campaign(campaign_root, campaign)
-                flow.emit(
-                    "gpu_park_pending",
-                    scope="gpu",
-                    reason=park_reason,
-                    grace_s=cfg.park_grace_s,
-                )
-            else:
-                ready, hard_reason = can_hard_park(queue, campaign, cfg, campaign_root)
-                if ready and hard_reason:
-                    job_id = campaign.get("gpu_job_id")
-                    flow.emit("gpu_parked", scope="gpu", reason=hard_reason)
-                    campaign["gpu_mode"] = "parked"
-                    if not campaign.get("parked_codegen_since") and queue.pending_codegen() > 0:
-                        campaign["parked_codegen_since"] = time.time()
-                    _clear_park_pending(campaign)
-                    save_campaign(campaign_root, campaign)
-                    _scancel(job_id)
-        elif campaign.get("park_pending_at"):
-            _clear_park_pending(campaign)
-            save_campaign(campaign_root, campaign)
+                flow.emit("gpu_up", scope="gpu", reason="pending_unpark_recovery")
 
-        if gpu_mode == "parked" and queue.pending_codegen() > 0 and not campaign.get("parked_codegen_since"):
-            campaign["parked_codegen_since"] = time.time()
-            save_campaign(campaign_root, campaign)
+        if gpu_parking_enabled(campaign, cfg):
+            if gpu_must_stay_up(queue, campaign_root, campaign) and campaign.get("park_pending_at"):
+                _clear_park_pending(campaign)
+                save_campaign(campaign_root, campaign)
+
+            park_reason = evaluate_park_request(queue, campaign, cfg, campaign_root)
+            if park_reason and _job_active(campaign.get("gpu_job_id")):
+                if not campaign.get("park_pending_at"):
+                    campaign["park_pending_at"] = time.time()
+                    campaign["park_pending_reason"] = park_reason
+                    save_campaign(campaign_root, campaign)
+                    flow.emit(
+                        "gpu_park_pending",
+                        scope="gpu",
+                        reason=park_reason,
+                        grace_s=cfg.park_grace_s,
+                    )
+                else:
+                    ready, hard_reason = can_hard_park(queue, campaign, cfg, campaign_root)
+                    if ready and hard_reason:
+                        job_id = campaign.get("gpu_job_id")
+                        flow.emit("gpu_parked", scope="gpu", reason=hard_reason)
+                        campaign["gpu_mode"] = "parked"
+                        if not campaign.get("parked_codegen_since") and queue.pending_codegen() > 0:
+                            campaign["parked_codegen_since"] = time.time()
+                        _clear_park_pending(campaign)
+                        save_campaign(campaign_root, campaign)
+                        _scancel(job_id, campaign=campaign, endpoint_file=paths["endpoint"])
+            elif campaign.get("park_pending_at"):
+                _clear_park_pending(campaign)
+                save_campaign(campaign_root, campaign)
+
+            if gpu_mode == "parked" and queue.pending_codegen() > 0 and not campaign.get("parked_codegen_since"):
+                campaign["parked_codegen_since"] = time.time()
+                save_campaign(campaign_root, campaign)
 
         flow._render_reports()
         time.sleep(cfg.coordinator_poll_sec)

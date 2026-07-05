@@ -30,6 +30,11 @@ NEW_SKILLS_JSON = (
     / "hls_full_optimization_skills_schema_1_1_package"
     / "skills_ii_target_miss_solutions_added(90skills).json"
 )
+FLASH_SKILL_ENTRIES_JSON = (
+    REPO
+    / "hls_full_optimization_skills_schema_1_1_package"
+    / "flash_no_RMW_m_axi_skill_entries.json"
+)
 
 REPAIR_VARIANTS = ("noskills", "all_skills_avoids", "all_skills_no_avoids")
 
@@ -128,7 +133,10 @@ def _load_skills_block(repair_variant: str) -> str:
         return ""
     os.environ.setdefault("C2HLS_PACKAGED_SKILLS_JSON", str(NEW_SKILLS_JSON))
     os.environ.setdefault("C2HLS_PACKAGED_SKILLS_ONLY", "1")
-    library = SkillLibrary(store_path=NEW_SKILLS_JSON).load()
+    os.environ.setdefault("C2HLS_FLASH_SKILL_ENTRIES_JSON", str(FLASH_SKILL_ENTRIES_JSON))
+    from skill_library import make_default_library
+
+    library = make_default_library(persist=False)
     all_skills = library.all()
     if repair_variant == "all_skills_no_avoids":
         skills = [sk for sk in all_skills if sk.confidence != TIER_AVOID]

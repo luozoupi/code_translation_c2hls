@@ -44,6 +44,8 @@ def default_session() -> dict:
         ),
         "restarts": {"gpu": 0, "compute": 0},
         "last_error": None,
+        "gpu_borrowed": False,
+        "borrowed_from": None,
     }
 
 
@@ -68,6 +70,8 @@ def _reset_run_fields(data: dict) -> None:
     data["gpu_state"] = "queued"
     data["compute_state"] = "waiting_for_gpu"
     data["last_error"] = None
+    data["gpu_borrowed"] = False
+    data["borrowed_from"] = None
     data.setdefault("restarts", {})["gpu"] = 0
     data["restarts"]["compute"] = 0
 

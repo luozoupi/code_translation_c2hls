@@ -21,6 +21,37 @@ SETUP_TAG = "flash__tier_a__90skills"
 STAMP_ENV = "C2HLS_TIER_A_FLASH_SMOKE_STAMP"
 OUT_ENV = "C2HLS_TIER_A_FLASH_SMOKE_OUT"
 MATRIX_FAMILY = "flash_tier_a_ready_smoke"
+DEFAULT_SYNTH_TIMEOUT_S = 1200
+
+# Gold-gate / synth timeouts for large forgebench kernels (PC2 Vitis 2023.2).
+BENCH_SYNTH_TIMEOUT_S: dict[str, int] = {
+    "forgebench_mlp": 3600,
+    "forgebench_mult_op_p1": 3600,
+}
+BENCH_SYNTH_TIMEOUT_PREFIX_S: dict[str, int] = {
+    "forgebench_mult_op_": 3600,
+}
+
+
+def synth_timeout_s_for_bench(bench_name: str) -> int | None:
+    if bench_name in BENCH_SYNTH_TIMEOUT_S:
+        return BENCH_SYNTH_TIMEOUT_S[bench_name]
+    for prefix, timeout in BENCH_SYNTH_TIMEOUT_PREFIX_S.items():
+        if bench_name.startswith(prefix):
+            return timeout
+    return None
+
+
+def apply_bench_synth_timeout_from_meta(meta: dict[str, Any]) -> int:
+    bench = str(meta.get("benchmark") or "")
+    timeout = meta.get("synth_timeout_s")
+    if timeout is None:
+        timeout = synth_timeout_s_for_bench(bench)
+    if timeout is not None:
+        os.environ["C2HLS_SYNTH_TIMEOUT"] = str(int(timeout))
+        return int(timeout)
+    os.environ.setdefault("C2HLS_SYNTH_TIMEOUT", str(DEFAULT_SYNTH_TIMEOUT_S))
+    return int(os.environ["C2HLS_SYNTH_TIMEOUT"])
 
 
 def count_skills(path: Path) -> int:
@@ -35,7 +66,7 @@ def verify_skills_90() -> dict[str, Any]:
         "errors": [],
         "skills_json": str(SKILLS_90_JSON.resolve()),
         "skill_count": 0,
-        "expected_skill_count": 90,
+        "expected_skill_count": 92,
     }
     if not SKILLS_90_JSON.is_file():
         out["ok"] = False
@@ -43,9 +74,9 @@ def verify_skills_90() -> dict[str, Any]:
         return out
     got = count_skills(SKILLS_90_JSON)
     out["skill_count"] = got
-    if got != 90:
+    if got != 92:
         out["ok"] = False
-        out["errors"].append(f"skill count {got} != expected 90")
+        out["errors"].append(f"skill count {got} != expected 92")
     return out
 
 
@@ -88,8 +119,14 @@ def resolve_tier_a_benches(
 
 
 def configure_tier_a_flash_90skills_env() -> None:
+    import sys
+
     from c2hls_paths import apply_runtime_defaults
     from c2hls_temp import configure_temp_env
+
+    scripts_root = Path(__file__).resolve().parents[1]
+    if str(scripts_root) not in sys.path:
+        sys.path.insert(0, str(scripts_root))
 
     apply_runtime_defaults(profile="sweep")
     configure_temp_env(create=True)
@@ -101,6 +138,9 @@ def configure_tier_a_flash_90skills_env() -> None:
     os.environ["C2HLS_SKILL_PROMPT_MODE"] = "all_skills_avoids_global"
     os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(SKILLS_90_JSON.resolve())
     os.environ["C2HLS_PACKAGED_SKILLS_ONLY"] = "1"
+    from flash_shared.new_skills_lib import _apply_flash_skill_entries_env
+
+    _apply_flash_skill_entries_env(True)
     os.environ.setdefault("C2HLS_RECORD_FLOW", "1")
     os.environ.setdefault("C2HLS_PHASEB_MODE", "functional")
     os.environ.setdefault("C2HLS_PHASE8_BASELINE_ALIGN", "0")

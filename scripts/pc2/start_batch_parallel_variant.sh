@@ -65,10 +65,14 @@ submit_node() {
     return 0
   fi
   local job_id
+  local job_tag="${PC2_JOB_TAG:-$(basename "${CAMPAIGN_ROOT}")}"
+  local job_prefix
+  job_prefix="$(pc2_batch_job_prefix "${CAMPAIGN_ROOT}")"
   job_id="$(
     sbatch --parsable \
       --chdir="${C2HLS_ROOT}" \
       --export=ALL,BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}",BATCH_PARALLEL_VARIANT="${VARIANT}",BATCH_PARALLEL_NODE_INDEX="${node_index}",BATCH_PARALLEL_CONFIG="${CONFIG}" \
+      --job-name="${job_prefix}-${role}-n${node_index}-${job_tag}" \
       --partition="${PC2_COMPUTE_PARTITION}" \
       --cpus-per-task="${cpus}" \
       --mem="${mem}G" \

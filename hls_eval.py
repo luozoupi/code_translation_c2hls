@@ -92,7 +92,11 @@ DEFAULT_PART = os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e")
 DEFAULT_CLOCK_NS = float(os.getenv("C2HLS_CLOCK_NS", "3.33"))
 DEFAULT_FLOW_TARGET = os.getenv("C2HLS_FLOW_TARGET", "vitis")
 DEFAULT_COSIM_TRACE_LEVEL = os.getenv("C2HLS_COSIM_TRACE_LEVEL", "none").strip()
-SYNTH_TIMEOUT = int(os.getenv("C2HLS_SYNTH_TIMEOUT", "1200"))  # 20 minutes
+def _synth_timeout() -> int:
+    return int(os.getenv("C2HLS_SYNTH_TIMEOUT", "1200"))
+
+
+SYNTH_TIMEOUT = _synth_timeout()  # module import default; call _synth_timeout() at use sites
 CSIM_TIMEOUT = int(os.getenv("C2HLS_CSIM_TIMEOUT", "180"))     # 3 minutes
 COSIM_TIMEOUT = int(os.getenv("C2HLS_COSIM_TIMEOUT", "1200"))  # 20 minutes
 KERNEL_CLOCK_ID = 0
@@ -384,6 +388,55 @@ def _normalize_extra_files(extra_files) -> list:
     return normalized
 
 
+def _tcl_tb_extra_add_lines(
+    work_dir: str,
+    extra_files,
+    *,
+    skip_abs_paths: set[str] | None = None,
+    relative: bool = False,
+) -> list[str]:
+    """Return ``add_files -tb`` lines for bench-local extras (data, headers, helper cpp).
+
+    Forgebench and similar tier_A benches load ``support/*.txt`` from the testbench.
+    Vitis csim runs the TB binary from ``hls_proj/sol1/csim/...``, so data files must
+    be registered with ``add_files -tb`` using paths relative to ``work_dir`` (mirrors
+    ``dataset_hls_csim.tcl``).
+    """
+    skip = skip_abs_paths or set()
+    lines: list[str] = []
+    seen: set[str] = set()
+    for rel_path, _content, tb in _normalize_extra_files(extra_files):
+        if not tb:
+            continue
+        extra_path = os.path.join(work_dir, rel_path)
+        extra_abs = os.path.normpath(os.path.abspath(extra_path))
+        if extra_abs in skip or extra_abs in seen:
+            continue
+        seen.add(extra_abs)
+        staged = rel_path if relative else extra_path
+        lines.append(f"add_files -tb {staged}")
+    return lines
+
+
+def _tcl_kernel_extra_add_lines(
+    extra_files,
+    *,
+    skip_relpaths: set[str] | None = None,
+) -> list[str]:
+    """Return ``add_files`` lines for support data / auxiliary headers (non-cpp)."""
+    skip = skip_relpaths or set()
+    lines: list[str] = []
+    seen: set[str] = set()
+    for rel_path, _content, _tb in _normalize_extra_files(extra_files):
+        if rel_path in skip or rel_path in seen:
+            continue
+        if rel_path.endswith(".cpp"):
+            continue
+        seen.add(rel_path)
+        lines.append(f"add_files {rel_path}")
+    return lines
+
+
 def _materialize_inputs(work_dir: str, hls_code: str, header_code: str, header_name: str,
                        testbench_code: str = "", extra_files=None, interface_depths=None) -> dict:
     os.makedirs(work_dir, exist_ok=True)
@@ -480,11 +533,12 @@ exit
         f.write(tcl_content)
 
     cmd = f"cd {work_dir} && vitis-run --tcl --input_file {tcl_file}"
-    log, timed_out = _run_vitis_cmd(cmd, SYNTH_TIMEOUT)
+    synth_timeout = _synth_timeout()
+    log, timed_out = _run_vitis_cmd(cmd, synth_timeout)
     if timed_out:
         return {
             "success": False,
-            "error": f"Synthesis timed out after {SYNTH_TIMEOUT}s",
+            "error": f"Synthesis timed out after {synth_timeout}s",
             "report": {},
             "report_raw": "",
             "log": log,
@@ -731,17 +785,27 @@ def run_csim(
     hdr_file = inputs["hdr_file"]
 
     proj_name = "hls_proj"
+    src_rel = "kernel.cpp"
+    tb_rel = "testbench.cpp" if tb_file else ""
+    hdr_rel = header_name if hdr_file else ""
+    skip_relpaths = {p for p in (hdr_rel, src_rel, tb_rel) if p}
     tcl_content = f"""open_project {proj_name}
 set_top {top_function}
-add_files {src_file}
+add_files {src_rel}
 """
-    if hdr_file:
-        tcl_content += f"add_files {hdr_file}\n"
-    tcl_content += f"add_files -tb {tb_file}\n"
-    for rel_path, _content, tb in _normalize_extra_files(extra_files):
-        if rel_path.endswith(".cpp") and tb:
-            extra_path = os.path.join(work_dir, rel_path)
-            tcl_content += f"add_files -tb {extra_path}\n"
+    if hdr_rel:
+        tcl_content += f"add_files {hdr_rel}\n"
+    for line in _tcl_kernel_extra_add_lines(extra_files, skip_relpaths=skip_relpaths):
+        tcl_content += f"{line}\n"
+    if tb_rel:
+        tcl_content += f"add_files -tb {tb_rel}\n"
+    if hdr_rel:
+        tcl_content += f"add_files -tb {hdr_rel}\n"
+    skip_tb = {os.path.normpath(os.path.abspath(p)) for p in (tb_file,) if p}
+    for line in _tcl_tb_extra_add_lines(
+        work_dir, extra_files, skip_abs_paths=skip_tb, relative=True,
+    ):
+        tcl_content += f"{line}\n"
     tcl_content += f"""open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default
@@ -811,21 +875,31 @@ def run_cosim(
     hdr_file = inputs["hdr_file"]
 
     proj_name = "hls_proj"
+    src_rel = "kernel.cpp"
+    tb_rel = "testbench.cpp" if tb_file else ""
+    hdr_rel = header_name if hdr_file else ""
+    skip_relpaths = {p for p in (hdr_rel, src_rel, tb_rel) if p}
     tcl_content = f"""open_project {proj_name}
 set_top {top_function}
-add_files {src_file}
+add_files {src_rel}
 """
-    if hdr_file:
-        tcl_content += f"add_files {hdr_file}\n"
+    if hdr_rel:
+        tcl_content += f"add_files {hdr_rel}\n"
+    for line in _tcl_kernel_extra_add_lines(extra_files, skip_relpaths=skip_relpaths):
+        tcl_content += f"{line}\n"
     cosim_cmd = "cosim_design"
     if DEFAULT_COSIM_TRACE_LEVEL:
         cosim_cmd += f" -trace_level {DEFAULT_COSIM_TRACE_LEVEL}"
 
-    tcl_content += f"add_files -tb {tb_file}\n"
-    for rel_path, _content, tb in _normalize_extra_files(extra_files):
-        if rel_path.endswith(".cpp") and tb:
-            extra_path = os.path.join(work_dir, rel_path)
-            tcl_content += f"add_files -tb {extra_path}\n"
+    if tb_rel:
+        tcl_content += f"add_files -tb {tb_rel}\n"
+    if hdr_rel:
+        tcl_content += f"add_files -tb {hdr_rel}\n"
+    skip_tb = {os.path.normpath(os.path.abspath(p)) for p in (tb_file,) if p}
+    for line in _tcl_tb_extra_add_lines(
+        work_dir, extra_files, skip_abs_paths=skip_tb, relative=True,
+    ):
+        tcl_content += f"{line}\n"
     tcl_content += f"""open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default

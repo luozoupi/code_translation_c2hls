@@ -14,8 +14,16 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scripts" / "pc2"))
 
-from batch_parallel_bench import execute_job
-from batch_parallel_config import campaign_paths, campaign_benches, load_campaign, load_config
+from batch_parallel_config import campaign_paths, load_campaign, load_config
+from batch_parallel_dispatch import (
+    campaign_benches_resolved,
+    cell_dir_for_job,
+    configure_campaign_env,
+    resolve_bench_map,
+    run_batch_parallel_job,
+    seed_kwargs_for_campaign,
+    validate_variant,
+)
 from batch_parallel_flow import BatchParallelFlow
 from batch_parallel_gpu_state import (
     begin_llm_request,
@@ -24,8 +32,6 @@ from batch_parallel_gpu_state import (
 )
 from batch_parallel_queue import BatchParallelQueue
 from c2hls_paths import configure_site
-from flash_fixed_cosim_lib import VARIANTS, configure_fixed_cosim_flash_env, resolve_cosim_benches
-from run_flash_fixed_cosim_batch import _cell_dir, model_cell_tag
 
 
 def _load_endpoint_env(endpoint_file: Path) -> None:
@@ -78,25 +84,13 @@ def main() -> int:
     cfg = load_config()
     campaign = load_campaign(campaign_root)
     active_variants = campaign.get("active_variants") or [cfg.pilot_variant]
-    benches_order = campaign_benches(campaign, cfg)
+    benches_order = campaign_benches_resolved(campaign, cfg)
     model_id = cfg.model
     turns = cfg.turns
-    model_tag = model_cell_tag(model_id)
-    cell_root = campaign_root / "variants"
     queue = BatchParallelQueue(paths["queue_db"])
     flow = BatchParallelFlow(campaign_root)
-    bench_cache: dict[str, Path] = {}
+    bench_cache = resolve_bench_map(campaign, cfg, benches_order)
     worker = f"gpu-drain-{os.getpid()}"
-
-    def bench_dir_for(name: str) -> Path | None:
-        if name in bench_cache:
-            return bench_cache[name]
-        try:
-            resolved = dict(resolve_cosim_benches([name]))
-            bench_cache[name] = resolved[name]
-            return bench_cache[name]
-        except ValueError:
-            return None
 
     while True:
         if queue.campaign_complete(active_variants):
@@ -116,12 +110,11 @@ def main() -> int:
             time.sleep(cfg.poll_sec)
             continue
 
-        variant = VARIANTS.get(job.variant)
-        if variant is None:
+        if not validate_variant(campaign, job.variant):
             queue.complete(job.id, error=f"unknown variant {job.variant}")
             continue
-        configure_fixed_cosim_flash_env(variant)
-        bench_dir = bench_dir_for(job.bench)
+        configure_campaign_env(campaign, job.variant)
+        bench_dir = bench_cache.get(job.bench)
         if not bench_dir:
             queue.complete(job.id, error=f"unknown bench {job.bench}")
             continue
@@ -143,15 +136,15 @@ def main() -> int:
             pending_codegen=queue.pending_codegen(),
             job_id=job.id,
         )
-        cell = _cell_dir(cell_root / job.variant, job.bench, model_tag, variant)
+        cell = cell_dir_for_job(campaign_root, campaign, job, model_id)
         cell.mkdir(parents=True, exist_ok=True)
         try:
-            execute_job(
+            run_batch_parallel_job(
                 job=job,
                 queue=queue,
+                campaign=campaign,
                 bench_dir=bench_dir,
                 cell_dir=cell,
-                variant_key=job.variant,
                 model_id=model_id,
                 turns=turns,
             )
@@ -186,6 +179,7 @@ def main() -> int:
                 )
             else:
                 queue.complete(job.id, error=str(exc))
+                queue.set_bench_status(job.variant, job.bench, "failed")
                 flow.emit(
                     "codegen_failed",
                     scope="gpu",

@@ -45,6 +45,28 @@ _reset_compute_wait() {
 
 _check_gpu() {
   local job_id state sess_state
+  if pc2_session_is_borrowed_gpu; then
+    if pc2_llm_ready; then
+      pc2_session_py set gpu_state ready 2>/dev/null || true
+      return 0
+    fi
+    pc2_log "borrowed LLM endpoint unhealthy; trying another active GPU"
+    rm -f "${PC2_ENDPOINT_FILE}"
+    if "${SCRIPT_DIR}/borrow_gpu.sh"; then
+      pc2_session_py set gpu_state borrowed 2>/dev/null || true
+      return 0
+    fi
+    pc2_log "no alternate borrowed GPU; submitting dedicated gpu job"
+    pc2_session_py set gpu_borrowed false 2>/dev/null || true
+    pc2_session_py set borrowed_from null 2>/dev/null || true
+    pc2_session_py set gpu_job_id null 2>/dev/null || true
+    if _should_restart gpu; then
+      pc2_session_py bump-restart gpu >/dev/null
+      "${SCRIPT_DIR}/submit_gpu.sh" >/dev/null
+    fi
+    return 0
+  fi
+
   job_id="$(pc2_session_py get gpu_job_id 2>/dev/null || true)"
   state="$(pc2_job_state "${job_id}")"
   sess_state="$(pc2_session_py get gpu_state 2>/dev/null || echo queued)"
@@ -124,7 +146,13 @@ _check_compute() {
   # Compute allocated or running: require GPU still serving.
   if [[ "${comp_state}" == "pending" ]]; then
     pc2_session_py set compute_state queued 2>/dev/null || true
-    if ! pc2_job_is_running "${gpu_id}"; then
+    if pc2_session_is_borrowed_gpu; then
+      if ! pc2_llm_ready; then
+        pc2_log "compute ${comp_id} queued but borrowed LLM unhealthy; cancelling compute"
+        pc2_cancel_job "${comp_id}"
+        _reset_compute_wait
+      fi
+    elif ! pc2_job_is_running "${gpu_id}"; then
       pc2_log "compute ${comp_id} queued but gpu not running; cancelling compute"
       pc2_cancel_job "${comp_id}"
       _reset_compute_wait
@@ -133,7 +161,13 @@ _check_compute() {
   fi
 
   if [[ "${comp_state}" == "running" ]]; then
-    if ! pc2_job_is_running "${gpu_id}"; then
+    if pc2_session_is_borrowed_gpu; then
+      if ! pc2_llm_ready; then
+        pc2_log "compute ${comp_id} running but borrowed LLM unhealthy; cancelling compute"
+        pc2_cancel_job "${comp_id}"
+        _reset_compute_wait
+      fi
+    elif ! pc2_job_is_running "${gpu_id}"; then
       pc2_log "compute ${comp_id} running but gpu not running; cancelling compute"
       pc2_cancel_job "${comp_id}"
       _reset_compute_wait
@@ -141,14 +175,23 @@ _check_compute() {
     return 0
   fi
 
-  # No active compute job — submit once GPU is RUNNING (worker waits for LLM health).
-  if [[ "${gpu_state}" != "running" ]]; then
+  # No active compute job — submit once GPU/LLM is ready.
+  if pc2_session_is_borrowed_gpu; then
+    if ! pc2_llm_ready; then
+      pc2_session_py set compute_state waiting_for_gpu 2>/dev/null || true
+      return 0
+    fi
+  elif [[ "${gpu_state}" != "running" ]]; then
     pc2_session_py set compute_state waiting_for_gpu 2>/dev/null || true
     return 0
   fi
 
   if [[ "${comp_state}" == "none" || -z "${comp_id}" || "${comp_id}" == "None" || "${comp_id}" == "null" ]]; then
-    pc2_log "gpu ${gpu_id} running; submitting compute (may queue on ${PC2_COMPUTE_PARTITION})"
+    if pc2_session_is_borrowed_gpu; then
+      pc2_log "borrowed LLM ready; submitting compute (may queue on ${PC2_COMPUTE_PARTITION})"
+    else
+      pc2_log "gpu ${gpu_id} running; submitting compute (may queue on ${PC2_COMPUTE_PARTITION})"
+    fi
     "${SCRIPT_DIR}/submit_compute.sh" >/dev/null
     return 0
   fi

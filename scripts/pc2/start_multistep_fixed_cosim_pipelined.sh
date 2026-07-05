@@ -57,7 +57,7 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   exit 0
 fi
 
-export PC2_SLURM_ACCOUNT="${PC2_SLURM_ACCOUNT:-hpc-prf-haqc}"
+export PC2_SLURM_ACCOUNT="${PC2_SLURM_ACCOUNT:-hpc-prf-llmfpga}"
 
 WORKER_CMD="C2HLS_MULTISTEP_FIXED_COSIM_STAMP=${STAMP} ${PY} scripts/pc2/run_multistep_fixed_cosim_pipelined.py --pc2 ${EXTRA_ARGS} --stamp ${STAMP}"
 START_ARGS=(--session-id "${SESSION_ID}" --worker-cmd "${WORKER_CMD}")

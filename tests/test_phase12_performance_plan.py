@@ -125,6 +125,13 @@ def test_flash_mode_wiring(results, tee):
         results,
         tee,
     )
+    _check(
+        "flash-distinct-gmem-bundles",
+        "bundle=gmem0" in prompt_c2hls.Instruction_c2hls_flash,
+        "flash system instruction mandates per-port gmem bundles",
+        results,
+        tee,
+    )
     clean = {
         "latency_ns": 1000.0,
         "slack_ns": 0.1,

@@ -47,6 +47,48 @@ _VPRAGMA_HLS_RE = re.compile(
 
 _PARTITION_TYPES = frozenset({"block", "cyclic", "complete"})
 
+# Pragma attribute keys and bare tokens to lowercase; identifier *values* keep source casing.
+_PRAGMA_KEY_TOKENS = frozenset(
+    {
+        "array_partition",
+        "bind_op",
+        "bind_storage",
+        "block",
+        "bundle",
+        "complete",
+        "cyclic",
+        "dataflow",
+        "dependence",
+        "depth",
+        "dim",
+        "factor",
+        "false",
+        "ii",
+        "inline",
+        "interface",
+        "inter",
+        "intra",
+        "loop_flatten",
+        "loop_tripcount",
+        "m_axi",
+        "master",
+        "max",
+        "min",
+        "offset",
+        "performance",
+        "pipeline",
+        "port",
+        "s_axilite",
+        "slave",
+        "stable",
+        "stream",
+        "true",
+        "type",
+        "unroll",
+        "variable",
+    }
+)
+
 
 def parse_defines(*texts: str) -> Dict[str, str]:
     """Collect simple #define NAME VALUE mappings from header/source text."""
@@ -227,6 +269,26 @@ def _pragma_hls_from_macro_body(body: str, defines: Optional[Dict[str, str]] = N
     return f"#pragma HLS {cleaned}"
 
 
+def _normalize_pragma_token(token: str) -> str:
+    """Lowercase pragma keywords; preserve identifier values (port/variable names)."""
+    if "=" not in token:
+        return token.lower()
+    key, value = token.split("=", 1)
+    key = key.lower()
+    if re.fullmatch(r"[A-Za-z_]\w*", value):
+        return f"{key}={value}"
+    if value.lower() in _PRAGMA_KEY_TOKENS:
+        return f"{key}={value.lower()}"
+    return f"{key}={value}"
+
+
+def _normalize_pragma_tokens(body: str) -> str:
+    """Normalize spacing and keyword casing without mangling C++ identifiers."""
+    body = " ".join(body.split())
+    body = re.sub(r"\s*=\s*", "=", body)
+    return " ".join(_normalize_pragma_token(tok) for tok in body.split())
+
+
 def _normalize_pragma_body(body: str) -> str:
     body = " ".join(body.split())
     body = re.sub(r"\s*=\s*", "=", body)
@@ -235,34 +297,47 @@ def _normalize_pragma_body(body: str) -> str:
     # array_partition: trailing or embedded partition type keyword
     m = re.match(
         r"array_partition\s+variable=(\w+)\s+(\w+)\s+factor=(\S+)\s+dim=(\S+)",
-        lower,
+        body,
+        re.IGNORECASE,
     )
-    if m and m.group(2) in _PARTITION_TYPES:
+    if m and m.group(2).lower() in _PARTITION_TYPES:
         return (
-            f"array_partition variable={m.group(1)} type={m.group(2)} "
+            f"array_partition variable={m.group(1)} type={m.group(2).lower()} "
             f"factor={m.group(3)} dim={m.group(4)}"
         )
 
     m = re.match(
         r"array_partition\s+variable=(\w+)\s+factor=(\S+)\s+(\w+)",
-        lower,
+        body,
+        re.IGNORECASE,
     )
-    if m and m.group(3) in _PARTITION_TYPES:
+    if m and m.group(3).lower() in _PARTITION_TYPES:
         return (
-            f"array_partition variable={m.group(1)} type={m.group(3)} "
+            f"array_partition variable={m.group(1)} type={m.group(3).lower()} "
             f"factor={m.group(2)}"
         )
 
+    m = re.match(
+        r"array_partition\s+variable=(\w+)\s+(\w+)\s+factor=(\S+)",
+        body,
+        re.IGNORECASE,
+    )
+    if m and m.group(2).lower() in _PARTITION_TYPES:
+        return (
+            f"array_partition variable={m.group(1)} type={m.group(2).lower()} "
+            f"factor={m.group(3)}"
+        )
+
     # unroll factor
-    m = re.match(r"unroll\s+factor=(\S+)", lower)
+    m = re.match(r"unroll\s+factor=(\S+)", body, re.IGNORECASE)
     if m:
         return f"unroll factor={m.group(1)}"
 
-    m = re.match(r"unroll\s+factor\s+(\S+)", lower)
+    m = re.match(r"unroll\s+factor\s+(\S+)", body, re.IGNORECASE)
     if m:
         return f"unroll factor={m.group(1)}"
 
-    # pipeline / inline / dataflow bare directives
+    # pipeline / inline / dataflow / interface / … — keywords only, ids preserved
     for directive in (
         "pipeline",
         "inline",
@@ -278,9 +353,9 @@ def _normalize_pragma_body(body: str) -> str:
         "performance",
     ):
         if lower.startswith(directive):
-            return lower
+            return _normalize_pragma_tokens(body)
 
-    return lower
+    return _normalize_pragma_tokens(body)
 
 
 def normalize_vitis_pragmas(text: str, defines: Optional[Dict[str, str]] = None) -> str:

@@ -41,6 +41,7 @@ class BatchParallelConfig:
     worker_mem_gb: int = 32
     gpu_batch_threshold: int = 5
     gpu_batch_flush_s: int = 3600
+    gpu_policy: str = "batch_park"  # batch_park | always_on
     park_threshold_s: float = 7200.0
     long_cosim_park_s: float = 3600.0
     park_grace_s: float = 1800.0
@@ -53,9 +54,11 @@ class BatchParallelConfig:
     max_inflight_benches: int = 3
     poll_sec: float = 2.0
     coordinator_poll_sec: float = 15.0
+    job_prefix: str = "bpcplx"
     pilot_variant: str = "aav_n"
     pilot_benches: list[str] = field(default_factory=lambda: list(SHORT_FIRST_BENCHES[:4]))
     pilot_workflow: str = "flash"
+    pilot_corpus: str = ""
     pilot_failure_policy: str = "ignore"
     model: str = "devstral2"
     turns: int = 4
@@ -81,6 +84,9 @@ class BatchParallelConfig:
         return workers * self.worker_mem_gb
 
     def sort_benches(self, benches: list[str]) -> list[str]:
+        if self.bench_order == "listed":
+            order = {b: i for i, b in enumerate(self.pilot_benches)}
+            return sorted(benches, key=lambda b: order.get(b, 9999))
         if self.bench_order != "short_first":
             return sorted(benches)
         order = {b: i for i, b in enumerate(self.pilot_benches)}
@@ -99,6 +105,7 @@ class BatchParallelConfig:
             "worker_mem_gb": self.worker_mem_gb,
             "gpu_batch_threshold": self.gpu_batch_threshold,
             "gpu_batch_flush_s": self.gpu_batch_flush_s,
+            "gpu_policy": self.gpu_policy,
             "park_threshold_s": self.park_threshold_s,
             "long_cosim_park_s": self.long_cosim_park_s,
             "park_grace_s": self.park_grace_s,
@@ -111,15 +118,34 @@ class BatchParallelConfig:
             "max_inflight_benches": self.max_inflight_benches,
             "poll_sec": self.poll_sec,
             "coordinator_poll_sec": self.coordinator_poll_sec,
+            "job_prefix": self.job_prefix,
             "pilot": {
                 "variant": self.pilot_variant,
                 "benches": self.pilot_benches,
                 "workflow": self.pilot_workflow,
+                "corpus": self.pilot_corpus,
                 "failure_policy": self.pilot_failure_policy,
                 "model": self.model,
                 "turns": self.turns,
             },
         }
+
+
+def benches_for_config(cfg: BatchParallelConfig) -> list[str]:
+    raw = os.getenv("C2HLS_TIER_A_FLASH_BENCHES", "").strip()
+    if raw:
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    return list(cfg.pilot_benches)
+
+
+def seed_kwargs_for_workflow(workflow: str) -> dict[str, str]:
+    if workflow == "tier_a_flash":
+        return {
+            "initial_kind": "synth",
+            "initial_phase": "reference",
+            "initial_stage": "gold_gate",
+        }
+    return {}
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
@@ -150,6 +176,8 @@ def load_config(toml_path: Path | None = None) -> BatchParallelConfig:
         cfg.pilot_benches = [str(b) for b in pilot["benches"]]
     if pilot.get("workflow"):
         cfg.pilot_workflow = str(pilot["workflow"])
+    if pilot.get("corpus"):
+        cfg.pilot_corpus = str(pilot["corpus"])
     if pilot.get("failure_policy"):
         cfg.pilot_failure_policy = str(pilot["failure_policy"])
     if pilot.get("model"):
@@ -161,7 +189,22 @@ def load_config(toml_path: Path | None = None) -> BatchParallelConfig:
         cfg.model = env_model
     if os.getenv("C2HLS_TURNS", "").strip():
         cfg.turns = int(os.getenv("C2HLS_TURNS", "4"))
+    env_prefix = os.getenv("PC2_BATCH_JOB_PREFIX", "").strip()
+    if env_prefix:
+        cfg.job_prefix = env_prefix
     return cfg
+
+
+def campaign_job_prefix(campaign: dict[str, Any], *, default: str = "bpcplx") -> str:
+    """Slurm job-name prefix stored on the campaign (e.g. bpfcosim, bpcplx)."""
+    top = str(campaign.get("job_prefix") or "").strip()
+    if top:
+        return top
+    cfg = campaign.get("config") or {}
+    nested = str(cfg.get("job_prefix") or "").strip()
+    if nested:
+        return nested
+    return default
 
 
 def campaign_benches(campaign: dict[str, Any], cfg: BatchParallelConfig | None = None) -> list[str]:
@@ -182,9 +225,28 @@ def campaign_benches(campaign: dict[str, Any], cfg: BatchParallelConfig | None =
     return cfg.sort_benches(list(cfg.pilot_benches))
 
 
+def gpu_policy_from_campaign(campaign: dict[str, Any], cfg: BatchParallelConfig | None = None) -> str:
+    if cfg is None:
+        cfg = load_config()
+    stored = campaign.get("config") or {}
+    return str(stored.get("gpu_policy") or cfg.gpu_policy or "batch_park")
+
+
+def gpu_parking_enabled(campaign: dict[str, Any], cfg: BatchParallelConfig | None = None) -> bool:
+    return gpu_policy_from_campaign(campaign, cfg) != "always_on"
+
+
+def campaign_artifact_prefix() -> str:
+    return os.getenv("BATCH_PARALLEL_ARTIFACT_PREFIX", "batch_parallel").strip() or "batch_parallel"
+
+
+def campaign_dir_name(stamp: str) -> str:
+    return f"{campaign_artifact_prefix()}_{stamp}"
+
+
 def default_campaign_root(stamp: str | None = None) -> Path:
     suffix = stamp or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    return REPO / "artifacts" / "pc2" / f"batch_parallel_{suffix}"
+    return REPO / "artifacts" / "pc2" / campaign_dir_name(suffix)
 
 
 def campaign_paths(campaign_root: Path) -> dict[str, Path]:
@@ -228,14 +290,17 @@ def init_campaign_json(
     active_variants: list[str] | None = None,
 ) -> dict[str, Any]:
     variants = active_variants or [cfg.pilot_variant]
+    prefix = campaign_artifact_prefix()
+    job_prefix = os.getenv("PC2_BATCH_JOB_PREFIX", "").strip() or cfg.job_prefix or "bpcplx"
     doc = {
         "campaign_status": "running",
         "stamp": stamp,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "completed_at": None,
+        "job_prefix": job_prefix,
         "gpu_mode": "up",
         "gpu_job_id": None,
-        "gpu_session_id": f"batch_parallel_{stamp}",
+        "gpu_session_id": f"{prefix}_{stamp}",
         "coordinator_pid": None,
         "parked_codegen_since": None,
         "park_pending_at": None,

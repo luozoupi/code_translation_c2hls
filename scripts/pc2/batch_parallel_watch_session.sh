@@ -17,6 +17,7 @@ CAMPAIGN_ROOT="${BATCH_PARALLEL_CAMPAIGN_ROOT:?set BATCH_PARALLEL_CAMPAIGN_ROOT}
 export PC2_SESSION_DIR="${CAMPAIGN_ROOT}"
 export PC2_ENDPOINT_FILE="${CAMPAIGN_ROOT}/llm_endpoint.json"
 export PC2_WATCH_LOG="${CAMPAIGN_ROOT}/flow/watch.log"
+export PC2_BATCH_JOB_PREFIX="$(pc2_batch_job_prefix "${CAMPAIGN_ROOT}")"
 mkdir -p "${CAMPAIGN_ROOT}/flow"
 
 cd "${C2HLS_ROOT}"
@@ -148,11 +149,33 @@ _all_compute_pending_only() {
   [[ "${saw}" -eq 1 ]]
 }
 
+_compute_work_pending() {
+  _campaign_py <<'PY'
+import sqlite3, sys
+from pathlib import Path
+db = Path(sys.argv[1]) / "queue.db"
+if not db.is_file():
+    print(0)
+    raise SystemExit(0)
+conn = sqlite3.connect(db)
+n = conn.execute(
+    "SELECT COUNT(*) FROM jobs WHERE kind IN ('synth','cosim') AND status IN ('pending','claimed')"
+).fetchone()[0]
+print(n)
+conn.close()
+PY
+}
+
 _cancel_compute_jobs() {
   local job_id
   for job_id in $(_compute_job_ids); do
     pc2_cancel_job "${job_id}"
   done
+}
+
+_job_belongs_to_campaign() {
+  local job_id="$1"
+  scontrol show job "${job_id}" 2>/dev/null | grep -Fq "BATCH_PARALLEL_CAMPAIGN_ROOT=${CAMPAIGN_ROOT}"
 }
 
 _discover_unregistered_compute_ids() {
@@ -173,6 +196,9 @@ _adopt_unregistered_compute() {
   local adopted=0
   for job_id in $(_discover_unregistered_compute_ids); do
     if ! pc2_job_active "${job_id}"; then
+      continue
+    fi
+    if ! _job_belongs_to_campaign "${job_id}"; then
       continue
     fi
     _campaign_py "${job_id}" <<'PY'
@@ -208,11 +234,34 @@ _check_gpu() {
     return 0
   fi
 
+  if pc2_session_is_borrowed_gpu && pc2_llm_ready; then
+    return 0
+  fi
+
   if pc2_job_is_running "${job_id}"; then
     return 0
   fi
 
   if ! pc2_job_active "${job_id}" && [[ "${gpu_mode}" == "up" ]]; then
+    if pc2_session_is_borrowed_gpu; then
+      pc2_log "watch: borrowed endpoint unhealthy; trying another borrow"
+      if "${SCRIPT_DIR}/borrow_gpu.sh"; then
+        _campaign_py <<'PY'
+import json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+ep = root / "llm_endpoint.json"
+doc = json.loads((root / "campaign.json").read_text())
+if ep.is_file():
+    payload = json.loads(ep.read_text())
+    doc["gpu_job_id"] = payload.get("job_id") or doc.get("gpu_job_id")
+doc["gpu_borrowed"] = True
+(root / "campaign.json").write_text(json.dumps(doc, indent=2) + "\n")
+PY
+        return 0
+      fi
+      pc2_session_py set gpu_borrowed false >/dev/null || true
+    fi
     pc2_log "watch: gpu job missing while gpu_mode=up; resubmitting"
     local new_id
     new_id="$(
@@ -256,14 +305,30 @@ _check_compute() {
       pc2_log "watch: cancelling orphan queued compute (gpu not running yet)"
       _cancel_compute_jobs
       _reset_compute_wait
+    elif [[ "$(_compute_work_pending)" -gt 0 ]] && pc2_job_is_running "${gpu_id}"; then
+      pc2_log "watch: compute finished with pending synth/cosim; resubmitting nodes"
+      _reset_compute_wait
     fi
     return 0
   fi
 
-  # waiting_for_gpu — submit once GPU is RUNNING.
-  if [[ "${comp_state}" == "waiting_for_gpu" && "${gpu_mode}" == "up" && -n "${gpu_id}" ]]; then
+  # waiting_for_gpu — submit once GPU is RUNNING (or borrowed endpoint is healthy).
+  if [[ "${comp_state}" == "waiting_for_gpu" && "${gpu_mode}" == "up" ]]; then
     if _adopt_unregistered_compute; then
       pc2_log "watch: adopted already-running compute jobs (eager submit recovery)"
+      return 0
+    fi
+    if pc2_session_is_borrowed_gpu && pc2_llm_ready; then
+      pc2_log "watch: borrowed LLM ready; submitting compute nodes"
+      while IFS= read -r variant; do
+        [[ -n "${variant}" ]] || continue
+        BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}" BATCH_PARALLEL_VARIANT="${variant}" \
+          "${SCRIPT_DIR}/start_batch_parallel_variant.sh"
+      done < <(_read_active_variants)
+      _set_compute_state submitted
+      return 0
+    fi
+    if [[ -z "${gpu_id}" ]]; then
       return 0
     fi
     if pc2_job_is_running "${gpu_id}"; then

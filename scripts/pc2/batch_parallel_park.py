@@ -102,9 +102,16 @@ def evaluate_park_request(
     """
     import time
 
+    if str(getattr(cfg, "gpu_policy", "batch_park") or "batch_park") == "always_on":
+        return None
+    if str((campaign.get("config") or {}).get("gpu_policy") or "") == "always_on":
+        return None
     if str(campaign.get("gpu_mode") or "up") != "up":
         return None
     if gpu_must_stay_up(queue, campaign_root, campaign):
+        return None
+    # Do not park while other benches still need phase_b or flash codegen.
+    if queue.codegen_demand_count() > 0:
         return None
 
     long_benches = resolved_long_cosim_benches(cfg)
@@ -153,3 +160,59 @@ def park_grace_elapsed(campaign: dict[str, Any], cfg: BatchParallelConfig, *, no
         return False
     ts = time.time() if now is None else now
     return ts - float(pending_at) >= float(cfg.park_grace_s)
+
+
+def vitis_active_count(queue: BatchParallelQueue) -> int:
+    """Pending or claimed synth/cosim jobs (Vitis workers busy or queued)."""
+    return queue.pending_or_claimed_count(kinds=("synth", "cosim"))
+
+
+def unpark_codegen_min_pending(cfg: BatchParallelConfig, queue: BatchParallelQueue) -> int:
+    """
+    Minimum pending_codegen count before unparking while GPU is parked.
+
+    Normally gpu_batch_threshold (e.g. 5 → unpark when pending > 4).
+    When fewer than that many synth/cosim jobs are active, drop to 1 so tail
+    repair codegen is not stranded.
+    """
+    batch_threshold = max(1, int(cfg.gpu_batch_threshold))
+    if vitis_active_count(queue) < batch_threshold:
+        return 1
+    return batch_threshold
+
+
+def should_unpark(
+    queue: BatchParallelQueue,
+    cfg: BatchParallelConfig,
+    campaign: dict[str, Any],
+    *,
+    now: float | None = None,
+) -> str | None:
+    """Return unpark reason when parked GPU should come back, else None."""
+    import time
+
+    if str(getattr(cfg, "gpu_policy", "batch_park") or "batch_park") == "always_on":
+        return None
+    if str((campaign.get("config") or {}).get("gpu_policy") or "") == "always_on":
+        return None
+    if str(campaign.get("gpu_mode") or "up") != "parked":
+        return None
+
+    pending = queue.pending_codegen()
+    if pending <= 0:
+        return None
+
+    min_pending = unpark_codegen_min_pending(cfg, queue)
+    if pending >= min_pending:
+        if min_pending <= 1:
+            return "codegen_backlog_low_vitis"
+        return f"codegen_batch:{min_pending}"
+
+    flush_s = float(getattr(cfg, "gpu_batch_flush_s", 0) or 0)
+    if flush_s > 0:
+        since = campaign.get("parked_codegen_since")
+        ts = time.time() if now is None else now
+        if since is not None and ts - float(since) >= flush_s:
+            return "codegen_batch_flush"
+
+    return None

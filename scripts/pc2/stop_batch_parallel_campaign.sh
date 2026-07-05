@@ -34,8 +34,16 @@ if not p.is_file():
     raise SystemExit
 doc = json.loads(p.read_text())
 ids = []
-if doc.get("gpu_job_id"):
-    ids.append(str(doc["gpu_job_id"]))
+if doc.get("gpu_job_id") and not doc.get("gpu_borrowed"):
+    ep = p.parent / "llm_endpoint.json"
+    borrowed = bool(doc.get("gpu_borrowed"))
+    if ep.is_file():
+        try:
+            borrowed = borrowed or bool(json.loads(ep.read_text()).get("borrowed"))
+        except json.JSONDecodeError:
+            pass
+    if not borrowed:
+        ids.append(str(doc["gpu_job_id"]))
 for row in doc.get("compute_jobs") or []:
     if row.get("slurm_job_id"):
         ids.append(str(row["slurm_job_id"]))
@@ -45,12 +53,7 @@ PY
   pc2_cancel_job "${job_id}"
 done
 
-for name in bp-synth bp-cosim; do
-  while IFS= read -r job_id; do
-    [[ -n "${job_id}" ]] || continue
-    pc2_cancel_job "${job_id}"
-  done < <(squeue -u "$(whoami)" -h -n "${name}" -o "%i" 2>/dev/null || true)
-done
+pc2_cancel_batch_parallel_named_jobs "$(pc2_batch_job_prefix "${CAMPAIGN_ROOT}")"
 
 BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}" "${SCRIPT_DIR}/batch_parallel_stop_session.sh"
 pkill -u "$(whoami)" -f "batch_parallel_gpu_drain.py --campaign-root ${CAMPAIGN_ROOT}" 2>/dev/null || true

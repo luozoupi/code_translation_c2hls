@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-export PC2_SLURM_ACCOUNT="hpc-prf-haqc"
+export PC2_SLURM_ACCOUNT="hpc-prf-llmfpga"
 export PC2_MULTISTEP_FULL_WALLTIME="${PC2_MULTISTEP_FULL_WALLTIME:-48:00:00}"
 export PC2_MULTISTEP_VARIANT="${VARIANT}"
 export C2HLS_MULTISTEP_FIXED_COSIM_STAMP="${STAMP}"

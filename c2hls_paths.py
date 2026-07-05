@@ -47,8 +47,13 @@ SKILLS_II_TARGET_MISS_73_JSON = (
 SKILLS_II_TARGET_MISS_90_JSON = (
     SKILLS_PACKAGE_DIR / "skills_ii_target_miss_solutions_added(90skills).json"
 )
-# Default for new-matrix tooling (latest library).
+# Flash: packaged base (73 or 90 skills) + standalone overlay at runtime.
+FLASH_NO_RMW_M_AXI_SKILL_ENTRIES_JSON = (
+    SKILLS_PACKAGE_DIR / "flash_no_RMW_m_axi_skill_entries.json"
+)
+# Default packaged base for new-matrix tooling.
 SKILLS_II_TARGET_MISS_JSON = SKILLS_II_TARGET_MISS_90_JSON
+VITIS_PRAGMAS_CURATED_MD = SKILLS_PACKAGE_DIR / "vitis_hls_2023_2_pragmas_curated.md"
 
 RESULTS_MATRIX_PHASE8 = REPO_ROOT / "results_matrix_u280_fullcosim"
 RESULTS_MATRIX_EXTENDED = REPO_ROOT / "results_matrix_u280_fullcosim_extended"

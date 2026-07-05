@@ -25,13 +25,19 @@ cd "${C2HLS_ROOT}"
 
 gpu_id="$(pc2_session_py get gpu_job_id 2>/dev/null || true)"
 comp_id="$(pc2_session_py get compute_job_id 2>/dev/null || true)"
+borrowed="$(pc2_session_py get gpu_borrowed 2>/dev/null || echo false)"
 
-for id in "${gpu_id}" "${comp_id}"; do
-  if [[ -n "${id}" && "${id}" != "None" && "${id}" != "null" ]]; then
-    pc2_log "cancelling job ${id}"
-    pc2_cancel_job "${id}"
+if [[ "${borrowed}" != "True" && "${borrowed}" != "true" && "${borrowed}" != "1" ]]; then
+  if [[ -n "${gpu_id}" && "${gpu_id}" != "None" && "${gpu_id}" != "null" ]]; then
+    pc2_log "cancelling job ${gpu_id}"
+    pc2_cancel_job "${gpu_id}"
   fi
-done
+fi
+
+if [[ -n "${comp_id}" && "${comp_id}" != "None" && "${comp_id}" != "null" ]]; then
+  pc2_log "cancelling job ${comp_id}"
+  pc2_cancel_job "${comp_id}"
+fi
 
 if [[ -n "${PC2_SESSION_ID:-}" ]]; then
   if pkill -u "$(whoami)" -f "watch_session.sh ${PC2_SESSION_ID}" 2>/dev/null; then

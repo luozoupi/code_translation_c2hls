@@ -106,13 +106,22 @@ def configure_hpc_positive_env(variant: FlashHpcPositiveVariant) -> None:
     from c2hls_paths import apply_runtime_defaults
     from c2hls_temp import configure_temp_env
 
+    from flash_shared.new_skills_lib import _apply_flash_skill_entries_env
+
     apply_runtime_defaults(profile="sweep")
     configure_temp_env(create=True)
 
     os.environ["C2HLS_STRATEGY"] = "flash"
     os.environ["C2HLS_DYNAMIC_ROUTING"] = "0"
-    os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(HPC_POSITIVE_SKILLS_JSON)
-    os.environ["C2HLS_PACKAGED_SKILLS_ONLY"] = "1"
+
+    if variant.force_skill_prompts:
+        os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(_resolve_skills_json())
+        os.environ["C2HLS_PACKAGED_SKILLS_ONLY"] = "1"
+    else:
+        os.environ.pop("C2HLS_PACKAGED_SKILLS_JSON", None)
+        os.environ.pop("C2HLS_PACKAGED_SKILLS_ONLY", None)
+
+    _apply_flash_skill_entries_env(variant.force_skill_prompts)
 
     if variant.force_skill_prompts:
         os.environ["C2HLS_SKILL_MODE"] = "skill_on"
@@ -134,10 +143,15 @@ def configure_hpc_positive_env(variant: FlashHpcPositiveVariant) -> None:
 
 
 def variant_env_snapshot(variant: FlashHpcPositiveVariant) -> dict[str, str]:
+    skills_path = _resolve_skills_json() if variant.force_skill_prompts else None
     snap = {
         "matrix_family": variant.matrix_family,
-        "skills_json": str(HPC_POSITIVE_SKILLS_JSON),
-        "skills_json_mode": "packaged_only",
+        "skills_json": str(skills_path) if skills_path is not None else "",
+        "skills_json_mode": (
+            "packaged_base_plus_flash_overlay"
+            if skills_path is not None
+            else "none"
+        ),
         "C2HLS_FORCE_SKILL_PROMPTS": "1" if variant.force_skill_prompts else "0",
         "C2HLS_SKILL_PROMPT_MODE": variant.skill_prompt_mode,
     }

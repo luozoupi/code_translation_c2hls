@@ -729,6 +729,21 @@ def _load_packaged_skills(path: Optional[Path] = None) -> List[Skill]:
     return out
 
 
+def _flash_skill_entries_path() -> Optional[Path]:
+    override = os.getenv("C2HLS_FLASH_SKILL_ENTRIES_JSON", "").strip()
+    if not override:
+        return None
+    return Path(override)
+
+
+def _merge_flash_skill_entries(lib: SkillLibrary) -> None:
+    path = _flash_skill_entries_path()
+    if path is None or not path.is_file():
+        return
+    for sk in _load_packaged_skills(path):
+        lib.add(sk, overwrite=True)
+
+
 def make_default_library(store_path: Optional[Path] = None,
                           *, persist: bool = True) -> SkillLibrary:
     """Initialize a SkillLibrary and merge any missing built-in skills.
@@ -747,6 +762,7 @@ def make_default_library(store_path: Optional[Path] = None,
         lib._skills = {}
         for sk in _load_packaged_skills():
             lib.add(sk, overwrite=True)
+        _merge_flash_skill_entries(lib)
         return lib
 
     lib = SkillLibrary(store_path or _DEFAULT_STORE).load()

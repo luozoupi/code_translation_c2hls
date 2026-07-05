@@ -1,0 +1,950 @@
+{
+  "schema": "1.1",
+  "description": "Standalone flash overlay loaded on top of skills_ii_target_miss_solutions_added(90skills).json (or 73-skills base for no-avoids variants). NOT merged into the packaged library. Runtime: C2HLS_PACKAGED_SKILLS_JSON + C2HLS_FLASH_SKILL_ENTRIES_JSON.",
+  "skills": [
+    {
+      "id": "hls-loop-structure-audit-flash",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "any flash kernel with nested loops, PIPELINE pragmas, m_axi load/store, reductions, triangular/variable bounds, or DATAFLOW regions",
+      "strategy": "Before final code, audit every loop nest: (1) bounds; (2) compile-time constant vs variable trip count; (3) subloops in body; (4) reductions/accumulations; (5) m_axi reads/writes; (6) legal/realistic pipeline location. Reject and revise if anti-patterns remain. After code generation, emit an audit table: loop name | original issue | applied transformation | pipeline pragma location | remaining II risk | memory-port risk.",
+      "required_steps": [
+        "enumerate every loop nest and record bounds, trip-count kind, subloops, reductions, and m_axi touch",
+        "verify pipeline pragma is only on innermost legal loop (or parent with fully-unrolled/flattened children only)",
+        "rewrite variable-bound loops (k<i, k<j, j>i+1, i<tile_size) to fixed TILE_SIZE/N loops with if guards",
+        "split FP reductions into private partial accumulators with complete partition, then final reduction",
+        "pipeline innermost contiguous memory copy loops only — never outer row/tile loops over full N columns",
+        "keep m_axi as load-compute-store: no inner-loop RMW on m_axi ports",
+        "match ARRAY_PARTITION to unroll factor and parallel port needs",
+        "use canonical DATAFLOW: declarations and function calls only inside the region",
+        "do not add ping-pong or DATAFLOW unless producer-consumer overlap is real — report overlap or remove",
+        "reject code with any listed anti-pattern and revise before submitting",
+        "produce the final loop audit table in the response"
+      ],
+      "guards": [
+        "LOOP_TRIPCOUNT is reporting only — it does not make loops statically bounded",
+        "partial UNROLL factor>1 still leaves a child loop — parent PIPELINE II=1 is illegal unless child is fully unrolled",
+        "do not rely on LOOP_FLATTEN alone to fix variable-trip nests",
+        "preserve numerical semantics when adding guards or partial accumulators"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "interval_exceeds_latency",
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "port_conflict",
+        "nested_loop"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["flash-mandatory", "loop-audit", "pipeline", "loop-nest"],
+      "template": "AUDIT TABLE (required):\n| loop | original issue | transformation | pipeline location | II risk | memory-port risk |\n\nANTI-PATTERNS (reject if present):\n- parent pipelined with non-fully-unrolled child\n- variable-trip child under pipelined parent\n- partial unroll treated as full unroll\n- scalar FP recurrence in claimed II=1 loop\n- outer memory-copy loop pipelined over full row\n- direct RMW on m_axi inside compute loops"
+    },
+    {
+      "id": "avoid-pipeline-parent-with-nested-child-loop",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "#pragma HLS PIPELINE II=1 on a parent loop whose body contains another loop that is not fully unrolled (including UNROLL factor=N partial unroll)",
+      "strategy": "Do not pipeline the parent when a child loop still exists. Partial unroll is not full unroll. Pipeline only the innermost loop, fully unroll the child, or use an explicitly flattenable nest — never assume LOOP_FLATTEN fixes a variable or partially-unrolled child.",
+      "required_steps": [
+        "detect parent PIPELINE pragma with a nested for-loop in the body",
+        "check whether every child loop is fully unrolled or the nest is provably flattenable",
+        "if any child loop remains, move PIPELINE to innermost legal loop or fully unroll child",
+        "do not treat UNROLL factor=4 as removing the child loop"
+      ],
+      "guards": [
+        "LOOP_FLATTEN does not substitute for full unroll when bounds are variable",
+        "validate II on the actual pipelined loop after moving pragmas"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "interval_exceeds_latency",
+        "nested_loop"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "pipeline", "nested-loop", "flash-mandatory"],
+      "template": "// BAD: parent pipelined, child loop remains\nfor (int i = 0; i < TILE; i++) {\n#pragma HLS PIPELINE II=1\n    for (int j = 0; j < N; j++) {  // child still exists\n        A[i][j] = local_A[i][j];\n    }\n}\n// GOOD: pipeline innermost only\nfor (int i = 0; i < TILE; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        A[i][j] = local_A[i][j];\n    }\n}"
+    },
+    {
+      "id": "avoid-loop-tripcount-flatten-variable-bounds",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "variable-trip-count loops (triangular, tile_size, k<i, k<j, j=i+1..N) fixed only with LOOP_TRIPCOUNT or LOOP_FLATTEN without rewriting to static bounds",
+      "strategy": "LOOP_TRIPCOUNT is for reporting/estimation only — it does not make a loop statically bounded, fully unrollable, or dependency-free. Do not rely on LOOP_FLATTEN or LOOP_TRIPCOUNT to legalize pipeline on variable-bound nests.",
+      "required_steps": [
+        "identify loops whose bound depends on an outer induction variable or runtime tile_size",
+        "do not add LOOP_TRIPCOUNT as a substitute for static bounds",
+        "rewrite to fixed-bound loops with if guards using N or TILE_SIZE constants",
+        "re-validate pipeline legality on the rewritten nest"
+      ],
+      "guards": [
+        "preserve original semantics with if (idx < bound) guards",
+        "use header macro constants for fixed bounds"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "loop-tripcount", "loop-flatten", "flash-mandatory"],
+      "template": "// BAD: variable bound, tripcount pragma only\nfor (int k = 0; k < j; k++) {\n#pragma HLS LOOP_TRIPCOUNT min=1 max=N\n#pragma HLS PIPELINE II=1\n    ...\n}\n// GOOD: fixed bound + guard\nfor (int k = 0; k < TILE_SIZE; k++) {\n#pragma HLS PIPELINE II=1\n    if (k < j) { ... }\n}"
+    },
+    {
+      "id": "hls-rewrite-variable-trip-fixed-bound-guard",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "triangular or variable-bound loops such as for (k=0; k<i), for (k=0; k<j), for (j=i+1; j<N), or for (i=0; i<tile_size) blocking II=1 pipeline",
+      "strategy": "Rewrite to fixed compile-time bounds (N, TILE_SIZE from header macros) and preserve semantics with if guards on the induction variable.",
+      "required_steps": [
+        "replace runtime or outer-dependent bounds with fixed TILE_SIZE or N",
+        "wrap body in if (idx < original_bound) to skip out-of-range iterations",
+        "apply PIPELINE II=1 only on the fixed-bound inner loop after rewrite",
+        "keep tile_size as a scalar for guard comparisons, not as the loop bound when pipelining"
+      ],
+      "guards": [
+        "do not change numerical results — guards must match original iteration set",
+        "prefer TILE_SIZE macro over function parameter for synthesizable bounds"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["variable-bounds", "pipeline", "flash-mandatory"],
+      "template": "// BEFORE: for (int k = 0; k < j; k++)\n// AFTER:\nfor (int k = 0; k < TILE_SIZE; k++) {\n#pragma HLS PIPELINE II=1\n    if (k < j) {\n        ...\n    }\n}"
+    },
+    {
+      "id": "avoid-fp-scalar-recurrence-in-pipelined-loop",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "floating-point reduction or accumulation into one scalar inside a loop claimed II=1 (e.g. w -= a*b, sum += expr, acc = acc + expr as the only accumulation chain)",
+      "strategy": "Do not accumulate into a single scalar inside a pipelined loop. Use private partial accumulators with complete ARRAY_PARTITION, unrolled init/update, then a final tree or serial reduction.",
+      "required_steps": [
+        "detect FP update statements that read and write the same scalar accumulator in the pipelined loop",
+        "allocate partial[UF] with complete partition",
+        "unroll init and per-lane updates inside pipelined fixed-bound loops",
+        "reduce partial[] after the pipelined loop"
+      ],
+      "guards": [
+        "choose UF to match available DSP/budget",
+        "preserve numerics within acceptable reordering for independent partials"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "dependence",
+        "fp_reduction"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "fp-reduction", "pipeline", "flash-mandatory"],
+      "template": "// BAD:\nfor (int k = 0; k < N; k++) {\n#pragma HLS PIPELINE II=1\n    w -= a[k] * b[k];\n}\n// GOOD: partial accumulators + final reduce (see hls-fp-reduction-partial-accumulators)"
+    },
+    {
+      "id": "hls-fp-reduction-partial-accumulators",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "floating-point dot-product, sum, or coupled update (w -= a*b) inside a loop targeted for II=1",
+      "strategy": "Use UF private partial accumulators with complete partition; unrolled init; pipelined fixed-bound loop with unrolled lane updates and guards; final reduction of partial[] into result scalar.",
+      "required_steps": [
+        "const int UF = 4; double partial[UF]; #pragma HLS ARRAY_PARTITION variable=partial complete",
+        "unrolled init of partial[p] = 0",
+        "outer pipelined loop steps by UF over fixed TILE_SIZE bound",
+        "inner unrolled lane updates partial[p] with guarded index",
+        "after loop, sum partial[] into output scalar or local"
+      ],
+      "guards": [
+        "only use when lane iterations are independent",
+        "match UF to unroll factor and memory ports"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "dependence",
+        "fp_reduction"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["fp-reduction", "partial-sum", "pipeline", "flash-mandatory"],
+      "template": "const int UF = 4;\ndouble partial[UF];\n#pragma HLS ARRAY_PARTITION variable=partial complete\nfor (int p = 0; p < UF; p++) {\n#pragma HLS UNROLL\n    partial[p] = 0.0;\n}\nfor (int k = 0; k < TILE_SIZE; k += UF) {\n#pragma HLS PIPELINE II=1\n    for (int p = 0; p < UF; p++) {\n#pragma HLS UNROLL\n        if (k + p < j) partial[p] += expr(k + p);\n    }\n}\ndouble sum = 0; for (int p = 0; p < UF; p++) { #pragma HLS UNROLL sum += partial[p]; }"
+    },
+    {
+      "id": "avoid-outer-memory-loop-pipeline-over-row",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "memory load/store tile loops with #pragma HLS PIPELINE II=1 on the outer row/tile loop (for i) while an inner loop iterates all N columns per outer step",
+      "strategy": "Pipeline the innermost contiguous memory loop only. Do not ask HLS to load or store an entire matrix row per pipeline cycle. Outer i loops should be sequential; inner j loop gets PIPELINE II=1.",
+      "required_steps": [
+        "find load_tile/store_tile nests pipelining the outer i loop",
+        "remove PIPELINE from outer loop over tile rows",
+        "move PIPELINE II=1 to innermost j loop over contiguous elements",
+        "keep scalar row loads (b[i], y[i]) outside or after the inner pipelined j loop"
+      ],
+      "guards": [
+        "pair with local buffers so inner loop touches BRAM not m_axi when possible",
+        "one element per pipeline iteration for m_axi when pipelining global access"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "port_conflict"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "memory-copy", "pipeline", "flash-mandatory"],
+      "template": "// BAD (asks HLS to move whole row per cycle):\nfor (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n    for (int j = 0; j < N; j++) A[i][j] = local_A[i][j];\n    y[i] = local_y[i];\n}\n// GOOD:\nfor (int i = 0; i < TILE_SIZE; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        A[i][j] = local_A[i][j];\n    }\n    y[i] = local_y[i];\n}"
+    },
+    {
+      "id": "hls-pipeline-innermost-memory-copy-loop",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "tile load/store phases copying between m_axi ports and local buffers with nested i-j loops",
+      "strategy": "Structure load_tile and store_tile as outer sequential row/tile loops with innermost pipelined contiguous copy loop over j (or flat index). Scalar vector loads/stores (b[i], y[i]) execute once per row outside the pipelined inner loop.",
+      "required_steps": [
+        "outer loop: for i over TILE_SIZE or fixed tile rows — no PIPELINE on outer",
+        "inner loop: for j over N — #pragma HLS PIPELINE II=1 on inner only",
+        "load local_A[i][j] from A[tile_i+i][j] in inner pipelined loop",
+        "load local_b[i] from b[tile_i+i] after inner j loop completes for row i",
+        "mirror structure for store_tile"
+      ],
+      "guards": [
+        "use if (tile_i+i < N) guards when tile tail is partial",
+        "local arrays should be BRAM with bounds from header macros"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "ii_target_miss",
+        "global_memory_latency",
+        "axi_dependency"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["memory-copy", "pipeline", "load-compute-store", "flash-mandatory"],
+      "template": "load_tile: for (int i = 0; i < TILE_SIZE; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        local_A[i][j] = A[tile_i + i][j];\n    }\n    local_b[i] = b[tile_i + i];\n}\nstore_tile: for (int i = 0; i < TILE_SIZE; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        A[tile_i + i][j] = local_A[i][j];\n    }\n    y[tile_i + i] = local_y[i];\n}"
+    },
+    {
+      "id": "hls-array-partition-match-unroll-factor",
+      "kind": "supporting_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "UNROLL by factor UF on a loop that reads/writes local arrays without enough parallel memory ports",
+      "strategy": "Apply ARRAY_PARTITION (cyclic or complete) so local arrays expose enough read/write ports for the unroll factor. Complete partition for small partial-sum arrays; cyclic factor=UF for lane buffers.",
+      "required_steps": [
+        "identify unroll factor UF on hot loop",
+        "count simultaneous array accesses per unrolled iteration",
+        "add #pragma HLS ARRAY_PARTITION with factor matching UF or complete for small arrays",
+        "verify csynth does not report memory port conflicts on locals"
+      ],
+      "guards": [
+        "watch BRAM/LUT growth from complete partition on large arrays",
+        "partition dim must match access pattern (row vs column)"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "port_conflict",
+        "memory_bandwidth"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["array-partition", "unroll", "flash-mandatory"],
+      "template": "const int UF = 4;\ndata_t buf[N];\n#pragma HLS ARRAY_PARTITION variable=buf cyclic factor=UF dim=1\ndata_t partial[UF];\n#pragma HLS ARRAY_PARTITION variable=partial complete"
+    },
+    {
+      "id": "avoid-noncanonical-dataflow-region",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "DATAFLOW region containing complex if/else, non-unit loop increments, or dynamic control logic instead of declarations and function calls",
+      "strategy": "Use canonical DATAFLOW regions: stream/buffer declarations and calls to load/compute/store subfunctions only. Move control logic, boundary handling, and non-unit loops outside or into subfunctions called from the dataflow region.",
+      "required_steps": [
+        "split load, compute, store into separate functions",
+        "inside #pragma HLS DATAFLOW: declare hls::stream or ping-pong buffers and call subfunctions",
+        "move if/else tile guards into subfunctions or use bounded canonical loops",
+        "no non-unit stride loops or dynamic allocation inside the dataflow region"
+      ],
+      "guards": [
+        "subfunctions must be synthesizable with stable interfaces",
+        "fifo depths must cover producer-consumer latency"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "ii_target_miss",
+        "interval_exceeds_latency"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "dataflow", "flash-mandatory"],
+      "template": "// GOOD canonical DATAFLOW:\n#pragma HLS DATAFLOW\nhls::stream<tile_t> load_to_compute;\nload_tile(A, load_to_compute, tile_i);\ncompute_tile(load_to_compute, compute_to_store);\nstore_tile(compute_to_store, A, tile_i);"
+    },
+    {
+      "id": "hls-dataflow-ping-pong-gate-flash",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "kernel uses or proposes #pragma HLS DATAFLOW, ping-pong buffers, or double-buffered tile staging",
+      "strategy": "Do not add ping-pong buffers or DATAFLOW unless the code expresses a valid canonical producer-consumer schedule with real overlap. Default to single local buffer + pipelined load/compute/store loops when true cross-tile overlap is not implemented.",
+      "required_steps": [
+        "audit every DATAFLOW region: only declarations and function calls — no if/else, dynamic tile math, or non-unit increments inside",
+        "use unit-increment tile index: for (tile=0; tile<NUM_TILES; tile++) with tile_i = tile * TILE_SIZE — never DATAFLOW inside tile_i += TILE_SIZE",
+        "reject ping-pong that only alternates buffers across sequential tile iterations without load(t+1) overlapping compute/store(t)",
+        "for triangular factorization/solve or other cross-tile dependencies, prove tile overlap is legal before ping-pong or DATAFLOW across tiles",
+        "factor load-compute-store DATAFLOW into a helper with load_fn(); compute_fn(); store_fn(); calls only",
+        "if no true overlap, use one local buffer and fix loop II, memory access, and reductions first",
+        "report whether ping-pong provides actual overlap; if not, remove ping-pong and DATAFLOW"
+      ],
+      "guards": [
+        "decorative DATAFLOW/ping-pong wastes BRAM and can block II fixes",
+        "fifo/stream depths must match real producer-consumer latency when overlap exists",
+        "sequential tile processing with cross-tile deps forbids fake overlap"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "memory_bandwidth",
+        "ii_target_miss",
+        "interval_exceeds_latency"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["flash-mandatory", "dataflow", "ping-pong", "double-buffer"],
+      "template": "OVERLAP REPORT (required if ping-pong/DATAFLOW present):\n| stage pairing | overlap? | evidence |\n\nBAD: sequential tiles with buf[tile&1] but no concurrent load/compute\nGOOD: #pragma HLS DATAFLOW + load_tile(t+1) || compute_tile(t) with proven independence"
+    },
+    {
+      "id": "avoid-dataflow-nonunit-tile-loop",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "#pragma HLS DATAFLOW placed inside a tile loop using non-unit increment such as for (tile_i = 0; tile_i < N; tile_i += TILE_SIZE)",
+      "strategy": "Do not place DATAFLOW inside tile_i += TILE_SIZE loops. Use a unit-increment tile index and compute the base offset outside the dataflow region.",
+      "required_steps": [
+        "detect DATAFLOW pragma nested under tile_i += TILE_SIZE or similar non-unit outer loop",
+        "replace with for (int tile = 0; tile < NUM_TILES; tile++) and tile_i = tile * TILE_SIZE",
+        "move #pragma HLS DATAFLOW to a helper called once per tile with canonical load/compute/store calls",
+        "keep dynamic tail handling inside subfunctions, not as control flow inside the DATAFLOW region"
+      ],
+      "guards": [
+        "NUM_TILES = (N + TILE_SIZE - 1) / TILE_SIZE must be compile-time friendly",
+        "last partial tile handled inside load/compute/store functions with guards"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "ii_target_miss"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "dataflow", "tiling", "flash-mandatory"],
+      "template": "// BAD:\nfor (int tile_i = 0; tile_i < N; tile_i += TILE_SIZE) {\n#pragma HLS DATAFLOW\n    ...\n}\n// GOOD:\nfor (int tile = 0; tile < NUM_TILES; tile++) {\n    const int tile_i = tile * TILE_SIZE;\n    process_tile_lcs(A, b, y, tile_i);  // helper contains DATAFLOW + 3 calls\n}"
+    },
+    {
+      "id": "avoid-fake-ping-pong-without-tile-overlap",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "ping-pong or double buffers (buf[2], tile&1, in_buf/out_buf alternation) across sequential tile iterations without load of tile t+1 overlapping compute or store of tile t",
+      "strategy": "Ping-pong is valid only when load of tile t+1 overlaps compute/store of tile t, or a clearly defined multi-stage dataflow pipeline overlaps independent tiles. If tiles run strictly sequentially with no concurrent stages, use a single local buffer.",
+      "required_steps": [
+        "identify ping-pong buffer indexing (tile % 2, buf[0]/buf[1], in_ping/in_pong)",
+        "verify concurrent producer-consumer schedule: while computing tile t, loading tile t+1 (or storing t-1)",
+        "if stages still run serially per tile, remove ping-pong and use one local_A/local_b buffer",
+        "prioritize inner-loop II=1, memory copy placement, and reduction fixes before re-adding overlap",
+        "state in the response whether ping-pong provides actual overlap; remove if it does not"
+      ],
+      "guards": [
+        "doubling local BRAM without overlap increases resource pressure with no throughput gain",
+        "alternating buffer indices alone does not create hardware overlap"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "memory_bandwidth",
+        "ii_target_miss"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "ping-pong", "double-buffer", "flash-mandatory"],
+      "template": "// BAD: fake ping-pong — still serial per tile\nfor (int tile = 0; tile < NUM_TILES; tile++) {\n    load_tile(A, buf[tile & 1], tile);\n    compute_tile(buf[tile & 1], out_buf[tile & 1]);\n    store_tile(out_buf[tile & 1], A, tile);\n}\n// GOOD without overlap: single local buffer + pipelined loops\n// GOOD with overlap: DATAFLOW helper where load(t+1) || compute(t) || store(t-1)"
+    },
+    {
+      "id": "avoid-ping-pong-cross-tile-deps-triangular",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "triangular factorization, triangular solve, or other pivot-dependent tiled algorithms using ping-pong or DATAFLOW tile overlap without proving cross-tile dependence safety",
+      "strategy": "Algorithms with cross-tile dependencies (especially triangular factorization or solve with pivot-dependent active regions) require a dependence proof before overlapping tiles. Default to sequential tiles with local staging; do not assume ping-pong is legal.",
+      "required_steps": [
+        "identify cross-tile read-after-write or triangular dependencies (pivot row, active column, forward substitution)",
+        "reject ping-pong/DATAFLOW across tiles unless dependence analysis shows independence",
+        "process dependent tiles sequentially; overlap only separate load/compute/store stages within one tile via canonical DATAFLOW if legal",
+        "document dependence reasoning when proposing any tile overlap"
+      ],
+      "guards": [
+        "numerical correctness overrides throughput — wrong overlap breaks triangular factorization/solve",
+        "pivot-dependent active regions make arbitrary tile overlap unsafe"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "dependence",
+        "nested_loop"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "ping-pong", "triangular", "cross-tile-deps", "flash-mandatory"],
+      "template": "// Triangular/pivot-dependent tiles often depend on prior rows/columns\n// BAD: ping-pong across tiles without dependence proof\n// GOOD: sequential tiles; optional DATAFLOW only inside one tile:\nvoid process_tile_lcs(...) {\n#pragma HLS DATAFLOW\n    load_tile(...);\n    compute_tile(...);\n    store_tile(...);\n}"
+    },
+    {
+      "id": "hls-canonical-dataflow-lcs-functions",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "load-compute-store tiling where DATAFLOW overlap between stages is desired and tile dependencies permit concurrent stages",
+      "strategy": "Factor each tile into a helper function whose body is a canonical DATAFLOW region containing only buffer/stream declarations plus exactly three calls: load function, compute function, store function.",
+      "required_steps": [
+        "define load_tile, compute_tile, store_tile as separate synthesizable functions",
+        "helper process_tile_lcs contains #pragma HLS DATAFLOW with declarations + three calls only",
+        "outer host loop uses unit tile index; compute tile_i = tile * TILE_SIZE before calling helper",
+        "no if/else, dynamic tile calculations, or non-unit increments inside the DATAFLOW region",
+        "verify overlap report: concurrent stages, not merely alternating buffer names"
+      ],
+      "guards": [
+        "use hls::stream or ping-pong locals only when fifo depth covers stage latency",
+        "skip DATAFLOW entirely if stages cannot overlap — use pipelined sequential phases"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "memory_bandwidth",
+        "ii_target_miss"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["dataflow", "load-compute-store", "flash-mandatory"],
+      "template": "void process_tile_lcs(...) {\n#pragma HLS DATAFLOW\n    tile_buf_t stage_buf;\n    load_tile(A, b, stage_buf, tile_i);\n    compute_tile(stage_buf, tile_i);\n    store_tile(stage_buf, A, y, tile_i);\n}\n\nfor (int tile = 0; tile < NUM_TILES; tile++) {\n    process_tile_lcs(A, b, y, tile * TILE_SIZE);\n}"
+    },
+    {
+      "id": "avoid-local-output-rmw-in-pipelined-unroll",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "matrix-vector or dot-product style loops that update an output accumulator array element inside a pipelined and/or unrolled loop (e.g. local_x[i] += expr under #pragma HLS PIPELINE II=1 or UNROLL over column index j+k)",
+      "strategy": "Never read-modify-write the same local output accumulator element inside a pipelined unrolled loop. Use private partial accumulators with complete partitioning, reduce once after the pipelined loop, then assign local_x[i] exactly once.",
+      "required_steps": [
+        "detect local_x[i] += or equivalent in-place update inside PIPELINE II=1 or unrolled j+k loops",
+        "allocate partial[UF] per output lane or per unroll lane with #pragma HLS ARRAY_PARTITION complete",
+        "accumulate into partial[p] inside the pipelined/unrolled loop",
+        "reduce partial[] to a scalar after the loop and write local_x[i] once",
+        "do not leave loop-carried dependence on local_x[i] in the hot pipeline"
+      ],
+      "guards": [
+        "applies to local staging buffers as well as m_axi outputs — same RMW discipline",
+        "pair with hls-fp-reduction-partial-accumulators for FP dot-product chains",
+        "preserve numerical semantics when splitting partial sums"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "dependence",
+        "fp_reduction",
+        "port_conflict"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "dot-product", "matrix-vector", "partial-sum", "flash-mandatory"],
+      "template": "// BAD: RMW on local output inside pipelined unroll\nfor (int k = 0; k < UF; k++) {\n#pragma HLS UNROLL\n#pragma HLS PIPELINE II=1\n    local_x[i] += A[i][j + k] * y[j + k];\n}\n// GOOD: partial accumulators, single write\npartial[p] += A[i][j+p] * y[j+p];  // in pipelined loop\nlocal_x[i] = reduce(partial);        // once after loop"
+    },
+    {
+      "id": "hls-unroll-column-partition-matrix-vector",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "matrix-vector multiply or dot-product inner loop unrolled over column index j+k accessing matrix row i and vector y[j+k]",
+      "strategy": "When unrolling over column index j+k, explicitly partition the matrix along the column dimension and partition the vector along its only dimension. Do not rely on HLS to infer missing partitions.",
+      "required_steps": [
+        "set UF unroll factor on the j+k column loop",
+        "add #pragma HLS ARRAY_PARTITION on matrix A cyclic or complete on dim=2 (columns) with factor=UF",
+        "add #pragma HLS ARRAY_PARTITION on vector y cyclic factor=UF dim=1",
+        "verify csynth reports no local memory port conflicts on the unrolled accesses",
+        "match partition factors to the actual UNROLL factor on j+k"
+      ],
+      "guards": [
+        "complete partition only when column/vector slice is small",
+        "row-major A[i][j+k] needs column-dim partition for simultaneous j+k reads"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "port_conflict",
+        "memory_bandwidth"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["array-partition", "unroll", "matrix-vector", "dot-product", "flash-mandatory"],
+      "template": "const int UF = 4;\ndata_t A_local[N][N];\ndata_t y_local[N];\n#pragma HLS ARRAY_PARTITION variable=A_local cyclic factor=UF dim=2\n#pragma HLS ARRAY_PARTITION variable=y_local cyclic factor=UF dim=1\n\nfor (int k = 0; k < UF; k++) {\n#pragma HLS UNROLL\n    partial[k] += A_local[i][j + k] * y_local[j + k];\n}"
+    },
+    {
+      "id": "hls-single-load-dual-local-layout",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "algorithm needs both row-major and column-oriented (transposed) local views of the same matrix for matrix-vector or multi-phase compute",
+      "strategy": "Load the matrix from m_axi once and populate both normal and transposed local buffers from the same external read stream. Do not read the full matrix twice from m_axi unless explicitly required by correctness.",
+      "required_steps": [
+        "identify phases that need A[i][j] and A[j][i] or column-slice vs row-slice access",
+        "single pipelined load loop: read A[i][j] from m_axi once per element",
+        "write the value into row-major local_A[i][j] and transposed local_AT[j][i] in the same iteration",
+        "run compute from locals only — no second full-matrix m_axi load",
+        "store outputs once after local finalize"
+      ],
+      "guards": [
+        "on-chip BRAM budget must fit both layouts or tile the shared load",
+        "transposed layout indexing must match compute access pattern",
+        "const m_axi inputs: one read per element per logical load pass"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "repeated_global_access"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["load-compute-store", "matrix-vector", "transpose", "m_axi", "flash-mandatory"],
+      "template": "load_matrix_dual: for (int i = 0; i < N; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        data_t v = A[i][j];           // one m_axi read\n        local_A[i][j] = v;\n        local_AT[j][i] = v;           // transpose view from same read\n    }\n}\n// compute uses local_A / local_AT — no second full-matrix m_axi traversal"
+    },
+    {
+      "id": "avoid-no-rmw-m_axi-direct",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "compute loops perform read-modify-write updates directly on arrays mapped to m_axi ports (e.g. A[i][j] = A[i][j] + expr, x[i] = x[i] + expr, w[i] = w[i] + expr inside nested loops)",
+      "strategy": "Treat every m_axi argument as external DRAM/HBM. Never read and write the same external element inside an inner loop. Do not use global/m_axi arrays as temporary storage or assume HLS will cache m_axi data across iterations.",
+      "required_steps": [
+        "scan every loop for statements that read and write the same m_axi port element",
+        "reject direct accumulation into m_axi arrays",
+        "reject repeated reads of the same output element from DRAM/HBM inside an inner loop",
+        "reject repeated writes to the same output element inside an inner loop",
+        "replace with load-compute-store using local buffers or private scalar accumulators",
+        "for reductions, accumulate in a private scalar or local array, then write back once",
+        "if the full array is too large, tile/block but still finalize each tile locally before one store"
+      ],
+      "guards": [
+        "preserve numerical semantics when staging into locals",
+        "const read-only m_axi inputs may be read once per tile into locals",
+        "in-place outputs still require local write-back buffers, not inner-loop RMW on the port"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "repeated_global_access",
+        "ii_target_miss",
+        "port_conflict"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "no_RMW_m_axi", "m_axi", "load-compute-store", "flash-mandatory"],
+      "template": "// FORBIDDEN when A/x/w are m_axi ports:\n//   A[i][j] = A[i][j] + expr;\n//   x[i] = x[i] + expr;\n// GOOD: load -> local acc/buffer -> single store\n//   double acc = x_local[i];\n//   for (int j = 0; j < N; j++) acc += beta * A_local[j][i] * y_local[j];\n//   x_local[i] = acc;\n//   x[i] = x_local[i];  // one write per element"
+    },
+    {
+      "id": "hls-load-compute-store-no-rmw-m_axi",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "kernel touches m_axi pointer ports in compute loops and may benefit from pipelining, unroll, or DATAFLOW but must not bottleneck on repeated external memory RMW",
+      "strategy": "Use explicit load-compute-store: (1) load required inputs from m_axi into local on-chip buffers or private scalars; (2) perform all repeated updates, reductions, and accumulations on locals only; (3) store final results back to m_axi outputs once per element when possible. Prefer burst-friendly sequential loads/stores and separate phases.",
+      "required_steps": [
+        "identify every m_axi port used in compute",
+        "add local buffers for reused arrays and private scalar accumulators for reductions",
+        "pipeline load, compute, and store loops independently where legal",
+        "write each output m_axi element at most once per logical update (after local finalize)",
+        "apply tiling when full arrays exceed on-chip budget while keeping RMW off m_axi inside inner loops"
+      ],
+      "guards": [
+        "do not change top-level pointer element types unless explicitly allowed",
+        "pair with distinct gmemN bundles per port when parallelizing external access",
+        "local arrays must be sized with fixed bounds from header macros"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "repeated_global_access",
+        "ii_target_miss",
+        "interval_exceeds_latency"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["no_RMW_m_axi", "m_axi", "local-staging", "load-compute-store", "flash-mandatory"],
+      "template": "load_phase: copy inputs from m_axi ports into local buffers (pipelined).\ncompute_phase: update locals/scalar accumulators only.\nstore_phase: write finalized locals back to m_axi outputs once.\n// Reduction example:\n//   double acc = x_local[i];\n//   for (int j = 0; j < N; j++) acc += beta * A_local[j][i] * y_local[j];\n//   x_local[i] = acc;\n//   x[i] = x_local[i];"
+    },
+    {
+      "id": "hls-distinct-gmem-bundle-per-port",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "kernel has two or more m_axi pointer ports and uses #pragma HLS DATAFLOW or multiple load/compute/store tasks that should overlap external memory access",
+      "strategy": "Assign a distinct bundle=gmem0, gmem1, … to each m_axi pointer port so HLS can issue concurrent external memory transactions across DATAFLOW stages. Never place all read/write ports on a single bundle=gmem when stages are meant to run concurrently.",
+      "required_steps": [
+        "enumerate every m_axi port on the top kernel and on DATAFLOW subfunctions that touch global memory",
+        "assign each pointer port a unique bundle=gmemN (gmem0, gmem1, gmem2, …)",
+        "map load tasks to read ports and store tasks to write ports on separate bundles when stages overlap",
+        "re-run csynth and verify parallel tasks no longer stall on a single gmem port (HLS 200-885 on gmem)",
+        "pair with hls::stream or proven stage overlap — distinct bundles alone do not fix decorative DATAFLOW"
+      ],
+      "guards": [
+        "each bundle still needs burst-friendly access patterns on its port",
+        "do not duplicate bundle names across unrelated ports",
+        "cosim and interface pragmas must stay consistent after rebundling"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "port_conflict",
+        "dataflow",
+        "ii_target_miss"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["m_axi", "dataflow", "memory_bandwidth", "flash-mandatory"],
+      "template": "// BAD: all ports share one bundle — DATAFLOW tasks serialize on gmem\n#pragma HLS INTERFACE m_axi port=A bundle=gmem\n#pragma HLS INTERFACE m_axi port=B bundle=gmem\n#pragma HLS INTERFACE m_axi port=y bundle=gmem\n\n// GOOD: one bundle per port for concurrent stage access\n#pragma HLS INTERFACE m_axi port=A bundle=gmem0\n#pragma HLS INTERFACE m_axi port=B bundle=gmem1\n#pragma HLS INTERFACE m_axi port=y bundle=gmem2"
+    },
+    {
+      "id": "avoid-dataflow-without-stream-or-overlap-proof",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "#pragma HLS DATAFLOW wrapping multiple tasks that communicate only through shared local arrays or caller globals (no hls::stream, no ping-pong with proven overlap) while all m_axi ports use one bundle=gmem",
+      "strategy": "In the DATAFLOW refactor step, always keep `#pragma HLS DATAFLOW`. Prove producer–consumer overlap with hls::stream FIFOs, distinct gmemN bundles per port, or ping-pong buffers — fix structure until overlap is real. Never omit DATAFLOW or revert to sequential load → compute → store without the pragma.",
+      "required_steps": [
+        "inspect every DATAFLOW region: list tasks, how data moves between them, and whether hls::stream or distinct bundles exist",
+        "reject task graphs where multiple concurrent tasks write the same local array without ping-pong or streams",
+        "reject parallel per-port loaders on shared bundle=gmem — rebundle to gmem0/gmem1/... first",
+        "require an overlap report (stage pairing | overlap? | evidence) and fix gaps with gmemN, streams, or ping-pong",
+        "never remove #pragma HLS DATAFLOW in this step — repair task boundaries instead",
+        "if ap_ctrl_none is used with DATAFLOW, prefer ap_ctrl_chain or fix task interfaces to avoid deadlock (HLS 200-656)"
+      ],
+      "guards": [
+        "increasing FIFO depth (HLS 200-1019/1020) is not a substitute for real overlap",
+        "tasks must not read caller m_axi arrays directly while also having a DATAFLOW predecessor (HLS 200-1449)",
+        "decorative multi-task DATAFLOW often loses to flash-selected sequential pipelined code"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "ii_target_miss",
+        "interval_exceeds_latency",
+        "memory_bandwidth",
+        "axi_dependency"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["dataflow", "avoid", "flash-mandatory"],
+      "template": "OVERLAP REPORT (required if DATAFLOW kept):\n| stage pairing | overlap? | evidence (stream / gmemN / schedule) |\n\n// BAD: tasks share locals only, one gmem bundle\n#pragma HLS DATAFLOW\nload_all(...);   // writes shared local_A\ncompute_all(...); // reads same local_A — no stream, no overlap proof\n\n// GOOD: streams between tasks OR distinct gmemN + proven concurrent schedule\n#pragma HLS DATAFLOW\nhls::stream<tile_t> q;\nload_tile(A, q, tile_i);\ncompute_tile(q, out_q);\nstore_tile(out_q, y, tile_i);"
+    },
+    {
+      "id": "avoid-fused-multi-array-load-outer-pipeline",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "single load task pipelines the outer row loop for multiple large matrices in sequence (matrix A, then B, then C…) each with #pragma HLS PIPELINE II=1 on the outer i loop",
+      "strategy": "Split per-matrix load into its own function with innermost pipelined dimension only, or fuse into one flat index loop over all elements. Do not stack multiple outer-pipelined row loops in one task — each outer pipeline asks HLS to move an entire row per cycle and serializes memory ports.",
+      "required_steps": [
+        "detect load functions that outer-pipeline for (i) over rows for more than one large array",
+        "remove PIPELINE from outer row loops; pipeline innermost contiguous index (j or flat idx) only",
+        "prefer separate load_matrix_A / load_matrix_B helpers or one fused flat load loop",
+        "if parallel load tasks are needed, pair each with distinct gmemN bundles and DATAFLOW overlap proof",
+        "verify csynth II on hot copy loop — not inflated outer-row pipeline"
+      ],
+      "guards": [
+        "pair with hls-pipeline-innermost-memory-copy-loop for each matrix",
+        "scalar vector loads (b[i]) stay outside inner pipelined j loop",
+        "partial final tile uses TILE_SIZE bound + if guards, not runtime tile_size as loop bound"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "memory_bandwidth",
+        "global_memory_latency",
+        "axi_dependency",
+        "port_conflict"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["memory-copy", "pipeline", "flash-mandatory"],
+      "template": "// BAD: stacked outer-pipelined row loops in one task\nvoid load_all(...) {\n    for (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n        for (int j = 0; j < N; j++) local_A[i][j] = A[...][j];\n    }\n    for (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n        for (int j = 0; j < N; j++) local_B[i][j] = B[...][j];\n    }\n}\n// GOOD: innermost pipeline per matrix or flat fused index\nfor (int i = 0; i < TILE_SIZE; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        local_A[i][j] = A[tile_i + i][j];\n    }\n}"
+    },
+    {
+      "id": "hls-gemm-chain-local-reuse",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "chained matrix multiplies (output = alpha * A*B + beta * … with multiple GEMM stages) implemented with multiple full-size local temporaries and extra copy loops between stages",
+      "strategy": "Reuse minimal local tile or K-panel accumulators; pipeline the K dimension innermost with ARRAY_PARTITION on the K access dimension; avoid allocating local_tmp1/local_tmp2/local_tmp3 full-matrix buffers and copy tasks between GEMM stages. Prefer one compute nest per tile or stream K-panels between stages via hls::stream when DATAFLOW overlap is real.",
+      "required_steps": [
+        "identify GEMM chain depth and which intermediates must persist vs can be streamed",
+        "allocate the smallest local buffers that cover one tile or one K-panel, not full N×N per stage",
+        "pipeline innermost K loop with II=1; partition locals on K/column dim to match unroll",
+        "remove redundant matrix-to-matrix copy loops between DATAFLOW tasks",
+        "if one local buffer (e.g. tmp) is consumed by two downstream tasks (second GEMM + store), insert hls::stream or duplicate buffer with single-writer/single-reader chain — never one writer + two concurrent readers (HLS 200-779)",
+        "add DATAFLOW between GEMM stages only with hls::stream panel FIFOs and overlap report",
+        "fold alpha/beta scaling into the same local accumulator where numerically legal"
+      ],
+      "guards": [
+        "on-chip BRAM budget may require tiling — reuse tiles, not duplicate full matrices",
+        "preserve numerical semantics when reordering multiply-add chains",
+        "do not add decorative multi-task DATAFLOW without streams — see avoid-dataflow-without-stream-or-overlap-proof"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "ii_target_miss",
+        "interval_exceeds_latency",
+        "dataflow",
+        "port_conflict"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["gemm", "local-staging", "flash-mandatory"],
+      "template": "// BAD: three full local matrices + copy tasks between DATAFLOW stages\nlocal_T1[N][N]; local_T2[N][N]; local_T3[N][N];\n#pragma HLS DATAFLOW\nload_AB(...); gemm1_copy(...); gemm2_copy(...); store_C(...);\n\n// GOOD: K-panel reuse, innermost K pipelined\nfor (int k = 0; k < N; k++) {\n#pragma HLS PIPELINE II=1\n    for (int j = 0; j < TILE_SIZE; j++) {\n#pragma HLS UNROLL factor=UF\n        acc[j] += A[i][k] * B[k][j];\n    }\n}\n// optional: hls::stream<panel_t> between stages when overlap proven"
+    },
+    {
+      "id": "hls-fixed-tile-bound-not-runtime-tile-size",
+      "kind": "supporting_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "pipelined load_tile, compute_tile, or store_tile loops use for (i = 0; i < tile_size; i++) where tile_size is runtime-computed for the final partial tile",
+      "strategy": "Loop bound must be compile-time TILE_SIZE from header macros; use if (tile_i + i < N) guards for partial final tile. Runtime tile_size as loop bound blocks II=1 pipeline, UNROLL, and LOOP_FLATTEN (HLS 200-936/960).",
+      "required_steps": [
+        "replace for (i = 0; i < tile_size; i++) with for (i = 0; i < TILE_SIZE; i++)",
+        "guard loads, stores, and compute with if (tile_i + i < N) or if (i < tile_size) only inside body — not as loop bound",
+        "keep tile_size scalar for guard comparisons when needed, not as pipelined loop trip count",
+        "re-apply PIPELINE II=1 on inner fixed-bound loops after rewrite",
+        "validate csynth no longer warns cannot unroll/flatten due to variable tile_size bound"
+      ],
+      "guards": [
+        "TILE_SIZE macro must match tiling pragma and local buffer allocation",
+        "preserve semantics for partial tail tile — skipped iterations must not change results",
+        "complements hls-rewrite-variable-trip-fixed-bound-guard for triangular inner bounds"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["tiling", "variable-bounds", "flash-mandatory"],
+      "template": "// BAD: runtime tile_size as pipelined loop bound\nint tile_size = (tile_i + TILE_SIZE > N) ? (N - tile_i) : TILE_SIZE;\nfor (int i = 0; i < tile_size; i++) {\n#pragma HLS PIPELINE II=1\n    local_A[i][j] = A[tile_i + i][j];\n}\n\n// GOOD: fixed TILE_SIZE bound + guard\nfor (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n    if (tile_i + i < N) {\n        local_A[i][j] = A[tile_i + i][j];\n    }\n}"
+    },
+    {
+      "id": "avoid-m_axi-accumulate-in-tiled-phase",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "tiled load/compute/store phase reads x[gi] from m_axi, accumulates into local_x[i], then writes x[gi] back within the same tile iteration — per-tile RMW on external port",
+      "strategy": "Load the output vector into local memory once (or hold per-element local state across tiles), accumulate entirely in local memory until all contributions for that element are complete, then perform a single store per output element to m_axi.",
+      "required_steps": [
+        "detect per-tile patterns: load x[global_i] → local_x[i] += expr → store x[global_i]",
+        "replace with load full or partial x into local_x once before tiled compute, or keep local_x across tile loop without per-tile m_axi writeback",
+        "accumulate in local_x[i] or private scalar during compute tiles only",
+        "write each m_axi output element once after all tiles that touch that element have finished",
+        "if output is too large for one local buffer, tile outputs with local finalize per tile region — still no inner-tile m_axi RMW"
+      ],
+      "guards": [
+        "extends avoid-no-rmw-m_axi-direct to tiled staging specifically",
+        "const m_axi inputs may still be loaded per tile; in-place outputs need local write-back discipline",
+        "preserve numerical semantics when deferring store to end of tile sequence"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "repeated_global_access",
+        "ii_target_miss",
+        "port_conflict"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["no_RMW_m_axi", "tiling", "flash-mandatory"],
+      "template": "// BAD: per-tile m_axi RMW on output vector\nfor (int tile = 0; tile < NUM_TILES; tile++) {\n    for (int i = 0; i < TILE_SIZE; i++) {\n        local_x[i] = x[tile_i + i];      // m_axi read\n        ... local_x[i] += contrib ...\n        x[tile_i + i] = local_x[i];        // m_axi write same element\n    }\n}\n\n// GOOD: local accumulate, single store pass\nload_x_to_local(x, local_x);           // once or per region\ntiled_compute_accumulate(local_x, ...);\nstore_x_from_local(x, local_x);         // one write per element"
+    },
+    {
+      "id": "hls-dataflow-one-writer-one-reader-local",
+      "kind": "supporting_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "one local array written by a compute task and read by two or more concurrent DATAFLOW tasks (e.g. compute stage + store stage + downstream compute all touch local_tmp)",
+      "strategy": "Every local array in a DATAFLOW region must have exactly one writer task and exactly one reader task. For fan-out (one producer, multiple consumers), chain with hls::stream FIFOs, duplicate into separate single-use buffers (buf_for_compute / buf_for_store), or merge consumers into one task.",
+      "required_steps": [
+        "list every local array and mark writer task + reader task",
+        "reject any local with >1 writer or >1 concurrent reader",
+        "if compute writes local_M and both store and a later compute read local_M, insert hls::stream between producer and each consumer OR serialize store after final consumer in a linear chain",
+        "for load→compute handoff use buf_in written only by load, read only by compute; compute writes buf_out read only by store",
+        "re-run csynth until HLS 200-779 / 200-979 are gone"
+      ],
+      "guards": [
+        "ping-pong buf0/buf1 still obeys one writer per bank per time step",
+        "hls::stream depth ≥ 2 when producer may run ahead of consumer",
+        "do not pass the same local array into three task calls under one #pragma HLS DATAFLOW"
+      ],
+      "bottleneck_kinds": ["dataflow", "port_conflict", "memory_bandwidth"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["dataflow", "flash-mandatory"],
+      "template": "// BAD: one writer, two readers on local_tmp\n#pragma HLS DATAFLOW\ncompute_tmp(..., local_tmp);\ncompute_next(..., local_tmp);  // reader 1\nstore_tmp(..., local_tmp);     // reader 2 — HLS 200-779\n\n// GOOD: linear chain or stream fan-out\nhls::stream<tile_t, DEPTH> q;\ncompute_tmp(..., q);\ncompute_next(q, local_out);\nstore_tmp(..., local_out);"
+    },
+    {
+      "id": "avoid-dataflow-temporal-loop-as-parallel-tasks",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "#pragma HLS DATAFLOW wrapping a for (t = 0; t < TSTEPS; t++) loop that calls alternating compute tasks which read/write the same local arrays (stencil time steps, iterative relaxation)",
+      "strategy": "Temporal iteration (tsteps, time loops) belongs inside a single compute task, not as multiple concurrent DATAFLOW tasks in an outer t-loop. Use ping-pong locals (A_in/A_out or buf0/buf1) inside that one compute task for alternating read/write phases.",
+      "required_steps": [
+        "detect outer t-loop or phase-loop inside #pragma HLS DATAFLOW",
+        "move the entire t-loop into one static compute_* task with INLINE off",
+        "use separate local arrays for alternating phases (local_A, local_B, local_A_new) — each array has one writer per iteration inside the compute task",
+        "keep DATAFLOW as load_task → compute_all_timesteps_task → store_task only",
+        "never call compute_phase_A and compute_phase_B as sibling tasks under DATAFLOW inside a shared t-loop"
+      ],
+      "guards": [
+        "fixes HLS 200-979 'can only be written in one process' on stencil locals",
+        "DATAFLOW overlap is load || compute || store, not per-timestep task parallelism",
+        "label inner t-loop and phase loops for audit"
+      ],
+      "bottleneck_kinds": ["dataflow", "ii_target_miss"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["dataflow", "avoid", "flash-mandatory"],
+      "template": "// BAD: t-loop inside DATAFLOW with alternating writers on local_A\n#pragma HLS DATAFLOW\nload(...);\nfor (int t = 0; t < TSTEPS; t++) {\n    compute_B(local_A, local_B);\n    compute_A(local_B, local_A);  // HLS 200-979\n}\nstore(...);\n\n// GOOD: one compute task owns the t-loop\n#pragma HLS DATAFLOW\nload(..., local_A);\ncompute_timesteps(local_A, local_B, local_A_new);\nstore(..., local_B);"
+    },
+    {
+      "id": "avoid-m_axi-read-inside-dataflow-outer-loop",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "for (tile = 0; tile < NUM_TILES; tile++) loop placed inside #pragma HLS DATAFLOW calling load tasks that read the same m_axi port each iteration — HLS instantiates parallel readers on one bundle (HLS 200-1013 / 200-984)",
+      "strategy": "Never put a tile-indexed for-loop inside #pragma HLS DATAFLOW if the loop body calls tasks that read/write m_axi ports. Either: (1) fuse all tile loads into one task with pipelined inner loops, (2) move the tile loop outside DATAFLOW into a helper that calls a per-tile DATAFLOW body with private buffers, or (3) use hls::stream tile pipeline (load_tile→compute_tile→store_tile) with depth≥2.",
+      "required_steps": [
+        "detect for (i0 = 0; i0 < N; i0 += TILE_SIZE) inside #pragma HLS DATAFLOW",
+        "if body calls load_* tasks touching m_axi, refactor to single fused load OR stream pipeline",
+        "each m_axi port: at most one concurrent reader and one concurrent writer across DATAFLOW tasks",
+        "for multi-phase kernels (two passes over same matrix), preload full matrix into locals in one task before phased compute",
+        "verify csynth no longer reports bundled bus interface read in multiple processes"
+      ],
+      "guards": [
+        "distinct gmemN per port does not fix multiple concurrent readers on the same port",
+        "pair with hls-single-load-dual-local-layout when one matrix needs two access patterns",
+        "ARRAY_PARTITION local tile buffers for compute parallelism after fused load"
+      ],
+      "bottleneck_kinds": ["dataflow", "axi_dependency", "port_conflict", "memory_bandwidth"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["dataflow", "tiling", "avoid", "flash-mandatory"],
+      "template": "// BAD: tile loop inside DATAFLOW — parallel A readers\n#pragma HLS DATAFLOW\nfor (int i0 = 0; i0 < N; i0 += TILE_SIZE) {\n    load_tile_A(A, local_A, i0);  // HLS 200-1013 on gmem for A\n    compute_tile(...);\n}\n\n// GOOD: fused load once, or stream pipeline\n#pragma HLS DATAFLOW\nfused_load_all_inputs(...);   // single reader per port\ncompute_all_tiles(...);       // locals only\nfused_store_all_outputs(...);"
+    },
+    {
+      "id": "hls-dataflow-performance-partition-unroll",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "DATAFLOW structure passes csynth but latency is high because compute tasks lack ARRAY_PARTITION, inner UNROLL, and parallel load/store overlap",
+      "strategy": "After correct DATAFLOW task boundaries, maximize throughput: partition local arrays on the inner compute dimension, UNROLL inner loops to match partition factor, pipeline innermost loops II=1, run independent load tasks in parallel on distinct gmemN bundles, and use hls::stream depth 4–16 for tile pipelines to overlap load(t+1) with compute(t).",
+      "required_steps": [
+        "add #pragma HLS ARRAY_PARTITION cyclic or block on hot local arrays — factor matches UNROLL",
+        "add #pragma HLS UNROLL factor=UF on innermost reduction/dot-product loop",
+        "pipeline innermost memory/compute loop with II=1; never outer row loop PIPELINE for multi-matrix loads",
+        "issue parallel load tasks only when each touches a different m_axi port/bundle",
+        "for tiled kernels use hls::stream tile FIFO between load_tile, compute_tile, store_tile for real overlap",
+        "target higher DSP/FF utilization when latency slack exists — prefer parallelism over minimal resources"
+      ],
+      "guards": [
+        "partition/unroll must not break DATAFLOW buffer ownership rules",
+        "BRAM budget: tile smaller or stream panels instead of full-matrix locals",
+        "complements hls-array-partition-match-unroll-factor from base skills"
+      ],
+      "bottleneck_kinds": ["ii_target_miss", "memory_bandwidth", "dataflow", "interval_exceeds_latency"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["dataflow", "partition", "unroll", "flash-mandatory"],
+      "template": "#pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=UF dim=2\n#pragma HLS DATAFLOW\nload_A_task(...);   // gmem0\nload_B_task(...);   // gmem1 — parallel with load_A\ncompute_tile_task(...);\nstore_C_task(...);\n\n// inside compute:\nfor (int j = 0; j < N; j += UF) {\n#pragma HLS PIPELINE II=1\n    for (int k = 0; k < UF; k++) {\n#pragma HLS UNROLL\n        acc += local_A[i][j+k] * local_B[j+k][l];\n    }\n}"
+    },
+    {
+      "id": "hls-dataflow-fused-compute-phases",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "multiple compute tasks under #pragma HLS DATAFLOW each read the same local array (matrix reused in two GEMMs, dual matvec on same A, or stat pipeline mean→stddev→normalize all touching local_data) — HLS 200-779",
+      "strategy": "Merge every compute phase that shares a local input or intermediate into ONE static compute_fused_task with sequential labeled loops inside. Keep parallel load_* and store_* as separate DATAFLOW tasks. Never add an inline for-loop copy inside DATAFLOW to dodge fan-out — that creates another reader process.",
+      "required_steps": [
+        "list compute tasks and mark which locals each reads/writes",
+        "if two+ compute tasks read the same local (e.g. local_A, local_data_in, local_tmp): fold into one compute_fused_task",
+        "if one intermediate is consumed by downstream compute AND store_tmp: either store inside the fused compute after last use, or chain linearly compute_fused → local_out read only by store",
+        "for chained GEMMs (tmp = alpha*A*B; D = beta*D + tmp*C): one task does both nests sequentially; parallel loads for A,B,C,D_in; parallel stores for tmp and D_out only after fused compute completes",
+        "for dual matvec (tmp=A*x; y=A'*tmp): one task reads local_A once for both phases",
+        "for stat pipelines (mean, stddev, normalize, corr): one compute_stats_task with sequential loops; parallel store_mean/store_stddev/store_corr OK after"
+      ],
+      "guards": [
+        "fused compute task must not take m_axi port pointers",
+        "do not place copy loops inside DATAFLOW region — use separate copy task or fuse into compute",
+        "preserve numerical order when merging phases"
+      ],
+      "bottleneck_kinds": ["dataflow", "port_conflict", "memory_bandwidth"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["dataflow", "flash-mandatory"],
+      "template": "// BAD: two readers on local_A and local_tmp\n#pragma HLS DATAFLOW\ncompute_tmp(..., local_A, local_tmp);\ncompute_y(..., local_A, local_tmp);   // local_A reader 2, local_tmp reader 2\nstore_tmp(..., local_tmp);\n\n// GOOD: fused compute, parallel load/store\n#pragma HLS DATAFLOW\nload_A_task(...); load_x_task(...);\ncompute_fused_task(local_A, local_x, local_tmp, local_y);  // both matvecs inside\nstore_y_task(...); store_tmp_task(...);"
+    },
+    {
+      "id": "hls-dual-layout-fused-load-dataflow",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "kernel runs two passes over the same matrix with different access (row-major then transposed/column) and places tile for-loops inside #pragma HLS DATAFLOW that call load_* on the same m_axi port each iteration — HLS 200-1013",
+      "strategy": "Under DATAFLOW: one fused_load_task reads the matrix from m_axi once per element and fills both row-major and transposed local buffers in the same pipelined loop; load all vectors in the same or parallel tasks; run phase1_task and phase2_task on locals only; fused_store_task for outputs. No outer tile loop inside DATAFLOW that touches m_axi.",
+      "required_steps": [
+        "replace per-tile load loops inside DATAFLOW with single fused_load_task covering full N×N (or legal tile stream pipeline with hls::stream, not repeated m_axi loads)",
+        "in fused load: for each (i,j) read A[i][j] once; write local_A_row[i][j] and local_A_col[j][i]",
+        "phase1_task uses local_A_row; phase2_task uses local_A_col — no m_axi in either",
+        "optional ARRAY_PARTITION on row locals for UNROLL in compute",
+        "verify no HLS 200-1013 on matrix port"
+      ],
+      "guards": [
+        "BRAM must fit both layouts — partition/unroll compute not load",
+        "pair with hls-single-load-dual-local-layout",
+        "distinct gmemN on vector ports enables parallel y1/y2 loads with fused A load"
+      ],
+      "bottleneck_kinds": ["dataflow", "axi_dependency", "memory_bandwidth", "repeated_global_access"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["dataflow", "flash-mandatory"],
+      "template": "// BAD: tile loops inside DATAFLOW reload A each tile\n#pragma HLS DATAFLOW\nfor (i0 = 0; i0 < N; i0 += TILE) {\n    load_tile_A(A, local_A, i0);  // HLS 200-1013\n    compute_tile(...);\n}\n\n// GOOD: fused dual-layout load, phased compute on locals\n#pragma HLS DATAFLOW\nfused_load_task(y1, y2, A, local_y1, local_y2, local_A_row, local_A_col);\nphase1_task(local_x1, local_A_row, local_y1);\nphase2_task(local_x2, local_A_col, local_y2);\nfused_store_task(x1, x2, local_x1, local_x2);"
+    },
+    {
+      "id": "hls-dataflow-merge-parallel-consumers",
+      "kind": "supporting_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "two compute tasks under #pragma HLS DATAFLOW both read the same local array produced by an upstream task (e.g. compute_x and compute_w both consume local_A_out) — HLS 200-779",
+      "strategy": "Merge the parallel consumer compute tasks into one compute_xw_task with sequential labeled loops, or insert hls::stream between producer and a single downstream consumer. Never leave two concurrent reader tasks on the same local buffer.",
+      "required_steps": [
+        "identify locals with one writer and two+ reader compute tasks",
+        "merge consumers into one static task with both computation nests inside",
+        "if merge hurts II, use hls::stream from producer to one consumer and duplicate producer output via second stream (tee) — never two tasks reading same local",
+        "tile loops wrapping DATAFLOW: each tile iteration must use private tile buffers; still no fan-out within one DATAFLOW invocation"
+      ],
+      "guards": [
+        "merged task stays locals-only — no m_axi pointers",
+        "store tasks may run parallel only if each reads a distinct local output"
+      ],
+      "bottleneck_kinds": ["dataflow", "port_conflict"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["dataflow", "flash-mandatory"],
+      "template": "// BAD: local_A_out read by two compute tasks\n#pragma HLS DATAFLOW\ncompute_A_task(..., local_A_out);\ncompute_x_task(local_A_out, ...);  // reader 1\ncompute_w_task(local_A_out, ...);  // reader 2 — HLS 200-779\n\n// GOOD: merge consumers\n#pragma HLS DATAFLOW\ncompute_A_task(..., local_A_out);\ncompute_xw_task(local_A_out, local_x, local_w, ...);  // both uses inside one task\nstore_x_task(...); store_w_task(...);"
+    }
+  ]
+}

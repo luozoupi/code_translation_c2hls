@@ -114,8 +114,8 @@ def verify_variant_skills(variant: FlashFixedCosimVariant) -> dict:
     expected = {
         "nav_o": (LEGACY_SKILLS_JSON, 55),
         "aav_o": (LEGACY_SKILLS_JSON, 55),
-        "nav_n": (NEW_SKILLS_JSON_73, 73),
-        "aav_n": (NEW_SKILLS_JSON_90, 90),
+        "nav_n": (NEW_SKILLS_JSON_73, 75),
+        "aav_n": (NEW_SKILLS_JSON_90, 92),
         "noskills": (None, 0),
     }
     path, want = expected[variant.key]
@@ -204,18 +204,22 @@ def configure_fixed_cosim_flash_env(
     os.environ.setdefault("C2HLS_LLM_TIMEOUT", "900")
     os.environ.setdefault("OPENAI_API_KEY", "EMPTY")
 
+    from flash_shared.new_skills_lib import _apply_flash_skill_entries_env
+
     if variant.force_skill_prompts and variant.skills_json is not None:
         os.environ["C2HLS_SKILL_MODE"] = "skill_on"
         os.environ["C2HLS_FORCE_SKILL_PROMPTS"] = "1"
         os.environ["C2HLS_SKILL_PROMPT_MODE"] = variant.skill_prompt_mode
         os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(variant.skills_json.resolve())
         os.environ["C2HLS_PACKAGED_SKILLS_ONLY"] = "1"
+        _apply_flash_skill_entries_env(True)
     else:
         os.environ["C2HLS_SKILL_MODE"] = "skill_off"
         os.environ["C2HLS_FORCE_SKILL_PROMPTS"] = "0"
         os.environ.pop("C2HLS_SKILL_PROMPT_MODE", None)
         os.environ.pop("C2HLS_PACKAGED_SKILLS_JSON", None)
         os.environ.pop("C2HLS_PACKAGED_SKILLS_ONLY", None)
+        _apply_flash_skill_entries_env(False)
 
 
 def variant_env_snapshot(variant: FlashFixedCosimVariant) -> dict:
@@ -230,7 +234,9 @@ def variant_env_snapshot(variant: FlashFixedCosimVariant) -> dict:
         "force_skill_prompts": variant.force_skill_prompts,
         "skills_in_prompt": variant.skills_in_prompt,
         "skills_json": str(variant.skills_json.resolve()) if variant.skills_json else None,
-        "skills_json_mode": "packaged_only" if variant.skills_json else None,
+        "skills_json_mode": (
+            "packaged_base_plus_flash_overlay" if variant.skills_json else None
+        ),
     }
     if variant.skills_json and variant.skills_json.is_file():
         snap["skills_json_count"] = count_skills_in_file(variant.skills_json)

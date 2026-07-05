@@ -1,5 +1,5 @@
 {
-  "saved_at": "2026-07-01T07:00:58+0200",
+  "saved_at": "2026-07-04T03:53:07+0000",
   "schema": "1.1",
   "skills": [
     {
@@ -3151,681 +3151,99 @@
       "template": ""
     },
     {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "global_memory_latency",
-        "memory_bandwidth",
-        "ii_target_miss",
-        "non_pipelined_hot_loop",
-        "latency_high",
-        "repeated_global_access"
-      ],
-      "confidence": "high",
-      "guards": [
-        "do not stage unbounded or runtime-sized arrays entirely on-chip",
-        "do not skip local staging because m_axi pragmas are already present",
-        "do not apply advanced optimizations on top of a reference port that still reads globals in compute"
-      ],
-      "id": "hls-baseline-load-compute-store-gate",
-      "kind": "compound_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "kernel has m_axi or global array arguments and the hot loop reads or writes those arrays directly",
+      "id": "avoid-no-rmw-m_axi-direct",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "compute loops perform read-modify-write updates directly on arrays mapped to m_axi ports (e.g. A[i][j] = A[i][j] + expr, x[i] = x[i] + expr, w[i] = w[i] + expr inside nested loops)",
+      "strategy": "Treat every m_axi argument as external DRAM/HBM. Never read and write the same external element inside an inner loop. Do not use global/m_axi arrays as temporary storage or assume HLS will cache m_axi data across iterations.",
       "required_steps": [
-        "identify all array parameters accessed in the hot loop",
-        "estimate compile-time working-set size (inputs + outputs + temporaries)",
-        "if working set fits on-chip BRAM budget, stage full arrays locally in one load pass",
-        "else choose tiling with reuse analysis, not a default small tile size",
-        "add #pragma HLS PIPELINE II=1 to every dedicated load and store loop",
-        "add #pragma HLS PIPELINE II=1 to the local-memory compute loop when legal",
-        "verify compute indexing uses local buffers, not global array parameters",
-        "before submitting, confirm the kernel body contains PIPELINE pragmas on every major compute phase; zero PIPELINE on compute is a blocking defect",
-        "only after this baseline is in place, apply advanced skills (tiling, unroll, coalescing)"
+        "scan every loop for statements that read and write the same m_axi port element",
+        "reject direct accumulation into m_axi arrays",
+        "reject repeated reads of the same output element from DRAM/HBM inside an inner loop",
+        "reject repeated writes to the same output element inside an inner loop",
+        "replace with load-compute-store using local buffers or private scalar accumulators",
+        "for reductions, accumulate in a private scalar or local array, then write back once",
+        "if the full array is too large, tile/block but still finalize each tile locally before one store"
       ],
-      "sec_pass": 0,
-      "strategy": "before any tiling, unrolling, coalescing, or DATAFLOW: separate into bulk load, pipelined local compute, and bulk store; never leave the hot compute loop on global or m_axi memory",
+      "guards": [
+        "preserve numerical semantics when staging into locals",
+        "const read-only m_axi inputs may be read once per tile into locals",
+        "in-place outputs still require local write-back buffers, not inner-loop RMW on the port"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "repeated_global_access",
+        "ii_target_miss",
+        "port_conflict"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
       "tags": [
-        "baseline",
+        "avoid",
+        "no_RMW_m_axi",
+        "m_axi",
         "load-compute-store",
-        "local-staging",
-        "m_axi",
-        "kernel-independent",
-        "mandatory-first"
+        "flash-mandatory"
       ],
-      "template": "double local_in[M][N], local_out[M][N];\nload: for (int i = 0; i < M; i++)\n  for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n    local_in[i][j] = in[i][j];\n  }\ncompute: for (int i = 0; i < M; i++)\n  for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n    local_out[i][j] = f(local_in, i, j);\n  }\nstore: for (int i = 0; i < M; i++)\n  for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n    out[i][j] = local_out[i][j];\n  }"
+      "template": "// FORBIDDEN when A/x/w are m_axi ports:\n//   A[i][j] = A[i][j] + expr;\n//   x[i] = x[i] + expr;\n// GOOD: load -> local acc/buffer -> single store\n//   double acc = x_local[i];\n//   for (int j = 0; j < N; j++) acc += beta * A_local[j][i] * y_local[j];\n//   x_local[i] = acc;\n//   x[i] = x_local[i];  // one write per element"
     },
     {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "memory_bandwidth",
-        "global_memory_reuse",
-        "repeated_global_access",
-        "tiling_overhead"
-      ],
-      "confidence": "high",
-      "guards": [
-        "do not allocate local arrays larger than synthesis can map",
-        "if full staging does not fit, increase tile size based on reuse and BRAM, not a fixed small constant"
-      ],
-      "id": "hls-prefer-full-workspace-staging-when-fits",
-      "kind": "supporting_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "compile-time array dimensions are bounded and total working set (all inputs, outputs, and needed temporaries) fits available on-chip memory without tiling",
-      "required_steps": [
-        "sum element counts times sizeof for each array needed during compute",
-        "compare against conservative BRAM budget for the target FPGA",
-        "if it fits, allocate local arrays matching problem dimensions and use bulk load, compute, and store",
-        "choose tiling only when full staging exceeds on-chip budget or reuse analysis proves larger tiles are better"
-      ],
-      "sec_pass": 0,
-      "strategy": "load the full working set into local arrays once, run all compute on local memory, store once; do not default to nested small-tile loops that repeatedly reload the same global data",
-      "tags": [
-        "full-staging",
-        "local-buffer",
-        "anti-micro-tile",
-        "kernel-independent"
-      ],
-      "template": "double local_A[M][K], local_B[K][N], local_C[M][N];\nload_arrays: for (int i = 0; i < M; i++)\n  for (int j = 0; j < K; j++) {\n#pragma HLS PIPELINE II=1\n    local_A[i][j] = A[i][j];\n  }\n// repeat for B and C, then compute entirely on local_* before one store pass"
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "non_pipelined_hot_loop",
-        "interval_exceeds_latency",
-        "latency_high"
-      ],
-      "confidence": "high",
-      "guards": [
-        "use unit-stride inner dimension for burst-friendly access",
-        "verify achieved II in synthesis report, not only requested II"
-      ],
-      "id": "hls-mandatory-pipeline-load-store-loops",
-      "kind": "supporting_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "dedicated loops copy data between m_axi or global memory and local buffers, including tile load and tile store loops",
-      "required_steps": [
-        "label load and store loops explicitly",
-        "add PIPELINE II=1 to each load and store loop",
-        "use unit-stride inner dimension for burst-friendly access",
-        "verify achieved II in synthesis report"
-      ],
-      "sec_pass": 0,
-      "strategy": "every load and store loop must have #pragma HLS PIPELINE II=1 (or II equal to dependence latency when required); unpipelined bulk copies are a defect",
-      "tags": [
-        "pipeline",
-        "load-store",
-        "mandatory",
-        "kernel-independent"
-      ],
-      "template": "load_tile: for (int i = 0; i < TILE; i++) {\n#pragma HLS PIPELINE II=1\n    local[i] = in[base + i];\n}\nstore_tile: for (int i = 0; i < TILE; i++) {\n#pragma HLS PIPELINE II=1\n    out[base + i] = local[i];\n}"
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "neighbor_access",
-        "poor_locality",
-        "global_memory_latency",
-        "ii_target_miss",
-        "stencil_dependency"
-      ],
-      "confidence": "high",
-      "guards": [
-        "do not pipeline a loop that still performs multiple global neighbor reads per iteration",
-        "PIPELINE on global stencil loops without local staging will not achieve II=1"
-      ],
-      "id": "hls-neighbor-access-requires-local-window",
+      "id": "hls-load-compute-store-no-rmw-m_axi",
       "kind": "compound_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "inner loop body reads multiple offsets from the same array (neighbors, halos, diagonal or window indices, or index pairs from different dimensions) and those reads currently target global or m_axi memory",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "kernel touches m_axi pointer ports in compute loops and may benefit from pipelining, unroll, or DATAFLOW but must not bottleneck on repeated external memory RMW",
+      "strategy": "Use explicit load-compute-store: (1) load required inputs from m_axi into local on-chip buffers or private scalars; (2) perform all repeated updates, reductions, and accumulations on locals only; (3) store final results back to m_axi outputs once per element when possible. Prefer burst-friendly sequential loads/stores and separate phases.",
       "required_steps": [
-        "count distinct offset reads per loop iteration",
-        "if more than one global read per iteration, local staging is required",
-        "choose line buffer or sliding window for streaming neighbor patterns, or tile blocking for random multi-index updates",
-        "pipeline traversal over local data with II=1 when legal"
+        "identify every m_axi port used in compute",
+        "add local buffers for reused arrays and private scalar accumulators for reductions",
+        "pipeline load, compute, and store loops independently where legal",
+        "write each output m_axi element at most once per logical update (after local finalize)",
+        "apply tiling when full arrays exceed on-chip budget while keeping RMW off m_axi inside inner loops"
       ],
-      "sec_pass": 0,
-      "strategy": "stage the accessed region into local buffers, line buffers, sliding windows, or tiles so all neighbor reads in the hot loop come from on-chip memory; route to ii-stencil-linebuffer-window-shift or tiling skills as appropriate",
-      "tags": [
-        "neighbor-access",
-        "stencil",
-        "local-window",
-        "kernel-independent"
+      "guards": [
+        "do not change top-level pointer element types unless explicitly allowed",
+        "pair with distinct gmemN bundles per port when parallelizing external access",
+        "local arrays must be sized with fixed bounds from header macros"
       ],
-      "template": "data_t local_plane[ROWS][COLS];\n// or line buffers / sliding window for streaming traversal\nfor (int r = 0; r < ROWS; r++) {\n  for (int c = 0; c < COLS; c++) {\n#pragma HLS PIPELINE II=1\n    // all neighbor reads from local_plane or window[], not global array\n  }\n}"
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
       "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
         "global_memory_latency",
+        "repeated_global_access",
         "ii_target_miss",
-        "latency_high",
-        "non_pipelined_hot_loop"
-      ],
-      "confidence": "avoid",
-      "guards": [
-        "m_axi interface pragmas alone do not constitute optimization",
-        "absence of PIPELINE, local buffers, or loop restructuring on a memory-bound hot loop is a blocking defect"
-      ],
-      "id": "hls-avoid-reference-port-global-compute",
-      "kind": "avoid_rule",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "proposed or current code performs the main computation by directly indexing m_axi or global array parameters with no local staging and no HLS pragmas on the hot loops, including multi-phase kernels with many m_axi ports",
-      "required_steps": [
-        "detect whether this avoid-rule pattern is present",
-        "do not apply the unsafe or superficial transformation",
-        "route to hls-baseline-load-compute-store-gate or hls-multi-phase-local-pipeline before any other optimization",
-        "validate with synthesis and correctness feedback"
-      ],
-      "sec_pass": 0,
-      "strategy": "reject reference-port output even when m_axi interface pragmas are present; route to hls-baseline-load-compute-store-gate or hls-multi-phase-local-pipeline before any other optimization",
-      "tags": [
-        "avoid",
-        "reference-port",
-        "global-memory",
-        "kernel-independent"
-      ],
-      "template": ""
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "resource_explosion",
-        "timing_degradation",
-        "tiling_overhead",
-        "dsp_growth"
-      ],
-      "confidence": "avoid",
-      "guards": [
-        "complete partition on tile buffers larger than the parallel access width is a red flag",
-        "triple-nested tile loops with tiny tiles often increase control overhead without improving reuse"
-      ],
-      "id": "hls-avoid-micro-tile-complete-partition-nest",
-      "kind": "avoid_rule",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "nested outer tile loops (for example i0, j0, k0) use a small compile-time tile size with ARRAY_PARTITION complete on multidimensional tile buffers and repeated global reloads per tile",
-      "required_steps": [
-        "detect whether this avoid-rule pattern is present",
-        "do not apply the unsafe or superficial transformation",
-        "prefer hls-prefer-full-workspace-staging-when-fits or larger tiles with cyclic or block partition matched to unroll factor",
-        "route to ii-avoid-complete-partition-large-buffer-ff-explosion when complete partition inflates resources",
-        "validate with synthesis and correctness feedback"
-      ],
-      "sec_pass": 0,
-      "strategy": "do not use nested small-tile loops with complete partition as default; prefer hls-prefer-full-workspace-staging-when-fits or larger tiles with cyclic or block partition matched to unroll factor",
-      "tags": [
-        "avoid",
-        "micro-tile",
-        "complete-partition",
-        "dsp",
-        "kernel-independent"
-      ],
-      "template": ""
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "memory_bandwidth",
-        "repeated_global_access",
-        "global_memory_latency"
-      ],
-      "confidence": "avoid",
-      "guards": [
-        "accumulators spanning multiple blocks must remain in local memory across block iterations",
-        "reloading partial results from global memory inside a block nest wastes bandwidth"
-      ],
-      "id": "hls-avoid-global-reload-in-blocking-loop",
-      "kind": "avoid_rule",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "an outer blocking or tiling loop reloads an accumulator or output array from global memory at the start of each block, even though partial results from prior blocks should remain in a local accumulator",
-      "required_steps": [
-        "detect whether this avoid-rule pattern is present",
-        "do not apply the unsafe or superficial transformation",
-        "keep the accumulating buffer in local memory across inner block iterations",
-        "load inputs per block if needed, but do not re-fetch the running output from global memory inside the block nest",
-        "validate with synthesis and correctness feedback"
-      ],
-      "sec_pass": 0,
-      "strategy": "keep the accumulating buffer in local memory across inner block iterations; load inputs per block if needed, but do not re-fetch the running output from global memory inside the block nest",
-      "tags": [
-        "avoid",
-        "accumulator",
-        "blocking",
-        "kernel-independent"
-      ],
-      "template": ""
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "memory_bandwidth",
-        "repeated_global_access",
-        "global_memory_latency",
-        "tiling_overhead",
-        "stencil_dependency",
         "interval_exceeds_latency"
       ],
-      "confidence": "avoid",
-      "guards": [
-        "spatial tiling is wrong when each time step must see the full previous field or a full old/new plane",
-        "per-tile global store followed by reload in the same iteration wastes bandwidth multiplicatively",
-        "prefer ii-raw-dependency-pingpong-old-new-buffers or full-grid local staging when the working set fits"
+      "applicable_versions": [
+        "2023.2"
       ],
-      "id": "hls-avoid-iterative-spatial-tile-global-roundtrip",
-      "kind": "avoid_rule",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "an outer time-step or iteration loop contains spatial tile loops that load a tile from global memory, compute, store back to global memory, and repeat for every tile before advancing the iteration, instead of keeping the working grid on-chip across the iteration",
-      "required_steps": [
-        "detect whether global load/store happens inside both the iteration loop and the spatial tile loop",
-        "estimate total global traffic per iteration; reject if it scales with number of tiles",
-        "prefer full-grid local buffers, old/new plane buffers, or line-buffer traversal when legal and on-chip budget allows",
-        "route to ii-raw-dependency-pingpong-old-new-buffers or hls-prefer-full-workspace-staging-when-fits",
-        "validate with synthesis and correctness feedback"
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
       ],
-      "sec_pass": 0,
-      "strategy": "do not use spatial tiling with per-tile global load/store inside each time step or outer iteration; keep the working set on-chip across the iteration using full-grid staging, old/new buffers, or line buffers",
       "tags": [
-        "avoid",
-        "iterative",
-        "stencil",
-        "tiling",
-        "global-roundtrip",
-        "kernel-independent"
-      ],
-      "template": ""
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "memory_bandwidth",
-        "repeated_global_access",
-        "global_memory_latency",
-        "chained_compute",
-        "multi_phase"
-      ],
-      "confidence": "high",
-      "guards": [
-        "do not spill an intermediate consumed by the next phase if it fits in on-chip memory",
-        "preserve producer-consumer ordering between phases",
-        "only write final outputs or arrays not reused later to global memory"
-      ],
-      "id": "hls-chain-intermediate-results-locally",
-      "kind": "compound_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "the kernel has multiple dependent compute phases where an intermediate array produced in one phase is consumed by a later phase, and the current design writes that intermediate to global memory between phases",
-      "required_steps": [
-        "identify arrays written in one phase and read in a later phase",
-        "allocate local buffers for each reused intermediate result",
-        "run phase 1 compute into local intermediate buffers",
-        "run later phases using only local intermediates",
-        "partition or bank local buffers to match inner-loop unroll factor",
-        "store only final outputs that are not consumed again",
-        "pipeline load, each local phase, and final store"
-      ],
-      "sec_pass": 0,
-      "strategy": "keep every intermediate result that is consumed by a later phase in on-chip local memory; chain phases locally and defer global writes until the value is no longer needed",
-      "tags": [
-        "chained-phases",
-        "intermediate-buffer",
-        "local-staging",
-        "multi-gemm",
-        "kernel-independent"
-      ],
-      "template": "double local_A[M][K], local_B[K][N], local_E[M][N], local_F[N][P], local_G[M][P];\n// load inputs once\n// phase1: local_E = local_A * local_B\n// phase2: local_F = ...\n// phase3: local_G = local_E * local_F\n// store local_G once"
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "memory_bandwidth",
-        "global_memory_latency",
-        "non_pipelined_hot_loop",
-        "multi_phase",
-        "latency_high"
-      ],
-      "confidence": "high",
-      "guards": [
-        "m_axi pragmas on many ports do not remove the need for local staging",
-        "each phase still needs pipelined loops over local data",
-        "do not leave any phase as a scalar nest on global arrays"
-      ],
-      "id": "hls-multi-phase-local-pipeline",
-      "kind": "compound_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "the kernel contains multiple sequential loop nests or update phases over matrices and vectors exposed as m_axi arguments, and one or more phases still read or write those arguments directly in the hot loops",
-      "required_steps": [
-        "list all phases and the arrays each phase reads or writes",
-        "load every array touched by more than one phase into local buffers once",
-        "rewrite each phase to use only local buffers with pipelined loops",
-        "apply hls-chain-intermediate-results-locally when later phases consume earlier outputs",
-        "store only final results that must be visible off-chip",
-        "add array_partition on local arrays accessed in parallel inner loops"
-      ],
-      "sec_pass": 0,
-      "strategy": "for multi-phase kernels, bulk-load shared inputs to locals, execute every phase as pipelined local-memory compute, and bulk-store final outputs once; never emit a reference-style multi-loop port on global memory",
-      "tags": [
-        "multi-phase",
-        "local-staging",
-        "pipeline",
+        "no_RMW_m_axi",
         "m_axi",
-        "kernel-independent"
-      ],
-      "template": "load all shared arrays to locals;\nphase1: for (...) { #pragma HLS PIPELINE II=1 ... local only ... }\nphase2: for (...) { #pragma HLS PIPELINE II=1 ... local only ... }\nstore final outputs once;"
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "memory_bandwidth",
-        "repeated_global_access",
-        "global_memory_latency",
-        "multi_phase",
-        "latency_high"
-      ],
-      "confidence": "high",
-      "guards": [
-        "statistics vectors such as mean and stddev should also be computed and stored locally when small",
-        "preserve numerical semantics of each pass",
-        "pipeline each pass separately; do not reread the full dataset from global memory every pass if it fits locally"
-      ],
-      "id": "hls-multi-pass-stats-local-staging",
-      "kind": "compound_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "the kernel performs multiple passes over the same dataset (reduction, normalization, pairwise aggregation, correlation, covariance, or similar) with repeated global reads and writes of the main data array between passes",
-      "required_steps": [
-        "identify all passes that traverse the same main data array",
-        "if the dataset fits on-chip, load it into a local buffer once",
-        "compute mean, variance, normalization, and aggregation passes over the local buffer with pipelined loops",
-        "keep small statistic vectors in local memory",
-        "write normalized data and final output matrix back in dedicated store loops",
-        "avoid leaving hot passes as unpipelined scalar loops on global memory"
-      ],
-      "sec_pass": 0,
-      "strategy": "stage the main data array locally, run every statistics or normalization pass on local memory with pipelined loops, and minimize repeated global traversals of the same array",
-      "tags": [
-        "multi-pass",
-        "statistics",
-        "normalization",
         "local-staging",
-        "pipeline",
-        "kernel-independent"
+        "load-compute-store",
+        "flash-mandatory"
       ],
-      "template": "double local_data[ROWS][COLS];\nload_data: for (...) { #pragma HLS PIPELINE II=1 local_data[i][j] = data[i][j]; }\npass_mean: for (...) { #pragma HLS PIPELINE II=1 ... local_data / local_mean ... }\npass_norm: for (...) { #pragma HLS PIPELINE II=1 ... local_data ... }\nstore_outputs: for (...) { #pragma HLS PIPELINE II=1 ... }"
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "memory_bandwidth",
-        "repeated_global_access",
-        "global_memory_latency",
-        "chained_compute"
-      ],
-      "confidence": "avoid",
-      "guards": [
-        "writing an intermediate to global memory only to read it in the immediately following phase is always suspect",
-        "this applies even when the intermediate is also an output port"
-      ],
-      "id": "hls-avoid-global-intermediate-between-phases",
-      "kind": "avoid_rule",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "phase N writes an intermediate array to a global or m_axi output that phase N+1 immediately reads again, even though the value could remain in a local buffer",
-      "required_steps": [
-        "detect producer phase writing global and consumer phase reading the same array",
-        "route to hls-chain-intermediate-results-locally",
-        "keep the intermediate in local memory until no later phase needs it",
-        "validate with synthesis and correctness feedback"
-      ],
-      "sec_pass": 0,
-      "strategy": "do not write intermediates to global memory between dependent phases; route to hls-chain-intermediate-results-locally",
-      "tags": [
-        "avoid",
-        "intermediate",
-        "chained-phases",
-        "global-spill",
-        "kernel-independent"
-      ],
-      "template": ""
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "non_pipelined_hot_loop",
-        "latency_high",
-        "global_memory_latency",
-        "reference_port"
-      ],
-      "confidence": "avoid",
-      "guards": [
-        "m_axi interface pragmas alone are not an optimized kernel",
-        "a flash output with only interface pragmas will synthesize as unpipelined scalar hardware",
-        "uncertainty about advanced optimizations does not justify skipping the baseline gate"
-      ],
-      "id": "hls-avoid-zero-pipeline-submit",
-      "kind": "avoid_rule",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "the proposed kernel body has no #pragma HLS PIPELINE on any compute loop, or the only pragmas are m_axi or s_axilite interface pragmas",
-      "required_steps": [
-        "scan the kernel body for #pragma HLS PIPELINE on compute loops",
-        "if none are present, reject the output as a reference port",
-        "route to hls-baseline-load-compute-store-gate and hls-multi-phase-local-pipeline",
-        "add pipelined load, local compute, and store loops before resubmitting"
-      ],
-      "sec_pass": 0,
-      "strategy": "never submit a kernel whose hot loops lack PIPELINE pragmas; apply the baseline load-compute-store gate first even when avoid rules discourage advanced transforms",
-      "tags": [
-        "avoid",
-        "reference-port",
-        "pipeline",
-        "mandatory",
-        "kernel-independent"
-      ],
-      "template": ""
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "memory_bandwidth",
-        "repeated_global_access",
-        "chained_compute",
-        "multi_phase"
-      ],
-      "confidence": "high",
-      "guards": [
-        "apply even when the temporary array is also an m_axi output port",
-        "preserve the external ABI by storing the local temporary once after all consuming phases complete"
-      ],
-      "id": "hls-chained-gemm-local-temporary",
-      "kind": "compound_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "the kernel chains two or more matrix multiplies or GEMM-like phases where a temporary array is written in one phase and read in the next phase, and the temporary is currently written to global memory between phases",
-      "required_steps": [
-        "identify the temporary array produced by phase 1 and consumed by phase 2",
-        "allocate a local buffer for the temporary with the same compile-time dimensions",
-        "run phase 1 into the local temporary with pipelined loops",
-        "run phase 2 reading only the local temporary",
-        "store the temporary to its global port only once if the ABI requires it",
-        "partition local arrays to match inner-loop unroll factor"
-      ],
-      "sec_pass": 0,
-      "strategy": "never chain GEMM phases through global memory; keep the temporary in a local buffer across phases and pipeline both multiplies on-chip",
-      "tags": [
-        "chained-gemm",
-        "temporary-buffer",
-        "2mm",
-        "local-staging",
-        "kernel-independent"
-      ],
-      "template": "double local_tmp[M][N], local_D[M][P];\n// phase1: local_tmp = alpha * A * B on locals\n// phase2: local_D = beta * D + local_tmp * C on locals\n// store local_D and optional local_tmp once"
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "stencil_dependency",
-        "neighbor_access",
-        "global_memory_latency",
-        "repeated_global_access",
-        "interval_exceeds_latency"
-      ],
-      "confidence": "high",
-      "guards": [
-        "do not perform global load/store inside the time-step loop when the full volume fits on-chip",
-        "use old/new local volumes or planes rather than per-tile global round-trips each timestep",
-        "hardcoding trip counts instead of using compile-time constants is a separate defect"
-      ],
-      "id": "hls-iterative-stencil-timestep-local-volume",
-      "kind": "compound_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "an outer time-step or iteration loop performs a 2D or 3D neighbor stencil that reads and writes grid values, and the current code accesses global or m_axi arrays inside the time-step loop",
-      "required_steps": [
-        "load the full grid or each needed volume into local memory once before the time-step loop",
-        "allocate two local buffers for old/new state when the stencil alternates between two arrays",
-        "perform all neighbor reads from local buffers inside the time-step loop",
-        "pipeline the innermost legal traversal loop with II=1",
-        "swap or copy old/new buffers between time steps without global round-trips",
-        "store the final volume once after all time steps"
-      ],
-      "sec_pass": 0,
-      "strategy": "for iterative stencils, keep the working volume on-chip across time steps using full-grid local buffers or old/new planes; never leave the time-step loop on global memory",
-      "tags": [
-        "iterative",
-        "stencil",
-        "timestep",
-        "old-new-buffer",
-        "local-volume",
-        "kernel-independent"
-      ],
-      "template": "double local_A[2][N][N][N];\nload_volume_once(...);\nfor (int t = 1; t <= TSTEPS; t++) {\n  compute_into_local_B_from_local_A(...);\n  compute_into_local_A_from_local_B(...);\n}\nstore_volume_once(...);"
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "memory_bandwidth",
-        "global_memory_latency",
-        "partial_staging",
-        "ii_target_miss"
-      ],
-      "confidence": "avoid",
-      "guards": [
-        "staging only inputs but leaving outputs or accumulators on global memory is incomplete",
-        "reading one operand from global inside a pipelined compute loop usually destroys II and bandwidth"
-      ],
-      "id": "hls-avoid-partial-staging-global-in-compute",
-      "kind": "avoid_rule",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "some inputs are loaded into local buffers, but the hot compute loop still reads or writes one or more m_axi array parameters directly, such as an accumulator matrix, temporary, or output array",
-      "required_steps": [
-        "list every array indexed inside each pipelined compute loop",
-        "if any index targets a function parameter array, stage that array locally or privatize the accessed region",
-        "route to hls-baseline-load-compute-store-gate or hls-chain-intermediate-results-locally",
-        "validate that compute loops reference only local buffers"
-      ],
-      "sec_pass": 0,
-      "strategy": "do not mix local staging with global reads or writes in the same hot compute loop; stage all operands and outputs used in compute locally first",
-      "tags": [
-        "avoid",
-        "partial-staging",
-        "global-memory",
-        "gemm",
-        "kernel-independent"
-      ],
-      "template": ""
-    },
-    {
-      "applicable_fpgas": [],
-      "applicable_versions": [],
-      "bottleneck_kinds": [
-        "reference_port",
-        "latency_high",
-        "non_pipelined_hot_loop"
-      ],
-      "confidence": "avoid",
-      "guards": [
-        "avoid-tier skills must not cause fallback to unoptimized reference code",
-        "when in doubt, apply hls-baseline-load-compute-store-gate rather than emitting textbook C"
-      ],
-      "id": "hls-avoid-reference-fallback-under-avoid-noise",
-      "kind": "avoid_rule",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "origin": "project_regression_analysis",
-      "pattern": "the model avoids advanced transforms because of many avoid rules or uncertainty, and responds with textbook nested loops on global arrays and no compute pragmas",
-      "required_steps": [
-        "detect reference-port output despite loaded skill catalog",
-        "do not treat caution as permission to skip optimization",
-        "apply hls-baseline-load-compute-store-gate, hls-multi-phase-local-pipeline, or hls-iterative-stencil-timestep-local-volume as appropriate",
-        "ensure PIPELINE pragmas exist before submitting"
-      ],
-      "sec_pass": 0,
-      "strategy": "avoid rules forbid unsafe transforms, not all transforms; when uncertain, still apply the baseline local load-compute-store recipe instead of reference C",
-      "tags": [
-        "avoid",
-        "reference-fallback",
-        "skill-catalog",
-        "mandatory-baseline",
-        "kernel-independent"
-      ],
-      "template": ""
+      "template": "load_phase: copy inputs from m_axi ports into local buffers (pipelined).\ncompute_phase: update locals/scalar accumulators only.\nstore_phase: write finalized locals back to m_axi outputs once.\n// Reduction example:\n//   double acc = x_local[i];\n//   for (int j = 0; j < N; j++) acc += beta * A_local[j][i] * y_local[j];\n//   x_local[i] = acc;\n//   x[i] = x_local[i];"
     }
-  ]
+  ],
+  "flash_no_RMW_m_axi": {
+    "overlay": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/hls_full_optimization_skills_schema_1_1_package/flash_rmw_m_axi_packaged_merge.json",
+    "base": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/hls_full_optimization_skills_schema_1_1_package/skills_ii_target_miss_solutions_added(73skills).json",
+    "added_skill_ids": [
+      "avoid-no-rmw-m_axi-direct",
+      "hls-load-compute-store-no-rmw-m_axi"
+    ],
+    "skill_count": 75
+  }
 }

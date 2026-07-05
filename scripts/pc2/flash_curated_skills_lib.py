@@ -13,11 +13,12 @@ from typing import Optional
 
 REPO = Path(__file__).resolve().parents[2]
 
-NEW_SKILLS_JSON = (
+NEW_SKILLS_JSON_BASE = (
     REPO
     / "hls_full_optimization_skills_schema_1_1_package"
     / "skills_ii_target_miss_solutions_added(73skills).json"
 )
+NEW_SKILLS_JSON = NEW_SKILLS_JSON_BASE
 
 CURATION_FOCUS_VALUES = ("bottleneck", "warnings", "combined")
 
@@ -143,6 +144,8 @@ def configure_curated_env(variant: FlashCuratedVariant, *, focus: str) -> None:
     from c2hls_paths import apply_runtime_defaults
     from c2hls_temp import configure_temp_env
 
+    from flash_shared.new_skills_lib import _apply_flash_skill_entries_env
+
     if focus not in CURATION_FOCUS_VALUES:
         raise ValueError(f"unknown curation focus: {focus}")
 
@@ -151,8 +154,15 @@ def configure_curated_env(variant: FlashCuratedVariant, *, focus: str) -> None:
 
     os.environ["C2HLS_STRATEGY"] = "flash"
     os.environ["C2HLS_DYNAMIC_ROUTING"] = "0"
-    os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(NEW_SKILLS_JSON)
-    os.environ["C2HLS_PACKAGED_SKILLS_ONLY"] = "1"
+
+    if variant.curation_enabled:
+        os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(NEW_SKILLS_JSON)
+        os.environ["C2HLS_PACKAGED_SKILLS_ONLY"] = "1"
+    else:
+        os.environ.pop("C2HLS_PACKAGED_SKILLS_JSON", None)
+        os.environ.pop("C2HLS_PACKAGED_SKILLS_ONLY", None)
+
+    _apply_flash_skill_entries_env(variant.curation_enabled)
 
     os.environ.pop("C2HLS_BOTTLENECK_POSITIVE_SKILLS", None)
     os.environ.pop("C2HLS_BOTTLENECK_AVOID_SKILLS", None)
@@ -181,10 +191,15 @@ def configure_curated_env(variant: FlashCuratedVariant, *, focus: str) -> None:
 
 
 def variant_env_snapshot(variant: FlashCuratedVariant, *, focus: str) -> dict[str, str]:
+    skills_path = NEW_SKILLS_JSON if variant.curation_enabled else None
     snap = {
         "matrix_family": variant.matrix_family,
-        "skills_json": str(NEW_SKILLS_JSON),
-        "skills_json_mode": "packaged_only",
+        "skills_json": str(skills_path) if skills_path is not None else "",
+        "skills_json_mode": (
+            "packaged_base_plus_flash_overlay"
+            if skills_path is not None
+            else "none"
+        ),
         "curation_focus": focus,
         "C2HLS_SKILL_CURATION_ENABLED": "1" if variant.curation_enabled else "0",
     }

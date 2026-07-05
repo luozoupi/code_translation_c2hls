@@ -5,6 +5,8 @@ Prompts for C-to-HLS translation pipeline.
 # System instruction
 Instruction_c2hls = """You are an expert in FPGA High-Level Synthesis (HLS) using Xilinx Vitis HLS. Your task is to add HLS pragmas and optimizations to plain C/C++ code to make it synthesizable and efficient on FPGAs.
 
+The testbench-visible top function name always comes from benchmark metadata (`metadata.json` → `translated_hls_top`): `kernel_*` for HLSFactory, `workload` for Rodinia/MachSuite. Never invent a different top or add a second wrapper.
+
 Key HLS optimization techniques you know:
 - Interface pragmas: #pragma HLS INTERFACE (m_axi, s_axilite, ap_ctrl)
 - Loop pipelining: #pragma HLS PIPELINE II=N
@@ -14,11 +16,43 @@ Key HLS optimization techniques you know:
 - Inline control: #pragma HLS INLINE [off]
 
 You must preserve the original algorithm's correctness while adding HLS directives.
+
+When the kernel uses Xilinx fixed-point types (`ap_fixed`, `ap_uint`, `ap_int`), include the
+appropriate Vitis HLS headers (for example `#include <ap_fixed.h>`, `#include <ap_int.h>`).
+Phase A compile checks use g++ with Vitis HLS include paths available.
+
 Always provide complete code in a ```cpp code fence."""
+
+# Shared top-function rules for Phase B and repair prompts.
+# The exact top name always comes from metadata.json via {benchmark_context}
+# (HLSFactory: kernel_* ; Rodinia/MachSuite: workload). Never hardcode either name.
+_TOP_FUNCTION_REQUIREMENT = """1. Use the **exact** testbench-visible top function named in the benchmark guidance below.
+   That name comes from `metadata.json` (`translated_hls_top`): `kernel_*` for HLSFactory benchmarks, `workload` for Rodinia/MachSuite benchmarks.
+   Put every `#pragma HLS INTERFACE` pragma on that single top only.
+   Never rename the top away from metadata and never add a second `extern "C"` wrapper (no `kernel_*` + `workload` pair)."""
+
+_TOP_INTERFACE_REQUIREMENT = """2. Add HLS INTERFACE pragmas to that metadata top function:"""
+
+_TOP_CHECKLIST = """- Match the exact metadata top function name, argument order, and `extern "C"` linkage from the benchmark guidance.
+- Single `extern "C"` top only: no duplicate wrappers, forwarding shells, or extra top-level exports."""
+
+
+def _with_top_rules(template: str) -> str:
+    """Expand shared top-function snippets used inside .format() templates."""
+    return (
+        template.replace("{_TOP_FUNCTION_REQUIREMENT}", _TOP_FUNCTION_REQUIREMENT)
+        .replace("{_TOP_INTERFACE_REQUIREMENT}", _TOP_INTERFACE_REQUIREMENT)
+        .replace("{_TOP_CHECKLIST}", _TOP_CHECKLIST)
+    )
 
 # Phase A: Validate the input C code compiles
 q_validate_c_code = """The following C/C++ code is an algorithm kernel. Verify it is complete and correct.
 If it has any issues, fix them. The code should compile with g++ -c (no main needed, just the kernel function).
+Vitis HLS include paths are available during this check.
+
+If the code uses Xilinx fixed-point types (`ap_fixed`, `ap_uint`, `ap_int`), include the required
+headers (for example `#include <ap_fixed.h>`). Do not remove fixed-point types unless the benchmark
+guidance requires plain C types.
 
 Provide the validated code in a ```cpp code fence.
 
@@ -39,10 +73,8 @@ Here is the header file content:
 q_translate_c_to_hls = """Convert the following plain C/C++ kernel code into Xilinx Vitis HLS-optimized code.
 
 Requirements:
-1. Use a top-level `workload()` function wrapped in `extern "C" {{ }}`.
-   If the input already contains a `workload()` wrapper, preserve and upgrade that wrapper instead of creating a second wrapper.
-   If there is no wrapper yet, add one that calls the kernel.
-2. Add HLS INTERFACE pragmas to the workload function:
+{_TOP_FUNCTION_REQUIREMENT}
+{_TOP_INTERFACE_REQUIREMENT}
    - `#pragma HLS INTERFACE m_axi port=<ptr> offset=slave bundle=gmem` for pointer arguments
    - `#pragma HLS INTERFACE s_axilite port=<arg> bundle=control` for all arguments
    - `#pragma HLS INTERFACE s_axilite port=return bundle=control`
@@ -65,8 +97,8 @@ Benchmark-specific guidance:
 Checklist before returning:
 - Include the header exactly once.
 - Reuse existing function names and signatures from the plain input when possible.
-- Match the exact `workload()` argument order and linkage expected by the testbench when benchmark guidance provides it.
-- Preserve the plain-input helper and wrapper structure unless a change is required for valid Vitis HLS pragmas.
+{_TOP_CHECKLIST}
+- Implement the algorithm inside the metadata top; plain-C helpers may be `static` and called from it.
 - Prefer minimal edits to the plain input over creative rewrites.
 - Do not redeclare header-owned structs/types like `bench_args_t`.
 - Do not invent undeclared helper arrays or buffers like `l_*`; if a local buffer is needed, declare it and fill it explicitly.
@@ -84,6 +116,8 @@ Here is the plain C kernel:
 
 Provide the complete HLS-optimized code in a ```cpp code fence."""
 
+q_translate_c_to_hls = _with_top_rules(q_translate_c_to_hls)
+
 # Phase B: conservative functional translation for multistep mode.
 # This is intentionally narrower than q_translate_c_to_hls. In multistep
 # experiments the optimization trajectory should own PIPELINE/UNROLL/
@@ -97,10 +131,8 @@ Goal:
 - Keep the baseline conservative so later optimization steps can add tiling, pipeline, unroll, double buffering, and coalescing intentionally.
 
 Requirements:
-1. Use a top-level `workload()` function wrapped in `extern "C" {{ }}`.
-   If the input already contains a `workload()` wrapper, preserve and upgrade that wrapper instead of creating a second wrapper.
-   If there is no wrapper yet, add one that calls the kernel.
-2. Add only required HLS INTERFACE pragmas to the workload function:
+{_TOP_FUNCTION_REQUIREMENT}
+{_TOP_INTERFACE_REQUIREMENT}
    - `#pragma HLS INTERFACE m_axi port=<ptr> offset=slave bundle=gmem` for pointer arguments
    - `#pragma HLS INTERFACE s_axilite port=<arg> bundle=control` for all arguments
    - `#pragma HLS INTERFACE s_axilite port=return bundle=control`
@@ -122,8 +154,8 @@ Benchmark-specific guidance:
 Checklist before returning:
 - Include the header exactly once.
 - Reuse existing function names and signatures from the plain input when possible.
-- Match the exact `workload()` argument order and linkage expected by the testbench when benchmark guidance provides it.
-- Preserve the plain-input helper and wrapper structure unless a change is required for valid Vitis HLS pragmas.
+{_TOP_CHECKLIST}
+- Implement the algorithm inside the metadata top; plain-C helpers may be `static` and called from it.
 - Prefer minimal edits to the plain input over creative rewrites.
 - Do not redeclare header-owned structs/types like `bench_args_t`.
 - Do not invent undeclared helper arrays or buffers like `l_*`; if a local buffer is needed for correctness, declare it and fill it explicitly.
@@ -140,6 +172,8 @@ Here is the plain C kernel:
 ```
 
 Provide the complete functional HLS baseline code in a ```cpp code fence."""
+
+q_translate_c_to_hls_functional = _with_top_rules(q_translate_c_to_hls_functional)
 
 # Fix HLS synthesis errors
 hls_synthesis_fix = """The HLS code failed synthesis with the following error:
@@ -175,8 +209,7 @@ Before returning, verify:
 - no header structs/prototypes/macros are duplicated in the source
 - every identifier you reference is declared
 - every `#pragma HLS` appears inside a function body
-- the wrapper remains `workload()` unless the input already defines it differently
-- the `workload()` signature and `extern "C"` linkage still match the expected testbench-visible declaration
+- the single testbench-visible top function name and `extern "C"` linkage still match the benchmark guidance
 
 Before writing the corrected code, in ONE sentence at the top of your reply name (a) the
 category of mistake your last attempt made and (b) the smallest specific change you'll make
@@ -287,8 +320,8 @@ Priorities:
 2. Reduce BRAM/FF/LUT/DSP overuse called out above.
 3. Do not make latency dramatically worse just to save minor area.
 4. Prefer minimal changes such as reducing partition/unroll factors, removing unnecessary complete partitioning, keeping large arrays in memories, and avoiding duplicated logic.
-5. Preserve the plain-input helper and workload wrapper structure unless a smaller safe change is enough.
-6. Do not change the `workload()` argument order or drop `extern "C"` linkage.
+5. Preserve the plain-input helper and single-top structure unless a smaller safe change is enough.
+6. Do not change the testbench-visible top function argument order or drop `extern "C"` linkage.
 
 Provide the improved code in a ```cpp code fence."""
 
@@ -313,7 +346,7 @@ category of mistake your last attempt made and (b) the smallest specific change 
 to fix it. Then provide corrected code in a ```cpp code fence.
 Do NOT duplicate declarations from the header file; include the header and remove redundant structs/prototypes/macros from the source.
 Do NOT invent new undeclared buffers or helper arrays; either declare and initialize them properly or use the existing arrays/signatures from the input.
-Preserve the exact `workload()` signature and `extern "C"` linkage expected by the benchmark/testbench."""
+Preserve the exact testbench-visible top function signature and `extern "C"` linkage expected by the benchmark/testbench."""
 
 # Synthesis report comparison prompt
 synthesis_comparison = """Compare the synthesis reports of the generated HLS code vs the ground truth.
@@ -361,12 +394,36 @@ Key optimization techniques (in typical order):
 
 Rules:
 - Preserve the algorithm's correctness at each step.
-- Keep the `extern "C" workload()` wrapper with proper INTERFACE pragmas.
+- Keep the single `extern "C"` testbench-visible top function with proper INTERFACE pragmas.
 - Each step should build on the previous code, adding ONE optimization technique.
 - Label every `for` loop with a descriptive C loop label before the `for`
   (e.g. `load_row: for (...) { ... }`) so synthesis reports name loops clearly.
 - Always provide complete code in a ```cpp code fence.
 - Do NOT add optimizations beyond the one requested."""
+
+# Flash mode: single-shot rewrite; emphasize distinct m_axi bundles per port.
+Instruction_c2hls_flash = """You are an expert in FPGA High-Level Synthesis (HLS) using Xilinx Vitis HLS.
+You produce one complete, aggressively optimized kernel in a single rewrite (flash mode).
+
+Key optimization techniques you may combine when they fit:
+- Local tiling / staging, pipelining (`#pragma HLS PIPELINE II=1`), modest unroll,
+  array partition on small buffers, DATAFLOW only when buffering stays simple,
+  and legal m_axi burst/outstanding pragmas with narrow host ABI.
+
+## m_axi bundle assignment (MANDATORY in flash)
+- Every top-level **pointer** port needs its own memory bundle: `bundle=gmem0`,
+  `bundle=gmem1`, `bundle=gmem2`, … assigned in **kernel argument order**.
+- **Never** put multiple pointer ports on `bundle=gmem` or reuse the same `gmemN`
+  for two different ports.
+- Keep all `s_axilite` ports on `bundle=control` (unchanged from baseline).
+- When splitting bundles, preserve legal adapter settings (`latency`, burst lengths,
+  outstanding counts) — ports sharing one bundle must match; distinct bundles may
+  each carry the same adapter values copied from the baseline.
+
+Rules:
+- Preserve algorithm correctness and the single `extern "C"` testbench-visible top.
+- Label every `for` loop with a descriptive C loop label before the `for`.
+- Always provide complete code in a ```cpp code fence."""
 
 # Step-specific optimization prompts
 # Each takes {current_code}, {header_code}, and optionally {synth_report}
@@ -379,7 +436,7 @@ Tiling means:
 - Process data in tiles/chunks of a reasonable size (e.g., 256 elements)
 - The compute phase should operate on local buffers instead of directly on AXI memory
 
-Keep all existing INTERFACE pragmas. Keep the extern "C" workload() wrapper.
+Keep all existing INTERFACE pragmas on the single testbench-visible top function.
 
 Current synthesis report:
 {synth_report}
@@ -492,7 +549,7 @@ Provide the complete double-buffer-optimized code in a ```cpp code fence."""
 q_optimize_coalescing = """Apply MEMORY COALESCING optimization to the following HLS code.
 
 Memory coalescing means:
-- Preserve the existing `workload()` function signature and pointer element types unless the prompt
+- Preserve the existing testbench-visible top function signature and pointer element types unless the prompt
   explicitly says the active benchmark variant is wide-bus ABI compatible.
 - Do NOT include `../../../common/mc.h`, `MARS_WIDE_BUS_TYPE`, or `memcpy_wide_bus_*` helpers in
   the default generated kernel. The stripped-C benchmark input does not guarantee those helpers are
@@ -584,7 +641,7 @@ combine them so the kernel exhibits all of these techniques together:
    with the array_partition factor on consumed buffers.
 4. **DOUBLEBUFFER**: create two ping-pong copies of the load buffer and
    alternate them across iterations so global-memory load overlaps
-   compute. Annotate with `#pragma HLS dataflow` at the workload level
+   compute. Annotate with `#pragma HLS dataflow` at the top-kernel level
    if applicable.
 5. **COALESCING**: improve contiguous AXI burst behavior while preserving
    the public kernel ABI by default. Add legal burst/outstanding m_axi
@@ -596,7 +653,7 @@ Justification: applying these techniques *together* avoids the trap
 where an intermediate step (e.g., tiling alone) shows worse PPA in
 isolation but is a structural prerequisite for later wins.
 
-Keep the `extern "C"` workload() top function and existing INTERFACE
+Keep the single `extern "C"` testbench-visible top function and existing INTERFACE
 pragmas (m_axi + s_axilite). Header file is below for reference; do not
 modify it. Provide the complete optimized code in a single ```cpp ...```
 code fence.
@@ -626,14 +683,14 @@ for the parallelization combo:
 2. **DOUBLEBUFFER**: create two ping-pong copies of the load buffer and
    alternate them across iterations so global-memory load overlaps
    compute.
-3. **DATAFLOW** at the workload level if applicable.
+3. **DATAFLOW** at the top-kernel level if applicable.
 
 Note: these structural changes alone may *increase* per-call latency
 relative to the baseline because the load/compute/store separation
 introduces extra control. That is **expected**; the parallelization
 combo (next step) will recover and exceed baseline.
 
-Keep `extern "C" workload(...)` and INTERFACE pragmas. Provide the
+Keep the single `extern "C"` testbench-visible top function and INTERFACE pragmas. Provide the
 complete code in one ```cpp ...``` fence.
 
 Current synthesis report:
@@ -664,7 +721,7 @@ to the (already-structural) kernel in a SINGLE rewrite:
    memcpy_wide_bus_* helpers when the prompt explicitly says the active
    host/testbench variant supports a wide-bus ABI.
 
-Keep `extern "C" workload(...)` and INTERFACE pragmas. Provide the
+Keep the single `extern "C"` testbench-visible top function and INTERFACE pragmas. Provide the
 complete code in one ```cpp ...``` fence.
 
 Current synthesis report:
@@ -688,8 +745,13 @@ functional starting point and return the best complete endpoint you can
 safely synthesize. Use any combination of the following when it naturally
 fits the kernel:
 
-1. Preserve the public kernel ABI, `extern "C"` top, and existing
-   m_axi/s_axilite INTERFACE pragmas.
+1. Preserve the public kernel ABI, `extern "C"` top, and all `s_axilite`
+   INTERFACE lines (`bundle=control` on every scalar and `port=return`).
+   For **m_axi** pointer ports: assign a **distinct** bundle per port —
+   `bundle=gmem0`, `bundle=gmem1`, `bundle=gmem2`, … in kernel argument
+   order. **Never** leave multiple pointer ports on `bundle=gmem` or duplicate
+   a `gmemN` name. Copy legal burst/outstanding/latency settings from the
+   baseline onto each new bundle line.
 2. Pipeline hot inner loops with `#pragma HLS pipeline II=1` only when
    memory ports and loop-carried dependencies can support it.
 3. Unroll small data-parallel loops with a bounded factor, usually 2, 4,
@@ -704,14 +766,19 @@ fits the kernel:
    `memcpy_wide_bus_*` helpers unless the benchmark context explicitly says
    the active harness supports a wide-bus ABI.
 7. Keep AXI pragma values Vitis-legal: burst lengths must be powers of two
-   in [1, 256], and m_axi ports sharing the same bundle must use the same
-   adapter parameters (`latency`, outstanding counts, burst lengths, etc.).
-   If unsure, preserve the existing INTERFACE pragmas exactly.
+   in [1, 256]. Ports sharing the **same** bundle must use identical adapter
+   parameters (`latency`, outstanding counts, burst lengths, etc.). Distinct
+   bundles (`gmem0`, `gmem1`, …) are required so concurrent loads/stores can
+   use separate memory interfaces.
 8. Label EVERY `for` loop with a descriptive C loop label (identifier
    immediately before `for`), e.g. `load_A: for (int i = 0; i < n; ++i)`.
    Use short snake_case names that describe each loop's role (load_row,
    compute_tile, store_col, etc.). Do not leave rewritten or newly added
    loops unlabeled — Vitis uses these names in bottleneck reports.
+
+9. **Pre-output INTERFACE check:** count top-level `m_axi` pointer ports;
+   each must have a unique `bundle=gmemN` (gmem0, gmem1, …). Fix any shared
+   `bundle=gmem` before returning code.
 
 Prefer a compact, synthesizable implementation over a heroic rewrite. For
 small PolyBench/HLSFactory-style kernels, simple pipelining, modest unroll,

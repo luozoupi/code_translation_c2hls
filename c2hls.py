@@ -23,6 +23,11 @@ from typing import Any, List, Optional, Tuple
 from dotenv import load_dotenv
 from openai import OpenAI
 from c2hls_temp import make_tempdir
+import gold_cache  # re-enabled (2026-06-23): per-part gold-validation cache;
+# the enhanced framework dropped the cache + its live gold-synth path drops the
+# header (NI/NJ undeclared). The cache (gold_reports_<part>.json) holds valid
+# gold for all 26 benches and sidesteps the broken live path. See
+# validate_gold_reference() wrapper below. Disable via C2HLS_GOLD_CACHE_DISABLE=1.
 
 try:
     import anthropic
@@ -75,6 +80,14 @@ OPENAI_API_KEY_FILE = Path(
 # Hosted OpenAI API endpoint. Override with C2HLS_OPENAI_BASE_URL when using
 # a compatible gateway (e.g. Together, OpenRouter).
 OPENAI_HOSTED_BASE_URL = os.getenv("C2HLS_OPENAI_HOSTED_URL", "https://api.openai.com/v1")
+
+# ANL Argo OpenAI-compatible routing. When C2HLS_OPENAI_ARGO is set, non-Claude
+# (gpt-*) models are routed to Argo instead of api.openai.com: x-api-key auth
+# (the Argo username in CLAUDE_API_KEY_FILE) plus the Argo-required per-call
+# fields `user` and `temperature=1` (e.g. GPT-5.5 rejects any other temperature).
+# Off by default -> existing hosted/local OpenAI behavior is unchanged.
+OPENAI_ARGO = os.getenv("C2HLS_OPENAI_ARGO", "").strip().lower() in ("1", "true", "yes", "on")
+OPENAI_ARGO_BASE_URL = os.getenv("C2HLS_OPENAI_BASE_URL", "https://apps.inside.anl.gov/argoapi/v1")
 
 # Default LLM model id. Override with --model or C2HLS_MODEL.
 DEFAULT_MODEL_ID = os.getenv("C2HLS_MODEL", "nvidia/OpenCodeReasoning-Nemotron-1.1-32B")
@@ -669,6 +682,23 @@ def _llm_timeout_seconds(default: float = 600.0) -> float:
         )
         return default
     return max(1.0, parsed)
+
+
+def _llm_max_retries(default: int = 8) -> int:
+    """SDK-level retry budget for transient LLM-endpoint failures. The Argo
+    gateway returns intermittent 502/500s; the SDK default of 2 is too low for
+    a long sweep. Override via C2HLS_LLM_MAX_RETRIES."""
+    value = os.getenv("C2HLS_LLM_MAX_RETRIES", str(default)).strip()
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        logging.warning(
+            "Invalid C2HLS_LLM_MAX_RETRIES=%r; using %d",
+            value,
+            default,
+        )
+        return default
+    return max(0, parsed)
 
 
 def _is_hosted_openai_model(model_name: str) -> bool:
@@ -2304,6 +2334,11 @@ class TranslatorAgent(_AgentBase):
             header_code=orch.header_code,
             benchmark_context=orch.benchmark_context,
         )
+        # All-positive ablation: inject ALL constructive skills into the initial
+        # translation too. Flash mode never enters the dynamic-routing/skill-
+        # library path, so without this the all-positive flag is a no-op in flash.
+        # No-op (returns "") unless C2HLS_SKILLS_ALL_POSITIVE is set.
+        prompt += orch._all_positive_skill_block()
         orch.messages = [
             {"role": "system", "content": Instruction_c2hls},
             {"role": "user", "content": prompt},
@@ -2486,7 +2521,18 @@ class SynthesisAgent(_AgentBase):
                     orch.hls_code = fixed
                 continue
 
-            outcome = orch._synth_and_test(orch.hls_code, log_prefix="[Phase B]")
+            # C2HLS_SKIP_BASELINE_COSIM: skip the Phase-B baseline cosim for
+            # benchmarks whose naive baseline cosim is infeasible at full size
+            # (e.g. symm, ~23M cyc, >6h). csim still gates correctness; the
+            # optimization steps still cosim their (fast) kernels, so as-delivered
+            # is a real cosim number — only the baseline is csynth-gated.
+            _skip_base_cosim = os.getenv("C2HLS_SKIP_BASELINE_COSIM", "").strip().lower() in (
+                "1", "true", "yes", "on",
+            )
+            outcome = orch._synth_and_test(
+                orch.hls_code, log_prefix="[Phase B]",
+                run_cosim=(False if _skip_base_cosim else None),
+            )
             result = outcome["synth"]
             orch.turn_results.append({
                 "turn": turn,
@@ -2717,6 +2763,10 @@ class QualityRepairAgent(_AgentBase):
                 benchmark_context=orch.benchmark_context,
                 quality_guidance=quality_guidance,
             )
+            # FLASH skill injection (curated routed-on-bottleneck OR all-positive).
+            # synth_report is populated here, so curated mode can match the
+            # detected bottleneck to a skill. No-op when skills are off.
+            prompt += orch._skill_block_for_prompt()
             proposed_code = self._request_code_revision(prompt)
             attempt = {
                 "turn": turn,
@@ -3042,9 +3092,20 @@ class C2HLSOrchestrator:
             self.anthropic_client = anthropic.Anthropic(
                 api_key=api_key,
                 timeout=_llm_timeout_seconds(),
+                max_retries=_llm_max_retries(),
             )
         else:
-            if self.use_hosted_openai:
+            self._openai_headers = None
+            self._openai_call_extra = {}
+            if OPENAI_ARGO:
+                # gpt-* via ANL Argo: x-api-key auth + required user + temperature=1
+                self.key = _load_anthropic_api_key()   # CLAUDE_API_KEY_FILE holds the Argo username
+                assert self.key, f"Missing Argo key; populate {CLAUDE_API_KEY_FILE}."
+                self.base_url = OPENAI_ARGO_BASE_URL
+                self._openai_headers = {"x-api-key": self.key}
+                self._openai_call_extra = {"user": os.getenv("C2HLS_OPENAI_USER", self.key),
+                                           "temperature": 1}
+            elif self.use_hosted_openai:
                 self.key = _load_openai_api_key()
                 assert self.key, f"Missing OpenAI API key. Set OPENAI_API_KEY or populate {OPENAI_API_KEY_FILE}."
                 self.base_url = OPENAI_HOSTED_BASE_URL
@@ -3055,6 +3116,7 @@ class C2HLSOrchestrator:
                 base_url=self.base_url,
                 api_key=self.key,
                 timeout=_llm_timeout_seconds(),
+                default_headers=self._openai_headers,
             )
 
         # Per-agent LLM cache. Populated lazily when an agent's model differs
@@ -3317,6 +3379,7 @@ class C2HLSOrchestrator:
             client = anthropic.Anthropic(
                 api_key=api_key,
                 timeout=_llm_timeout_seconds(),
+                max_retries=_llm_max_retries(),
             )
             entry = ("anthropic", client)
         else:
@@ -3377,12 +3440,14 @@ class C2HLSOrchestrator:
             return response.content[0].text
 
         kwargs = {"model": model, "messages": messages}
-        if _is_hosted_openai_model(model):
+        if _is_hosted_openai_model(model) or OPENAI_ARGO:
             kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
         if "qwen" in model.lower():
             kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+        if getattr(self, "_openai_call_extra", None):
+            kwargs.update(self._openai_call_extra)   # Argo OpenAI: user + temperature=1
         response = client.chat.completions.create(**kwargs)
         self._record_llm_usage(
             provider="openai",
@@ -3431,10 +3496,19 @@ class C2HLSOrchestrator:
             self._append_history("system", f"[{context}] ABI preflight: {note}")
         return normalized
 
-    def _synth_and_test(self, code: str, log_prefix: str = "") -> dict:
+    def _synth_and_test(self, code: str, log_prefix: str = "",
+                        run_cosim: "Optional[bool]" = None) -> dict:
         """Synthesize `code` with the orchestrator's current config and run
         csim/cosim if a testbench is available. Returns the same shape as
-        _run_synth_csim_cosim: {synth, csim, cosim}."""
+        _run_synth_csim_cosim: {synth, csim, cosim}.
+
+        run_cosim overrides the default cosim decision: pass False to skip cosim
+        (e.g. a benchmark whose NAIVE baseline cosim is infeasible at full size —
+        C2HLS_SKIP_BASELINE_COSIM — so multistep can proceed to optimize and
+        cosim the fast optimized kernel instead)."""
+        do_cosim = bool(self.testbench_code and self.supports_cosim)
+        if run_cosim is not None:
+            do_cosim = run_cosim and bool(self.testbench_code and self.supports_cosim)
         return _run_synth_csim_cosim(
             code,
             header_code=self.header_code,
@@ -3445,7 +3519,7 @@ class C2HLSOrchestrator:
             extra_files=self.extra_files,
             testbench_code=self.testbench_code,
             run_csim_check=bool(self.testbench_code),
-            run_cosim_check=bool(self.testbench_code and self.supports_cosim),
+            run_cosim_check=do_cosim,
             cosim_depths=self.cosim_depths,
             log_prefix=log_prefix,
         )
@@ -3528,6 +3602,87 @@ class C2HLSOrchestrator:
             "code": current_code,
             "error": last_error or f"{label} failed after {self.turns_limitation} attempts",
         }
+
+    def _all_positive_skill_block(self) -> str:
+        """Render ALL constructive (non-avoid) skills for this platform as a
+        prompt block, loading the skill library ON DEMAND. Used by the
+        all-positive ablation (C2HLS_SKILLS_ALL_POSITIVE) so the full skill set
+        is injected in BOTH flash (translate/repair) and multistep (per-step) —
+        flash otherwise never loads the library (it's gated behind dynamic
+        routing in the multistep path). Returns '' when the flag is off, the
+        library is empty, or anything fails (best-effort, never blocks a run)."""
+        if os.getenv("C2HLS_SKILLS_ALL_POSITIVE", "").strip().lower() in (
+            "", "0", "false", "no",
+        ):
+            return ""
+        try:
+            if self.skill_library is None:
+                from skill_library import make_default_library
+                self.skill_library = make_default_library(persist=False)
+            from skill_library import render_skill_set_for_prompt
+            sk = self.skill_library.query(
+                vitis_version=self.vitis_version, fpga=self.part, include_avoid=False,
+            )
+            if not sk:
+                return ""
+            block = render_skill_set_for_prompt(sk, max_skills=len(sk))
+            if not block or "No matching skills" in block:
+                return ""
+            return ("\n\nRELEVANT SKILLS from library (ALL constructive skills; "
+                    "pattern → strategy → required steps → guardrails → "
+                    "template/example). Apply whichever are appropriate while "
+                    "preserving correctness and the exact top-level signature:\n\n"
+                    + block)
+        except Exception as exc:  # pragma: no cover - best-effort injection
+            logging.warning("all-positive skill injection failed: %s", exc)
+            return ""
+
+    def _routed_skill_block(self) -> str:
+        """CURATED routing: match the top bottleneck in the current synth report
+        to a library skill and render its recipe. Loads the library on demand so
+        it works in FLASH too (flash otherwise never enters the dynamic-routing
+        path). Returns '' if there is no synth report / no detected bottleneck /
+        no matching skill. Best-effort."""
+        if self.synth_report is None:
+            return ""
+        try:
+            if self.skill_library is None:
+                from skill_library import make_default_library
+                self.skill_library = make_default_library(persist=False)
+            from skill_library import render_skill_set_for_prompt
+            feedback = (self.synth_report or {}).get("feedback") or {}
+            bns = feedback.get("bottlenecks") or []
+            kind = bns[0].get("kind") if bns else None
+            if not kind:
+                return ""
+            matching = self.skill_library.query(
+                bottleneck_kind=kind, vitis_version=self.vitis_version, fpga=self.part,
+            )
+            if not matching:
+                return ""
+            block = render_skill_set_for_prompt(list(matching)[:2], max_skills=2)
+            if not block or "No matching skills" in block:
+                return ""
+            return (f"\n\nRELEVANT SKILLS from library for the detected bottleneck "
+                    f"'{kind}' (pattern → strategy → required steps → guardrails → "
+                    f"template/example). Apply the highest-confidence one while "
+                    f"preserving correctness:\n\n" + block)
+        except Exception as exc:  # pragma: no cover - best-effort injection
+            logging.warning("routed skill injection failed: %s", exc)
+            return ""
+
+    def _skill_block_for_prompt(self) -> str:
+        """Unified skill injection used by flash (translate/repair) and available
+        to any prompt: ALL-POSITIVE (C2HLS_SKILLS_ALL_POSITIVE) → all 41
+        constructive skills; else CURATED (skills enabled via C2HLS_SKILLS_PATH)
+        → bottleneck-routed skill recipe; else ''. Mode is mutually exclusive
+        (all-positive supersedes routed)."""
+        ap = self._all_positive_skill_block()
+        if ap:
+            return ap
+        if os.getenv("C2HLS_SKILLS_PATH", "").strip() == "":
+            return ""   # skills off
+        return self._routed_skill_block()
 
     def run_quality_repair(self, ground_truth_report: dict,
                            initial_comparison: Optional[dict] = None) -> dict:
@@ -4170,49 +4325,16 @@ class C2HLSOrchestrator:
         # prompt so the LLM sees the proven recipe — not just the bare step
         # name. Off when skill_library is None (static order, no router).
         if self.skill_library is not None and self.synth_report is not None:
-            try:
-                from skill_library import render_skill_set_for_prompt
-                matching = []
-                selected_skill = self.skill_library.get(skill_id) if skill_id else None
-                if selected_skill:
-                    matching = [selected_skill]
-                    top_bottleneck_kind = None
-                else:
-                    feedback = (self.synth_report or {}).get("feedback") or {}
-                    top_bottleneck_kind = None
-                    bns = feedback.get("bottlenecks") or []
-                    if bns:
-                        top_bottleneck_kind = bns[0].get("kind")
-                    if top_bottleneck_kind:
-                        matching = self.skill_library.query(
-                            bottleneck_kind=top_bottleneck_kind,
-                            vitis_version=self.vitis_version,
-                            fpga=self.part,
-                        )
-                if matching:
-                    avoid_matching = []
-                    if top_bottleneck_kind:
-                        avoid_matching = [
-                            sk for sk in self.skill_library.query(
-                                bottleneck_kind=top_bottleneck_kind,
-                                vitis_version=self.vitis_version,
-                                fpga=self.part,
-                                include_avoid=True,
-                            )
-                            if getattr(sk, "confidence", "") == "avoid"
-                        ][:2]
-                    prompt_skills = list(matching)[:2] + avoid_matching
-                    skill_block = render_skill_set_for_prompt(prompt_skills, max_skills=4)
-                    if skill_block and "No matching skills" not in skill_block:
-                        extra_blocks.append(
-                            "RELEVANT SKILLS from library (pattern → strategy → "
-                            "required steps → guardrails → template/example). "
-                            "Apply the highest-confidence one that "
-                            f"addresses the bottleneck/route '{top_bottleneck_kind or skill_id}' "
-                            f"on the `{step_name}` step:\n\n" + skill_block
-                        )
-            except Exception as exc:  # pragma: no cover - skill injection best-effort
-                logging.warning("Phase 5b skill-template injection failed: %s", exc)
+            # Unified skill injection, shared with flash via _skill_block_for_prompt:
+            #   all-positive (C2HLS_SKILLS_ALL_POSITIVE) -> all 41 constructive skills
+            #   curated (skills on)                      -> bottleneck-routed RECIPE
+            # Previously the curated branch injected only the step name (empty
+            # recipe block); _routed_skill_block now renders the matched skill's
+            # full pattern/strategy/template so the curated-vs-all-positive
+            # ablation isolates breadth, not recipe-presence.
+            block = self._skill_block_for_prompt()
+            if block:
+                extra_blocks.append(block.lstrip())
 
         if additional_guidance:
             extra_blocks.append(additional_guidance)
@@ -5990,7 +6112,53 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
     }
 
 
+def _gold_cache_lookup_any(bench_name: str, part: str) -> Optional[dict]:
+    """Hash-tolerant gold-cache read: return the cached validation for
+    (bench, part) regardless of inputs_hash. Gold is deterministic w.r.t. the
+    (unchanged) bench source, so the exact-hash lookup missing on an incidental
+    meta difference shouldn't force the broken live gold-synth path."""
+    if not bench_name or gold_cache.disabled():
+        return None
+    try:
+        cache = gold_cache._load(part)
+    except Exception:
+        return None
+    entry = cache.get(bench_name)
+    return entry.get("validation") if isinstance(entry, dict) else None
+
+
 def validate_gold_reference(inputs: dict) -> dict:
+    """Caching wrapper around the live gold-validation flow.
+
+    The enhanced framework's live gold synth has a header-passing regression
+    (polybench macros undeclared). The per-part cache holds valid gold for all
+    benches from prior runs, so consult it first (exact hash, then hash-
+    tolerant bench+part) and only fall through to the live path on a true miss.
+    Successful live results are stored for next time.
+    """
+    meta = inputs["meta"]
+    if os.environ.get("C2HLS_DISABLE_COSIM_SHRINK"):
+        meta = {**meta, "cosim_size_overrides": {}}
+        inputs = {**inputs, "meta": meta}
+    bench_name = meta.get("benchmark") or meta.get("benchmark_name") or ""
+    part = meta.get("part") or DEFAULT_PART
+    inputs_hash = gold_cache.hash_inputs(inputs)
+    cached = gold_cache.lookup(bench_name, part, inputs_hash)
+    if cached is None:
+        cached = _gold_cache_lookup_any(bench_name, part)
+    if cached is not None:
+        logging.info("[gold-cache] HIT for %s on %s — skipping gold validation",
+                     bench_name, part)
+        return cached
+    logging.info("[gold-cache] MISS for %s on %s — running live gold validation",
+                 bench_name, part)
+    result = _validate_gold_reference_uncached(inputs)
+    if isinstance(result, dict) and result.get("benchmark_ready"):
+        gold_cache.store(bench_name, part, inputs_hash, result)
+    return result
+
+
+def _validate_gold_reference_uncached(inputs: dict) -> dict:
     meta = inputs["meta"]
     supports_csim = bool(meta.get("supports_csim") and inputs.get("testbench_code"))
     supports_cosim = bool(meta.get("supports_cosim") and inputs.get("testbench_code"))

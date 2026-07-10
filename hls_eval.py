@@ -810,12 +810,27 @@ add_files {src_file}
     if DEFAULT_COSIM_TRACE_LEVEL:
         cosim_cmd += f" -trace_level {DEFAULT_COSIM_TRACE_LEVEL}"
 
+    # Cosim compiles the C testbench with Vitis's bundled gcc-8.3.0, whose ld
+    # needs the system crt1.o/libm/libpthread. Those live under LIBRARY_PATH on
+    # this WSL+bundled-Vitis machine. The enhanced default UNSET LIBRARY_PATH
+    # (correct only where a system gcc is on PATH); here that breaks the
+    # bundled-gcc link with "collect2: ld returned 1". Set LIBRARY_PATH to the
+    # system lib dirs when they exist; otherwise keep the original unset.
+    # Override the path via C2HLS_COSIM_LIBRARY_PATH.
+    _sys_libpath = os.environ.get("C2HLS_COSIM_LIBRARY_PATH", "").strip()
+    if not _sys_libpath and os.path.isdir("/usr/lib/x86_64-linux-gnu"):
+        _sys_libpath = "/usr/lib/x86_64-linux-gnu:/usr/lib"
+    if _sys_libpath:
+        libpath_tcl = f'set ::env(LIBRARY_PATH) "{_sys_libpath}"'
+    else:
+        libpath_tcl = "if {[info exists ::env(LIBRARY_PATH)]} { unset ::env(LIBRARY_PATH) }"
+
     tcl_content += f"""add_files -tb {tb_file}
 open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default
 csynth_design
-if {{[info exists ::env(LIBRARY_PATH)]}} {{ unset ::env(LIBRARY_PATH) }}
+{libpath_tcl}
 {cosim_cmd}
 exit
 """

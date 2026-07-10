@@ -312,6 +312,26 @@ def _rtl_sim_record(bench: str, origin: str, origin_meta: dict | None,
     }
 
 
+def _measured_of(block: dict | None) -> dict | None:
+    """Normalize a cosim block to the nested `measured` shape the record
+    builders expect. Reference/gold blocks (from the HLSFactory reference
+    pipeline) carry a nested `measured` with latency_cycles_{min,avg,max};
+    the enhanced c2hls framework instead stores `kernel_runtime_cycles` at the
+    top level of the cosim block. Prefer the nested form when present so old
+    inputs are byte-identical; otherwise synthesize one from the top-level
+    cycle count so candidate rtl_sim records get a populated
+    kernel_runtime_cycles (matching the canonical schema_records.jsonl)."""
+    if not block:
+        return None
+    m = block.get("measured")
+    if m:
+        return m
+    krc = block.get("kernel_runtime_cycles")
+    if krc is not None:
+        return {"latency_cycles_avg": krc, "latency_cycles_min": krc}
+    return None
+
+
 def _status_from_flags(block: dict | None) -> str | None:
     if not block:
         return None
@@ -485,7 +505,7 @@ def _emit_for_cell(bench: str, cell_dir: Path, model: str, mode: str,
     if cosim_status is not None:
         records.append(_rtl_sim_record(
             bench, "c2hls_orchestrator", cand_meta_run, cand_variant, cosim_status, part,
-            cosim.get("measured"), clock_ns,
+            _measured_of(cosim), clock_ns,
             origin_version=cand_origin_version,
             runtime_seconds=wallclock_s,
         ))
@@ -521,7 +541,7 @@ def _emit_for_cell(bench: str, cell_dir: Path, model: str, mode: str,
             emitted_gold_keys.add(key)
             records.append(_rtl_sim_record(
                 bench, "hlsfactory_benchmark", gold_meta_run, gold_variant, gold_cosim_status, part,
-                gold_cosim.get("measured"), clock_ns,
+                _measured_of(gold_cosim), clock_ns,
             ))
 
     return records

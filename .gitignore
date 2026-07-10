@@ -126,3 +126,22 @@ results_sweeps/
 
 # HLS temp dirs
 /tmp/hls_synth_*/
+
+# === Secrets / credentials — NEVER commit (Argo/ALCF keys, usernames) ===
+api-key.txt
+alcf-token.txt
+*-key.txt
+*-token.txt
+*_token.txt
+gpt-key.txt
+
+# === Large machine-generated result dirs (all matrix sweeps + campaigns) ===
+# The repo previously tracked these (GB-scale); stop tracking going forward.
+# They stay in git history + locally; new sweeps are never re-committed.
+results_matrix*/
+results/
+
+# === Session archive tree (superseded results + scratch; huge, local-only) ===
+_archive/
+_artix7/
+_smoke_enhanced/

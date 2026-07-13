@@ -8,9 +8,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <cmath>
 #include "srad.h"
 
 extern "C" void workload(float J[(ROWS+3)*COLS], float Jout[(ROWS+3)*COLS]);
+
+static bool tolerance_mismatch(float reference, float actual, float tolerance)
+{
+    return !std::isfinite(reference) || !std::isfinite(actual) ||
+           fabsf(reference - actual) > tolerance * (fabsf(reference) + 1.0f);
+}
 
 /* srad helper functions (matching kernel) */
 static float srad_core1_ref(float dN, float dS, float dW, float dE,
@@ -168,9 +175,7 @@ int main() {
     for (int r = 1; r <= ROWS; r++) {
         for (int c_col = 0; c_col < COLS; c_col++) {
             int idx = r * COLS + c_col;
-            float diff = fabsf(Out_ref[idx] - Out_dut[idx]);
-            float scale = fabsf(Out_ref[idx]) + 1.0f;
-            if (diff > tol * scale) {
+            if (tolerance_mismatch(Out_ref[idx], Out_dut[idx], tol)) {
                 if (mismatches < 5) {
                     printf("  mismatch[%d,%d]: ref=%.6f dut=%.6f\n",
                            r, c_col, Out_ref[idx], Out_dut[idx]);

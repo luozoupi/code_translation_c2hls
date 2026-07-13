@@ -47,7 +47,7 @@ schema-1.0 JSONL + markdown summaries + reference deltas
 | Reference validation | `c2hls.py`, `run_nova_direct_emu.py`, `results/references_philip/` | Prove or trust GT references; Rodinia/Rodinia-Nova can use direct JSONL evidence via `trusted_external` |
 | Agentic workflow | `c2hls.py`, `prompt_c2hls.py` | Phase A compile repair, Phase B translation, multistep optimization, correctness repair |
 | Performance feedback | `hls_eval.py`, `hls_feedback.py`, `bottleneck_router.py`, `skill_library.py` | Parse Vitis reports, classify bottlenecks, route steps, inject skills and resource constraints |
-| Experiment drivers | `run_agentic_sweep.py`, `run_*smoke*.py`, `run_requested_hwemu_matrix.py` | Launch repeatable sweeps and direct-reference matrix runs |
+| Experiment drivers | `run_agentic_sweep.py`, `run_paper_baseline.py`, `run_*smoke*.py`, `run_requested_hwemu_matrix.py` | Launch repeatable agentic, matched-baseline, and direct-reference runs |
 | Results contract | `export_schema_jsonl.py`, `compare_jsonl_to_references.py`, `scripts/validate_jsonl_semantics.py` | Emit and validate reference-compatible schema-1.0 JSONL |
 
 ### Multi-step optimization chain
@@ -89,15 +89,45 @@ C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS=1
 The saved result records selected candidate/attempt indices plus min/max/avg
 telemetry, so bad attempts are visible rather than silently dropped.
 
+### HPCA paper artifact boundary
+
+Paper-facing numbers are generated only from a frozen result manifest and a
+SHA-256-pinned evidence manifest. The immutable-bundle generator rejects
+missing runs, inferred successes, predicted cycle counts, and unclassified
+failures; it also evaluates the preregistered claim gates. See
+[`docs/hpca2027_paper_artifacts.md`](docs/hpca2027_paper_artifacts.md) for the
+manifest contract. Raw runner files first pass through the explicit,
+hash-pinned freeze-index adapter documented in
+[`docs/hpca2027_freeze_normalizer.md`](docs/hpca2027_freeze_normalizer.md);
+the adapter performs no result discovery or best-run selection and currently
+rejects runs that predate the complete candidate-event telemetry. Use
+`scripts/generate_hpca_paper_artifacts.py` only on its normalized schema-2
+output. Install `requirements-paper.txt` for the preferred embedded-
+TrueType matplotlib PDF renderer; a pdflatex/pgfplots vector fallback is used
+when matplotlib is unavailable.
+
+The declarative 132-row experiment matrix and its two matched-budget baseline
+methods are documented in
+[`docs/hpca2027_experiment_matrix.md`](docs/hpca2027_experiment_matrix.md).
+The relationship to the public `c2hls_enhanced_l` branch and the reason it was
+reviewed rather than merged wholesale are recorded in
+[`docs/hpca2027_architecture_source_review.md`](docs/hpca2027_architecture_source_review.md).
+The 28 HLSFactory development kernels and their hash-bound public-testbench
+output shapes are pinned in `configs/hlsfactory_development_suite.json` and
+`configs/hlsfactory_output_shapes.json`; a missing entry, changed testbench,
+or same-count conflicting dimensional declaration fails before evaluation.
+
 ### Evaluation isolation policy
 
-Reference HLS code and absolute reference metrics are controller-side evidence,
-not prompt material. The agents may see their own synthesis/csim/cosim reports,
-configured target context, device utilization, bottleneck diagnostics, curated
-skills, and ratio-only directional feedback such as generated/reference latency
-or Fmax ratios. Phase 8 baseline alignment and quality repair follow the same
-rule: they can ask for a better structure, but they must not expose reference
-source, exact reference cycle counts, or exact reference resource counts.
+The HPCA 2027 paper profile is strictly reference-blind: reference HLS code,
+identifiers, paths, absolute metrics, relative ratios, and reference-derived
+controller actions are unavailable until the run is over. Agents may see only
+the plain-C task, configured target context, their own compiler reports,
+independent golden-output verdicts, bottleneck diagnostics, and a frozen skill
+snapshot mined from development kernels. Phase 8 baseline alignment, GT-aware
+rollback/prepopulation, and gold-relative cosim skipping are forcibly disabled.
+Legacy reference-guided modes remain in the repository only for explicitly
+labelled oracle ablations and must not be interpreted as reference-blind runs.
 
 The default hardware target is Vitis 2023.2 on U280
 (`xcu280-fsvh2892-2L-e`) at 3.33 ns. Unknown target/device information is
@@ -946,9 +976,17 @@ artifacts/                            # Markdown + comparison reports
 | `C2HLS_TMP_ROOT` | `/mnt/data/luo00466/tmp` | Scratch root for C2HLS compile probes, HLS synth/csim/cosim dirs, direct emu staging, and inherited `TMPDIR`/`TEMP`/`TMP` |
 | `C2HLS_SYNTH_TIMEOUT` | `1200` | Wall-time budget for `csynth_design` (seconds) |
 | `C2HLS_CSIM_TIMEOUT` | `180` | Wall-time budget for `csim_design` |
+| `C2HLS_CPU_GOLDEN_TIMEOUT` | `180` | Wall-time budget for the independent native CPU-golden run |
 | `C2HLS_COSIM_TIMEOUT` | `1200` | Wall-time budget for `cosim_design` |
+| `C2HLS_COSIM_SKIP_SLOWER_THAN_GOLD` | `0` | When enabled, classify cosim as a predicted timeout without launching RTL simulation if generated csynth latency exceeds the gold cycle threshold |
+| `C2HLS_COSIM_SKIP_GOLD_RATIO` | `10.0` | Generated-csynth/gold-cycle ratio that triggers the predictive cosim timeout policy; values below 1 are clamped to 1 |
 | `C2HLS_REFERENCE_VALIDATE_MODE` | `trusted_external` in sweeps, `all` otherwise | `trusted_external` uses direct JSONL reference artifacts for `rodinia-hls` / `rodinia-hls-nova` and records `reference_source=direct_jsonl`; non-trusted datasets use local Vitis validation. `external` requires a trusted direct record and fails explicitly if one is missing |
 | `C2HLS_REFERENCE_JSONL_PATHS` | — | Optional `:`-separated extra direct-reference JSONL files to include when resolving trusted external reference status |
+| `C2HLS_REFERENCE_CACHE_DIR` | `artifacts/reference_validation_cache` in sweeps | Reuse local Vitis gold validation only when benchmark source, headers, testbench, support files, top, part, clock, flow, Vitis version, and validation mode have the same fingerprint |
+| `C2HLS_REFERENCE_CACHE_REQUIRE_COSIM` | `0` | Reject partial cache entries unless gold cosim passed; when disabled, passing csynth/csim evidence may be reused and the existing csynth-cycle fallback remains explicit |
+| `C2HLS_REFERENCE_COSIM` | `1` | Co-simulate every admitted reference variant; paper runs set this to `0` and use the two targeted controls below |
+| `C2HLS_REFERENCE_COSIM_SELECTED_ONLY` | `0` | Execute RTL co-simulation once for the selected expert frontier and require positive cycles |
+| `C2HLS_REFERENCE_COSIM_BASELINE` | `0` | Execute RTL co-simulation once for the designated baseline and require positive cycles; this preflight is outside method search budgets |
 
 ### Phase 8 — Baseline alignment
 
@@ -976,6 +1014,7 @@ artifacts/                            # Markdown + comparison reports
 | `C2HLS_SKILL_LIBRARY_PERSIST` | `1` | Persist skill-library bootstrap entries and per-skill trajectory statistics to `skills/skills.json` |
 | `C2HLS_PHASEB_FAST_CANDIDATE_RATIO` | `0.80` | Record Phase B as a fast candidate when its baseline cycles are below this fraction of the reference baseline |
 | `C2HLS_PHASE5_GT_PREPOP` | `0` | Pre-synthesise all GT step variants into cache before the optimisation loop |
+| `C2HLS_PHASE5_LLM_RETRY` | `0` | Enable the legacy additional Phase-5 LLM retry |
 | `C2HLS_PHASE7A` | `0` | Harvest static report data (burst.xml, fe_messages.xml, etc.) after each step |
 | `C2HLS_GT_AWARE_REVERT` | `1` | Keep enabling regressions consistent with GT trajectory shape |
 | `C2HLS_STEP_REGRESSION_THRESHOLD` | *(per-step)* | Global override for regression guard latency threshold (overrides per-step calibration) |

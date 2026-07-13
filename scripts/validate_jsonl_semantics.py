@@ -20,7 +20,7 @@ from typing import Any
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from export_schema_jsonl import validate_jsonl  # noqa: E402
+from export_schema_jsonl import _strict_json_loads, validate_jsonl  # noqa: E402
 
 
 RESOURCE_KEYS = {
@@ -118,6 +118,8 @@ def _selected_attempt(record: dict[str, Any]) -> dict[str, Any] | None:
     meta = ((record.get("implementation") or {}).get("origin_meta") or {})
     attempts = meta.get("candidate_attempts")
     if not isinstance(attempts, list):
+        attempts = meta.get("attempt_results")
+    if not isinstance(attempts, list):
         return None
     selected_candidate = meta.get("selected_candidate_index")
     selected_attempt = meta.get("selected_attempt_index")
@@ -135,6 +137,28 @@ def _selected_attempt(record: dict[str, Any]) -> dict[str, Any] | None:
         if isinstance(attempt, dict) and selected_candidate is not None and attempt.get("candidate_index") == selected_candidate:
             return attempt
     return None
+
+
+def _max_child_module_latency(record: dict[str, Any]) -> float | None:
+    attempt = _selected_attempt(record)
+    if not attempt:
+        return None
+    scopes = _nested(attempt, "report", "feedback", "scopes")
+    if not isinstance(scopes, list):
+        return None
+    max_latency: float | None = None
+    for scope in scopes:
+        if not isinstance(scope, dict) or scope.get("kind") != "module":
+            continue
+        # Ignore the top-level module. Child module records are the relevant
+        # consistency check; Vitis can sometimes emit duplicate top-level rows.
+        if not scope.get("parent") and _num(scope.get("depth")) in (None, 0.0):
+            continue
+        lat = _num(scope.get("latency_cycles"))
+        if lat is None:
+            continue
+        max_latency = lat if max_latency is None else max(max_latency, lat)
+    return max_latency
 
 
 def _substantive_loop_count(record: dict[str, Any], top_latency: float | None) -> int | None:
@@ -231,6 +255,25 @@ def _check_hls_synth(record: dict[str, Any], line: int, args: argparse.Namespace
             record,
         )
 
+    max_child_latency = _max_child_module_latency(record)
+    if (
+        latency is not None
+        and max_child_latency is not None
+        and max_child_latency >= args.child_latency_floor_cycles
+        and latency * args.child_latency_ratio_tolerance < max_child_latency
+    ):
+        _add(
+            issues,
+            line,
+            _severity_for_suspicious(args),
+            "top_latency_below_child_module",
+            (
+                f"top latency {latency:g} cycles is below child module latency "
+                f"{max_child_latency:g} cycles"
+            ),
+            record,
+        )
+
     dsp = _resource(resources, "dsp")
     if latency is not None and dsp == 0 and latency <= args.zero_dsp_low_latency_cycles:
         _add(
@@ -286,7 +329,7 @@ def validate_semantics(path: Path, args: argparse.Namespace) -> dict[str, Any]:
     for line_no, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), start=1):
         if not line.strip():
             continue
-        record = json.loads(line)
+        record = _strict_json_loads(line)
         rt = record.get("report_type")
         if rt == "hls_synth":
             _check_hls_synth(record, line_no, args, issues)
@@ -316,6 +359,10 @@ def main() -> int:
     parser.add_argument("--min-latency-cycles", type=float, default=0.0,
                         help="Optional floor for passing hls_synth latency.")
     parser.add_argument("--zero-dsp-low-latency-cycles", type=float, default=512.0)
+    parser.add_argument("--child-latency-floor-cycles", type=float, default=64.0,
+                        help="Only check child-module latency consistency above this child latency.")
+    parser.add_argument("--child-latency-ratio-tolerance", type=float, default=1.05,
+                        help="Warn/error when top_latency * tolerance is below max child-module latency.")
     parser.add_argument("--clock-tolerance-ns", type=float, default=1e-3)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()

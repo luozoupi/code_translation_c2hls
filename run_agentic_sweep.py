@@ -5,6 +5,8 @@ Defaults are conservative for a corpus sweep:
   - excludes StreamCluster
   - uses Haiku only
   - leaves final hw_emu off unless C2HLS_SWEEP_HW_EMU=1
+  - applies the hpca2027_reference_blind profile; set
+    C2HLS_SWEEP_PROFILE=legacy only for explicitly labelled oracle runs
 
 Use environment filters:
   C2HLS_SWEEP_BENCHES=pathfinder,lud,nw
@@ -16,8 +18,8 @@ Use environment filters:
   C2HLS_SWEEP_CANDIDATES_PER_STEP=5
   C2HLS_SWEEP_ATTEMPTS_PER_CANDIDATE=5
   C2HLS_SWEEP_EXHAUSTIVE_CANDIDATE_ATTEMPTS=1
-  C2HLS_SWEEP_GT_PREPOP=1
-  C2HLS_SWEEP_BASELINE_ALIGN=1
+  C2HLS_SWEEP_GT_PREPOP=1          # legacy/oracle profile only
+  C2HLS_SWEEP_BASELINE_ALIGN=1     # legacy/oracle profile only
   C2HLS_SWEEP_STEPS=tiling,pipeline
   C2HLS_SWEEP_STRATEGY=flash
   C2HLS_SWEEP_SKILL_MODES=off,on
@@ -39,6 +41,15 @@ REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 
 from c2hls_temp import configure_temp_env
+from evaluation_repro import (
+    apply_evaluation_profile,
+    attach_run_provenance,
+    build_run_fingerprint,
+    fingerprint_completeness,
+    fingerprint_matches,
+    skill_snapshot_manifest,
+)
+from reference_isolation import audit_history_file
 
 STAMP = os.getenv("C2HLS_SWEEP_STAMP") or datetime.now().strftime("%Y%m%d_%H%M%S")
 BENCHMARKS_DIR = Path(os.getenv("C2HLS_SWEEP_BENCHMARKS_DIR", str(REPO / "benchmarks")))
@@ -55,6 +66,48 @@ MODELS = {
 
 def _split_csv(raw: str) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _env_enabled(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _recorded_fingerprint(result: dict[str, Any]) -> dict[str, Any] | None:
+    candidate = result.get("run_fingerprint")
+    if not isinstance(candidate, dict):
+        run = result.get("run")
+        candidate = run.get("run_fingerprint") if isinstance(run, dict) else None
+    return candidate if isinstance(candidate, dict) else None
+
+
+def _load_resumable_result(
+    path: Path,
+    benchmark: str,
+    expected_fingerprint: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Load a result only when its entire run fingerprint is identical.
+
+    Historical artifacts did not carry a complete fingerprint and are
+    intentionally non-resumable.  Keeping the optional parameter preserves
+    call compatibility while making an omitted expected identity fail closed.
+    """
+
+    if not path.is_file():
+        return None
+    try:
+        result = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(result, dict):
+        return None
+    recorded_benchmark = result.get("benchmark")
+    if recorded_benchmark not in (None, "", benchmark):
+        return None
+    if expected_fingerprint is None:
+        return None
+    if not fingerprint_matches(_recorded_fingerprint(result), expected_fingerprint):
+        return None
+    return result
 
 
 def _set_default_env() -> None:
@@ -85,31 +138,59 @@ def _set_default_env() -> None:
     os.environ.setdefault("C2HLS_ATTEMPTS_PER_CANDIDATE", os.getenv("C2HLS_SWEEP_ATTEMPTS_PER_CANDIDATE", "5"))
     os.environ.setdefault("C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS", os.getenv("C2HLS_SWEEP_EXHAUSTIVE_CANDIDATE_ATTEMPTS", "1"))
     os.environ.setdefault("C2HLS_REFERENCE_VALIDATE_MODE", os.getenv("C2HLS_SWEEP_REFERENCE_VALIDATE_MODE", "trusted_external"))
+    os.environ.setdefault(
+        "C2HLS_REFERENCE_CACHE_DIR",
+        os.getenv(
+            "C2HLS_SWEEP_REFERENCE_CACHE_DIR",
+            str(REPO / "artifacts" / "reference_validation_cache"),
+        ),
+    )
+    os.environ.setdefault(
+        "C2HLS_REFERENCE_CACHE_REQUIRE_COSIM",
+        os.getenv("C2HLS_SWEEP_REFERENCE_CACHE_REQUIRE_COSIM", "0"),
+    )
     os.environ.setdefault("C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS", "1")
     os.environ.setdefault("C2HLS_SYNTH_TIMEOUT", os.getenv("C2HLS_SWEEP_SYNTH_TIMEOUT", "420"))
     os.environ.setdefault("C2HLS_CSIM_TIMEOUT", os.getenv("C2HLS_SWEEP_CSIM_TIMEOUT", "180"))
     os.environ.setdefault("C2HLS_COSIM_TIMEOUT", os.getenv("C2HLS_SWEEP_COSIM_TIMEOUT", "1200"))
     os.environ.setdefault("C2HLS_COSIM_REQUIRED", os.getenv("C2HLS_SWEEP_COSIM_REQUIRED", "1"))
+    if os.getenv("C2HLS_COSIM_REQUIRED", "1").strip().lower() in {"0", "false", "no", "off"}:
+        os.environ.setdefault("C2HLS_REFERENCE_COSIM", "0")
     os.environ.setdefault("C2HLS_COSIM_TRACE_LEVEL", os.getenv("C2HLS_SWEEP_COSIM_TRACE_LEVEL", "none"))
     os.environ.setdefault("C2HLS_HW_EMU_TIMEOUT", "7200")
     os.environ.setdefault("C2HLS_LLM_TIMEOUT", "900")
+    if os.getenv("C2HLS_SWEEP_PROFILE", "").strip().lower() != "legacy":
+        # The paper budget counts candidate-generating responses. Optional
+        # prose-only feedback-agent calls are outside that contract and are
+        # therefore disabled for reference-isolated sweeps.
+        os.environ["C2HLS_FEEDBACK_LLM"] = "0"
     os.environ["C2HLS_HW_EMU_FINAL"] = os.getenv("C2HLS_SWEEP_HW_EMU", os.getenv("C2HLS_HW_EMU_FINAL", "0"))
 
 
 def _discover_benches() -> list[tuple[str, Path]]:
     available: dict[str, Path] = {}
+    disabled: dict[str, str] = {}
     for meta_path in sorted(BENCHMARKS_DIR.glob("*/metadata.json")):
         try:
             meta = json.loads(meta_path.read_text())
         except json.JSONDecodeError:
             continue
         name = meta.get("benchmark") or meta_path.parent.name
+        if meta.get("status") == "disabled":
+            disabled[name] = meta.get("disabled_reason", "metadata status=disabled")
+            continue
         available[name] = meta_path.parent
 
     requested = _split_csv(os.getenv("C2HLS_SWEEP_BENCHES", ""))
     if requested:
         missing = [name for name in requested if name not in available]
         if missing:
+            disabled_requested = {name: disabled[name] for name in missing if name in disabled}
+            if disabled_requested:
+                raise ValueError(
+                    "disabled benchmark(s) in C2HLS_SWEEP_BENCHES: "
+                    f"{disabled_requested}"
+                )
             raise ValueError(f"unknown benchmark(s) in C2HLS_SWEEP_BENCHES: {missing}")
         names = requested
     else:
@@ -134,7 +215,13 @@ def _selected_models() -> list[tuple[str, str]]:
             label = next(label for label, model in MODELS.items() if model == item)
             selected.append((label, item))
         else:
-            raise ValueError(f"unknown model in C2HLS_SWEEP_MODELS: {item}")
+            label = (
+                item.rsplit("/", 1)[-1]
+                .replace(".", "_")
+                .replace("-", "_")
+                .replace(":", "_")
+            )
+            selected.append((label, item))
     return selected or [("haiku", MODELS["haiku"])]
 
 
@@ -203,8 +290,100 @@ def _compact_llm_usage(data: dict[str, Any]) -> dict[str, Any]:
     return {field: int(usage.get(field) or 0) for field in fields}
 
 
+def _candidate_telemetry_contract(result: dict[str, Any]) -> dict[str, Any]:
+    """Audit, without inventing counters, the producer fields used at freeze."""
+    usage = result.get("llm_usage") if isinstance(result.get("llm_usage"), dict) else {}
+    synthesis = (
+        result.get("synthesis_evaluations")
+        if isinstance(result.get("synthesis_evaluations"), dict)
+        else {}
+    )
+    llm_events = usage.get("events") if isinstance(usage.get("events"), list) else []
+    candidate_events = (
+        synthesis.get("events") if isinstance(synthesis.get("events"), list) else []
+    )
+    required_fields = {
+        "candidate_evaluation_index",
+        "cumulative_tokens",
+        "cumulative_llm_calls",
+        "cumulative_synthesis_evaluations",
+        "cumulative_elapsed_seconds",
+        "correctness_status",
+        "synthesis_status",
+        "resource_fit",
+        "timing_met",
+        "synthesized_latency_cycles",
+        "latency_source",
+        "failure_class",
+        "selected_for_executed_cosim",
+        "code_sha256",
+        "report_sha256",
+    }
+    joins_complete = (
+        len(llm_events) == len(candidate_events)
+        and all(
+            isinstance(event, dict)
+            and event.get("candidate_evaluation_index") == index
+            for index, event in enumerate(llm_events)
+        )
+        and all(
+            isinstance(event, dict)
+            and event.get("candidate_evaluation_index") == index
+            and required_fields.issubset(event)
+            for index, event in enumerate(candidate_events)
+        )
+    )
+    selection_count = result.get("selected_winner_cosim_count")
+    synthesis_count = synthesis.get("count")
+    total_calls = result.get("total_synthesis_calls")
+    synthesis_attribution_complete = (
+        isinstance(selection_count, int)
+        and not isinstance(selection_count, bool)
+        and selection_count in {0, 1}
+        and isinstance(synthesis_count, int)
+        and not isinstance(synthesis_count, bool)
+        and isinstance(total_calls, int)
+        and not isinstance(total_calls, bool)
+        and total_calls == synthesis_count + selection_count
+    )
+    complete = bool(
+        synthesis.get("complete_candidate_event_stream") is True
+        and joins_complete
+        and usage.get("candidate_requests") == len(candidate_events)
+        and usage.get("calls") == len(llm_events)
+        and synthesis_attribution_complete
+        and (
+            result.get("selected_winner_cosim_count") == 0
+            or (
+                result.get("selected_code_sha256")
+                == result.get("cosim_target_code_sha256")
+                and isinstance(result.get("selected_code_sha256"), str)
+            )
+        )
+    )
+    return {
+        "schema_version": "c2hls.agentic-candidate-telemetry.v1",
+        "complete": complete,
+        "candidate_event_count": len(candidate_events),
+        "llm_event_count": len(llm_events),
+        "joins_complete": joins_complete,
+        "synthesis_attribution_complete": synthesis_attribution_complete,
+    }
+
+
 def _result_path(bench: str, label: str) -> Path:
     return OUT_ROOT / f"{bench}_{label}" / f"{bench}_multistep_results.json"
+
+
+def _test_status(summary: Any) -> str | None:
+    if not isinstance(summary, dict):
+        return None
+    status = str(summary.get("status") or "").strip().lower()
+    if status == "passed":
+        return "pass"
+    if status == "failed":
+        return "timeout" if "timed out" in str(summary.get("error") or "").lower() else "fail"
+    return status or None
 
 
 def _summarize(data: dict[str, Any]) -> dict[str, Any]:
@@ -216,11 +395,18 @@ def _summarize(data: dict[str, Any]) -> dict[str, Any]:
         "error": data.get("error"),
         "phase_b_mode": data.get("phase_b_mode"),
         "llm_usage": _compact_llm_usage(data),
+        "skill_library_provenance": (
+            data.get("skill_library_provenance")
+            or (data.get("run") or {}).get("skill_library_provenance")
+        ),
         "baseline_cycles": _cycles(data.get("baseline_report")),
         "baseline_csim": (
             (data.get("baseline_csim") or data.get("csim") or {}).get("passed")
             if isinstance(data.get("baseline_csim") or data.get("csim"), dict)
             else None
+        ),
+        "baseline_cosim_status": _test_status(
+            data.get("baseline_cosim") or data.get("cosim")
         ),
         "best": _best_step(data),
         "steps_attempted": len(steps),
@@ -232,11 +418,14 @@ def _summarize(data: dict[str, Any]) -> dict[str, Any]:
                 "cycles": _cycles(step.get("report")),
                 "csim": (step.get("csim") or {}).get("passed") if isinstance(step.get("csim"), dict) else None,
                 "cosim": (step.get("cosim") or {}).get("passed") if isinstance(step.get("cosim"), dict) else None,
+                "cosim_status": _test_status(step.get("cosim")),
                 "cosim_cycles": (step.get("cosim") or {}).get("kernel_runtime_cycles") if isinstance(step.get("cosim"), dict) else None,
+                "cosim_policy": (step.get("cosim") or {}).get("cosim_policy") if isinstance(step.get("cosim"), dict) else None,
                 "candidate_attempts": len(step.get("candidate_attempts") or []),
                 "candidate_search": step.get("candidate_search"),
                 "attempt_stats": step.get("attempt_stats"),
                 "skill_id": ((step.get("routing_decision") or {}).get("skill_id")),
+                "skill_prompt": step.get("skill_prompt"),
             }
             for step in steps
         ],
@@ -267,7 +456,7 @@ def _export_jsonl(completed: list[tuple[str, str, Path]]) -> int:
                 default_part=os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e"),
                 default_clock_ns=float(os.getenv("C2HLS_CLOCK_NS", "3.33")),
             ):
-                handle.write(json.dumps(record) + "\n")
+                handle.write(ex._strict_json_dumps(record) + "\n")
                 count += 1
     validation = ex.validate_jsonl(OUT_JSONL)
     if validation.get("invalid"):
@@ -275,7 +464,12 @@ def _export_jsonl(completed: list[tuple[str, str, Path]]) -> int:
     return count
 
 
-def _write_reports(rows: list[dict[str, Any]], jsonl_count: int) -> None:
+def _write_reports(
+    rows: list[dict[str, Any]],
+    jsonl_count: int,
+    *,
+    profile: dict[str, Any] | None = None,
+) -> None:
     SUMMARY_JSON.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "stamp": STAMP,
@@ -283,10 +477,12 @@ def _write_reports(rows: list[dict[str, Any]], jsonl_count: int) -> None:
         "out_root": str(OUT_ROOT),
         "jsonl": str(OUT_JSONL),
         "jsonl_records": jsonl_count,
+        "evaluation_profile": profile or {},
         "env": {
             key: os.getenv(key)
             for key in [
                 "C2HLS_SWEEP_BENCHES",
+                "C2HLS_SWEEP_PROFILE",
                 "C2HLS_SWEEP_EXCLUDE",
                 "C2HLS_SWEEP_MODELS",
                 "C2HLS_SWEEP_MAX_BENCHES",
@@ -310,11 +506,33 @@ def _write_reports(rows: list[dict[str, Any]], jsonl_count: int) -> None:
                 "C2HLS_DYNAMIC_ROUTING",
                 "C2HLS_FORCE_SKILL_PROMPTS",
                 "C2HLS_SKILL_MODE",
+                "C2HLS_SKILL_PROMPT_MODE",
+                "C2HLS_SKILL_PROMPT_SCOPE",
+                "C2HLS_SKILL_LIBRARY_PERSIST",
+                "C2HLS_SKILL_LIBRARY_FROZEN",
+                "C2HLS_SKILL_UPDATE_STATS",
                 "C2HLS_SYNTH_TIMEOUT",
                 "C2HLS_CSIM_TIMEOUT",
                 "C2HLS_COSIM_TIMEOUT",
                 "C2HLS_COSIM_REQUIRED",
                 "C2HLS_COSIM_TRACE_LEVEL",
+                "C2HLS_COSIM_SKIP_SLOWER_THAN_GOLD",
+                "C2HLS_COSIM_SKIP_GOLD_RATIO",
+                "C2HLS_REFERENCE_BLIND",
+                "C2HLS_ORACLE_MODE",
+                "C2HLS_GT_AWARE_REVERT",
+                "C2HLS_GT_COMPARISON_IN_CONTROL",
+                "C2HLS_REFERENCE_METRICS_IN_PROMPTS",
+                "C2HLS_REFERENCE_CODE_IN_PROMPTS",
+                "C2HLS_TRANSCRIPT_AUDIT",
+                "C2HLS_LLM_TEMPERATURE",
+                "C2HLS_LLM_TOP_P",
+                "C2HLS_LLM_SEED",
+                "C2HLS_MODEL_REVISION",
+                "C2HLS_SYNTHESIS_EVAL_BUDGET",
+                "C2HLS_REFERENCE_CACHE_DIR",
+                "C2HLS_REFERENCE_CACHE_REQUIRE_COSIM",
+                "C2HLS_SWEEP_RESUME",
                 "C2HLS_HW_EMU_FINAL",
                 "C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS",
                 "C2HLS_PHASE5_GT_PREPOP",
@@ -348,6 +566,7 @@ def _write_reports(rows: list[dict[str, Any]], jsonl_count: int) -> None:
         hw = cur.get("hw_emu") or {}
         usage = cur.get("llm_usage") or {}
         final_step = (cur.get("step_cycles") or [{}])[-1] if cur.get("step_cycles") else {}
+        cosim_status = final_step.get("cosim_status") or cur.get("baseline_cosim_status") or "skip"
         lines.append(
             f"| {row.get('bench')} | {row.get('model')} | {row.get('skill_mode', 'default')} | {'pass' if cur.get('success') else 'fail'} | "
             f"{cur.get('steps_success')}/{cur.get('steps_attempted')} | {best.get('step') or '-'} | "
@@ -357,7 +576,7 @@ def _write_reports(rows: list[dict[str, Any]], jsonl_count: int) -> None:
             f"{usage.get('input_tokens', 0)} | "
             f"{usage.get('output_tokens', 0)} | "
             f"{usage.get('total_tokens', 0)} | "
-            f"{'pass' if final_step.get('cosim') else ('fail' if final_step.get('cosim') is False else 'skip')} | "
+            f"{cosim_status} | "
             f"{final_step.get('cosim_cycles') if final_step.get('cosim_cycles') is not None else '-'} | "
             f"{'pass' if hw.get('success') else ('fail' if hw.get('ran') else 'skip')} | "
             f"{hw.get('cycles') if hw.get('cycles') is not None else '-'} | "
@@ -368,12 +587,14 @@ def _write_reports(rows: list[dict[str, Any]], jsonl_count: int) -> None:
 
 def main() -> int:
     _set_default_env()
+    profile = apply_evaluation_profile()
     from c2hls import run_benchmark_multistep
 
     benches = _discover_benches()
     models = _selected_models()
     skill_modes = _selected_skill_modes()
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
+    resume = _env_enabled("C2HLS_SWEEP_RESUME")
     rows: list[dict[str, Any]] = []
     completed: list[tuple[str, str, Path]] = []
     print(
@@ -395,45 +616,180 @@ def main() -> int:
             for bench, bench_dir in benches:
                 out_dir = OUT_ROOT / f"{bench}_{run_label}"
                 result_json = _result_path(bench, run_label)
-                print(f"START bench={bench} model={label} skill={skill_label} out={out_dir}", flush=True)
-                t0 = time.time()
-                try:
-                    result = run_benchmark_multistep(
-                        str(bench_dir),
-                        output_dir=str(out_dir),
-                        gpt_model=model_id,
-                        turns_limitation=int(os.getenv("C2HLS_TURNS", "4")),
-                        steps=_selected_steps(),
+                selected_steps = _selected_steps()
+                run_fingerprint = build_run_fingerprint(
+                    repo=REPO,
+                    benchmark_dir=bench_dir,
+                    benchmark=bench,
+                    model_id=model_id,
+                    model_label=label,
+                    skill_mode=skill_label,
+                    steps=selected_steps,
+                    profile=profile,
+                )
+                preflight = fingerprint_completeness(run_fingerprint)
+                if profile.get("reference_blind") and not preflight.get("complete"):
+                    raise RuntimeError(
+                        "paper evaluation fingerprint is incomplete; refusing "
+                        "to start: " + ", ".join(preflight.get("issues") or [])
                     )
-                except Exception as exc:
-                    out_dir.mkdir(parents=True, exist_ok=True)
-                    result = {
-                        "benchmark": bench,
-                        "success": False,
-                        "phase": "exception",
-                        "error": str(exc),
-                        "steps": [],
-                        "hw_emu": {
-                            "ran": False,
-                            "skip_reason": f"agentic exception: {exc}",
-                            "profile_required": True,
-                        },
-                        "run": {
-                            "model": model_id,
-                            "skill_mode": skill_label,
-                            "skill_prompts": bool(skill_enabled),
-                        },
+                t0 = time.time()
+                result = (
+                    _load_resumable_result(result_json, bench, run_fingerprint)
+                    if resume
+                    else None
+                )
+                resumed = result is not None
+                if resumed:
+                    print(
+                        f"RESUME bench={bench} model={label} skill={skill_label} "
+                        f"result={result_json}",
+                        flush=True,
+                    )
+                else:
+                    if resume and result_json.is_file():
+                        print(
+                            f"RESUME_REJECT bench={bench} model={label} "
+                            f"skill={skill_label} reason=fingerprint_mismatch_or_missing",
+                            flush=True,
+                        )
+                    print(f"START bench={bench} model={label} skill={skill_label} out={out_dir}", flush=True)
+                    try:
+                        result = run_benchmark_multistep(
+                            str(bench_dir),
+                            output_dir=str(out_dir),
+                            gpt_model=model_id,
+                            turns_limitation=int(os.getenv("C2HLS_TURNS", "4")),
+                            steps=selected_steps,
+                        )
+                    except Exception as exc:
+                        out_dir.mkdir(parents=True, exist_ok=True)
+                        result = {
+                            "benchmark": bench,
+                            "success": False,
+                            "phase": "exception",
+                            "error": str(exc),
+                            "steps": [],
+                            "hw_emu": {
+                                "ran": False,
+                                "skip_reason": f"agentic exception: {exc}",
+                                "profile_required": True,
+                            },
+                            "run": {
+                                "model": model_id,
+                                "skill_mode": skill_label,
+                                "skill_prompts": bool(skill_enabled),
+                            },
+                        }
+                        result_json.write_text(json.dumps(result, indent=2) + "\n")
+                        print(f"ERROR bench={bench} model={label} skill={skill_label}: {exc}", flush=True)
+
+                    result["candidate_telemetry_contract"] = (
+                        _candidate_telemetry_contract(result)
+                    )
+                    history_path = out_dir / f"{bench}_history.json"
+                    if _env_enabled("C2HLS_TRANSCRIPT_AUDIT"):
+                        reference_audit = audit_history_file(
+                            history_path,
+                            benchmark_dir=bench_dir,
+                            reference_data=(result or {}).get("reference_validation"),
+                        )
+                    else:
+                        reference_audit = {
+                            "schema_version": "c2hls.reference-isolation-audit.v1",
+                            "passed": False,
+                            "finding_count": 0,
+                            "findings": [],
+                            "error": "transcript audit disabled",
+                        }
+                    total_elapsed_seconds = time.time() - t0
+                    # Method-cost comparisons exclude common CPU-golden and
+                    # expert-frontier preflight.  Dynamic C2HLS records its
+                    # search interval inside run_benchmark_multistep, matching
+                    # the baseline engine's timer around engine.run().
+                    search_elapsed_seconds = float(
+                        (result or {}).get(
+                            "search_elapsed_seconds", total_elapsed_seconds
+                        )
+                    )
+                    attach_run_provenance(
+                        result,
+                        fingerprint=run_fingerprint,
+                        profile=profile,
+                        elapsed_seconds=search_elapsed_seconds,
+                        history_path=history_path,
+                        reference_audit=reference_audit,
+                    )
+                    result.setdefault("run", {}).update({
+                        "search_elapsed_seconds": search_elapsed_seconds,
+                        "preflight_elapsed_seconds": float(
+                            (result or {}).get("preflight_elapsed_seconds", 0.0)
+                        ),
+                        "post_route_elapsed_seconds": float(
+                            (result or {}).get("post_route_elapsed_seconds", 0.0)
+                        ),
+                        "total_elapsed_seconds": total_elapsed_seconds,
+                        "paper_method_wall_time_field": "search_elapsed_seconds",
+                    })
+                    pre_skill_sha256 = (
+                        run_fingerprint.get("payload", {})
+                        .get("skills", {})
+                        .get("sha256")
+                    )
+                    post_skill_sha256 = skill_snapshot_manifest(REPO).get("sha256")
+                    skill_snapshot_integrity = {
+                        "pre_run_sha256": pre_skill_sha256,
+                        "post_run_sha256": post_skill_sha256,
+                        "unchanged": pre_skill_sha256 == post_skill_sha256,
                     }
+                    result["skill_snapshot_integrity"] = skill_snapshot_integrity
+                    if not skill_snapshot_integrity["unchanged"]:
+                        result["controller_success_before_skill_integrity"] = bool(
+                            result.get("success")
+                        )
+                        result["success"] = False
+                        result["phase"] = "skill_integrity"
+                        result["error"] = (
+                            "skill snapshot changed during evaluation; run rejected"
+                        )
+                    reference_audit_path = (
+                        out_dir / f"{bench}_reference_isolation_audit.json"
+                    )
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    reference_audit_path.write_text(
+                        json.dumps(reference_audit, indent=2) + "\n"
+                    )
+                    result.setdefault("run", {})[
+                        "reference_isolation_audit_path"
+                    ] = reference_audit_path.name
+                    if (
+                        profile.get("reference_blind")
+                        and not reference_audit.get("passed")
+                        and _env_enabled("C2HLS_REFERENCE_BLIND_FAIL_ON_LEAK", "1")
+                    ):
+                        result["controller_success_before_isolation_audit"] = bool(
+                            result.get("success")
+                        )
+                        result["success"] = False
+                        result["phase"] = "reference_isolation"
+                        result["error"] = (
+                            "reference-isolation audit failed; see hashed findings"
+                        )
                     result_json.write_text(json.dumps(result, indent=2) + "\n")
-                    print(f"ERROR bench={bench} model={label} skill={skill_label}: {exc}", flush=True)
 
                 if not result_json.exists():
                     out_dir.mkdir(parents=True, exist_ok=True)
                     result_json.write_text(json.dumps(result, indent=2) + "\n")
 
                 current = _summarize(result)
-                current["elapsed_sec"] = round(time.time() - t0, 3)
+                current["elapsed_sec"] = 0.0 if resumed else round(time.time() - t0, 3)
+                current["resumed"] = resumed
                 current["json"] = str(result_json)
+                current["evaluation_status"] = result.get("evaluation_status")
+                current["reference_isolation_audit"] = result.get(
+                    "reference_isolation_audit"
+                )
+                current["run_fingerprint_sha256"] = run_fingerprint.get("sha256")
                 rows.append({
                     "bench": bench,
                     "bench_dir": str(bench_dir),
@@ -444,7 +800,7 @@ def main() -> int:
                 })
                 completed.append((bench, run_label, bench_dir))
                 jsonl_count = _export_jsonl(completed)
-                _write_reports(rows, jsonl_count)
+                _write_reports(rows, jsonl_count, profile=profile)
                 best = current.get("best") or {}
                 print(
                     f"DONE bench={bench} model={label} skill={skill_label} success={current.get('success')} "

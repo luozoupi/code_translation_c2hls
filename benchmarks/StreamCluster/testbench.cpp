@@ -8,12 +8,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <cmath>
 #include "streamcluster.h"
 
 extern "C" void workload(
     float* coord, float* weight, float* cost, float* target,
     int* assign, int* center_table, char* switch_membership,
     float* work_mem, int num, float* cost_of_opening_x, int numcenter);
+
+static bool tolerance_mismatch(float reference, float actual, float tolerance)
+{
+    return !std::isfinite(reference) || !std::isfinite(actual) ||
+           fabsf(reference - actual) > tolerance * (fabsf(reference) + 1.0f);
+}
 
 /* Golden reference: plain C implementation */
 static void streamcluster_ref(
@@ -103,7 +110,7 @@ int main() {
     float tol = 1e-3f;
     int work_mismatches = 0;
     for (int i = 0; i < MAX_WORK_MEM_SIZE; i++) {
-        if (fabsf(ref_work[i] - dut_work[i]) > tol * (fabsf(ref_work[i]) + 1.0f)) {
+        if (tolerance_mismatch(ref_work[i], dut_work[i], tol)) {
             work_mismatches++;
         }
     }
@@ -113,7 +120,7 @@ int main() {
     }
 
     /* Compare cost_of_opening_x */
-    if (fabsf(ref_cost_x[0] - dut_cost_x[0]) > tol * (fabsf(ref_cost_x[0]) + 1.0f)) {
+    if (tolerance_mismatch(ref_cost_x[0], dut_cost_x[0], tol)) {
         printf("FAIL: cost_of_opening_x — ref=%.6f dut=%.6f\n", ref_cost_x[0], dut_cost_x[0]);
         errors++;
     }

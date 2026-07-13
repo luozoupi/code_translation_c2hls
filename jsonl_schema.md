@@ -273,6 +273,42 @@ kernel_runtime_us: number | null
 kernel_clock_freq_mhz: number | null
 ```
 
+A runner may preempt a cosim that is predicted to exceed its practical
+wall-time budget from a gold-relative csynth comparison. Such a record uses
+the existing canonical `status: "timeout"` value and leaves all runtime fields
+`null`. To distinguish it from an executed wall-clock timeout,
+`implementation.origin_meta` must include:
+
+```json
+{
+  "cosim_ran": false,
+  "cosim_skip_reason": "predicted_longer_than_gold",
+  "cosim_policy": {
+    "schema_version": "1.0",
+    "policy": "gold_relative_csynth_precheck",
+    "decision": "skip",
+    "classification": "predicted_timeout",
+    "ran": false,
+    "generated_csynth_latency_cycles": 25296077,
+    "gold_reference_cycles": 1893899,
+    "gold_reference_source": "reference_validation.cosim.kernel_runtime_cycles",
+    "gold_reference_metric": "rtl_runtime_cycles",
+    "ratio_generated_over_gold": 13.356614,
+    "threshold_ratio": 10.0
+  }
+}
+```
+
+This convention preserves the closed `rtl_sim.status` vocabulary while making
+it explicit that no RTL simulator process was launched.
+
+When gold-reference validation is reused from a local artifact cache,
+`implementation.origin_meta.reference_cache` records the exact-input
+fingerprint, cache path, source result artifact, cache hit, and the independently
+preserved `synthesis_status`, `csim_status`, and `cosim_status`. A partial cache
+entry may retain `cosim_status: "not_run"` or `"failed"`; consumers must not
+interpret cache reuse itself as a passing gold cosim.
+
 For target `vitis.hw_emu`:
 - must be compiled and linked with the `-g` flag to ensure reliable profiling.
 - `kernel_runtime_us` should be collected from `profile_kernels.csv` and `kernel_clock_freq_mhz` should be collected from `systemDiagramModel.json` as the clock with id 0.

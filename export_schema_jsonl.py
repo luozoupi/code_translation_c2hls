@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -49,6 +50,7 @@ SOURCE_REPO_MAP = {
     "rodinia-hls-nova":  ("rodinia_hls",     "rodinia_hls_benchmark"),
     "ML4Accel-Dataset":  ("ml4accel",        "ml4accel_benchmark"),
     "HLSFactory":        ("hlsfactory",      "hlsfactory_benchmark"),
+    "HLSPilot":          ("hlspilot",        "hlspilot_benchmark"),
     "hls-eval":          ("hls_eval",        "hls_eval_benchmark"),
 }
 
@@ -185,6 +187,12 @@ def _variant_identity_for_step(meta: dict, step_name: str) -> tuple[int, str]:
         idx, short = _split_variant(raw or "")
         if _normalize_step_name(short) == normalized:
             return idx, _normalize_step_name(short)
+    variants = meta.get("variants", []) or []
+    if len(variants) == 1:
+        raw = variants[0].get("name") if isinstance(variants[0], dict) else str(variants[0])
+        idx, short = _split_variant(raw or "")
+        if short:
+            return idx, _normalize_step_name(short)
     return _split_variant(step_name or "implementation")
 
 
@@ -211,6 +219,8 @@ def _build_implementation(meta: dict, variant_name: str = "",
 
 def _compact_origin_meta(value: Any) -> Any:
     """Remove generated code blobs before embedding telemetry in JSONL."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
     if isinstance(value, dict):
         return {
             k: _compact_origin_meta(v)
@@ -222,6 +232,28 @@ def _compact_origin_meta(value: Any) -> Any:
     return value
 
 
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+def _strict_json_dumps(value: Any, **kwargs: Any) -> str:
+    return json.dumps(_json_safe(value), allow_nan=False, **kwargs)
+
+
+def _reject_nonfinite_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant {value!r}")
+
+
+def _strict_json_loads(text: str) -> Any:
+    return json.loads(text, parse_constant=_reject_nonfinite_constant)
+
+
 def _test_status_for_schema(summary: dict) -> str:
     raw = (summary or {}).get("status", "")
     if raw == "passed":
@@ -229,6 +261,19 @@ def _test_status_for_schema(summary: dict) -> str:
     if raw == "failed":
         return "timeout" if "timed out" in ((summary or {}).get("error") or "").lower() else "fail"
     return raw
+
+
+def _origin_meta_for_cosim(origin_meta: dict, cosim: dict) -> dict:
+    """Attach predictive-timeout provenance without changing rtl_sim shape."""
+    enriched = dict(origin_meta)
+    policy = (cosim or {}).get("cosim_policy")
+    if isinstance(policy, dict) and policy:
+        enriched["cosim_policy"] = _compact_origin_meta(policy)
+        enriched["cosim_ran"] = bool((cosim or {}).get("ran"))
+        enriched["cosim_skip_reason"] = (
+            (cosim or {}).get("skip_reason") or policy.get("reason")
+        )
+    return enriched
 
 
 def _emit_sw_run_record(records: list[dict], *, meta: dict, run_meta: dict,
@@ -265,6 +310,7 @@ def _emit_cosim_record(records: list[dict], *, meta: dict, run_meta: dict,
     status = _test_status_for_schema(cosim)
     if status in ("not_run", "not_supported", ""):
         return
+    cosim_origin_meta = _origin_meta_for_cosim(origin_meta, cosim)
     records.append({
         "schema_version": SCHEMA_VERSION,
         "report_type": "rtl_sim",
@@ -276,7 +322,7 @@ def _emit_cosim_record(records: list[dict], *, meta: dict, run_meta: dict,
             variant_index=variant_index,
             origin_override="c2hls_orchestrator",
             origin_version=model_id,
-            origin_meta=origin_meta,
+            origin_meta=cosim_origin_meta,
         ),
         "rtl_sim": {
             "status": status,
@@ -422,6 +468,31 @@ def _available_resources_for(part: Optional[str]) -> Optional[dict]:
     return None
 
 
+def _product_family_for_part(part: Optional[str]) -> Optional[str]:
+    if not part:
+        return None
+    part_lc = part.lower()
+    if part_lc.startswith(("xcu50", "xcu280")):
+        return "virtexuplusHBM"
+    if part_lc.startswith("xc7a"):
+        return "artix7"
+    return None
+
+
+def _clock_uncertainty_for_report(report: dict, clock_ns: Optional[float]) -> Optional[str]:
+    for key in ("clock_uncertainty_ns", "ClockUncertainty", "clock_uncertainty"):
+        value = report.get(key)
+        if value is not None:
+            return _stringify(value)
+    try:
+        target = float(report.get("requested_clock_period_ns") or clock_ns)
+    except (TypeError, ValueError):
+        return None
+    # Vitis HLS 2023.2 uses 27% uncertainty by default; for the U280 3.33 ns
+    # runs this is reported as 0.90 ns in csynth.xml.
+    return f"{target * 0.27:.2f}"
+
+
 def _build_hls_synth_payload(report: dict, part: Optional[str],
                              clock_ns: Optional[float],
                              status: str = "pass") -> dict:
@@ -445,12 +516,12 @@ def _build_hls_synth_payload(report: dict, part: Optional[str],
 
     user_assignments = {
         "unit": "ns",
-        "ProductFamily": None,  # not tracked in our flat report
+        "ProductFamily": _product_family_for_part(part),
         "Part": part,
         "TopModelName": "workload",
         "TargetClockPeriod": _stringify(report.get("requested_clock_period_ns")
                                         or clock_ns),
-        "ClockUncertainty": None,
+        "ClockUncertainty": _clock_uncertainty_for_report(report, clock_ns),
         "FlowTarget": "vitis",
     }
 
@@ -563,6 +634,18 @@ def _records_from_results_json(bench_dir: Path, results_json: Path,
         gen_origin_meta["csim_status"] = data.get("csim_status")
     if data.get("cosim_status"):
         gen_origin_meta["cosim_status"] = data.get("cosim_status")
+    skill_library_provenance = data.get("skill_library_provenance") or run_meta.get("skill_library_provenance")
+    if skill_library_provenance:
+        gen_origin_meta["skill_library_provenance"] = skill_library_provenance
+    cosim_reference_cycle_info = (
+        data.get("cosim_reference_cycle_info")
+        or run_meta.get("cosim_reference_cycle_info")
+    )
+    if cosim_reference_cycle_info:
+        gen_origin_meta["cosim_reference_cycle_info"] = cosim_reference_cycle_info
+    reference_cache = (data.get("reference_validation") or {}).get("reference_cache")
+    if reference_cache:
+        gen_origin_meta["reference_cache"] = _compact_origin_meta(reference_cache)
     hw_meta = data.get("hw_emu") or {}
     if hw_meta and not hw_meta.get("ran"):
         gen_origin_meta["hw_emu_skip_reason"] = hw_meta.get("skip_reason") or "hw_emu not run"
@@ -645,6 +728,7 @@ def _records_from_results_json(bench_dir: Path, results_json: Path,
             )
         else:
             status = s
+        cosim_origin_meta = _origin_meta_for_cosim(gen_origin_meta, cosim)
         records.append({
             "schema_version": SCHEMA_VERSION,
             "report_type": "rtl_sim",
@@ -656,7 +740,7 @@ def _records_from_results_json(bench_dir: Path, results_json: Path,
                 variant_index=gen_variant_index,
                 origin_override="c2hls_orchestrator",
                 origin_version=model_id,
-                origin_meta=gen_origin_meta,
+                origin_meta=cosim_origin_meta,
             ),
             "rtl_sim": {
                 "status": status,
@@ -803,6 +887,18 @@ def _records_from_multistep(bench_dir: Path, multistep_json: Path,
         base_origin_meta["gt_fallback_reason"] = gt_variant.get("fallback_reason") or "ground truth fallback used"
     if data.get("coverage"):
         base_origin_meta["validation_coverage"] = data.get("coverage")
+    skill_library_provenance = data.get("skill_library_provenance") or run_meta.get("skill_library_provenance")
+    if skill_library_provenance:
+        base_origin_meta["skill_library_provenance"] = skill_library_provenance
+    cosim_reference_cycle_info = (
+        data.get("cosim_reference_cycle_info")
+        or run_meta.get("cosim_reference_cycle_info")
+    )
+    if cosim_reference_cycle_info:
+        base_origin_meta["cosim_reference_cycle_info"] = cosim_reference_cycle_info
+    reference_cache = (data.get("reference_validation") or {}).get("reference_cache")
+    if reference_cache:
+        base_origin_meta["reference_cache"] = _compact_origin_meta(reference_cache)
     hw_meta = data.get("hw_emu") or {}
     if hw_meta and not hw_meta.get("ran"):
         base_origin_meta["hw_emu_skip_reason"] = hw_meta.get("skip_reason") or "hw_emu not run"
@@ -813,6 +909,73 @@ def _records_from_multistep(bench_dir: Path, multistep_json: Path,
 
     records: list[dict] = []
     steps = data.get("steps") or []
+    final_report = data.get("final_report") or {}
+    baseline_report = data.get("baseline_report") or {}
+    final_is_baseline = bool(
+        baseline_report
+        and final_report
+        and final_report.get("latency_cycles") == baseline_report.get("latency_cycles")
+        and final_report.get("latency_ns") == baseline_report.get("latency_ns")
+    )
+    if baseline_report:
+        step_index, step_short_name = _variant_identity_for_step(meta, "baseline")
+        baseline_origin_meta = dict(
+            base_origin_meta,
+            step="baseline",
+            selected_baseline=final_is_baseline,
+            selection_reason=(
+                (
+                    "final_report_matches_baseline_report; "
+                    "no optimized step superseded the generated baseline"
+                )
+                if final_is_baseline
+                else "generated trajectory baseline before optimization steps"
+            ),
+        )
+        records.append({
+            "schema_version": SCHEMA_VERSION,
+            "report_type": "hls_synth",
+            "run": _build_run(TARGET_CSYNTH, part, None, run_meta),
+            "problem": _build_problem(meta),
+            "implementation": _build_implementation(
+                meta,
+                variant_name=step_short_name,
+                variant_index=step_index,
+                origin_override="c2hls_orchestrator",
+                origin_version=model_id,
+                origin_meta=baseline_origin_meta,
+            ),
+            "hls_synth": _build_hls_synth_payload(baseline_report, part, clock_ns),
+        })
+        # Multistep results also expose the selected final step at top level.
+        # Prefer the explicitly saved baseline summaries so final validation is
+        # not attributed to the baseline trajectory record.
+        csim = data.get("baseline_csim", data.get("csim")) or {}
+        if csim:
+            _emit_sw_run_record(
+                records,
+                meta=meta,
+                run_meta=run_meta,
+                part=part,
+                model_id=model_id,
+                variant_name=step_short_name,
+                variant_index=step_index,
+                origin_meta=baseline_origin_meta,
+                csim=csim,
+            )
+        cosim = data.get("baseline_cosim", data.get("cosim")) or {}
+        if cosim:
+            _emit_cosim_record(
+                records,
+                meta=meta,
+                run_meta=run_meta,
+                part=part,
+                model_id=model_id,
+                variant_name=step_short_name,
+                variant_index=step_index,
+                origin_meta=baseline_origin_meta,
+                cosim=cosim,
+            )
     for step in steps:
         if not step.get("success"):
             continue
@@ -831,6 +994,7 @@ def _records_from_multistep(bench_dir: Path, multistep_json: Path,
             "attempt_count",
             "candidate_count",
             "routing_decision",
+            "skill_prompt",
             "skill_update",
         ):
             value = step.get(key)
@@ -1050,8 +1214,8 @@ def validate_jsonl(path: Path, verbose: bool = False) -> dict:
             continue
         total += 1
         try:
-            record = json.loads(line)
-        except json.JSONDecodeError as exc:
+            record = _strict_json_loads(line)
+        except (json.JSONDecodeError, ValueError) as exc:
             invalid += 1
             errors_by_line.append({"line": lineno, "errors": [f"invalid json: {exc}"]})
             continue
@@ -1100,7 +1264,7 @@ def export(results_dir: Path, multistep_dir: Path, stability_dir: Path,
                         if verbose:
                             print(f"  invalid record: {errs}", file=sys.stderr)
                         continue
-                    f.write(json.dumps(r) + "\n")
+                    f.write(_strict_json_dumps(r) + "\n")
                     counts[r["report_type"]] += 1
                     counts_by_source["results"] += 1
 
@@ -1117,7 +1281,7 @@ def export(results_dir: Path, multistep_dir: Path, stability_dir: Path,
                         if errs:
                             invalid += 1
                             continue
-                        f.write(json.dumps(r) + "\n")
+                        f.write(_strict_json_dumps(r) + "\n")
                         counts[r["report_type"]] += 1
                         counts_by_source["results_multistep"] += 1
 
@@ -1132,7 +1296,7 @@ def export(results_dir: Path, multistep_dir: Path, stability_dir: Path,
                     if errs:
                         invalid += 1
                         continue
-                    f.write(json.dumps(r) + "\n")
+                    f.write(_strict_json_dumps(r) + "\n")
                     counts[r["report_type"]] += 1
                     counts_by_source["stability"] += 1
 
@@ -1148,7 +1312,7 @@ def export(results_dir: Path, multistep_dir: Path, stability_dir: Path,
         "output_file": out_path.name,
     }
     (output_dir / "schema_manifest.json").write_text(
-        json.dumps(manifest, indent=2) + "\n")
+        _strict_json_dumps(manifest, indent=2) + "\n")
     return manifest
 
 
@@ -1179,7 +1343,7 @@ def main() -> int:
         for item in args.validate_jsonl:
             summary = validate_jsonl(Path(item), verbose=args.verbose)
             overall_invalid += summary["invalid"]
-            print(json.dumps({
+            print(_strict_json_dumps({
                 "path": summary["path"],
                 "total": summary["total"],
                 "invalid": summary["invalid"],

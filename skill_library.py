@@ -29,6 +29,7 @@ at confidence `medium` until trajectories provide statistics.
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
@@ -334,6 +335,74 @@ class SkillLibrary:
         return cands
 
 
+class FrozenSkillLibrary(SkillLibrary):
+    """Exact snapshot whose observable state cannot be mutated.
+
+    Paper runs should not rely only on call-site environment guards: a newly
+    added controller path must also be unable to update the in-memory library.
+    Query methods return defensive copies so callers cannot mutate a ``Skill``
+    object (or one of its list fields) behind the library's back.
+    """
+
+    _ERROR = "frozen skill snapshot is immutable"
+
+    def __init__(self, store_path: Path, skills: Dict[str, Skill]):
+        super().__init__(store_path)
+        self._skills = copy.deepcopy(skills)
+        self.exact_frozen_snapshot = True
+
+    def load(self) -> "FrozenSkillLibrary":
+        raise RuntimeError(self._ERROR)
+
+    def save(self) -> None:
+        raise RuntimeError(self._ERROR)
+
+    def add(self, skill: Skill, *, overwrite: bool = False,
+            preserve_stats: bool = False) -> None:
+        raise RuntimeError(self._ERROR)
+
+    def remove(self, skill_id: str) -> bool:
+        raise RuntimeError(self._ERROR)
+
+    def update_skill_statistics(
+        self,
+        skill_id: str,
+        *,
+        success: bool,
+        relative_advantage: Optional[float] = None,
+    ) -> Optional[Skill]:
+        raise RuntimeError(self._ERROR)
+
+    def promote_demote(self, skill_id: str) -> Optional[Skill]:
+        raise RuntimeError(self._ERROR)
+
+    def mark_avoid(self, skill_id: str, *, reason: str = "absorbed-by-synth") -> Optional[Skill]:
+        raise RuntimeError(self._ERROR)
+
+    def all(self) -> List[Skill]:
+        return copy.deepcopy(super().all())
+
+    def get(self, skill_id: str) -> Optional[Skill]:
+        return copy.deepcopy(super().get(skill_id))
+
+    def query(
+        self,
+        *,
+        bottleneck_kind: Optional[str] = None,
+        vitis_version: Optional[str] = None,
+        fpga: Optional[str] = None,
+        include_avoid: bool = False,
+    ) -> List[Skill]:
+        return copy.deepcopy(
+            super().query(
+                bottleneck_kind=bottleneck_kind,
+                vitis_version=vitis_version,
+                fpga=fpga,
+                include_avoid=include_avoid,
+            )
+        )
+
+
 # === Bootstrap from existing OPTIMIZATION_PROMPTS =========================
 
 
@@ -511,6 +580,71 @@ def _default_high_confidence_skills() -> List[Skill]:
             tags=["tiling", "local-buffer", "u280", "validated"],
         ),
         Skill(
+            id="hls-inplace-stencil-true-dependence",
+            pattern=(
+                "a nested loop updates an element of an array in place while "
+                "reading neighboring elements from the same array in the same "
+                "time sweep; the report may show high II, pipeline_blocked, "
+                "or loop-carried memory/operator dependence"
+            ),
+            strategy=(
+                "treat the carried dependence as real unless a legal "
+                "algorithmic transform proves otherwise. Do not use false "
+                "dependence pragmas or local buffering that changes the "
+                "within-sweep update order. For row-major 2D stencils, first "
+                "try legal row staging that keeps the same i/j sweep order: "
+                "load the neighboring rows into small local buffers, update "
+                "the current row buffer in place from left to right, and "
+                "write the row back after the j sweep. Pipeline only the "
+                "load/writeback loops at II=1 and pipeline the true-dependent "
+                "compute loop without forcing II=1. If the update divides by "
+                "a compile-time constant, use an equivalent reciprocal "
+                "multiply to reduce operator latency. Prefer "
+                "correctness-preserving wavefront/skewed scheduling, "
+                "red-black coloring when the algorithm permits it, or accept "
+                "the baseline/limited interface improvements with an explicit "
+                "reason."
+            ),
+            template=(
+                "// In-place neighbor update guardrail:\n"
+                "//   A[i][j] = f(A[i-1][j], A[i][j-1], A[i][j], ...)\n"
+                "// has true carried dependencies across loop iterations.\n"
+                "// Do NOT add DEPENDENCE ... false unless the index proof is explicit.\n"
+                "// Do NOT convert to Jacobi-style double-buffering unless that preserves\n"
+                "// the original algorithm's update order and numerical results.\n"
+                "// Legal first attempt for row-major 2D stencils:\n"
+                "//   1. load previous/current/next rows into local row buffers;\n"
+                "//   2. update current-row buffer left-to-right, preserving A[i][j-1]\n"
+                "//      dependence as a real value dependence;\n"
+                "//   3. write the updated current row back after the j sweep;\n"
+                "//   4. replace division by a compile-time constant with reciprocal\n"
+                "//      multiplication when numerically equivalent for the benchmark.\n"
+            ),
+            confidence=TIER_HIGH,
+            kind="guarded_transformation",
+            bottleneck_kinds=["ii_target_miss", "loop_carried_dep", "pipeline_blocked"],
+            origin="manual",
+            tags=["stencil", "in-place", "true-dependence", "guardrail"],
+            required_steps=[
+                "identify the array written by the loop body",
+                "check whether the same array is read at neighboring indices in the same loop nest",
+                "classify the dependence as true unless an index proof shows it is false",
+                "preserve the original update order and boundary behavior",
+                "avoid false-dependence pragmas on the in-place array",
+                "avoid converting to separate input/output buffers unless algorithmically equivalent",
+                "for row-major 2D stencils, prefer row-buffer staging that preserves left-to-right update order",
+                "pipeline row load and writeback loops separately from the true-dependent compute loop",
+                "strength-reduce division by compile-time constants when this preserves expected results",
+                "if no legal transform is found, keep the baseline and report the true-dependence reason",
+            ],
+            guards=[
+                "do not suppress true RAW/WAR dependencies with dependence false pragmas",
+                "do not use local staging to accidentally change Gauss-Seidel-style ordering",
+                "do not assume a stencil is Jacobi-style; verify whether input and output arrays are distinct",
+                "cosim/csim must pass before treating a transform as valid",
+            ],
+        ),
+        Skill(
             id="avoid-over-unroll-axi-dep",
             pattern=(
                 "II miss is caused by AXI bandwidth/port dependency rather "
@@ -654,28 +788,116 @@ def make_default_library(store_path: Optional[Path] = None,
     return lib
 
 
+def load_frozen_library(store_path: Path) -> SkillLibrary:
+    """Load one exact schema-1.1 snapshot without merging mutable defaults.
+
+    Paper evaluation snapshots contain only skills validated on the disjoint
+    development suite.  Calling :func:`make_default_library` here would merge
+    built-ins and the packaged catalog, silently reintroducing unvalidated
+    skills.  This loader is therefore strict and read-only by construction.
+    """
+    path = Path(store_path).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"frozen skill snapshot is missing: {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"frozen skill snapshot is unreadable: {exc}") from exc
+    if not isinstance(payload, dict) or payload.get("schema") != SCHEMA_VERSION:
+        raise ValueError(
+            f"frozen skill snapshot must use schema {SCHEMA_VERSION!r}"
+        )
+    if set(payload) != {"schema", "skills"}:
+        raise ValueError("frozen skill snapshot must contain exactly schema and skills")
+    entries = payload.get("skills")
+    if not isinstance(entries, list) or not entries:
+        raise ValueError("frozen skill snapshot must contain a non-empty skills array")
+
+    parsed: Dict[str, Skill] = {}
+    known_fields = {item.name for item in fields(Skill)}
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict) or set(entry) - known_fields:
+            raise ValueError(
+                f"frozen skill snapshot entry {index} has unknown fields"
+            )
+        skill = _coerce_skill_entry(entry)
+        if skill is None:
+            raise ValueError(f"frozen skill snapshot entry {index} is malformed")
+        if skill.id in parsed:
+            raise ValueError(f"frozen skill snapshot repeats id {skill.id!r}")
+        parsed[skill.id] = skill
+
+    return FrozenSkillLibrary(path, parsed)
+
+
 # === Render helpers (for prompts) ========================================
 
+_ACTION_ONLY_PROMPT_MODES = {
+    "action_only",
+    "action-only",
+    "positive",
+    "positive_only",
+    "positive-only",
+}
+_NEGATIVE_REQUIRED_STEP_RE = re.compile(
+    r"^\s*(do\s+not|don't|avoid|never|must\s+not)\b",
+    re.IGNORECASE,
+)
+_NEGATIVE_PROMPT_LINE_RE = re.compile(
+    r"^\s*(?://\s*)?(do\s+not|don't|avoid|never|must\s+not)\b",
+    re.IGNORECASE,
+)
+_NEGATIVE_INLINE_CLAUSE_RE = re.compile(
+    r"\s+(?:and|or)?\s*(do\s+not|don't|avoid|never|must\s+not)\b[^.;]*(?=[.;]|$)",
+    re.IGNORECASE,
+)
 
-def render_skill_for_prompt(sk: Skill) -> str:
+
+def _strip_negative_prompt_text(text: str) -> str:
+    """Remove warning-style clauses from action-only skill prose."""
+    pieces = []
+    for piece in re.split(r"(?<=[.;])\s+", text.strip()):
+        if not piece or _NEGATIVE_PROMPT_LINE_RE.match(piece):
+            continue
+        pieces.append(_NEGATIVE_INLINE_CLAUSE_RE.sub("", piece).strip())
+    return " ".join(piece for piece in pieces if piece)
+
+
+def _normalize_prompt_mode(prompt_mode: Optional[str] = None) -> str:
+    return (prompt_mode if prompt_mode is not None else os.getenv("C2HLS_SKILL_PROMPT_MODE", "")).strip().lower()
+
+
+def render_skill_for_prompt(sk: Skill, *, prompt_mode: Optional[str] = None) -> str:
     """Compact render with schema-1.1 guardrails/checklists."""
+    action_only = _normalize_prompt_mode(prompt_mode) in _ACTION_ONLY_PROMPT_MODES
+    required_steps = list(sk.required_steps or [])
+    if action_only:
+        required_steps = [
+            item for item in required_steps
+            if not _NEGATIVE_REQUIRED_STEP_RE.match(item)
+        ]
     bullets = [
         f"[skill {sk.id}] confidence={sk.confidence} pass={sk.sec_pass}/{sk.occurrences}",
         f"  pattern: {sk.pattern}",
-        f"  strategy: {sk.strategy}",
+        f"  strategy: {_strip_negative_prompt_text(sk.strategy) if action_only else sk.strategy}",
     ]
     if sk.kind:
         bullets.insert(1, f"  kind: {sk.kind}")
-    if sk.required_steps:
+    if required_steps:
         bullets.append("  required steps:\n" + "\n".join(
-            f"    - {item}" for item in sk.required_steps[:10]
+            f"    - {item}" for item in required_steps[:10]
         ))
-    if sk.guards:
+    if sk.guards and not action_only:
         bullets.append("  guards:\n" + "\n".join(
             f"    - {item}" for item in sk.guards[:8]
         ))
     if sk.template:
         template_lines = sk.template.strip().splitlines()
+        if action_only:
+            template_lines = [
+                line for line in template_lines
+                if not _NEGATIVE_PROMPT_LINE_RE.match(line)
+            ]
         if len(template_lines) > 16:
             template_lines = template_lines[:16] + ["..."]
         bullets.append("  template/example:\n" + "\n".join(
@@ -685,8 +907,13 @@ def render_skill_for_prompt(sk: Skill) -> str:
 
 
 def render_skill_set_for_prompt(skills: Iterable[Skill],
-                                 max_skills: int = 5) -> str:
+                                 max_skills: int = 5,
+                                 *,
+                                 prompt_mode: Optional[str] = None) -> str:
     skills_list = list(skills)[:max_skills]
     if not skills_list:
         return "No matching skills in library — fall back to your own reasoning."
-    return "\n".join(render_skill_for_prompt(sk) for sk in skills_list)
+    return "\n".join(
+        render_skill_for_prompt(sk, prompt_mode=prompt_mode)
+        for sk in skills_list
+    )

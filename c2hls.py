@@ -11,11 +11,14 @@ Pipeline:
   Phase C: Compare synthesis reports against the validated reference offline
 """
 
+import copy
+import hashlib
 import json
 import logging
 import os
 import re
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
@@ -45,6 +48,7 @@ from hls_eval import (
     run_cosim,
     run_csim,
     run_hls_synthesis,
+    run_native_testbench,
 )
 
 load_dotenv()
@@ -61,6 +65,11 @@ REPO_ROOT = Path(__file__).resolve().parent
 
 TRUSTED_EXTERNAL_REFERENCE_REPOS = {"rodinia-hls", "rodinia-hls-nova"}
 _DIRECT_REFERENCE_CACHE: dict | None = None
+REFERENCE_CACHE_DIR_ENV = "C2HLS_REFERENCE_CACHE_DIR"
+REFERENCE_CACHE_REQUIRE_COSIM_ENV = "C2HLS_REFERENCE_CACHE_REQUIRE_COSIM"
+REFERENCE_COSIM_SELECTED_ONLY_ENV = "C2HLS_REFERENCE_COSIM_SELECTED_ONLY"
+REFERENCE_COSIM_BASELINE_ENV = "C2HLS_REFERENCE_COSIM_BASELINE"
+REFERENCE_CACHE_SCHEMA_VERSION = "4.0"
 
 # Paths to API key files (used only when ANTHROPIC_API_KEY / OPENAI_API_KEY
 # environment variables are unset). The defaults point at the developer's
@@ -89,6 +98,22 @@ DEFAULT_PHASEB_MODE_MULTISTEP = "functional"
 STEP_CANDIDATES_ENV = "C2HLS_CANDIDATES_PER_STEP"
 CANDIDATE_ATTEMPTS_ENV = "C2HLS_ATTEMPTS_PER_CANDIDATE"
 EXHAUSTIVE_CANDIDATE_ATTEMPTS_ENV = "C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS"
+COSIM_SKIP_SLOWER_THAN_GOLD_ENV = "C2HLS_COSIM_SKIP_SLOWER_THAN_GOLD"
+COSIM_SKIP_GOLD_RATIO_ENV = "C2HLS_COSIM_SKIP_GOLD_RATIO"
+DEFAULT_COSIM_SKIP_GOLD_RATIO = 10.0
+REFERENCE_BLIND_ENV = "C2HLS_REFERENCE_BLIND"
+GT_COMPARISON_IN_CONTROL_ENV = "C2HLS_GT_COMPARISON_IN_CONTROL"
+SKILL_LIBRARY_FROZEN_ENV = "C2HLS_SKILL_LIBRARY_FROZEN"
+SKILL_UPDATE_STATS_ENV = "C2HLS_SKILL_UPDATE_STATS"
+SYNTHESIS_EVAL_BUDGET_ENV = "C2HLS_SYNTHESIS_EVAL_BUDGET"
+LLM_CANDIDATE_BUDGET_ENV = "C2HLS_LLM_CANDIDATE_BUDGET"
+COSIM_SELECTED_ONLY_ENV = "C2HLS_COSIM_SELECTED_ONLY"
+FORCE_SELECTED_COSIM_ENV = "C2HLS_FORCE_SELECTED_COSIM"
+CORRECTNESS_BEFORE_SYNTH_ENV = "C2HLS_CORRECTNESS_BEFORE_SYNTH"
+FEASIBILITY_SELECTION_ENV = "C2HLS_FEASIBILITY_SELECTION"
+LLM_TEMPERATURE_ENV = "C2HLS_LLM_TEMPERATURE"
+LLM_TOP_P_ENV = "C2HLS_LLM_TOP_P"
+LLM_SEED_ENV = "C2HLS_LLM_SEED"
 
 # Multistep regression guard: a step is rejected if its latency_ns or its
 # resource usage grew by this ratio vs the previous step. Defaults to 1.10
@@ -168,7 +193,15 @@ BENCHMARK_POLICIES = {
 
 
 def _policy(benchmark_name: str, field: str, default=None):
-    """Look up a field of BENCHMARK_POLICIES with a fallback."""
+    """Look up legacy benchmark guidance without contaminating paper runs.
+
+    ``BENCHMARK_POLICIES`` contains hand-written Rodinia advice learned while
+    developing the reference-guided controller.  It is useful for the legacy
+    mode, but it is benchmark-specific knowledge and therefore must not enter a
+    reference-blind prompt or controller decision.
+    """
+    if _reference_blind_enabled():
+        return default
     return (BENCHMARK_POLICIES.get(benchmark_name or "") or {}).get(field, default)
 
 
@@ -272,6 +305,72 @@ def compile_check_cpp(
 
 def _binary_status(passed: bool) -> str:
     return "passed" if passed else "failed"
+
+
+def _env_flag(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _reference_blind_enabled() -> bool:
+    return _env_flag(REFERENCE_BLIND_ENV)
+
+
+def _ground_truth_control_enabled() -> bool:
+    """Whether expert code/metrics may influence controller decisions."""
+    return (
+        not _reference_blind_enabled()
+        and _env_flag(GT_COMPARISON_IN_CONTROL_ENV, "1")
+    )
+
+
+def _skill_updates_enabled() -> bool:
+    return (
+        not _env_flag(SKILL_LIBRARY_FROZEN_ENV)
+        and _env_flag(SKILL_UPDATE_STATS_ENV, "1")
+    )
+
+
+def _skill_library_control_enabled() -> bool:
+    mode = os.getenv("C2HLS_SKILL_MODE", "").strip().lower()
+    if mode in {"off", "skill_off", "skills_off", "none", "0", "false", "no"}:
+        return False
+    if mode in {
+        "on", "skill_on", "skills_on", "frozen", "frozen_skill",
+        "1", "true", "yes",
+    }:
+        return True
+    return True
+
+
+def _cosim_selected_only() -> bool:
+    return _env_flag(COSIM_SELECTED_ONLY_ENV)
+
+
+def _selected_cosim_measurement_ok(summary: Optional[dict]) -> bool:
+    return bool(
+        isinstance(summary, dict)
+        and summary.get("ran")
+        and summary.get("passed")
+        and _positive_int(summary.get("kernel_runtime_cycles")) is not None
+    )
+
+
+def _generated_cosim_supported(meta: dict, testbench_code: str) -> bool:
+    return bool(
+        testbench_code
+        and (
+            meta.get("supports_cosim")
+            or (
+                _cosim_selected_only()
+                and _env_flag(FORCE_SELECTED_COSIM_ENV)
+            )
+        )
+    )
+
+
+def _feasibility_selection_enabled() -> bool:
+    """Whether candidate choice must use the paper's feasibility predicate."""
+    return _reference_blind_enabled() or _env_flag(FEASIBILITY_SELECTION_ENV)
 
 
 def _test_status(supported: bool, ran: bool, passed: bool) -> str:
@@ -472,8 +571,9 @@ def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
     error = result.get("error", "")
     if not passed and not error:
         error = _extract_failure_excerpt(result.get("log", ""), "Testbench did not pass")
+    timed_out = bool(result.get("timed_out")) or "timed out" in str(error).lower()
     summary = {
-        "status": _test_status(True, True, passed),
+        "status": "timeout" if timed_out else _test_status(True, True, passed),
         "supported": True,
         "ran": True,
         "success": bool(result.get("success", False)),
@@ -489,6 +589,9 @@ def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
     for key in ("kernel_runtime_cycles", "kernel_runtime_us", "kernel_clock_freq_mhz"):
         if key in result:
             summary[key] = result.get(key)
+    for key in ("correctness", "golden_output_sha256"):
+        if key in result:
+            summary[key] = result.get(key)
     log_excerpt = _extract_failure_excerpt(result.get("log", ""))
     if log_excerpt and not passed:
         summary["log_excerpt"] = log_excerpt
@@ -498,7 +601,7 @@ def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
 def _summary_status(summary: Optional[dict], available: bool) -> str:
     if isinstance(summary, dict):
         status = summary.get("status")
-        if status in {"passed", "failed", "not_run", "not_supported"}:
+        if status in {"passed", "failed", "timeout", "not_run", "not_supported"}:
             return status
         supported = bool(summary.get("supported", available))
         ran = bool(summary.get("ran", False))
@@ -510,6 +613,111 @@ def _summary_status(summary: Optional[dict], available: bool) -> str:
 def _cosim_required_for_correctness() -> bool:
     raw = os.getenv("C2HLS_COSIM_REQUIRED", "1").strip().lower()
     return raw in ("1", "true", "yes", "on")
+
+
+def _positive_int(value: Any) -> Optional[int]:
+    try:
+        parsed = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _cosim_skip_gold_ratio() -> float:
+    raw = os.getenv(
+        COSIM_SKIP_GOLD_RATIO_ENV,
+        str(DEFAULT_COSIM_SKIP_GOLD_RATIO),
+    )
+    try:
+        ratio = float(raw)
+    except (TypeError, ValueError):
+        ratio = DEFAULT_COSIM_SKIP_GOLD_RATIO
+    return max(1.0, ratio)
+
+
+def _cosim_gold_precheck_policy(
+    synth_report: Optional[dict],
+    reference_cycle_info: Optional[dict],
+) -> Optional[dict]:
+    """Return structured provenance when cosim should be preempted.
+
+    The policy compares the generated csynth latency estimate with an
+    authoritative gold runtime cycle count when available. It is opt-in so
+    historical experiments keep their original behavior.
+    """
+    if _reference_blind_enabled():
+        return None
+    enabled = os.getenv(COSIM_SKIP_SLOWER_THAN_GOLD_ENV, "0").strip().lower()
+    if enabled not in {"1", "true", "yes", "on"}:
+        return None
+
+    report = synth_report or {}
+    reference = reference_cycle_info or {}
+    generated_cycles = _positive_int(
+        report.get("latency_cycles_worst") or report.get("latency_cycles")
+    )
+    gold_cycles = _positive_int(reference.get("cycles"))
+    if generated_cycles is None or gold_cycles is None:
+        return None
+
+    threshold_ratio = _cosim_skip_gold_ratio()
+    observed_ratio = generated_cycles / gold_cycles
+    if observed_ratio < threshold_ratio:
+        return None
+
+    return {
+        "schema_version": "1.0",
+        "policy": "gold_relative_csynth_precheck",
+        "decision": "skip",
+        "classification": "predicted_timeout",
+        "ran": False,
+        "reason": "generated_csynth_latency_exceeds_gold_ratio_threshold",
+        "generated_csynth_latency_cycles": generated_cycles,
+        "gold_reference_cycles": gold_cycles,
+        "gold_reference_source": reference.get("source") or "unknown",
+        "gold_reference_metric": reference.get("metric") or "runtime_cycles",
+        "ratio_generated_over_gold": round(observed_ratio, 6),
+        "threshold_ratio": threshold_ratio,
+    }
+
+
+def _predicted_cosim_timeout_summary(policy: dict) -> dict:
+    generated_cycles = policy["generated_csynth_latency_cycles"]
+    gold_cycles = policy["gold_reference_cycles"]
+    ratio = policy["ratio_generated_over_gold"]
+    threshold = policy["threshold_ratio"]
+    return {
+        "status": "timeout",
+        "supported": True,
+        "ran": False,
+        "success": False,
+        "passed": False,
+        "error": (
+            "Cosim classified as predicted timeout and not run: generated "
+            f"csynth latency {generated_cycles} cycles is {ratio:.3f}x the "
+            f"gold reference {gold_cycles} cycles (skip threshold {threshold:.3f}x)."
+        ),
+        "skip_reason": "predicted_longer_than_gold",
+        "classification": "predicted_timeout",
+        "profile_required": True,
+        "cosim_policy": policy,
+    }
+
+
+def _test_summary_is_timeout(summary: Optional[dict]) -> bool:
+    if not isinstance(summary, dict):
+        return False
+    status = str(summary.get("status") or "").strip().lower()
+    error = str(summary.get("error") or "").strip().lower()
+    return status == "timeout" or "timed out" in error
+
+
+def _skill_prompt_injection_enabled() -> bool:
+    """Honor an explicit skill-off request while preserving legacy default."""
+    raw = os.getenv("C2HLS_FORCE_SKILL_PROMPTS")
+    if raw is None or not raw.strip():
+        return True
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _run_synth_csim_cosim(
@@ -525,6 +733,9 @@ def _run_synth_csim_cosim(
     run_cosim_check: bool = False,
     cosim_depths: Optional[dict] = None,
     cosim_requires_csim_pass: bool = False,
+    cosim_reference_cycle_info: Optional[dict] = None,
+    golden_output_text: str = "",
+    golden_output_specs: Optional[dict] = None,
     log_prefix: str = "",
 ) -> dict:
     """Synthesize HLS code, then optionally run csim and cosim.
@@ -537,18 +748,61 @@ def _run_synth_csim_cosim(
     Returns {synth, csim, cosim} where synth is the raw synthesis result and
     csim/cosim are _summarize_test_result dicts (or None when skipped).
     """
-    synth_result = run_hls_synthesis(
-        hls_code,
-        header_code,
-        header_name=header_name,
-        top_function=top_function,
-        part=part,
-        clock_ns=clock_ns,
-        extra_files=extra_files,
-    )
-
     csim_summary = None
-    if synth_result.get("success") and testbench_code and run_csim_check:
+    correctness_first = _env_flag(CORRECTNESS_BEFORE_SYNTH_ENV)
+    if correctness_first and testbench_code and run_csim_check:
+        if log_prefix:
+            logging.info("%s Running correctness gate before synthesis (csim)...", log_prefix)
+        csim_result = run_csim(
+            hls_code,
+            testbench_code,
+            header_code,
+            header_name=header_name,
+            top_function=top_function,
+            part=part,
+            clock_ns=clock_ns,
+            extra_files=extra_files,
+            golden_output_text=golden_output_text,
+            golden_output_specs=golden_output_specs or {},
+        )
+        csim_summary = _summarize_test_result(csim_result, True)
+
+    correctness_gate_failed = bool(
+        correctness_first
+        and isinstance(csim_summary, dict)
+        and csim_summary.get("ran")
+        and not csim_summary.get("passed")
+    )
+    if correctness_gate_failed:
+        synth_result = {
+            "success": False,
+            "ran": False,
+            "skipped": True,
+            "skip_reason": "csim_correctness_gate_failed",
+            "error": (
+                "Synthesis not run because the candidate failed the "
+                "pre-synthesis CSim/golden correctness gate"
+            ),
+            "report": {},
+        }
+    else:
+        synth_result = run_hls_synthesis(
+            hls_code,
+            header_code,
+            header_name=header_name,
+            top_function=top_function,
+            part=part,
+            clock_ns=clock_ns,
+            extra_files=extra_files,
+        )
+        synth_result.setdefault("ran", True)
+
+    if (
+        not correctness_first
+        and synth_result.get("success")
+        and testbench_code
+        and run_csim_check
+    ):
         if log_prefix:
             logging.info("%s Running C-simulation (csim)...", log_prefix)
         csim_result = run_csim(
@@ -560,6 +814,8 @@ def _run_synth_csim_cosim(
             part=part,
             clock_ns=clock_ns,
             extra_files=extra_files,
+            golden_output_text=golden_output_text,
+            golden_output_specs=golden_output_specs or {},
         )
         csim_summary = _summarize_test_result(csim_result, True)
 
@@ -575,20 +831,38 @@ def _run_synth_csim_cosim(
         and run_cosim_check
         and cosim_gate_open
     ):
-        if log_prefix:
-            logging.info("%s Running co-simulation (cosim)...", log_prefix)
-        cosim_result = run_cosim(
-            hls_code,
-            testbench_code,
-            header_code,
-            header_name=header_name,
-            top_function=top_function,
-            part=part,
-            clock_ns=clock_ns,
-            extra_files=extra_files,
-            interface_depths=cosim_depths or {},
+        policy = _cosim_gold_precheck_policy(
+            synth_result.get("report") or {},
+            cosim_reference_cycle_info,
         )
-        cosim_summary = _summarize_test_result(cosim_result, True)
+        if policy:
+            cosim_summary = _predicted_cosim_timeout_summary(policy)
+            logging.warning(
+                "%s Skipping cosim: csynth latency %s cycles is %.3fx gold "
+                "(%s cycles; threshold %.3fx)",
+                log_prefix or "[cosim precheck]",
+                policy["generated_csynth_latency_cycles"],
+                policy["ratio_generated_over_gold"],
+                policy["gold_reference_cycles"],
+                policy["threshold_ratio"],
+            )
+        else:
+            if log_prefix:
+                logging.info("%s Running co-simulation (cosim)...", log_prefix)
+            cosim_result = run_cosim(
+                hls_code,
+                testbench_code,
+                header_code,
+                header_name=header_name,
+                top_function=top_function,
+                part=part,
+                clock_ns=clock_ns,
+                extra_files=extra_files,
+                interface_depths=cosim_depths or {},
+                golden_output_text=golden_output_text,
+                golden_output_specs=golden_output_specs or {},
+            )
+            cosim_summary = _summarize_test_result(cosim_result, True)
 
     return {"synth": synth_result, "csim": csim_summary, "cosim": cosim_summary}
 
@@ -612,14 +886,21 @@ def _build_coverage(meta: dict, reference_validation: dict, generated_csim: Opti
     gt_cosim = reference_validation.get("cosim", {})
     gen_csim = generated_csim or {"status": "failed", "ran": False}
     gen_cosim = generated_cosim or {"status": "failed", "ran": False}
+    cosim_available = bool(
+        meta.get("testbench_file")
+        and (
+            meta.get("supports_cosim")
+            or (_cosim_selected_only() and _env_flag(FORCE_SELECTED_COSIM_ENV))
+        )
+    )
     return {
         "ground_truth_csim_available": bool(meta.get("supports_csim") and meta.get("testbench_file")),
         "ground_truth_csim_ran": bool(gt_csim.get("ran", False)),
-        "ground_truth_cosim_available": bool(meta.get("supports_cosim") and meta.get("testbench_file")),
+        "ground_truth_cosim_available": cosim_available,
         "ground_truth_cosim_ran": bool(gt_cosim.get("ran", False)),
         "generated_csim_available": bool(meta.get("supports_csim") and meta.get("testbench_file")),
         "generated_csim_ran": bool(gen_csim.get("ran", False)),
-        "generated_cosim_available": bool(meta.get("supports_cosim") and meta.get("testbench_file")),
+        "generated_cosim_available": cosim_available,
         "generated_cosim_ran": bool(gen_cosim.get("ran", False)),
     }
 
@@ -926,6 +1207,89 @@ def _fits_device(report: dict, part: str = "") -> bool:
     return not _resource_over_device(report, part)
 
 
+def _paper_candidate_feasibility(
+    report: Optional[dict],
+    *,
+    csim: Optional[dict] = None,
+    correctness_required: bool = True,
+    part: str = "",
+    clock_ns: Optional[float] = None,
+) -> dict:
+    """Apply the paper's single correctness/fit/timing feasibility rule."""
+    report = report or {}
+    active_part = part or os.getenv("C2HLS_PART", DEFAULT_PART)
+    target_clock = _as_float(
+        report.get("requested_clock_period_ns")
+        or clock_ns
+        or os.getenv("C2HLS_CLOCK_NS", DEFAULT_CLOCK_NS)
+    )
+
+    correctness_ok = True
+    if correctness_required:
+        correctness_ok = bool(isinstance(csim, dict) and csim.get("passed"))
+
+    resource_capacity = _resource_capacity_for(active_part)
+    # Require evidence for every resource class physically present on the
+    # selected device.  U280 URAM is a real placement constraint; silently
+    # treating a missing URAM count as zero could admit an unverified design.
+    resource_keys = tuple(
+        key
+        for key in ("bram", "dsp", "ff", "lut", "uram")
+        if (_as_float(resource_capacity.get(key)) or 0) > 0
+    )
+    resource_evidence_complete = bool(resource_capacity) and all(
+        _as_float(report.get(key)) is not None for key in resource_keys
+    )
+    resource_ok = resource_evidence_complete and _fits_device(report, active_part)
+
+    slack = _as_float(report.get("slack_ns"))
+    estimated = _as_float(report.get("estimated_clock_period_ns"))
+    fmax = _as_float(report.get("fmax_mhz"))
+    timing_evidence = ""
+    timing_ok = False
+    if slack is not None:
+        timing_evidence = "slack_ns"
+        timing_ok = slack >= -1e-9
+    elif estimated is not None and target_clock is not None:
+        timing_evidence = "estimated_clock_period_ns"
+        timing_ok = estimated <= target_clock + 1e-9
+    elif fmax is not None and fmax > 0 and target_clock is not None:
+        timing_evidence = "fmax_mhz"
+        timing_ok = fmax + 1e-9 >= 1000.0 / target_clock
+
+    latency = _as_float(
+        report.get("latency_cycles_worst")
+        or report.get("latency_cycles")
+        or report.get("latency_ns_worst")
+        or report.get("latency_ns")
+    )
+    reasons = []
+    if not correctness_ok:
+        reasons.append("golden_correctness_not_passed")
+    if not resource_evidence_complete:
+        reasons.append("resource_evidence_incomplete")
+    elif not resource_ok:
+        reasons.append("device_resource_fit_failed")
+    if not timing_evidence:
+        reasons.append("target_timing_evidence_missing")
+    elif not timing_ok:
+        reasons.append("target_timing_failed")
+    if latency is None or latency <= 0:
+        reasons.append("estimated_latency_missing")
+    return {
+        "schema_version": "c2hls.candidate-feasibility.v1",
+        "feasible": not reasons,
+        "correctness_ok": correctness_ok,
+        "resource_fit": resource_ok,
+        "resource_evidence_complete": resource_evidence_complete,
+        "timing_met": timing_ok,
+        "timing_evidence": timing_evidence or None,
+        "target_clock_ns": target_clock,
+        "estimated_latency": latency,
+        "reasons": reasons,
+    }
+
+
 def _actionable_timing_bottlenecks(report: dict, limit: int = 3) -> list[str]:
     feedback = (report or {}).get("feedback") or {}
     bottlenecks = feedback.get("bottlenecks") or []
@@ -1046,16 +1410,17 @@ def _build_profile_signal(report: dict, part: str = "",
             + "\n".join(signals))
 
 
-# Per-step regression thresholds (Phase 5 follow-up tuning).
+# Legacy reference-guided per-step regression thresholds (Phase 5 tuning).
 #
 # The original single-threshold design (1.10x for everything) was too tight
 # for steps that *legitimately* trade resources for throughput — unroll
 # typically grows DSP/FF, doublebuffer doubles BRAM by definition, and
 # coalescing widens the AXI port (often 8x DSP on knn-style kernels).
 #
-# These ceilings are calibrated against what philip's reference actually
-# does (rodinia-hls upstream), with ~20-30% slack on top so the agent has
-# room to land near the reference without false-positive reverts.
+# These ceilings were calibrated against the upstream Rodinia-HLS reference.
+# They are consequently disabled in reference-blind evaluation.  Paper runs
+# rely on the benchmark-independent correctness/device-fit/timing gates plus
+# best-state recovery instead of these expert-derived relative ratios.
 #
 # Schema:
 #   {
@@ -1152,6 +1517,13 @@ def _resolve_step_thresholds(step_name: str,
                               global_override: float = None) -> dict:
     """Return the threshold dict for ``step_name``. Order of precedence:
 
+    In reference-blind mode all relative ratio limits are disabled, including
+    environment overrides, because the built-in defaults were calibrated from
+    reference-isolated expert implementations. Hard correctness, device-fit, and target
+    timing checks remain active elsewhere.
+
+    Outside reference-blind mode, precedence is:
+
     1. ``C2HLS_STEP_REGRESSION_THRESHOLDS_JSON`` (per-step JSON) — full
        per-step override.
     2. ``C2HLS_STEP_REGRESSION_THRESHOLD`` env var **explicitly set** — a
@@ -1159,6 +1531,12 @@ def _resolve_step_thresholds(step_name: str,
     3. ``STEP_REGRESSION_THRESHOLDS[step_name]`` — the new per-step default.
     4. ``STEP_REGRESSION_THRESHOLDS["_default"]`` — fallback.
     """
+    if _reference_blind_enabled():
+        return {
+            "latency": float("inf"),
+            "resources": {"default": float("inf")},
+            "source": "reference_blind_feasibility_and_best_state_only",
+        }
     json_blob = os.getenv("C2HLS_STEP_REGRESSION_THRESHOLDS_JSON")
     if json_blob:
         try:
@@ -1208,11 +1586,12 @@ def _step_regression_reasons(new_report: dict, prev_report: dict,
       style DSP parallelization (e.g., tiling attempt 0 at 67K cycles with 30×
       DSP) to pass when the design is genuinely faster and still fits on chip.
 
-    Per-step thresholds come from STEP_REGRESSION_THRESHOLDS, which is
-    calibrated against what philip's rodinia-hls reference actually does on
-    each step. Pass ``threshold > 0`` for the legacy single-threshold path
-    (used as a global override fallback). When ``step_name`` is empty, falls
-    through to the ``_default`` entry.
+    In legacy/reference-guided mode, per-step thresholds come from
+    STEP_REGRESSION_THRESHOLDS, which was calibrated against the upstream
+    Rodinia-HLS implementation.  Reference-blind mode disables those relative
+    thresholds and retains only benchmark-independent timing/device-fit gates.
+    Pass ``threshold > 0`` for the legacy single-threshold path.  When
+    ``step_name`` is empty, it falls through to the ``_default`` entry.
     """
     reasons: list[str] = []
     if not new_report or not prev_report:
@@ -1695,6 +2074,69 @@ def _compact_attempt_record(record: dict) -> dict:
     return item
 
 
+def _detect_in_place_neighbor_update(code: str | None) -> dict:
+    """Detect generic in-place 2D neighbor updates.
+
+    This intentionally avoids benchmark names. It looks for assignments to a
+    2D array element where the RHS reads the same array at a neighboring index,
+    e.g. ``A[i][j] = f(A[i-1][j], A[i][j-1], ...)``. Such patterns usually
+    carry true loop dependencies, so generic false-dependence/coalescing advice
+    is unsafe unless an algorithmic proof says otherwise.
+    """
+    if not code:
+        return {"detected": False}
+    text = re.sub(r"/\*.*?\*/", " ", code, flags=re.S)
+    text = re.sub(r"//.*", " ", text)
+    assign_re = re.compile(
+        r"\b(?P<arr>[A-Za-z_]\w*)\s*\[[^\]]+\]\s*\[[^\]]+\]\s*="
+        r"(?P<rhs>[^;]+);",
+        re.S,
+    )
+    for match in assign_re.finditer(text):
+        arr = match.group("arr")
+        rhs = match.group("rhs")
+        if not re.search(rf"\b{re.escape(arr)}\s*\[", rhs):
+            continue
+        neighbor_read = (
+            re.search(rf"\b{re.escape(arr)}\s*\[[^\]]*[\+\-]\s*1[^\]]*\]\s*\[", rhs)
+            or re.search(rf"\b{re.escape(arr)}\s*\[[^\]]+\]\s*\[[^\]]*[\+\-]\s*1[^\]]*\]", rhs)
+        )
+        if neighbor_read:
+            return {
+                "detected": True,
+                "array": arr,
+                "reason": "same 2D array is written and read at neighboring indices",
+            }
+    return {"detected": False}
+
+
+def _lint_in_place_stencil_guardrails(source_code: str | None,
+                                      generated_code: str | None) -> list[str]:
+    """Reject unsafe generic transforms for in-place stencil-like kernels."""
+    source_match = _detect_in_place_neighbor_update(source_code)
+    if not source_match.get("detected"):
+        return []
+    if not generated_code:
+        return []
+    issues: list[str] = []
+    dep_false_lines = [
+        line.strip()
+        for line in generated_code.splitlines()
+        if re.search(r"#\s*pragma\s+HLS\s+DEPENDENCE\b", line, re.I)
+        and re.search(r"\bfalse\b", line, re.I)
+    ]
+    if dep_false_lines:
+        issues.append(
+            "in-place neighbor-update guardrail violation: generated code uses "
+            "`DEPENDENCE ... false` even though the source writes and reads a "
+            "neighboring element of the same 2D array in the same loop nest. "
+            "Treat this dependence as true unless an explicit legal transform "
+            "proves otherwise. Offending pragma(s): "
+            + " | ".join(dep_false_lines[:4])
+        )
+    return issues
+
+
 def _render_candidate_improvement_prompt(step_name: str, candidate_index: int,
                                          candidate_count: int, attempt_index: int,
                                          attempt_count: int, report: dict,
@@ -1817,6 +2259,24 @@ def _render_step_resource_constraints(step_name: str, current_report: dict,
     if not current_report:
         return ""
 
+    if _reference_blind_enabled():
+        capacity = _resource_capacity_for(part) if part else {}
+        lines = [
+            f"DEVICE-FIT CONSTRAINTS for the `{step_name}` step:",
+            "  Preserve golden-output correctness and meet the target clock.",
+            "  No benchmark-specific or expert-calibrated relative resource "
+            "ceiling is used; every reported resource must fit the device.",
+        ]
+        for key in ("dsp", "bram", "uram", "ff", "lut"):
+            cur_v = _as_float(current_report.get(key))
+            cap = _as_float((capacity or {}).get(key))
+            if cur_v is None and cap is None:
+                continue
+            current = "unknown" if cur_v is None else str(int(cur_v))
+            device_cap = "unknown" if cap is None else str(int(cap))
+            lines.append(f"  {key:<6}: current={current}  device_cap={device_cap}")
+        return "\n".join(lines)
+
     cfg = _resolve_step_thresholds(step_name)
     lat_threshold = float(cfg.get("latency", 1.10))
     resource_thresholds = cfg.get("resources") or {"default": 1.10}
@@ -1883,6 +2343,8 @@ def _comparison_ratio(comparison: dict, key: str) -> Optional[float]:
 
 def _reference_ratio_summary(comparison: dict) -> dict:
     """Small prompt/history-safe comparison: ratios only, no GT absolutes."""
+    if _reference_blind_enabled():
+        return {}
     out = {}
     for key in ("latency_cycles", "latency_ns", "interval", "fmax_mhz"):
         ratio = _comparison_ratio(comparison, key)
@@ -1926,7 +2388,15 @@ def _coalescing_diagnostics(hls_code: str, report: dict | None = None) -> dict:
 
 
 def _build_quality_guidance(benchmark_name: str, report: dict, ground_truth_report: dict, comparison: dict) -> str:
-    bench = benchmark_name or ""
+    # Defence in depth: paper runs normally make quality repair unreachable by
+    # removing the reference report before control begins.  Also erase every
+    # reference-derived and benchmark-specific input here so an accidental
+    # direct call cannot reintroduce oracle information.
+    reference_blind = _reference_blind_enabled()
+    bench = "" if reference_blind else (benchmark_name or "")
+    if reference_blind:
+        ground_truth_report = {}
+        comparison = {}
     issues = []
 
     slack = _as_float((report or {}).get("slack_ns"))
@@ -1987,18 +2457,26 @@ def _build_quality_guidance(benchmark_name: str, report: dict, ground_truth_repo
 
 def _build_quality_context(report: dict, comparison: dict, *, part: str = "", clock_ns: float | None = None) -> str:
     """Agent-visible quality context with no absolute reference metrics."""
-    lines = [
-        "Reference data is held offline. Ratios below are directional only:",
-        "  - latency/fmax ratios are generated/reference; latency ratio < 1 is faster, fmax ratio > 1 is faster.",
-    ]
-    for key, label in [
-        ("latency_cycles", "latency_cycles"),
-        ("latency_ns", "latency_ns"),
-        ("fmax_mhz", "fmax_mhz"),
-    ]:
-        ratio = _comparison_ratio(comparison, key)
-        if ratio is not None:
-            lines.append(f"  - {label}_ratio={ratio:.3f}")
+    reference_blind = _reference_blind_enabled()
+    if reference_blind:
+        comparison = {}
+        lines = [
+            "Use only the generated candidate's compiler measurements below; "
+            "no expert comparison is available to the controller."
+        ]
+    else:
+        lines = [
+            "Reference data is held offline. Ratios below are directional only:",
+            "  - latency/fmax ratios are generated/reference; latency ratio < 1 is faster, fmax ratio > 1 is faster.",
+        ]
+        for key, label in [
+            ("latency_cycles", "latency_cycles"),
+            ("latency_ns", "latency_ns"),
+            ("fmax_mhz", "fmax_mhz"),
+        ]:
+            ratio = _comparison_ratio(comparison, key)
+            if ratio is not None:
+                lines.append(f"  - {label}_ratio={ratio:.3f}")
 
     active_part = part or os.getenv("C2HLS_PART", DEFAULT_PART)
     active_clock = clock_ns if clock_ns is not None else os.getenv("C2HLS_CLOCK_NS", str(DEFAULT_CLOCK_NS))
@@ -2035,6 +2513,26 @@ def _build_quality_context(report: dict, comparison: dict, *, part: str = "", cl
 
 
 def _quality_score(benchmark_name: str, report: dict, comparison: dict) -> float:
+    if _reference_blind_enabled():
+        # Match the paper's decision rule: infeasible reports rank behind every
+        # feasible report; within a feasibility class, lower estimated latency
+        # wins.  No benchmark identity or expert-relative quantity participates.
+        feasibility = _paper_candidate_feasibility(
+            report,
+            correctness_required=False,
+            part=os.getenv("C2HLS_PART", DEFAULT_PART),
+            clock_ns=_as_float(os.getenv("C2HLS_CLOCK_NS", DEFAULT_CLOCK_NS)),
+        )
+        latency = _as_float(
+            (report or {}).get("latency_cycles_worst")
+            or (report or {}).get("latency_cycles")
+            or (report or {}).get("latency_ns_worst")
+            or (report or {}).get("latency_ns")
+        )
+        if latency is None or latency <= 0:
+            latency = 1.0e14
+        return round((0.0 if feasibility["feasible"] else 1.0e15) + latency, 3)
+
     bench = benchmark_name or ""
     score = 0.0
 
@@ -2095,6 +2593,24 @@ def _quality_focus(benchmark_name: str, report: dict, comparison: dict) -> str:
     if _resource_over_device(report, part):
         return "device_budget"
 
+    if _reference_blind_enabled():
+        if slack is not None and slack < 0:
+            return "timing"
+        estimated = _as_float((report or {}).get("estimated_clock_period_ns"))
+        target = _as_float(
+            (report or {}).get("requested_clock_period_ns")
+            or os.getenv("C2HLS_CLOCK_NS", DEFAULT_CLOCK_NS)
+        )
+        if estimated is not None and target is not None and estimated > target:
+            return "timing"
+        latency = _as_float(
+            (report or {}).get("latency_cycles_worst")
+            or (report or {}).get("latency_cycles")
+            or (report or {}).get("latency_ns_worst")
+            or (report or {}).get("latency_ns")
+        )
+        return "latency" if latency is not None and latency > 0 else "general"
+
     if bench == "spmv_crs":
         if ((slack is not None and slack < 0 and _actionable_timing_bottlenecks(report))
                 or (fmax_ratio is not None and fmax_ratio < 0.8)):
@@ -2123,6 +2639,72 @@ def _quality_focus(benchmark_name: str, report: dict, comparison: dict) -> str:
 
 def _quality_focus_improved(benchmark_name: str, focus: str, current_report: dict, current_comparison: dict,
                             candidate_report: dict, candidate_comparison: dict) -> bool:
+    if _reference_blind_enabled():
+        part = os.getenv("C2HLS_PART", DEFAULT_PART)
+        clock_ns = _as_float(os.getenv("C2HLS_CLOCK_NS", DEFAULT_CLOCK_NS))
+        current_feasible = _paper_candidate_feasibility(
+            current_report,
+            correctness_required=False,
+            part=part,
+            clock_ns=clock_ns,
+        )["feasible"]
+        candidate_feasible = _paper_candidate_feasibility(
+            candidate_report,
+            correctness_required=False,
+            part=part,
+            clock_ns=clock_ns,
+        )["feasible"]
+        if candidate_feasible != current_feasible:
+            return candidate_feasible
+
+        if focus == "device_budget":
+            cur_over = len(_resource_over_device(current_report, part))
+            cand_over = len(_resource_over_device(candidate_report, part))
+            if cand_over != cur_over:
+                return cand_over < cur_over
+            cur_max = max(
+                (d["utilization"] for d in _resource_utilization(current_report, part).values()),
+                default=0.0,
+            )
+            cand_max = max(
+                (d["utilization"] for d in _resource_utilization(candidate_report, part).values()),
+                default=0.0,
+            )
+            return cand_max < cur_max - 0.02
+
+        if focus == "timing":
+            current_slack = _as_float((current_report or {}).get("slack_ns"))
+            candidate_slack = _as_float((candidate_report or {}).get("slack_ns"))
+            if current_slack is not None and candidate_slack is not None:
+                return candidate_slack > current_slack + 0.5
+            current_period = _as_float((current_report or {}).get("estimated_clock_period_ns"))
+            candidate_period = _as_float((candidate_report or {}).get("estimated_clock_period_ns"))
+            if current_period is not None and candidate_period is not None:
+                return candidate_period < current_period - 0.05
+            current_fmax = _as_float((current_report or {}).get("fmax_mhz"))
+            candidate_fmax = _as_float((candidate_report or {}).get("fmax_mhz"))
+            if current_fmax is not None and candidate_fmax is not None:
+                return candidate_fmax > current_fmax + 0.05
+            return False
+
+        current_latency = _as_float(
+            (current_report or {}).get("latency_cycles_worst")
+            or (current_report or {}).get("latency_cycles")
+            or (current_report or {}).get("latency_ns_worst")
+            or (current_report or {}).get("latency_ns")
+        )
+        candidate_latency = _as_float(
+            (candidate_report or {}).get("latency_cycles_worst")
+            or (candidate_report or {}).get("latency_cycles")
+            or (candidate_report or {}).get("latency_ns_worst")
+            or (candidate_report or {}).get("latency_ns")
+        )
+        return bool(
+            current_latency is not None
+            and candidate_latency is not None
+            and candidate_latency < current_latency
+        )
+
     current_slack = _as_float((current_report or {}).get("slack_ns"))
     candidate_slack = _as_float((candidate_report or {}).get("slack_ns"))
     current_fmax = _comparison_ratio(current_comparison, "fmax_mhz") or 0.0
@@ -2206,7 +2788,14 @@ class _AgentBase:
         self.orch.messages.append({"role": "assistant", "content": reply})
         self.orch._append_history("user", prompt)
         self.orch._append_history("assistant", reply)
-        return extract_cpp_code(reply)
+        code = extract_cpp_code(reply)
+        if not code:
+            self.orch._finalize_candidate_evaluation(
+                correctness_status="not_run",
+                synthesis_status="not_run",
+                failure_class="malformed_output",
+            )
+        return code
 
 
 class TranslatorAgent(_AgentBase):
@@ -2258,9 +2847,31 @@ class TranslatorAgent(_AgentBase):
                     extra_files=orch.extra_files,
                 )
                 if ok:
+                    orch._finalize_candidate_evaluation(
+                        code=orch.c_code,
+                        correctness_status="not_run",
+                        synthesis_status="not_run",
+                        failure_class="other",
+                        failure_detail=(
+                            "LLM response repaired the plain-C input preflight; "
+                            "it is not an HLS candidate"
+                        ),
+                    )
                     logging.info("[Phase A] Fixed C code compiles (turn %d)", turn)
                     return True
+                orch._finalize_candidate_evaluation(
+                    code=orch.c_code,
+                    correctness_status="not_run",
+                    synthesis_status="not_run",
+                    failure_class="compile_or_interface_failure",
+                )
                 logging.warning("[Phase A] Still fails (turn %d): %s", turn, err[:200])
+            else:
+                orch._finalize_candidate_evaluation(
+                    correctness_status="not_run",
+                    synthesis_status="not_run",
+                    failure_class="malformed_output",
+                )
 
         orch._append_history(
             "system",
@@ -2301,6 +2912,11 @@ class TranslatorAgent(_AgentBase):
 
         hls_code = extract_cpp_code(reply)
         if not hls_code:
+            orch._finalize_candidate_evaluation(
+                correctness_status="not_run",
+                synthesis_status="not_run",
+                failure_class="malformed_output",
+            )
             logging.error("[Phase B] No code block in LLM response")
             orch._append_history("system", "[Phase B] FAIL: no code in response")
             return None
@@ -2344,6 +2960,11 @@ class TranslatorAgent(_AgentBase):
         orch.messages.append({"role": "assistant", "content": reply})
         hls_code = extract_cpp_code(reply)
         if not hls_code:
+            orch._finalize_candidate_evaluation(
+                correctness_status="not_run",
+                synthesis_status="not_run",
+                failure_class="malformed_output",
+            )
             logging.warning("[Phase 8] No code in LLM retranslation response")
             return None
         return hls_code
@@ -2417,6 +3038,12 @@ class SynthesisAgent(_AgentBase):
             summary = outcome.get(gate_name)
             if not isinstance(summary, dict):
                 continue
+            # A timeout, including a gold-relative predicted timeout, is an
+            # inconclusive performance outcome rather than evidence that the
+            # generated algorithm is functionally wrong. Do not spend repair
+            # turns regenerating the same finite design.
+            if _test_summary_is_timeout(summary):
+                continue
             if not summary.get("ran") or summary.get("passed"):
                 continue
             gate_error = (
@@ -2451,6 +3078,12 @@ class SynthesisAgent(_AgentBase):
             )
             if not ok:
                 logging.warning("[Phase B] HLS code doesn't compile: %s", err[:200])
+                orch._finalize_candidate_evaluation(
+                    code=orch.hls_code,
+                    correctness_status="not_run",
+                    synthesis_status="not_run",
+                    failure_class="compile_or_interface_failure",
+                )
                 error_class_history.append(_classify_synth_error(err))
                 if self._should_revert(error_class_history, best_state, threshold):
                     return self._revert_and_exit(error_class_history, best_state, threshold)
@@ -2469,6 +3102,12 @@ class SynthesisAgent(_AgentBase):
                 fixed = extract_cpp_code(reply)
                 if fixed:
                     orch.hls_code = fixed
+                else:
+                    orch._finalize_candidate_evaluation(
+                        correctness_status="not_run",
+                        synthesis_status="not_run",
+                        failure_class="malformed_output",
+                    )
                 continue
 
             outcome = orch._synth_and_test(orch.hls_code, log_prefix="[Phase B]")
@@ -2480,6 +3119,53 @@ class SynthesisAgent(_AgentBase):
                 "report": result.get("report", {}),
                 "error": result.get("error", ""),
             })
+
+            if result.get("budget_exhausted"):
+                logging.warning("[Phase B] %s", result.get("error"))
+                return False
+
+            if result.get("skip_reason") == "csim_correctness_gate_failed":
+                gate_summary = outcome.get("csim") or {}
+                gate_error = (
+                    (gate_summary.get("error") or "").strip()
+                    + "\n"
+                    + (gate_summary.get("log_excerpt") or "").strip()
+                ).strip() or "pre-synthesis CSim/golden comparison failed"
+                failure = f"csim_failed: {gate_error[:300]}"
+                orch.turn_results.append({
+                    "turn": turn,
+                    "phase": "B",
+                    "success": False,
+                    "stage": "csim",
+                    "csim": gate_summary,
+                    "error": failure,
+                })
+                if turn >= orch.turns_limitation - 1:
+                    continue
+                fix_prompt = hls_correctness_repair_fix.format(
+                    step_name="initial translation",
+                    gate_name="csim",
+                    gate_error=gate_error[:2000],
+                    hls_code=orch.hls_code,
+                    header_code=orch.header_code,
+                    benchmark_context=orch.benchmark_context,
+                    attempt_history=_format_attempt_history(orch.turn_results, "B"),
+                )
+                orch.messages.append({"role": "user", "content": fix_prompt})
+                reply = self._call_llm(orch.messages)
+                orch.messages.append({"role": "assistant", "content": reply})
+                orch._append_history("user", fix_prompt)
+                orch._append_history("assistant", reply)
+                fixed = extract_cpp_code(reply)
+                if fixed:
+                    orch.hls_code = fixed
+                else:
+                    orch._finalize_candidate_evaluation(
+                        correctness_status="not_run",
+                        synthesis_status="not_run",
+                        failure_class="malformed_output",
+                    )
+                continue
 
             if result["success"]:
                 orch.synth_report = result["report"]
@@ -2505,6 +3191,13 @@ class SynthesisAgent(_AgentBase):
                 if orch.generated_cosim is not None:
                     if orch.generated_cosim.get("passed"):
                         logging.info("[Phase B] Cosim PASSED")
+                    elif _test_summary_is_timeout(orch.generated_cosim):
+                        qualifier = "predicted; not run" if not orch.generated_cosim.get("ran") else "wall-clock"
+                        logging.warning(
+                            "[Phase B] Cosim TIMEOUT (%s): %s",
+                            qualifier,
+                            (orch.generated_cosim.get("error") or "")[:240],
+                        )
                     else:
                         logging.warning(
                             "[Phase B] Cosim FAILED: %s",
@@ -2552,6 +3245,12 @@ class SynthesisAgent(_AgentBase):
                     fixed = extract_cpp_code(reply)
                     if fixed:
                         orch.hls_code = fixed
+                    else:
+                        orch._finalize_candidate_evaluation(
+                            correctness_status="not_run",
+                            synthesis_status="not_run",
+                            failure_class="malformed_output",
+                        )
                     continue
 
                 # Snapshot only after correctness passes (or no generated
@@ -2598,6 +3297,12 @@ class SynthesisAgent(_AgentBase):
             fixed = extract_cpp_code(reply)
             if fixed:
                 orch.hls_code = fixed
+            else:
+                orch._finalize_candidate_evaluation(
+                    correctness_status="not_run",
+                    synthesis_status="not_run",
+                    failure_class="malformed_output",
+                )
 
         orch._append_history(
             "system",
@@ -3066,6 +3771,10 @@ class C2HLSOrchestrator:
         self.cosim_depths = {}
         self.generated_csim = None
         self.generated_cosim = None
+        self.cosim_reference_cycle_info: dict = {}
+        self.independent_golden_output: str = ""
+        self.independent_golden_specs: dict = {}
+        self.independent_golden_provenance: dict = {}
         self.benchmark_name = ""
         self.benchmark_context = ""
         self.preflight_patches = []
@@ -3091,12 +3800,33 @@ class C2HLSOrchestrator:
             or env_strategy == "dynamic"
         )
         self.skill_library = None  # SkillLibrary, lazy-loaded when dynamic_routing kicks in
+        self.skill_library_provenance: dict = {}
         self.vitis_version: str = os.getenv("C2HLS_VITIS_VERSION", "")
         # Trajectory-collapse / throughput-regression telemetry, populated
         # by run_multistep so callers can inspect the new robustness
         # signals without enabling dynamic routing.
         self.robustness_log: list = []
         self.llm_usage_events: list = []
+        self.llm_controller_transcript: list[dict] = []
+        self.llm_candidate_request_count = 0
+        self._candidate_stream_started_monotonic: Optional[float] = None
+        self.selected_winner_cosim_count = 0
+        self.selected_code_sha256: Optional[str] = None
+        self.cosim_target_code_sha256: Optional[str] = None
+        try:
+            parsed_llm_budget = int(os.getenv(LLM_CANDIDATE_BUDGET_ENV, "0") or "0")
+        except (TypeError, ValueError):
+            parsed_llm_budget = 0
+        self.llm_candidate_budget: Optional[int] = (
+            parsed_llm_budget if parsed_llm_budget > 0 else None
+        )
+        self.synthesis_eval_count = 0
+        self.synthesis_eval_events: list[dict] = []
+        try:
+            parsed_budget = int(os.getenv(SYNTHESIS_EVAL_BUDGET_ENV, "0") or "0")
+        except (TypeError, ValueError):
+            parsed_budget = 0
+        self.synthesis_eval_budget: Optional[int] = parsed_budget if parsed_budget > 0 else None
 
         # ---- Phase 3 wiring: strategy + GT-aware revert tolerance ----
         # `strategy` is the source of truth. dynamic_routing flag
@@ -3112,7 +3842,11 @@ class C2HLSOrchestrator:
             self.strategy = "dynamic"
         else:
             self.strategy = "static"
-        self.gt_aware_revert: bool = bool(int(os.getenv("C2HLS_GT_AWARE_REVERT", "1")))
+        self.reference_blind: bool = _reference_blind_enabled()
+        self.gt_aware_revert: bool = (
+            _ground_truth_control_enabled()
+            and _env_flag("C2HLS_GT_AWARE_REVERT", "0")
+        )
         # Cache of GT step reports keyed by step_name, populated by
         # run_multistep before the optimization loop begins. Used by
         # _step_alignment_decision() to consult GT shape per-step.
@@ -3147,6 +3881,9 @@ class C2HLSOrchestrator:
         cosim_depths: Optional[dict] = None,
         benchmark_name: str = "",
         benchmark_context: str = "",
+        independent_golden_output: str = "",
+        independent_golden_specs: Optional[dict] = None,
+        independent_golden_provenance: Optional[dict] = None,
     ):
         self.extra_files = list(extra_files or [])
         self.translated_hls_top = translated_hls_top or "workload"
@@ -3157,6 +3894,9 @@ class C2HLSOrchestrator:
         self.cosim_depths = dict(cosim_depths or {})
         self.benchmark_name = benchmark_name or ""
         self.benchmark_context = benchmark_context or ""
+        self.independent_golden_output = independent_golden_output or ""
+        self.independent_golden_specs = dict(independent_golden_specs or {})
+        self.independent_golden_provenance = dict(independent_golden_provenance or {})
 
     def _call_llm(self, messages: list, max_tokens: int = None) -> str:
         """Default-model LLM call. Kept as the public interface so existing
@@ -3179,20 +3919,57 @@ class C2HLSOrchestrator:
         except (TypeError, ValueError):
             return default
 
+    @staticmethod
+    def _configured_decoding() -> dict:
+        def parse_float(name: str) -> Optional[float]:
+            raw = os.getenv(name, "").strip()
+            if not raw:
+                return None
+            value = float(raw)
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"{name} must be in [0, 1], got {raw!r}")
+            return value
+
+        raw_seed = os.getenv(LLM_SEED_ENV, "").strip()
+        return {
+            "temperature": parse_float(LLM_TEMPERATURE_ENV),
+            "top_p": parse_float(LLM_TOP_P_ENV),
+            "seed": int(raw_seed) if raw_seed else None,
+        }
+
     def _record_llm_usage(self, *, provider: str, model: str, agent_name: str,
-                          usage, messages: list, max_tokens: int) -> None:
+                          usage, messages: list, max_tokens: int,
+                          decoding: Optional[dict] = None,
+                          candidate_evaluation_index: Optional[int] = None) -> None:
         """Record provider-reported token usage for bench-level accounting."""
+        if candidate_evaluation_index is None:
+            candidate_evaluation_index = len(self.llm_usage_events)
+        prompt_payload = json.dumps(
+            messages or [], sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+        ).encode("utf-8")
+        common = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "provider": provider,
+            "model": model,
+            "model_revision": os.getenv("C2HLS_MODEL_REVISION") or None,
+            "agent": agent_name or "unknown",
+            "message_count": len(messages or []),
+            "max_tokens": max_tokens,
+            "prompt_sha256": hashlib.sha256(prompt_payload).hexdigest(),
+            "decoding": dict(decoding or {}),
+            "candidate_evaluation_index": candidate_evaluation_index,
+        }
         if usage is None:
             event = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "provider": provider,
-                "model": model,
-                "agent": agent_name or "unknown",
-                "message_count": len(messages or []),
-                "max_tokens": max_tokens,
+                **common,
                 "usage_available": False,
             }
             self.llm_usage_events.append(event)
+            self._start_candidate_evaluation_event(
+                candidate_evaluation_index,
+                agent_name=agent_name,
+                model=model,
+            )
             return
 
         if provider == "anthropic":
@@ -3224,16 +4001,16 @@ class C2HLSOrchestrator:
             }
 
         event = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "provider": provider,
-            "model": model,
-            "agent": agent_name or "unknown",
-            "message_count": len(messages or []),
-            "max_tokens": max_tokens,
+            **common,
             "usage_available": True,
             **normalized,
         }
         self.llm_usage_events.append(event)
+        self._start_candidate_evaluation_event(
+            candidate_evaluation_index,
+            agent_name=agent_name,
+            model=model,
+        )
 
     def _llm_usage_summary(self) -> dict:
         fields = [
@@ -3264,6 +4041,8 @@ class C2HLSOrchestrator:
         return {
             "schema_version": "1.0",
             "calls": len(self.llm_usage_events),
+            "candidate_requests": self.llm_candidate_request_count,
+            "candidate_budget": self.llm_candidate_budget,
             **totals,
             "by_agent": by_agent,
             "by_model": by_model,
@@ -3273,6 +4052,297 @@ class C2HLSOrchestrator:
             ),
             "events": self.llm_usage_events,
         }
+
+    def _candidate_elapsed_seconds(self) -> float:
+        started = getattr(self, "_candidate_stream_started_monotonic", None)
+        if started is None:
+            started = time.monotonic()
+            self._candidate_stream_started_monotonic = started
+        return max(0.0, time.monotonic() - started)
+
+    def _llm_cumulative_totals(self) -> tuple[int, int]:
+        events = getattr(self, "llm_usage_events", []) or []
+        return (
+            sum(int(event.get("total_tokens") or 0) for event in events),
+            len(events),
+        )
+
+    def _start_candidate_evaluation_event(
+        self,
+        candidate_index: int,
+        *,
+        agent_name: str = "",
+        model: str = "",
+    ) -> dict:
+        """Open one unified candidate event for one budgeted LLM response."""
+        if not hasattr(self, "synthesis_eval_events"):
+            self.synthesis_eval_events = []
+        if not hasattr(self, "synthesis_eval_count"):
+            self.synthesis_eval_count = 0
+        if getattr(self, "_candidate_stream_started_monotonic", None) is None:
+            self._candidate_stream_started_monotonic = time.monotonic()
+        if candidate_index != len(self.synthesis_eval_events):
+            raise RuntimeError(
+                "candidate_evaluation_index must be contiguous: "
+                f"got {candidate_index}, expected {len(self.synthesis_eval_events)}"
+            )
+        cumulative_tokens, cumulative_calls = self._llm_cumulative_totals()
+        event = {
+            "candidate_evaluation_index": candidate_index,
+            "synthesis_index": None,
+            "label": agent_name or "generated_candidate",
+            "model": model,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "cumulative_tokens": cumulative_tokens,
+            "cumulative_llm_calls": cumulative_calls,
+            "cumulative_synthesis_evaluations": self.synthesis_eval_count,
+            "cumulative_elapsed_seconds": self._candidate_elapsed_seconds(),
+            "correctness_status": "not_run",
+            "synthesis_status": "not_run",
+            "resource_fit": None,
+            "timing_met": None,
+            "synthesized_latency_cycles": None,
+            "latency_source": "none",
+            "report_sha256": None,
+            "failure_class": "other",
+            "failure_detail": "candidate response has not completed evaluation",
+            "selected_for_executed_cosim": False,
+            "_llm_joined": True,
+            "_telemetry_finalized": False,
+        }
+        self.synthesis_eval_events.append(event)
+        return event
+
+    def _pending_candidate_evaluation_index(self) -> Optional[int]:
+        for index, event in enumerate(getattr(self, "synthesis_eval_events", []) or []):
+            if not event.get("_telemetry_finalized"):
+                return index
+        return None
+
+    def _ensure_candidate_evaluation_event(self, label: str = "") -> int:
+        pending = self._pending_candidate_evaluation_index()
+        if pending is not None:
+            return pending
+        # Compatibility for direct controller calls that bypass the LLM
+        # producer. Such an event is deliberately not declared complete.
+        index = len(getattr(self, "synthesis_eval_events", []) or [])
+        if not hasattr(self, "synthesis_eval_events"):
+            self.synthesis_eval_events = []
+        cumulative_tokens, cumulative_calls = self._llm_cumulative_totals()
+        event = {
+            "candidate_evaluation_index": index,
+            "synthesis_index": None,
+            "label": label or "generated_candidate",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "cumulative_tokens": cumulative_tokens,
+            "cumulative_llm_calls": cumulative_calls,
+            "cumulative_synthesis_evaluations": getattr(self, "synthesis_eval_count", 0),
+            "cumulative_elapsed_seconds": self._candidate_elapsed_seconds(),
+            "correctness_status": "not_run",
+            "synthesis_status": "not_run",
+            "resource_fit": None,
+            "timing_met": None,
+            "synthesized_latency_cycles": None,
+            "latency_source": "none",
+            "report_sha256": None,
+            "failure_class": "other",
+            "failure_detail": "candidate evaluation has no attributed LLM response",
+            "selected_for_executed_cosim": False,
+            "_llm_joined": False,
+            "_telemetry_finalized": False,
+        }
+        self.synthesis_eval_events.append(event)
+        return index
+
+    @staticmethod
+    def _candidate_test_status(summary: Any) -> str:
+        if not isinstance(summary, dict) or summary.get("ran") is not True:
+            return "not_run"
+        status = str(summary.get("status") or "").strip().lower()
+        error = str(summary.get("error") or "").lower()
+        if status == "timeout" or "timed out" in error:
+            return "timeout"
+        if status in {"tool_error", "tool_failure", "error"}:
+            return "tool_failure"
+        return "passed" if summary.get("passed") is True else "failed"
+
+    @staticmethod
+    def _candidate_synthesis_status(synth: Any, *, synthesis_ran: bool) -> str:
+        if not synthesis_ran:
+            return "not_run"
+        synth = synth if isinstance(synth, dict) else {}
+        error = str(synth.get("error") or "").lower()
+        status = str(synth.get("status") or "").strip().lower()
+        if synth.get("timed_out") or status == "timeout" or "timed out" in error:
+            return "timeout"
+        if synth.get("tool_failure") or status in {
+            "tool_error", "tool_failure", "error",
+        }:
+            return "tool_failure"
+        return "passed" if synth.get("success") is True else "failed"
+
+    @staticmethod
+    def _candidate_report_latency_cycles(report: Any) -> Optional[int]:
+        if not isinstance(report, dict):
+            return None
+        for key in ("latency_cycles_worst", "latency_cycles"):
+            value = report.get(key)
+            if isinstance(value, bool):
+                continue
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                continue
+            if numeric > 0 and numeric.is_integer():
+                return int(numeric)
+        return None
+
+    @staticmethod
+    def _candidate_report_sha256(report: Any) -> Optional[str]:
+        if not isinstance(report, dict) or not report:
+            return None
+        try:
+            payload = json.dumps(
+                report,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                allow_nan=False,
+                default=str,
+            ).encode("utf-8")
+        except (TypeError, ValueError):
+            return None
+        return hashlib.sha256(payload).hexdigest()
+
+    def _finalize_candidate_evaluation(
+        self,
+        candidate_index: Optional[int] = None,
+        *,
+        code: str = "",
+        correctness_status: str = "not_run",
+        synthesis_status: str = "not_run",
+        resource_fit: Optional[bool] = None,
+        timing_met: Optional[bool] = None,
+        latency_cycles: Optional[int] = None,
+        report: Optional[dict] = None,
+        failure_class: Optional[str] = "other",
+        failure_detail: str = "",
+    ) -> dict:
+        if candidate_index is None:
+            candidate_index = self._ensure_candidate_evaluation_event()
+        event = self.synthesis_eval_events[candidate_index]
+        event.update({
+            "code_sha256": hashlib.sha256((code or "").encode("utf-8")).hexdigest(),
+            "cumulative_synthesis_evaluations": getattr(self, "synthesis_eval_count", 0),
+            "cumulative_elapsed_seconds": self._candidate_elapsed_seconds(),
+            "correctness_status": correctness_status,
+            "synthesis_status": synthesis_status,
+            "resource_fit": resource_fit,
+            "timing_met": timing_met,
+            "synthesized_latency_cycles": latency_cycles,
+            "latency_source": "vitis_csynth_report" if latency_cycles is not None else "none",
+            "report_sha256": self._candidate_report_sha256(report),
+            "failure_class": failure_class,
+            "selected_for_executed_cosim": bool(
+                event.get("selected_for_executed_cosim")
+            ),
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "_telemetry_finalized": True,
+        })
+        if failure_class == "other":
+            event["failure_detail"] = failure_detail or "unclassified candidate failure"
+        else:
+            event.pop("failure_detail", None)
+        return event
+
+    def _finalize_candidate_from_outcome(
+        self,
+        candidate_index: int,
+        code: str,
+        outcome: dict,
+        *,
+        synthesis_ran: bool,
+    ) -> dict:
+        csim = outcome.get("csim")
+        synth = outcome.get("synth") if isinstance(outcome.get("synth"), dict) else {}
+        correctness_status = self._candidate_test_status(csim)
+        synthesis_status = self._candidate_synthesis_status(
+            synth, synthesis_ran=synthesis_ran,
+        )
+        report = synth.get("report") if synthesis_status == "passed" else {}
+        latency_cycles = self._candidate_report_latency_cycles(report)
+        resource_fit = None
+        timing_met = None
+        failure_class: Optional[str]
+        failure_detail = ""
+        if correctness_status != "passed":
+            if correctness_status == "failed":
+                failure_class = "wrong_output"
+            elif correctness_status in {"timeout", "tool_failure"}:
+                failure_class = "tool_failure"
+            else:
+                failure_class = "other"
+                failure_detail = "candidate did not execute the required CSim gate"
+        elif synthesis_status == "timeout":
+            failure_class = "synthesis_timeout"
+        elif synthesis_status == "tool_failure":
+            failure_class = "tool_failure"
+        elif synthesis_status == "failed":
+            failure_class = "compile_or_interface_failure"
+        elif synthesis_status == "passed":
+            feasibility = _paper_candidate_feasibility(
+                report or {},
+                csim=csim,
+                correctness_required=bool(getattr(self, "testbench_code", "")),
+                part=getattr(self, "part", DEFAULT_PART),
+                clock_ns=getattr(self, "clock_ns", DEFAULT_CLOCK_NS),
+            )
+            resource_fit = (
+                feasibility.get("resource_fit")
+                if isinstance(feasibility.get("resource_fit"), bool)
+                else None
+            )
+            timing_met = (
+                feasibility.get("timing_met")
+                if isinstance(feasibility.get("timing_met"), bool)
+                else None
+            )
+            if resource_fit is False or resource_fit is None:
+                failure_class = "infeasible_resources"
+            elif timing_met is False or timing_met is None:
+                failure_class = "timing_failure"
+            elif latency_cycles is None:
+                failure_class = "other"
+                failure_detail = "passing synthesis lacks exact Vitis CSynth latency cycles"
+            else:
+                failure_class = None
+        else:
+            failure_class = "other"
+            failure_detail = "candidate synthesis status is unavailable"
+        return self._finalize_candidate_evaluation(
+            candidate_index,
+            code=code,
+            correctness_status=correctness_status,
+            synthesis_status=synthesis_status,
+            resource_fit=resource_fit,
+            timing_met=timing_met,
+            latency_cycles=latency_cycles if synthesis_status == "passed" else None,
+            report=report if synthesis_status == "passed" else None,
+            failure_class=failure_class,
+            failure_detail=failure_detail,
+        )
+
+    def _seal_candidate_event_stream(self, reason: str = "controller terminated") -> None:
+        for index, event in enumerate(getattr(self, "synthesis_eval_events", []) or []):
+            if event.get("_telemetry_finalized"):
+                continue
+            self._finalize_candidate_evaluation(
+                index,
+                correctness_status="not_run",
+                synthesis_status="not_run",
+                failure_class="other",
+                failure_detail=reason,
+            )
 
     def _client_for_model(self, model: str):
         """Get or create the right backend client for a given model id.
@@ -3335,7 +4405,30 @@ class C2HLSOrchestrator:
         if not model:
             model = self.gpt_model
 
+        if (
+            self.llm_candidate_budget is not None
+            and self.llm_candidate_request_count >= self.llm_candidate_budget
+        ):
+            raise RuntimeError(
+                "llm_candidate_budget_exhausted: used "
+                f"{self.llm_candidate_request_count}/{self.llm_candidate_budget}"
+            )
+        self.llm_candidate_request_count += 1
+        if not hasattr(self, "llm_controller_transcript"):
+            self.llm_controller_transcript = []
+        call_index = self.llm_candidate_request_count - 1
+        for message_index, message in enumerate(messages or []):
+            self.llm_controller_transcript.append({
+                "call_index": call_index,
+                "message_index": message_index,
+                "agent": agent_name or "orchestrator",
+                "model": model,
+                "role": message.get("role", "unknown"),
+                "content": str(message.get("content") or ""),
+            })
+
         kind, client = self._client_for_model(model)
+        configured_decoding = self._configured_decoding()
         if kind == "anthropic":
             system_text = ""
             conv_messages = []
@@ -3345,11 +4438,22 @@ class C2HLSOrchestrator:
                 else:
                     conv_messages.append({"role": message["role"],
                                           "content": message["content"]})
+            anthropic_kwargs = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "system": system_text.strip() if system_text else "",
+                "messages": conv_messages,
+            }
+            for key in ("temperature", "top_p"):
+                if configured_decoding[key] is not None:
+                    anthropic_kwargs[key] = configured_decoding[key]
+            effective_decoding = {
+                **configured_decoding,
+                "seed": None,
+                "seed_supported": False,
+            }
             response = client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                system=system_text.strip() if system_text else "",
-                messages=conv_messages,
+                **anthropic_kwargs,
             )
             self._record_llm_usage(
                 provider="anthropic",
@@ -3358,6 +4462,8 @@ class C2HLSOrchestrator:
                 usage=getattr(response, "usage", None),
                 messages=messages,
                 max_tokens=max_tokens,
+                decoding=effective_decoding,
+                candidate_evaluation_index=call_index,
             )
             return response.content[0].text
 
@@ -3366,6 +4472,9 @@ class C2HLSOrchestrator:
             kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
+        for key in ("temperature", "top_p", "seed"):
+            if configured_decoding[key] is not None:
+                kwargs[key] = configured_decoding[key]
         if "qwen" in model.lower():
             kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
         response = client.chat.completions.create(**kwargs)
@@ -3376,6 +4485,8 @@ class C2HLSOrchestrator:
             usage=getattr(response, "usage", None),
             messages=messages,
             max_tokens=max_tokens,
+            decoding={**configured_decoding, "seed_supported": True},
+            candidate_evaluation_index=call_index,
         )
         return response.choices[0].message.content
 
@@ -3388,7 +4499,14 @@ class C2HLSOrchestrator:
         self.messages.append({"role": "assistant", "content": reply})
         self._append_history("user", prompt)
         self._append_history("assistant", reply)
-        return extract_cpp_code(reply)
+        code = extract_cpp_code(reply)
+        if not code:
+            self._finalize_candidate_evaluation(
+                correctness_status="not_run",
+                synthesis_status="not_run",
+                failure_class="malformed_output",
+            )
+        return code
 
     def _preflight_generated_hls_code(self, code: str, context: str) -> str:
         normalized, note = _align_generated_top_signature(
@@ -3400,7 +4518,7 @@ class C2HLSOrchestrator:
         normalized, interface_note = _normalize_vitis_s_axilite_bundles(normalized)
         if interface_note:
             note = "; ".join(part for part in (note, interface_note) if part)
-        if self.benchmark_name == "srad":
+        if self.benchmark_name == "srad" and not _reference_blind_enabled():
             normalized, srad_notes = _normalize_srad_halo_copy_offsets(normalized)
             if srad_notes:
                 for srad_note in srad_notes:
@@ -3420,7 +4538,37 @@ class C2HLSOrchestrator:
         """Synthesize `code` with the orchestrator's current config and run
         csim/cosim if a testbench is available. Returns the same shape as
         _run_synth_csim_cosim: {synth, csim, cosim}."""
-        return _run_synth_csim_cosim(
+        if (
+            self.synthesis_eval_budget is not None
+            and self.synthesis_eval_count >= self.synthesis_eval_budget
+        ):
+            candidate_index = self._pending_candidate_evaluation_index()
+            if candidate_index is not None:
+                self._finalize_candidate_evaluation(
+                    candidate_index,
+                    code=code,
+                    correctness_status="not_run",
+                    synthesis_status="not_run",
+                    failure_class="candidate_budget_exhausted",
+                )
+            return {
+                "synth": {
+                    "success": False,
+                    "report": {},
+                    "error": (
+                        "synthesis_evaluation_budget_exhausted: "
+                        f"used {self.synthesis_eval_count}/{self.synthesis_eval_budget}"
+                    ),
+                    "budget_exhausted": True,
+                },
+                "csim": None,
+                "cosim": None,
+            }
+        candidate_index = self._ensure_candidate_evaluation_event(log_prefix)
+        event = self.synthesis_eval_events[candidate_index]
+        event["label"] = log_prefix or event.get("label") or "generated_candidate"
+        event["code_sha256"] = hashlib.sha256((code or "").encode("utf-8")).hexdigest()
+        outcome = _run_synth_csim_cosim(
             code,
             header_code=self.header_code,
             header_name=self.header_name,
@@ -3430,9 +4578,154 @@ class C2HLSOrchestrator:
             extra_files=self.extra_files,
             testbench_code=self.testbench_code,
             run_csim_check=bool(self.testbench_code),
-            run_cosim_check=bool(self.testbench_code and self.supports_cosim),
+            run_cosim_check=bool(
+                self.testbench_code
+                and self.supports_cosim
+                and _cosim_required_for_correctness()
+                and not _cosim_selected_only()
+            ),
             cosim_depths=self.cosim_depths,
+            cosim_reference_cycle_info=(
+                {} if self.reference_blind else self.cosim_reference_cycle_info
+            ),
+            golden_output_text=self.independent_golden_output,
+            golden_output_specs=self.independent_golden_specs,
             log_prefix=log_prefix,
+        )
+        synth = outcome.get("synth", {})
+        synthesis_ran = synth.get("ran") is not False and not synth.get("skipped")
+        if synthesis_ran:
+            event["synthesis_index"] = self.synthesis_eval_count
+            self.synthesis_eval_count += 1
+        event["synthesis_ran"] = synthesis_ran
+        event["correctness_gate_passed"] = bool(
+            not isinstance(outcome.get("csim"), dict)
+            or outcome.get("csim", {}).get("passed")
+        )
+        event["success"] = bool(synth.get("success"))
+        event["error"] = str(synth.get("error") or "")
+        event["timed_out"] = bool(
+            synth.get("timed_out")
+            or "timed out" in event["error"].lower()
+        )
+        event["tool_failure"] = bool(
+            synth.get("tool_failure")
+            or str(synth.get("status") or "").lower()
+            in {"tool_error", "tool_failure", "error"}
+        )
+        event["status"] = (
+            "timeout"
+            if event["timed_out"]
+            else "tool_failure"
+            if event["tool_failure"]
+            else "passed"
+            if event["success"]
+            else "failed"
+            if synthesis_ran
+            else "not_run"
+        )
+        self._finalize_candidate_from_outcome(
+            candidate_index,
+            code,
+            outcome,
+            synthesis_ran=synthesis_ran,
+        )
+        return outcome
+
+    def _synthesis_evaluation_summary(self) -> dict:
+        llm_events = getattr(self, "llm_usage_events", []) or []
+        candidate_events = getattr(self, "synthesis_eval_events", []) or []
+        complete = bool(candidate_events) and (
+            len(candidate_events)
+            == getattr(self, "llm_candidate_request_count", len(llm_events))
+            == len(llm_events)
+            and all(
+                event.get("_llm_joined") is True
+                and event.get("_telemetry_finalized") is True
+                and event.get("candidate_evaluation_index") == index
+                for index, event in enumerate(candidate_events)
+            )
+            and all(
+                event.get("candidate_evaluation_index") == index
+                for index, event in enumerate(llm_events)
+            )
+        )
+        return {
+            "schema_version": "c2hls.synthesis-evaluations.v1",
+            "count": self.synthesis_eval_count,
+            "budget": self.synthesis_eval_budget,
+            "budget_exhausted": bool(
+                self.synthesis_eval_budget is not None
+                and self.synthesis_eval_count >= self.synthesis_eval_budget
+            ),
+            "events": [
+                {
+                    key: value
+                    for key, value in event.items()
+                    if not key.startswith("_")
+                }
+                for event in candidate_events
+            ],
+            "candidate_evaluations": len(self.synthesis_eval_events),
+            "complete_candidate_event_stream": complete,
+        }
+
+    def _run_selected_winner_cosim(self) -> Optional[dict]:
+        """Execute RTL cosim exactly once, after the winner is selected."""
+        if not (
+            _cosim_selected_only()
+            and self.hls_code
+            and self.testbench_code
+            and self.supports_cosim
+        ):
+            return self.generated_cosim
+        selected_hash = hashlib.sha256(self.hls_code.encode("utf-8")).hexdigest()
+        self.selected_code_sha256 = selected_hash
+        for event in getattr(self, "synthesis_eval_events", []) or []:
+            event["selected_for_executed_cosim"] = False
+        matching = [
+            event
+            for event in (getattr(self, "synthesis_eval_events", []) or [])
+            if event.get("code_sha256") == selected_hash
+            and event.get("correctness_status") == "passed"
+            and event.get("synthesis_status") == "passed"
+            and event.get("resource_fit") is True
+            and event.get("timing_met") is True
+            and isinstance(event.get("synthesized_latency_cycles"), int)
+            and not isinstance(event.get("synthesized_latency_cycles"), bool)
+            and event.get("synthesized_latency_cycles") > 0
+        ]
+        if matching:
+            min(
+                matching,
+                key=lambda event: (
+                    event["synthesized_latency_cycles"],
+                    event["candidate_evaluation_index"],
+                ),
+            )["selected_for_executed_cosim"] = True
+        self.selected_winner_cosim_count = (
+            getattr(self, "selected_winner_cosim_count", 0) + 1
+        )
+        self.cosim_target_code_sha256 = selected_hash
+        result = run_cosim(
+            self.hls_code,
+            self.testbench_code,
+            self.header_code,
+            header_name=self.header_name,
+            top_function=self.translated_hls_top,
+            part=self.part,
+            clock_ns=self.clock_ns,
+            extra_files=self.extra_files,
+            interface_depths=self.cosim_depths,
+            golden_output_text=self.independent_golden_output,
+            golden_output_specs=self.independent_golden_specs,
+        )
+        self.generated_cosim = _summarize_test_result(result, True)
+        return self.generated_cosim
+
+    def _total_synthesis_calls(self) -> int:
+        return int(getattr(self, "synthesis_eval_count", 0)) + int(
+            getattr(self, "selected_winner_cosim_count", 0)
         )
 
     def _evaluate_candidate_with_repairs(self, candidate_code: str, label: str) -> dict:
@@ -3452,6 +4745,12 @@ class C2HLSOrchestrator:
             )
             if not ok:
                 last_error = err
+                self._finalize_candidate_evaluation(
+                    code=current_code,
+                    correctness_status="not_run",
+                    synthesis_status="not_run",
+                    failure_class="compile_or_interface_failure",
+                )
                 local_turn_records.append({"turn": turn, "phase": "B",
                                            "success": False, "error": err})
                 logging.warning("%s Compile error: %s", label, err[:200])
@@ -3477,6 +4776,14 @@ class C2HLSOrchestrator:
                     "report": result["report"],
                     "csim": outcome["csim"],
                     "cosim": outcome["cosim"],
+                }
+
+            if result.get("budget_exhausted"):
+                return {
+                    "success": False,
+                    "code": current_code,
+                    "error": result["error"],
+                    "budget_exhausted": True,
                 }
 
             last_error = result["error"]
@@ -3748,6 +5055,8 @@ class C2HLSOrchestrator:
         # represent the previous step's accepted output before this step runs.
         prev_code = self.hls_code
         prev_report = self.synth_report
+        prev_csim = self.generated_csim
+        prev_cosim = self.generated_cosim
         threshold = STEP_REGRESSION_THRESHOLD
 
         # Phase-5a: when C2HLS_PHASE5_LLM_RETRY=1, after the deterministic
@@ -3809,6 +5118,8 @@ class C2HLSOrchestrator:
                 # so downstream (dataset_pipeline) can record `no_op` cleanly.
                 self.hls_code = prev_code
                 self.synth_report = prev_report
+                self.generated_csim = prev_csim
+                self.generated_cosim = prev_cosim
                 self._append_history(
                     "system",
                     f"[Step: {step_name}] Reverted: no-op persisted after retry.",
@@ -3837,6 +5148,8 @@ class C2HLSOrchestrator:
                 # Accept: commit and return.
                 self.hls_code = new_code
                 self.synth_report = new_report
+                self.generated_csim = attempt.get("csim")
+                self.generated_cosim = attempt.get("cosim")
                 if outer_turn > 0:
                     attempt["regression_retry_succeeded"] = True
                 return attempt
@@ -3941,6 +5254,8 @@ class C2HLSOrchestrator:
                     )
                     self.hls_code = new_code
                     self.synth_report = new_report
+                    self.generated_csim = attempt.get("csim")
+                    self.generated_cosim = attempt.get("cosim")
                     attempt["alignment_decision"] = {
                         "consistent_with_gt": True,
                         "reason": alignment.reason,
@@ -3956,6 +5271,8 @@ class C2HLSOrchestrator:
             )
             self.hls_code = prev_code
             self.synth_report = prev_report
+            self.generated_csim = prev_csim
+            self.generated_cosim = prev_cosim
             self._append_history(
                 "system",
                 f"[Step: {step_name}] Reverted: regression persisted after retry.",
@@ -4012,12 +5329,26 @@ class C2HLSOrchestrator:
             attempt["candidate_index"] = candidate_index
             attempt["candidate_count"] = count
             attempts.append(attempt)
+            if attempt.get("budget_exhausted"):
+                break
 
-        successes = [a for a in attempts if a.get("success") and a.get("report")]
+        synthesized_successes = [
+            a for a in attempts
+            if (a.get("success") or a.get("synthesis_success")) and a.get("report")
+        ]
+        if _feasibility_selection_enabled():
+            successes = [
+                a for a in synthesized_successes
+                if (a.get("feasibility") or {}).get("feasible")
+            ]
+        else:
+            successes = synthesized_successes
         candidate_search = {
             "candidate_count": count,
             "attempts_per_candidate": attempt_count,
             "exhaustive_attempts": exhaustive,
+            "synthesis_successful_candidates": len(synthesized_successes),
+            "feasible_candidates": len(successes),
             "successful_candidates": len(successes),
             "candidate_stats": _metric_stats_from_reports(
                 [a.get("report") for a in successes if a.get("report")]
@@ -4035,6 +5366,18 @@ class C2HLSOrchestrator:
                 "step_name": step_name,
                 "error": "no candidates attempted",
             }
+            if synthesized_successes and _feasibility_selection_enabled():
+                best_infeasible = min(
+                    synthesized_successes,
+                    key=lambda a: self._best_so_far_score(a.get("report") or {}),
+                )
+                chosen = dict(best_infeasible)
+                chosen.update({
+                    "success": False,
+                    "synthesis_success": True,
+                    "feasibility_rejected": True,
+                    "error": "no_feasible_candidates",
+                })
             chosen["candidate_attempts"] = [
                 _compact_attempt_record(a) for a in attempts
             ]
@@ -4105,6 +5448,48 @@ class C2HLSOrchestrator:
             requested_clock_ns=self.clock_ns,
         )
         extra_blocks = []
+        skill_prompt_mode = os.getenv("C2HLS_SKILL_PROMPT_MODE", "").strip().lower()
+        skill_prompt_scope = os.getenv("C2HLS_SKILL_PROMPT_SCOPE", "").strip().lower()
+        all_positive_skill_prompt = skill_prompt_scope in {
+            "all_positive",
+            "all-positive",
+            "positive_all",
+            "positive-all",
+        }
+        render_skill_prompt_mode = "action_only" if all_positive_skill_prompt else (skill_prompt_mode or None)
+        action_only_skill_prompt = all_positive_skill_prompt or skill_prompt_mode in {
+            "action_only",
+            "action-only",
+            "positive",
+            "positive_only",
+            "positive-only",
+        }
+        skill_prompt_injection_enabled = _skill_prompt_injection_enabled()
+        skill_prompt_meta = {
+            "enabled": self.skill_library is not None and skill_prompt_injection_enabled,
+            "requested_skill_id": skill_id,
+            "prompt_mode": render_skill_prompt_mode or "default",
+            "prompt_scope": skill_prompt_scope or "matched",
+            "avoid_skills_suppressed": False,
+            "query_bottleneck_kind": None,
+            "matched_skill_ids": [],
+            "matched_skill_count": 0,
+            "avoid_skill_ids": [],
+            "injected_skill_ids": [],
+            "injected": False,
+            "reason": (
+                "skill_library_not_loaded"
+                if self.skill_library is None
+                else "disabled_by_env"
+                if not skill_prompt_injection_enabled
+                else "no_matching_skills"
+            ),
+        }
+        store_meta = (self.skill_library_provenance or {}).get("store") or {}
+        if store_meta:
+            skill_prompt_meta["library_schema"] = store_meta.get("schema")
+            skill_prompt_meta["library_sha256"] = store_meta.get("sha256")
+            skill_prompt_meta["library_skill_count"] = store_meta.get("skill_count")
         if candidate_count > 1:
             extra_blocks.append(
                 f"CANDIDATE SEARCH: this is candidate {candidate_index + 1} "
@@ -4153,30 +5538,68 @@ class C2HLSOrchestrator:
         # the bottleneck-router has matched a skill for this step's bottleneck
         # kind, inject the skill's pattern / strategy / template into the
         # prompt so the LLM sees the proven recipe — not just the bare step
-        # name. Off when skill_library is None (static order, no router).
-        if self.skill_library is not None and self.synth_report is not None:
+        # name. Dynamic routing may still load the library while an explicit
+        # C2HLS_FORCE_SKILL_PROMPTS=0 keeps prompt injection disabled.
+        if (
+            skill_prompt_injection_enabled
+            and self.skill_library is not None
+            and self.synth_report is not None
+        ):
             try:
-                from skill_library import render_skill_set_for_prompt
+                from skill_library import TIER_AVOID, render_skill_set_for_prompt
                 matching = []
-                selected_skill = self.skill_library.get(skill_id) if skill_id else None
-                if selected_skill:
-                    matching = [selected_skill]
-                    top_bottleneck_kind = None
+                avoid_matching = []
+                context_matching = []
+                top_bottleneck_kind = None
+                feedback = (self.synth_report or {}).get("feedback") or {}
+                bns = feedback.get("bottlenecks") or []
+                if bns:
+                    top_bottleneck_kind = bns[0].get("kind")
+                if all_positive_skill_prompt:
+                    matching = [
+                        sk for sk in self.skill_library.all()
+                        if getattr(sk, "confidence", "") != TIER_AVOID
+                    ]
+                    skill_prompt_meta["reason"] = "all_positive_requested"
+                    skill_prompt_meta["avoid_skills_suppressed"] = True
                 else:
-                    feedback = (self.synth_report or {}).get("feedback") or {}
-                    top_bottleneck_kind = None
-                    bns = feedback.get("bottlenecks") or []
-                    if bns:
-                        top_bottleneck_kind = bns[0].get("kind")
-                    if top_bottleneck_kind:
-                        matching = self.skill_library.query(
-                            bottleneck_kind=top_bottleneck_kind,
-                            vitis_version=self.vitis_version,
-                            fpga=self.part,
-                        )
+                    selected_skill = self.skill_library.get(skill_id) if skill_id else None
+                    if selected_skill:
+                        matching = [selected_skill]
+                        skill_prompt_meta["reason"] = "requested_skill_id_matched"
+                    else:
+                        if top_bottleneck_kind:
+                            matching = self.skill_library.query(
+                                bottleneck_kind=top_bottleneck_kind,
+                                vitis_version=self.vitis_version,
+                                fpga=self.part,
+                            )
+                        else:
+                            skill_prompt_meta["reason"] = "no_top_bottleneck_kind"
+                    in_place_neighbor = _detect_in_place_neighbor_update(self.hls_code)
+                    if in_place_neighbor.get("detected"):
+                        stencil_skill = self.skill_library.get("hls-inplace-stencil-true-dependence")
+                        if stencil_skill is not None:
+                            context_matching = [stencil_skill]
+                        skill_prompt_meta["context_match"] = {
+                            "kind": "in_place_neighbor_update",
+                            **in_place_neighbor,
+                        }
+                        skill_prompt_meta["context_guardrail_active"] = True
+                skill_prompt_meta["query_bottleneck_kind"] = top_bottleneck_kind
+                if context_matching:
+                    seen_skill_ids = {getattr(sk, "id", "") for sk in context_matching}
+                    support_ids = {"hls-pipeline-realistic-ii-selection"}
+                    matching = context_matching + [
+                        sk for sk in matching
+                        if getattr(sk, "id", "") in support_ids
+                        and getattr(sk, "id", "") not in seen_skill_ids
+                    ]
+                    skill_prompt_meta["context_guardrail_filtered_generic_skills"] = True
+                skill_prompt_meta["matched_skill_ids"] = [getattr(sk, "id", "") for sk in matching]
+                skill_prompt_meta["matched_skill_count"] = len(matching)
                 if matching:
-                    avoid_matching = []
-                    if top_bottleneck_kind:
+                    if top_bottleneck_kind and not action_only_skill_prompt:
                         avoid_matching = [
                             sk for sk in self.skill_library.query(
                                 bottleneck_kind=top_bottleneck_kind,
@@ -4186,17 +5609,43 @@ class C2HLSOrchestrator:
                             )
                             if getattr(sk, "confidence", "") == "avoid"
                         ][:2]
-                    prompt_skills = list(matching)[:2] + avoid_matching
-                    skill_block = render_skill_set_for_prompt(prompt_skills, max_skills=4)
+                    elif top_bottleneck_kind and action_only_skill_prompt:
+                        skill_prompt_meta["avoid_skills_suppressed"] = True
+                    skill_prompt_meta["avoid_skill_ids"] = [getattr(sk, "id", "") for sk in avoid_matching]
+                    prompt_skills = list(matching) + avoid_matching if all_positive_skill_prompt else list(matching)[:3] + avoid_matching
+                    skill_block = render_skill_set_for_prompt(
+                        prompt_skills,
+                        max_skills=len(prompt_skills) if all_positive_skill_prompt else 4,
+                        prompt_mode=render_skill_prompt_mode,
+                    )
                     if skill_block and "No matching skills" not in skill_block:
-                        extra_blocks.append(
-                            "RELEVANT SKILLS from library (pattern → strategy → "
-                            "required steps → guardrails → template/example). "
-                            "Apply the highest-confidence one that "
-                            f"addresses the bottleneck/route '{top_bottleneck_kind or skill_id}' "
-                            f"on the `{step_name}` step:\n\n" + skill_block
+                        skill_prompt_meta["injected"] = True
+                        skill_prompt_meta["injected_skill_ids"] = [
+                            getattr(sk, "id", "") for sk in prompt_skills
+                        ]
+                        skill_prompt_meta["reason"] = "injected"
+                        prompt_shape = (
+                            "pattern → strategy → required steps → template/example"
+                            if action_only_skill_prompt else
+                            "pattern → strategy → required steps → guardrails → template/example"
                         )
+                        if all_positive_skill_prompt:
+                            extra_blocks.append(
+                                f"ALL POSITIVE SKILLS from library ({prompt_shape}). "
+                                "Use the applicable positive recipes as a menu for this "
+                                f"`{step_name}` rewrite; no avoid-tier skills or guard "
+                                "sections are included:\n\n" + skill_block
+                            )
+                        else:
+                            extra_blocks.append(
+                                f"RELEVANT SKILLS from library ({prompt_shape}). "
+                                "Apply the highest-confidence one that "
+                                f"addresses the bottleneck/route '{top_bottleneck_kind or skill_id}' "
+                                f"on the `{step_name}` step:\n\n" + skill_block
+                            )
             except Exception as exc:  # pragma: no cover - skill injection best-effort
+                skill_prompt_meta["reason"] = "skill_injection_error"
+                skill_prompt_meta["error"] = str(exc)
                 logging.warning("Phase 5b skill-template injection failed: %s", exc)
 
         if additional_guidance:
@@ -4210,15 +5659,21 @@ class C2HLSOrchestrator:
         ]
 
         reply = self._call_llm(self.messages)
-        self._append_history("user", f"[Step: {step_name}] {prompt[:200]}...")
+        self._append_history("user", f"[Step: {step_name}]\n{prompt}")
         self._append_history("assistant", reply)
         self.messages.append({"role": "assistant", "content": reply})
 
         new_code = extract_cpp_code(reply)
         if not new_code:
+            self._finalize_candidate_evaluation(
+                correctness_status="not_run",
+                synthesis_status="not_run",
+                failure_class="malformed_output",
+            )
             logging.error("[Step: %s] No code in LLM response", step_name)
             return {"success": False, "step_name": step_name,
                     "error": "No code in response",
+                    "skill_prompt": skill_prompt_meta,
                     "candidate_index": candidate_index,
                     "candidate_count": candidate_count,
                     "attempt_count": attempt_limit,
@@ -4234,11 +5689,76 @@ class C2HLSOrchestrator:
                 new_code, f"Step {step_name} attempt {turn}",
             )
 
+            guardrail_issues = _lint_in_place_stencil_guardrails(self.hls_code, new_code)
+            if guardrail_issues:
+                err = "\n".join(guardrail_issues)
+                self._finalize_candidate_evaluation(
+                    code=new_code,
+                    correctness_status="not_run",
+                    synthesis_status="not_run",
+                    failure_class="compile_or_interface_failure",
+                )
+                attempt_results.append({
+                    "attempt_index": turn,
+                    "candidate_index": candidate_index,
+                    "candidate_count": candidate_count,
+                    "success": False,
+                    "stage": "guardrail_lint",
+                    "error": err,
+                    "skill_prompt": skill_prompt_meta,
+                })
+                step_turn_records.append({
+                    "turn": turn,
+                    "phase": "B",
+                    "success": False,
+                    "error": err,
+                })
+                logging.warning("[Step: %s] Guardrail lint failed: %s", step_name, err[:300])
+                fix_prompt = (
+                    "GUARDRAIL LINT FAILED before synthesis.\n\n"
+                    f"{err}\n\n"
+                    "Revise the complete HLS C++ code. Preserve the public "
+                    "function signature and correctness. For an in-place "
+                    "neighbor-update/stencil pattern, do not suppress true "
+                    "dependencies with `DEPENDENCE ... false`, and do not "
+                    "convert the algorithm to a separate-input/output update "
+                    "unless you can preserve the original update order. If no "
+                    "safe optimization is available, return the previous code "
+                    "with only legal interface/metadata pragmas and a short "
+                    "comment explaining the true-dependence limit.\n\n"
+                    "Current rejected code:\n"
+                    "```cpp\n"
+                    f"{new_code[:9000]}\n"
+                    "```\n\n"
+                    "Return only the complete revised C++ code in a fenced cpp block."
+                )
+                self.messages.append({"role": "user", "content": fix_prompt})
+                self._append_history("user", f"[Step: {step_name} guardrail repair]\n{fix_prompt}")
+                reply = self._call_llm(self.messages)
+                self.messages.append({"role": "assistant", "content": reply})
+                self._append_history("assistant", reply)
+                fixed = extract_cpp_code(reply)
+                if fixed:
+                    new_code = fixed
+                else:
+                    self._finalize_candidate_evaluation(
+                        correctness_status="not_run",
+                        synthesis_status="not_run",
+                        failure_class="malformed_output",
+                    )
+                continue
+
             ok, err = compile_check_cpp(
                 new_code, self.header_code, self.header_name,
                 extra_files=self.extra_files,
             )
             if not ok:
+                self._finalize_candidate_evaluation(
+                    code=new_code,
+                    correctness_status="not_run",
+                    synthesis_status="not_run",
+                    failure_class="compile_or_interface_failure",
+                )
                 attempt_results.append({
                     "attempt_index": turn,
                     "candidate_index": candidate_index,
@@ -4264,10 +5784,77 @@ class C2HLSOrchestrator:
                 fixed = extract_cpp_code(reply)
                 if fixed:
                     new_code = fixed
+                else:
+                    self._finalize_candidate_evaluation(
+                        correctness_status="not_run",
+                        synthesis_status="not_run",
+                        failure_class="malformed_output",
+                    )
                 continue
 
             outcome = self._synth_and_test(new_code, log_prefix=f"[Step: {step_name}]")
             result = outcome["synth"]
+
+            if result.get("budget_exhausted"):
+                return {
+                    "success": False,
+                    "step_name": step_name,
+                    "code": new_code,
+                    "error": result.get("error"),
+                    "budget_exhausted": True,
+                    "attempt_results": [
+                        _compact_attempt_record(entry) for entry in attempt_results
+                    ],
+                }
+
+            if result.get("skip_reason") == "csim_correctness_gate_failed":
+                gate_summary = outcome.get("csim") or {}
+                gate_error = (
+                    (gate_summary.get("error") or "").strip()
+                    + "\n"
+                    + (gate_summary.get("log_excerpt") or "").strip()
+                ).strip() or "pre-synthesis CSim/golden comparison failed"
+                attempt_results.append({
+                    "attempt_index": turn,
+                    "candidate_index": candidate_index,
+                    "candidate_count": candidate_count,
+                    "success": False,
+                    "stage": "csim",
+                    "csim": gate_summary,
+                    "error": f"csim_failed: {gate_error[:300]}",
+                })
+                step_turn_records.append({
+                    "turn": turn,
+                    "phase": "B",
+                    "success": False,
+                    "error": f"csim_failed: {gate_error[:200]}",
+                })
+                if turn >= attempt_limit - 1:
+                    continue
+                fix_prompt = hls_correctness_repair_fix.format(
+                    step_name=step_name,
+                    gate_name="csim",
+                    gate_error=gate_error[:2000],
+                    hls_code=new_code,
+                    header_code=self.header_code,
+                    benchmark_context=self.benchmark_context,
+                    attempt_history=_format_attempt_history(step_turn_records, "B"),
+                )
+                self.messages.append({"role": "user", "content": fix_prompt})
+                self._append_history("user", fix_prompt)
+                reply = self._call_llm(self.messages)
+                self.messages.append({"role": "assistant", "content": reply})
+                self._append_history("assistant", reply)
+                fixed = extract_cpp_code(reply)
+                if fixed:
+                    new_code = fixed
+                else:
+                    self._finalize_candidate_evaluation(
+                        correctness_status="not_run",
+                        synthesis_status="not_run",
+                        failure_class="malformed_output",
+                    )
+                continue
 
             if result["success"]:
                 logging.info("[Step: %s] Synthesis SUCCESS!\n%s",
@@ -4278,6 +5865,7 @@ class C2HLSOrchestrator:
                     "step_name": step_name,
                     "report": result["report"],
                     "code": new_code,
+                    "skill_prompt": skill_prompt_meta,
                 }
                 if step_name == "coalescing" or "max_widen_bitwidth" in (new_code or ""):
                     step_result["coalescing_diagnostics"] = _coalescing_diagnostics(
@@ -4353,6 +5941,7 @@ class C2HLSOrchestrator:
                     and isinstance(cosim_summary, dict)
                     and cosim_summary.get("ran")
                     and not cosim_summary.get("passed")
+                    and not _test_summary_is_timeout(cosim_summary)
                 )
                 correctness_disabled = bool(int(
                     os.getenv("C2HLS_DISABLE_CORRECTNESS_REPAIR", "0") or "0"
@@ -4403,6 +5992,12 @@ class C2HLSOrchestrator:
                     fixed = extract_cpp_code(reply)
                     if fixed:
                         new_code = fixed
+                    else:
+                        self._finalize_candidate_evaluation(
+                            correctness_status="not_run",
+                            synthesis_status="not_run",
+                            failure_class="malformed_output",
+                        )
                     continue
 
                 step_result.update({
@@ -4411,6 +6006,64 @@ class C2HLSOrchestrator:
                     "candidate_index": candidate_index,
                     "candidate_count": candidate_count,
                 })
+                feasibility = _paper_candidate_feasibility(
+                    result.get("report") or {},
+                    csim=outcome.get("csim"),
+                    correctness_required=bool(self.testbench_code),
+                    part=self.part,
+                    clock_ns=self.clock_ns,
+                )
+                step_result["feasibility"] = feasibility
+                if _feasibility_selection_enabled() and not feasibility.get("feasible"):
+                    rejected = dict(step_result)
+                    rejected.update({
+                        "success": False,
+                        "synthesis_success": True,
+                        "stage": "feasibility",
+                        "error": "candidate_infeasible: " + ", ".join(
+                            feasibility.get("reasons") or ["unknown"]
+                        ),
+                    })
+                    attempt_results.append(_compact_attempt_record(rejected))
+                    step_turn_records.append({
+                        "turn": turn,
+                        "phase": "feasibility",
+                        "success": False,
+                        "error": rejected["error"],
+                        "report": result.get("report"),
+                    })
+                    if turn >= attempt_limit - 1:
+                        break
+                    feasibility_prompt = _render_candidate_improvement_prompt(
+                        step_name,
+                        candidate_index,
+                        candidate_count,
+                        turn + 1,
+                        attempt_limit,
+                        result["report"],
+                        new_code,
+                    ) + (
+                        "\n\nThe prior design is ineligible under the evaluation "
+                        "feasibility rule. Fix all of these conditions without "
+                        "changing functional behavior: "
+                        + ", ".join(feasibility.get("reasons") or ["unknown"])
+                        + "."
+                    )
+                    self.messages.append({"role": "user", "content": feasibility_prompt})
+                    self._append_history("user", feasibility_prompt)
+                    reply = self._call_llm(self.messages)
+                    self.messages.append({"role": "assistant", "content": reply})
+                    self._append_history("assistant", reply)
+                    improved = extract_cpp_code(reply)
+                    if not improved:
+                        self._finalize_candidate_evaluation(
+                            correctness_status="not_run",
+                            synthesis_status="not_run",
+                            failure_class="malformed_output",
+                        )
+                        break
+                    new_code = improved
+                    continue
                 attempt_results.append(_compact_attempt_record(step_result))
                 successful_attempts.append(step_result)
 
@@ -4430,11 +6083,17 @@ class C2HLSOrchestrator:
                     new_code,
                 )
                 self.messages.append({"role": "user", "content": improve_prompt})
+                self._append_history("user", improve_prompt)
                 reply = self._call_llm(self.messages)
                 self.messages.append({"role": "assistant", "content": reply})
                 self._append_history("assistant", reply)
                 improved = extract_cpp_code(reply)
                 if not improved:
+                    self._finalize_candidate_evaluation(
+                        correctness_status="not_run",
+                        synthesis_status="not_run",
+                        failure_class="malformed_output",
+                    )
                     attempt_results.append({
                         "attempt_index": turn + 1,
                         "candidate_index": candidate_index,
@@ -4495,6 +6154,12 @@ class C2HLSOrchestrator:
             fixed = extract_cpp_code(reply)
             if fixed:
                 new_code = fixed
+            else:
+                self._finalize_candidate_evaluation(
+                    correctness_status="not_run",
+                    synthesis_status="not_run",
+                    failure_class="malformed_output",
+                )
 
         if exhaustive and successful_attempts:
             chosen = min(
@@ -4521,6 +6186,37 @@ class C2HLSOrchestrator:
             )
             return chosen
 
+        # Loop exhausted. Preserve the best synthesized-but-infeasible design
+        # as typed evidence; it is never eligible for selection.
+        infeasible_attempts = [
+            entry for entry in attempt_results
+            if entry.get("synthesis_success") and entry.get("report")
+        ]
+        if _feasibility_selection_enabled() and infeasible_attempts:
+            best_infeasible = min(
+                infeasible_attempts,
+                key=lambda entry: self._best_so_far_score(entry.get("report") or {}),
+            )
+            return {
+                **best_infeasible,
+                "success": False,
+                "synthesis_success": True,
+                "step_name": step_name,
+                "code": new_code,
+                "error": "no_feasible_attempts",
+                "feasibility_rejected": True,
+                "attempt_results": [
+                    _compact_attempt_record(entry) for entry in attempt_results
+                ],
+                "attempt_stats": _metric_stats_from_reports([
+                    entry.get("report")
+                    for entry in attempt_results
+                    if entry.get("report")
+                ]),
+                "successful_attempt_count": 0,
+                "attempt_count": attempt_limit,
+            }
+
         # Loop exhausted. Tail the last attempt record so the caller can
         # tell whether we ran out of synth budget or correctness budget
         # — Pillar 9's no-op trap and the new correctness-repair loop
@@ -4539,6 +6235,7 @@ class C2HLSOrchestrator:
             "success": False,
             "step_name": step_name,
             "error": error_msg,
+            "skill_prompt": skill_prompt_meta,
             "attempt_results": [
                 _compact_attempt_record(entry) for entry in attempt_results
             ],
@@ -4555,16 +6252,21 @@ class C2HLSOrchestrator:
 
     @staticmethod
     def _best_so_far_score(report: dict) -> float:
-        """Lower-is-better trajectory score. Latency_ns is the headline;
-        ties broken by total resource sum (BRAM+DSP+FF+LUT) so smaller
-        designs win when latency is identical (the Sonnet pathfinder
-        coalescing/doublebuffer/pipeline tied on 8.695M, but pipeline +
-        unroll were strictly smaller)."""
+        """Lower-is-better score after feasibility has been established.
+
+        The paper selects minimum estimated worst-case latency in cycles.
+        Latency in nanoseconds is only a fallback for legacy reports; a tiny
+        resource term deterministically breaks exact latency ties.
+        """
         if not report:
             return float("inf")
-        try:
-            lat = float(report.get("latency_ns") or float("inf"))
-        except (TypeError, ValueError):
+        lat = _as_float(
+            report.get("latency_cycles_worst")
+            or report.get("latency_cycles")
+            or report.get("latency_ns_worst")
+            or report.get("latency_ns")
+        )
+        if lat is None or lat <= 0:
             lat = float("inf")
         rsum = 0.0
         for k in ("bram", "dsp", "ff", "lut"):
@@ -4572,21 +6274,7 @@ class C2HLSOrchestrator:
                 rsum += float(report.get(k) or 0)
             except (TypeError, ValueError):
                 pass
-        timing_penalty = 0.0
-        slack = _as_float(report.get("slack_ns"))
-        estimated = _as_float(report.get("estimated_clock_period_ns"))
-        requested = _as_float(report.get("requested_clock_period_ns"))
-        if slack is not None and slack < 0:
-            timing_penalty = abs(slack) * 1000.0
-        elif (
-            estimated is not None
-            and requested is not None
-            and estimated > requested + 1e-9
-        ):
-            timing_penalty = (estimated - requested) * 1000.0
-        # 1e-6 weight on resources so resource ties only matter at
-        # millions-of-cycles latency parity.
-        return lat + timing_penalty + rsum * 1e-6
+        return lat + rsum * 1e-12
 
     def _record_best_so_far(self, history: list, *, step_index: int,
                              step_name: str, source: str) -> None:
@@ -4595,6 +6283,22 @@ class C2HLSOrchestrator:
         "step_forward", "alignment_kept"} for downstream attribution."""
         if not self.synth_report:
             return
+        generated_csim = getattr(self, "generated_csim", None)
+        generated_cosim = getattr(self, "generated_cosim", None)
+        feasibility = _paper_candidate_feasibility(
+            self.synth_report,
+            csim=generated_csim,
+            correctness_required=bool(getattr(self, "testbench_code", None)),
+            part=getattr(self, "part", DEFAULT_PART),
+            clock_ns=getattr(self, "clock_ns", DEFAULT_CLOCK_NS),
+        )
+        if _feasibility_selection_enabled() and not feasibility.get("feasible"):
+            self._append_history(
+                "system",
+                f"[Best-state] Excluded infeasible snapshot '{step_name}': "
+                + ", ".join(feasibility.get("reasons") or ["unknown"]),
+            )
+            return
         history.append({
             "step_index": step_index,
             "step_name": step_name,
@@ -4602,6 +6306,9 @@ class C2HLSOrchestrator:
             "score": self._best_so_far_score(self.synth_report),
             "code": self.hls_code,
             "report": dict(self.synth_report),
+            "csim": _sanitize_test_summary(generated_csim),
+            "cosim": _sanitize_test_summary(generated_cosim),
+            "feasibility": feasibility,
         })
 
     def _record_phase_b_fast_candidate(self, reference_report: Optional[dict]) -> None:
@@ -4662,6 +6369,8 @@ class C2HLSOrchestrator:
             )
             self.hls_code = best.get("code")
             self.synth_report = dict(best.get("report") or {})
+            self.generated_csim = best.get("csim")
+            self.generated_cosim = best.get("cosim")
             self._append_history(
                 "system",
                 f"[Phase 6a] Promoted best-so-far snapshot from step "
@@ -4721,8 +6430,65 @@ class C2HLSOrchestrator:
 
         self.hls_code = new_code
         self.synth_report = new_report
+        self.generated_csim = attempt.get("csim")
+        self.generated_cosim = attempt.get("cosim")
         attempt["forward_eval_committed"] = True
         return attempt
+
+    def _prepare_skill_library_for_run(self) -> None:
+        """Resolve skill control before any model or compiler call."""
+        force_skill_prompts = os.getenv(
+            "C2HLS_FORCE_SKILL_PROMPTS", ""
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        skills_enabled = _skill_library_control_enabled()
+        if not skills_enabled:
+            self.skill_library = None
+            self.skill_library_provenance = {
+                "loaded": False,
+                "control_enabled": False,
+                "reason": "C2HLS_SKILL_MODE explicitly disables all skill-library use",
+                "frozen": _env_flag(SKILL_LIBRARY_FROZEN_ENV),
+                "persistence_enabled": False,
+                "online_updates_enabled": False,
+            }
+            return
+        should_load = (
+            self.dynamic_routing
+            or self.strategy == "dynamic"
+            or force_skill_prompts
+        )
+        if should_load and self.skill_library is None:
+            from skill_library import load_frozen_library, make_default_library
+
+            persist_skills = (
+                not _env_flag(SKILL_LIBRARY_FROZEN_ENV)
+                and not self.reference_blind
+                and _env_flag("C2HLS_SKILL_LIBRARY_PERSIST", "1")
+            )
+            if _env_flag(SKILL_LIBRARY_FROZEN_ENV):
+                frozen_path = os.getenv("C2HLS_SKILL_LIBRARY_PATH", "").strip()
+                if not frozen_path:
+                    raise RuntimeError(
+                        "frozen skill mode requires C2HLS_SKILL_LIBRARY_PATH"
+                    )
+                self.skill_library = load_frozen_library(Path(frozen_path))
+            else:
+                self.skill_library = make_default_library(persist=persist_skills)
+            self.skill_library_provenance = _skill_library_provenance(
+                self.skill_library
+            )
+            self.skill_library_provenance.update(
+                {
+                    "frozen": _env_flag(SKILL_LIBRARY_FROZEN_ENV),
+                    "control_enabled": True,
+                    "persistence_enabled": persist_skills,
+                    "online_updates_enabled": _skill_updates_enabled(),
+                }
+            )
+        elif self.skill_library is not None and not self.skill_library_provenance:
+            self.skill_library_provenance = _skill_library_provenance(
+                self.skill_library
+            )
 
     def run_multistep(self, c_code: str, header_code: str = "",
                       header_name: str = "kernel.h",
@@ -4730,12 +6496,31 @@ class C2HLSOrchestrator:
                       gt_variants: dict = None,
                       gt_variant_headers: dict = None,
                       reference_report: dict = None):
+        if getattr(self, "_candidate_stream_started_monotonic", None) is None:
+            self._candidate_stream_started_monotonic = time.monotonic()
         if steps is None:
             steps = list(DEFAULT_OPT_STEPS)
         if gt_variants is None:
             gt_variants = {}
         if gt_variant_headers is None:
             gt_variant_headers = {}
+
+        # The evaluator may validate expert implementations in the same
+        # process, but the reference-isolated controller receives no expert code,
+        # metrics, headers, or trajectory state.  Oracle runs must opt in
+        # explicitly through C2HLS_GT_COMPARISON_IN_CONTROL=1 with reference
+        # blindness disabled.
+        if not _ground_truth_control_enabled():
+            gt_variants = {}
+            gt_variant_headers = {}
+            reference_report = {}
+            self._gt_step_reports.clear()
+            self._gt_baseline_report = {}
+            self.cosim_reference_cycle_info = {}
+
+        # A missing, malformed, or contaminated frozen snapshot must fail
+        # before Phase A/B can spend an LLM or synthesis call.
+        self._prepare_skill_library_for_run()
 
         if not self.run_phase_a(c_code, header_code, header_name):
             return False, {"phase": "A", "error": "C code validation failed"}
@@ -4761,6 +6546,8 @@ class C2HLSOrchestrator:
         self._record_phase_b_fast_candidate(reference_report)
 
         baseline_report = dict(self.synth_report) if self.synth_report else {}
+        baseline_csim = _sanitize_test_summary(self.generated_csim)
+        baseline_cosim = _sanitize_test_summary(self.generated_cosim)
         # Store on self so _optimization_step_attempt can diff per-loop
         # bottlenecks of any subsequent step against the baseline (Pillar 1).
         self._baseline_report = baseline_report
@@ -4828,15 +6615,6 @@ class C2HLSOrchestrator:
             from prompt_c2hls import COMBO_PROGRESSIVE_STEPS
             steps = list(COMBO_PROGRESSIVE_STEPS)
 
-        # Phase 2: lazy-load the skill library when dynamic routing is on.
-        force_skill_prompts = os.getenv("C2HLS_FORCE_SKILL_PROMPTS", "").strip().lower() in {
-            "1", "true", "yes", "on",
-        }
-        if (self.dynamic_routing or self.strategy == "dynamic" or force_skill_prompts) and self.skill_library is None:
-            from skill_library import make_default_library
-            persist_skills = bool(int(os.getenv("C2HLS_SKILL_LIBRARY_PERSIST", "1") or "1"))
-            self.skill_library = make_default_library(persist=persist_skills)
-
         # When dynamic_routing is on, we walk the steps in
         # bottleneck-driven order rather than the configured static
         # order; the configured `steps` list still bounds the search
@@ -4902,6 +6680,7 @@ class C2HLSOrchestrator:
                         "success": False,
                         "error": str(exc),
                         "exception_type": type(exc).__name__,
+                        "budget_exhausted": "budget_exhausted" in str(exc),
                         "profile_required": True,
                         "report": {},
                     }
@@ -4963,6 +6742,13 @@ class C2HLSOrchestrator:
                 step_results.append(step_result)
                 completed.append(step_name)
                 available = [s for s in available if s != step_name]
+                if step_result.get("budget_exhausted"):
+                    self._append_history(
+                        "system",
+                        "[Budget] Total synthesis-evaluation budget exhausted; "
+                        "ending the trajectory before any further LLM calls.",
+                    )
+                    break
 
                 # Per-step effect — pulled from the existing classifier so
                 # the robustness checks have the same labels the dataset
@@ -4982,7 +6768,11 @@ class C2HLSOrchestrator:
                 step_result["step_effect"] = effect
                 effects.append(effect)
 
-                if decision.skill_id and self.skill_library is not None:
+                if (
+                    decision.skill_id
+                    and self.skill_library is not None
+                    and _skill_updates_enabled()
+                ):
                     rel_adv = None
                     cur_report = step_result.get("report") or {}
                     try:
@@ -5055,6 +6845,7 @@ class C2HLSOrchestrator:
                         "success": False,
                         "error": str(exc),
                         "exception_type": type(exc).__name__,
+                        "budget_exhausted": "budget_exhausted" in str(exc),
                         "profile_required": True,
                         "report": {},
                     }
@@ -5067,6 +6858,13 @@ class C2HLSOrchestrator:
                     })
                     break
                 step_results.append(step_result)
+                if step_result.get("budget_exhausted"):
+                    self._append_history(
+                        "system",
+                        "[Budget] Total synthesis-evaluation budget exhausted; "
+                        "ending the trajectory before any further LLM calls.",
+                    )
+                    break
                 if not step_result.get("success"):
                     logging.warning("[Multistep] Step '%s' failed: %s", step_name, step_result.get("error", "unknown"))
                 if step_result.get("success") and step_result.get("report"):
@@ -5079,7 +6877,12 @@ class C2HLSOrchestrator:
                                 else "step"),
                     )
 
-        if self.skill_library is not None and bool(int(os.getenv("C2HLS_SKILL_LIBRARY_PERSIST", "1") or "1")):
+        if (
+            self.skill_library is not None
+            and not _env_flag(SKILL_LIBRARY_FROZEN_ENV)
+            and not self.reference_blind
+            and _env_flag("C2HLS_SKILL_LIBRARY_PERSIST", "1")
+        ):
             try:
                 self.skill_library.save()
             except OSError as exc:
@@ -5092,12 +6895,34 @@ class C2HLSOrchestrator:
         # it and overwrite final_report / hls_code with that snapshot.
         promotion = self._promote_best_so_far(best_so_far_history)
 
-        return True, {
+        candidate_feasibility = _paper_candidate_feasibility(
+            self.synth_report,
+            csim=self.generated_csim,
+            correctness_required=bool(self.testbench_code),
+            part=self.part,
+            clock_ns=self.clock_ns,
+        )
+        selected_cosim = self._run_selected_winner_cosim()
+        selected_cosim_ok = not (
+            _cosim_selected_only() and self.supports_cosim and self.testbench_code
+        ) or _selected_cosim_measurement_ok(selected_cosim)
+        run_success = (
+            bool(self.synth_report)
+            and (
+                not _feasibility_selection_enabled()
+                or candidate_feasibility.get("feasible")
+            )
+            and selected_cosim_ok
+        )
+
+        return run_success, {
             "phase": "flash" if self.strategy == "flash" else "multistep",
             "baseline_report": baseline_report,
             "baseline_comparison": baseline_comparison,
-            "baseline_csim": self.generated_csim,
-            "baseline_cosim": self.generated_cosim,
+            "baseline_csim": baseline_csim,
+            "baseline_cosim": baseline_cosim,
+            "csim": self.generated_csim,
+            "cosim": self.generated_cosim,
             "final_report": self.synth_report,
             "steps": step_results,
             "generated_step_history": [
@@ -5106,8 +6931,8 @@ class C2HLSOrchestrator:
                     "success": True,
                     "report": baseline_report,
                     "comparison": baseline_comparison,
-                    "csim": self.generated_csim,
-                    "cosim": self.generated_cosim,
+                    "csim": baseline_csim,
+                    "cosim": baseline_cosim,
                 },
                 *step_results,
             ],
@@ -5131,7 +6956,36 @@ class C2HLSOrchestrator:
                 {k: v for k, v in (self.phase_b_fast_candidate or {}).items() if k != "code"}
                 if self.phase_b_fast_candidate else None
             ),
+            "skill_library_provenance": self.skill_library_provenance,
             "llm_usage": self._llm_usage_summary(),
+            "synthesis_evaluations": self._synthesis_evaluation_summary(),
+            "selected_winner_cosim_count": getattr(
+                self, "selected_winner_cosim_count", 0
+            ),
+            "total_synthesis_calls": self._total_synthesis_calls(),
+            "selected_code_sha256": getattr(self, "selected_code_sha256", None),
+            "cosim_target_code_sha256": getattr(
+                self, "cosim_target_code_sha256", None
+            ),
+            "candidate_feasibility": candidate_feasibility,
+            "selected_cosim_measurement_valid": selected_cosim_ok,
+            "selected_cosim_measurement_error": (
+                "selected winner lacks a passing executed RTL cycle measurement"
+                if not selected_cosim_ok else ""
+            ),
+            "independent_golden": self.independent_golden_provenance,
+            "correctness_status": (
+                ((self.generated_csim or {}).get("correctness") or {}).get(
+                    "correctness_status"
+                )
+                if isinstance(self.generated_csim, dict)
+                else None
+            ) or (
+                "passed"
+                if isinstance(self.generated_csim, dict)
+                and self.generated_csim.get("passed")
+                else "not_run"
+            ),
         }
 
     def save_results(self, output_dir: str, bench_name: str):
@@ -5147,7 +7001,8 @@ class C2HLSOrchestrator:
             "model_synthesis":      os.getenv(SYNTHESIS_MODEL_ENV)      or self.gpt_model,
             "model_quality_repair": os.getenv(QUALITY_REPAIR_MODEL_ENV) or self.gpt_model,
             "llm_usage": self._llm_usage_summary(),
-            "messages": self.history,
+            "messages": self.llm_controller_transcript or self.history,
+            "event_history": self.history,
         }
         with open(os.path.join(output_dir, f"{bench_name}_history.json"), "w") as f:
             json.dump(history_payload, f, indent=2)
@@ -5186,13 +7041,19 @@ class C2HLSOrchestrator:
             "model_synthesis":      os.getenv(SYNTHESIS_MODEL_ENV)      or self.gpt_model,
             "model_quality_repair": os.getenv(QUALITY_REPAIR_MODEL_ENV) or self.gpt_model,
             "llm_usage": self._llm_usage_summary(),
-            "messages": self.history,
+            "messages": self.llm_controller_transcript or self.history,
+            "event_history": self.history,
         }
         with open(os.path.join(output_dir, f"{bench_name}_history.json"), "w") as f:
             json.dump(history_payload, f, indent=2)
 
     def run(self, c_code: str, header_code: str = "", header_name: str = "kernel.h",
             ground_truth_report: dict = None):
+        if getattr(self, "_candidate_stream_started_monotonic", None) is None:
+            self._candidate_stream_started_monotonic = time.monotonic()
+        if not _ground_truth_control_enabled():
+            ground_truth_report = {}
+            self.cosim_reference_cycle_info = {}
         if not self.run_phase_a(c_code, header_code, header_name):
             return False, {"phase": "A", "error": "C code validation failed"}
 
@@ -5221,7 +7082,23 @@ class C2HLSOrchestrator:
             if quality_repair.get("applied"):
                 comparison = self.run_phase_c(ground_truth_report)
 
-        return True, {
+        candidate_feasibility = _paper_candidate_feasibility(
+            self.synth_report,
+            csim=self.generated_csim,
+            correctness_required=bool(self.testbench_code),
+            part=self.part,
+            clock_ns=self.clock_ns,
+        )
+        selected_cosim = self._run_selected_winner_cosim()
+        selected_cosim_ok = not (
+            _cosim_selected_only() and self.supports_cosim and self.testbench_code
+        ) or _selected_cosim_measurement_ok(selected_cosim)
+        run_success = (
+            not _feasibility_selection_enabled()
+            or candidate_feasibility.get("feasible")
+        ) and selected_cosim_ok
+
+        return run_success, {
             "phase": "complete",
             "hls_code": self.hls_code,
             "synth_report": self.synth_report,
@@ -5232,6 +7109,34 @@ class C2HLSOrchestrator:
             "turn_history": self.turn_results,
             "preflight_patches": self.preflight_patches,
             "llm_usage": self._llm_usage_summary(),
+            "synthesis_evaluations": self._synthesis_evaluation_summary(),
+            "selected_winner_cosim_count": getattr(
+                self, "selected_winner_cosim_count", 0
+            ),
+            "total_synthesis_calls": self._total_synthesis_calls(),
+            "selected_code_sha256": getattr(self, "selected_code_sha256", None),
+            "cosim_target_code_sha256": getattr(
+                self, "cosim_target_code_sha256", None
+            ),
+            "candidate_feasibility": candidate_feasibility,
+            "selected_cosim_measurement_valid": selected_cosim_ok,
+            "selected_cosim_measurement_error": (
+                "selected winner lacks a passing executed RTL cycle measurement"
+                if not selected_cosim_ok else ""
+            ),
+            "independent_golden": self.independent_golden_provenance,
+            "correctness_status": (
+                ((self.generated_csim or {}).get("correctness") or {}).get(
+                    "correctness_status"
+                )
+                if isinstance(self.generated_csim, dict)
+                else None
+            ) or (
+                "passed"
+                if isinstance(self.generated_csim, dict)
+                and self.generated_csim.get("passed")
+                else "not_run"
+            ),
         }
 
 
@@ -5302,6 +7207,10 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
     # coalescing). The local cleaned header doesn't contain those, so
     # synthesising the GT cpp with the local header fails with "undeclared
     # identifier". Pair the variant cpp with its sibling header from upstream.
+    use_upstream_variant_headers = (
+        meta.get("source_repo") in {"rodinia-hls", "rodinia-hls-nova"}
+        or bool(meta.get("use_upstream_variant_headers"))
+    )
     gt_variants = {}
     gt_variant_headers = {}
     for variant in meta.get("variants", []):
@@ -5318,7 +7227,7 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
         # Falls back to the local header if the upstream copy is missing or
         # the metadata didn't record a source_path.
         upstream_src = variant.get("source_path") or ""
-        if upstream_src:
+        if upstream_src and use_upstream_variant_headers:
             upstream_header = Path(upstream_src).with_name(header_name)
             if upstream_header.exists():
                 gt_variant_headers[step_key] = _rewrite_source_includes_for_local_support(
@@ -5379,6 +7288,252 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
     }
 
 
+_HLSFACTORY_SHAPE_REGISTRY = (
+    Path(__file__).resolve().parent / "configs" / "hlsfactory_output_shapes.json"
+)
+
+
+def _authoritative_hlsfactory_output_specs(
+    meta: dict, testbench_code: str
+) -> tuple[dict, dict, dict]:
+    """Return hash-bound output contracts audited from public testbenches.
+
+    HLSFactory dumps are flattened text.  Inferring ``[value_count]`` from a
+    golden execution only relabels the flat stream; it does not establish the
+    public harness's dimensional contract.  The checked-in registry records
+    ``print_array`` bounds and is bound to the exact testbench bytes, so a
+    missing kernel, changed harness, or conflicting local override fails shut.
+    """
+
+    try:
+        registry_bytes = _HLSFACTORY_SHAPE_REGISTRY.read_bytes()
+        registry = json.loads(registry_bytes)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"HLSFactory shape registry unavailable: {exc}") from exc
+    if registry.get("schema_version") != "c2hls.hlsfactory-output-shapes.v1":
+        raise ValueError("unsupported HLSFactory shape-registry schema")
+
+    benchmark = str(meta.get("benchmark") or "")
+    entry = (registry.get("benchmarks") or {}).get(benchmark)
+    if not isinstance(entry, dict):
+        raise ValueError(f"no authoritative HLSFactory shape entry for {benchmark!r}")
+    actual_testbench_sha = hashlib.sha256(
+        (testbench_code or "").encode("utf-8")
+    ).hexdigest()
+    expected_testbench_sha = str(entry.get("testbench_sha256") or "")
+    if actual_testbench_sha != expected_testbench_sha:
+        raise ValueError(
+            "HLSFactory testbench does not match audited shape contract: "
+            f"expected {expected_testbench_sha}, got {actual_testbench_sha}"
+        )
+
+    declared_outputs = entry.get("outputs")
+    if not isinstance(declared_outputs, dict) or not declared_outputs:
+        raise ValueError(f"empty HLSFactory output contract for {benchmark!r}")
+    policy = registry.get("policy") or {}
+    default_atol = float(policy.get("default_float_atol", 1e-6))
+    default_rtol = float(policy.get("default_float_rtol", 1e-5))
+    comparison_specs: dict[str, dict] = {}
+    declarations: dict[str, dict] = {}
+    for raw_name, raw_spec in declared_outputs.items():
+        name = str(raw_name)
+        if not name or not isinstance(raw_spec, dict):
+            raise ValueError(f"invalid output declaration in {benchmark!r}")
+        shape = raw_spec.get("shape")
+        logical_shape = raw_spec.get("logical_shape")
+        for label, dimensions in (("emission", shape), ("logical", logical_shape)):
+            if (
+                not isinstance(dimensions, list)
+                or not dimensions
+                or any(
+                    not isinstance(dim, int) or isinstance(dim, bool) or dim <= 0
+                    for dim in dimensions
+                )
+            ):
+                raise ValueError(f"invalid {label} shape for {benchmark}:{name}")
+        kind = str(raw_spec.get("kind") or "")
+        if kind not in {"float", "integer"}:
+            raise ValueError(f"invalid numeric kind for {benchmark}:{name}")
+        comparison = {"shape": list(shape), "kind": kind}
+        if kind == "float":
+            comparison.update({"atol": default_atol, "rtol": default_rtol})
+        comparison_specs[name] = comparison
+        declarations[name] = {
+            "shape": list(shape),
+            "logical_shape": list(logical_shape),
+            "layout": str(raw_spec.get("layout") or ""),
+            "kind": kind,
+        }
+
+    # Metadata may redundantly assert the registry, but may never silently
+    # redefine a shape while preserving the same total element count.
+    explicit = meta.get("golden_output_specs")
+    if explicit:
+        if not isinstance(explicit, dict) or set(explicit) != set(comparison_specs):
+            raise ValueError("benchmark golden_output_specs output set conflicts with registry")
+        for name, expected in comparison_specs.items():
+            supplied = explicit.get(name) or {}
+            if list(supplied.get("shape") or []) != expected["shape"]:
+                raise ValueError(
+                    f"benchmark golden_output_specs shape conflicts for {benchmark}:{name}"
+                )
+            if supplied.get("kind", expected["kind"]) != expected["kind"]:
+                raise ValueError(
+                    f"benchmark golden_output_specs kind conflicts for {benchmark}:{name}"
+                )
+
+    return comparison_specs, declarations, {
+        "path": _HLSFACTORY_SHAPE_REGISTRY.relative_to(
+            Path(__file__).resolve().parent
+        ).as_posix(),
+        "sha256": hashlib.sha256(registry_bytes).hexdigest(),
+        "testbench_sha256": actual_testbench_sha,
+    }
+
+
+def _prepare_independent_golden(inputs: dict) -> dict:
+    """Build and validate a CPU oracle for print-only benchmark testbenches.
+
+    The output text is intentionally kept in the private ``output`` field for
+    comparator calls.  Saved result records receive only the content hash and
+    typed output inventory in ``provenance``.
+    """
+    meta = inputs.get("meta") or {}
+    explicit = meta.get("independent_golden_required")
+    required = (
+        bool(explicit)
+        if explicit is not None
+        else str(meta.get("source_repo") or "").strip().lower() == "hlsfactory"
+    )
+    base_provenance = {
+        "schema_version": "c2hls.independent-golden.v1",
+        "required": required,
+        "source": "pragma_stripped_plain_c_and_public_testbench",
+    }
+    if not required:
+        return {
+            "success": True,
+            "required": False,
+            "output": "",
+            "specs": {},
+            "provenance": {**base_provenance, "status": "not_required"},
+        }
+    if not inputs.get("testbench_code"):
+        return {
+            "success": False,
+            "required": True,
+            "error": "independent golden required but benchmark testbench is missing",
+            "output": "",
+            "specs": {},
+            "provenance": {**base_provenance, "status": "invalid"},
+        }
+
+    native = run_native_testbench(
+        inputs.get("c_code") or "",
+        inputs.get("testbench_code") or "",
+        inputs.get("header_code") or "",
+        inputs.get("header_name") or "kernel.h",
+        extra_files=inputs.get("extra_files") or [],
+        timeout=int(os.getenv("C2HLS_CPU_GOLDEN_TIMEOUT", "180") or "180"),
+    )
+    if not native.get("success"):
+        error = native.get("error") or "CPU-golden execution failed"
+        return {
+            "success": False,
+            "required": True,
+            "error": error,
+            "output": "",
+            "specs": {},
+            "provenance": {
+                **base_provenance,
+                "status": "invalid",
+                "stage": native.get("stage"),
+                "error": error,
+            },
+        }
+
+    output = native.get("output") or ""
+    try:
+        from golden_output import compare_hlsfactory_dumps, parse_hlsfactory_dumps
+
+        parsed = parse_hlsfactory_dumps(output)
+        is_hlsfactory = (
+            str(meta.get("source_repo") or "").strip().lower() == "hlsfactory"
+        )
+        declarations: dict[str, dict] = {}
+        shape_registry: dict[str, str] = {}
+        if is_hlsfactory:
+            specs, declarations, shape_registry = _authoritative_hlsfactory_output_specs(
+                meta, inputs.get("testbench_code") or ""
+            )
+            if set(parsed) != set(specs):
+                raise ValueError(
+                    "CPU-golden output set does not match HLSFactory shape registry: "
+                    f"expected {sorted(specs)}, got {sorted(parsed)}"
+                )
+        else:
+            specs = copy.deepcopy(meta.get("golden_output_specs") or {})
+        default_atol = float(meta.get("golden_output_atol", 1e-6))
+        default_rtol = float(meta.get("golden_output_rtol", 1e-5))
+        for name, parsed_output in parsed.items():
+            spec = dict(specs.get(name) or {})
+            if not is_hlsfactory:
+                spec.setdefault("shape", [len(parsed_output.values)])
+            spec.setdefault("kind", "auto")
+            if not parsed_output.integer_tokens:
+                spec.setdefault("atol", default_atol)
+                spec.setdefault("rtol", default_rtol)
+            specs[name] = spec
+        self_check = compare_hlsfactory_dumps(output, output, specs=specs).to_dict()
+        if not self_check.get("passed"):
+            raise ValueError(
+                "CPU-golden self-check failed: "
+                f"{self_check.get('reason')}: {self_check.get('details')}"
+            )
+    except Exception as exc:
+        return {
+            "success": False,
+            "required": True,
+            "error": f"independent golden output is invalid: {type(exc).__name__}: {exc}",
+            "output": "",
+            "specs": {},
+            "provenance": {
+                **base_provenance,
+                "status": "invalid",
+                "stage": "parse_and_self_check",
+                "error": str(exc),
+            },
+        }
+
+    output_inventory = {
+        name: {
+            "count": len(value.values),
+            "integer_tokens": value.integer_tokens,
+            "declared_shape": (specs.get(name) or {}).get("shape"),
+            "logical_shape": (declarations.get(name) or {}).get("logical_shape"),
+            "layout": (declarations.get(name) or {}).get("layout"),
+        }
+        for name, value in parsed.items()
+    }
+    provenance = {
+        **base_provenance,
+        "status": "passed",
+        "output_sha256": hashlib.sha256(output.encode("utf-8")).hexdigest(),
+        "specs_sha256": _sha256_text(specs),
+        "shape_registry": shape_registry,
+        "outputs": output_inventory,
+        "output_count": len(output_inventory),
+        "value_count": sum(item["count"] for item in output_inventory.values()),
+    }
+    return {
+        "success": True,
+        "required": True,
+        "output": output,
+        "specs": specs,
+        "provenance": provenance,
+    }
+
+
 def _normalize_variant_step_name(variant_name: str) -> str:
     match = re.search(r"_(\d+)_(.+)$", variant_name or "")
     step_name = match.group(2) if match else (variant_name or "baseline")
@@ -5418,6 +7573,139 @@ def _rewrite_source_includes_for_local_support(code: str, bench_dir: Path) -> st
     return code
 
 
+def _strip_contract_comments_and_literals(text: str) -> str:
+    """Remove syntax that must not seed the public-contract identifier set."""
+    text = re.sub(r"/\*.*?\*/", " ", text or "", flags=re.DOTALL)
+    text = re.sub(r"//[^\n]*", " ", text)
+    text = re.sub(r'"(?:\\.|[^"\\])*"', '""', text)
+    text = re.sub(r"'(?:\\.|[^'\\])*'", "''", text)
+    return text
+
+
+def _normalize_contract_tokens(text: str) -> str:
+    return re.sub(r"\s+", "", _strip_contract_comments_and_literals(text))
+
+
+def _header_contract_definitions(header_code: str) -> dict[str, dict]:
+    """Extract macro/constant definitions relevant to workload semantics.
+
+    The paper contract deliberately ignores include paths and private helper
+    declarations.  Public identifiers are selected separately from the plain
+    input and golden testbench, then followed transitively through this map.
+    """
+    clean = _strip_contract_comments_and_literals(header_code)
+    clean = re.sub(r"\\\n", "", clean)
+    definitions: dict[str, dict] = {}
+    macro_pattern = re.compile(
+        r"^[ \t]*#[ \t]*define[ \t]+"
+        r"(?P<name>[A-Za-z_]\w*)"
+        r"(?P<params>\([^\n)]*\))?"
+        r"[ \t]*(?P<body>[^\n]*)$",
+        re.MULTILINE,
+    )
+    for match in macro_pattern.finditer(clean):
+        name = match.group("name")
+        params = match.group("params") or ""
+        body = match.group("body") or ""
+        definitions[name] = {
+            "kind": "function_macro" if params else "macro",
+            "normalized": _normalize_contract_tokens(params + body),
+            "dependencies": sorted(
+                set(re.findall(r"\b[A-Za-z_]\w*\b", body)) - {name}
+            ),
+        }
+
+    constant_pattern = re.compile(
+        r"\b(?:static\s+)?(?:constexpr\s+|const\s+)"
+        r"(?P<type>[A-Za-z_]\w*(?:\s*::\s*[A-Za-z_]\w*)?"
+        r"(?:\s*<[^;=]+?>)?)\s+"
+        r"(?P<name>[A-Za-z_]\w*)\s*=\s*(?P<value>[^;]+);",
+        re.MULTILINE,
+    )
+    for match in constant_pattern.finditer(clean):
+        name = match.group("name")
+        value = match.group("value")
+        definitions[name] = {
+            "kind": "constant",
+            "normalized": _normalize_contract_tokens(
+                match.group("type") + "=" + value
+            ),
+            "dependencies": sorted(
+                set(re.findall(r"\b[A-Za-z_]\w*\b", value)) - {name}
+            ),
+        }
+    return definitions
+
+
+def _public_header_contract_audit(
+    canonical_header: str,
+    candidate_header: str,
+    *,
+    plain_code: str,
+    testbench_code: str,
+) -> dict:
+    """Compare the transitive public macro/constant workload contract."""
+    canonical_defs = _header_contract_definitions(canonical_header)
+    candidate_defs = _header_contract_definitions(candidate_header)
+    public_text = _strip_contract_comments_and_literals(
+        (plain_code or "") + "\n" + (testbench_code or "")
+    )
+    referenced = set(re.findall(r"\b[A-Za-z_]\w*\b", public_text))
+    pending = sorted(referenced.intersection(canonical_defs))
+    contract_names: set[str] = set()
+    while pending:
+        name = pending.pop()
+        if name in contract_names:
+            continue
+        contract_names.add(name)
+        for dependency in canonical_defs[name].get("dependencies", []):
+            if dependency in canonical_defs and dependency not in contract_names:
+                pending.append(dependency)
+
+    differences = []
+    canonical_contract = {}
+    candidate_contract = {}
+    for name in sorted(contract_names):
+        expected = canonical_defs[name]
+        actual = candidate_defs.get(name)
+        canonical_contract[name] = {
+            "kind": expected["kind"],
+            "normalized": expected["normalized"],
+        }
+        if actual is not None:
+            candidate_contract[name] = {
+                "kind": actual["kind"],
+                "normalized": actual["normalized"],
+            }
+        if actual is None:
+            differences.append({
+                "identifier": name,
+                "reason_code": "public_definition_missing",
+                "expected_sha256": _sha256_text(expected["normalized"]),
+                "actual_sha256": "",
+            })
+        elif (
+            actual.get("kind") != expected.get("kind")
+            or actual.get("normalized") != expected.get("normalized")
+        ):
+            differences.append({
+                "identifier": name,
+                "reason_code": "public_definition_mismatch",
+                "expected_sha256": _sha256_text(expected["normalized"]),
+                "actual_sha256": _sha256_text(actual.get("normalized", "")),
+            })
+
+    return {
+        "schema_version": "c2hls.public-workload-contract.v1",
+        "passed": not differences,
+        "reason_codes": sorted({item["reason_code"] for item in differences}),
+        "public_identifiers": sorted(contract_names),
+        "canonical_contract_sha256": _sha256_text(canonical_contract),
+        "candidate_contract_sha256": _sha256_text(candidate_contract),
+        "differences": differences,
+    }
+
+
 def _ground_truth_candidates(inputs: dict) -> list[dict]:
     meta = inputs["meta"]
     bench_dir = Path(inputs["bench_dir"])
@@ -5425,6 +7713,10 @@ def _ground_truth_candidates(inputs: dict) -> list[dict]:
     seen_files = set()
     default_header_name = meta.get("header_file") or inputs.get("header_name") or "kernel.h"
     default_header_code = inputs.get("header_code", "")
+    use_upstream_variant_headers = (
+        meta.get("source_repo") in {"rodinia-hls", "rodinia-hls-nova"}
+        or bool(meta.get("use_upstream_variant_headers"))
+    )
 
     for variant in meta.get("variants", []):
         variant_file = variant.get("file")
@@ -5435,10 +7727,17 @@ def _ground_truth_candidates(inputs: dict) -> list[dict]:
             continue
         source_path = variant.get("source_path", "")
         header_code = default_header_code
-        if source_path:
+        if source_path and use_upstream_variant_headers:
             source_header = Path(source_path).with_name(default_header_name)
             if source_header.exists():
                 header_code = _rewrite_source_includes_for_local_support(source_header.read_text(), bench_dir)
+        variant_code = variant_path.read_text()
+        contract_audit = _public_header_contract_audit(
+            default_header_code,
+            header_code,
+            plain_code=inputs.get("c_code", ""),
+            testbench_code=inputs.get("testbench_code", ""),
+        )
         candidates.append(
             {
                 "variant_name": variant.get("name", Path(variant_file).stem),
@@ -5447,7 +7746,8 @@ def _ground_truth_candidates(inputs: dict) -> list[dict]:
                 "source_path": source_path,
                 "header_name": default_header_name,
                 "header_code": header_code,
-                "code": variant_path.read_text(),
+                "code": variant_code,
+                "public_contract_audit": contract_audit,
             }
         )
         seen_files.add(variant_file)
@@ -5459,7 +7759,7 @@ def _ground_truth_candidates(inputs: dict) -> list[dict]:
     if hls_code:
         source_path = inputs["meta"].get("gold_hls_source_path", "")
         header_code = default_header_code
-        if source_path:
+        if source_path and use_upstream_variant_headers:
             source_header = Path(source_path).with_name(default_header_name)
             if source_header.exists():
                 header_code = _rewrite_source_includes_for_local_support(source_header.read_text(), bench_dir)
@@ -5472,9 +7772,278 @@ def _ground_truth_candidates(inputs: dict) -> list[dict]:
                 "header_name": default_header_name,
                 "header_code": header_code,
                 "code": hls_code,
+                "public_contract_audit": _public_header_contract_audit(
+                    default_header_code,
+                    header_code,
+                    plain_code=inputs.get("c_code", ""),
+                    testbench_code=inputs.get("testbench_code", ""),
+                ),
             }
         ]
     return []
+
+
+def _sha256_text(value: Any) -> str:
+    text = value if isinstance(value, str) else json.dumps(value, sort_keys=True, default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _reference_cache_descriptor(inputs: dict) -> dict:
+    """Build an exact-input identity for reusable local Vitis evidence."""
+    from evaluation_repro import _probe_vitis_version, sha256_file
+
+    meta = inputs["meta"]
+    vitis_probe = _probe_vitis_version(os.environ)
+    settings_path = Path(os.getenv("C2HLS_VITIS_SETTINGS", "")).expanduser()
+    toolchain_identity = {
+        "configured_version": os.getenv("C2HLS_VITIS_VERSION", "unknown"),
+        "probe": {
+            key: vitis_probe.get(key)
+            for key in (
+                "ran",
+                "returncode",
+                "version",
+                "executable",
+                "executable_sha256",
+                "output_sha256",
+                "error",
+            )
+        },
+        "settings_sha256": (
+            sha256_file(settings_path) if settings_path.is_file() else None
+        ),
+    }
+    candidates = _ground_truth_candidates(inputs)
+    extra_files = sorted(
+        (
+            {
+                "path": str(item.get("path") or ""),
+                "sha256": _sha256_text(item.get("content") or ""),
+            }
+            for item in (inputs.get("extra_files") or [])
+            if isinstance(item, dict)
+        ),
+        key=lambda item: item["path"],
+    )
+    candidate_inputs = [
+        {
+            "variant_name": candidate.get("variant_name") or "",
+            "file": candidate.get("file") or "",
+            "step_name": candidate.get("step_name") or "",
+            "source_path": candidate.get("source_path") or "",
+            "header_name": candidate.get("header_name") or "",
+            "header_sha256": _sha256_text(candidate.get("header_code") or ""),
+            "code_sha256": _sha256_text(candidate.get("code") or ""),
+            "public_contract_audit": {
+                "schema_version": (
+                    candidate.get("public_contract_audit") or {}
+                ).get("schema_version", ""),
+                "passed": bool(
+                    (candidate.get("public_contract_audit") or {}).get("passed")
+                ),
+                "canonical_contract_sha256": (
+                    candidate.get("public_contract_audit") or {}
+                ).get("canonical_contract_sha256", ""),
+                "candidate_contract_sha256": (
+                    candidate.get("public_contract_audit") or {}
+                ).get("candidate_contract_sha256", ""),
+                "reason_codes": (
+                    candidate.get("public_contract_audit") or {}
+                ).get("reason_codes", []),
+            },
+        }
+        for candidate in candidates
+    ]
+    configuration = {
+        "schema_version": REFERENCE_CACHE_SCHEMA_VERSION,
+        "benchmark": meta.get("benchmark") or inputs.get("bench_name") or "",
+        "source_repo": meta.get("source_repo") or "",
+        "top_function": meta.get("hls_top", "workload"),
+        "part": meta.get("part", DEFAULT_PART),
+        "clock_ns": float(meta.get("clock_ns", DEFAULT_CLOCK_NS)),
+        "flow_target": os.getenv("C2HLS_FLOW_TARGET", "vitis"),
+        "vitis_version": os.getenv("C2HLS_VITIS_VERSION", "unknown"),
+        "toolchain_identity": toolchain_identity,
+        "validation_mode": (
+            os.getenv("C2HLS_REFERENCE_VALIDATE_MODE", "all").strip().lower() or "all"
+        ),
+        "supports_csim": bool(meta.get("supports_csim") and inputs.get("testbench_code")),
+        "supports_cosim": _generated_cosim_supported(
+            meta, inputs.get("testbench_code", "")
+        ),
+        "reference_cosim_all_candidates": _env_flag("C2HLS_REFERENCE_COSIM", "1"),
+        "reference_cosim_selected_only": _env_flag(
+            REFERENCE_COSIM_SELECTED_ONLY_ENV
+        ),
+        "reference_cosim_baseline": _env_flag(REFERENCE_COSIM_BASELINE_ENV),
+        "force_selected_cosim": _env_flag(FORCE_SELECTED_COSIM_ENV),
+        "preferred_gt_file": meta.get("preferred_gt_file") or "",
+        "cosim_depths": meta.get("cosim_depths") or {},
+        "testbench_sha256": _sha256_text(inputs.get("testbench_code") or ""),
+        "independent_golden_output_sha256": (
+            (inputs.get("independent_golden_provenance") or {}).get("output_sha256")
+            or ""
+        ),
+        "independent_golden_specs_sha256": _sha256_text(
+            inputs.get("independent_golden_specs") or {}
+        ),
+        "extra_files": extra_files,
+        "candidates": candidate_inputs,
+    }
+    serialized = json.dumps(configuration, sort_keys=True, separators=(",", ":"))
+    fingerprint = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    return {"fingerprint": fingerprint, "configuration": configuration}
+
+
+def _paper_reference_cache_identity_complete(descriptor: dict) -> bool:
+    """Require an executed, content-bound toolchain identity in paper mode."""
+
+    if not _reference_blind_enabled():
+        return True
+    identity = (descriptor.get("configuration") or {}).get("toolchain_identity") or {}
+    probe = identity.get("probe") or {}
+    return bool(
+        probe.get("ran")
+        and probe.get("returncode") == 0
+        and not probe.get("error")
+        and probe.get("version")
+        == identity.get("configured_version")
+        and probe.get("executable")
+        and probe.get("executable_sha256")
+        and identity.get("settings_sha256")
+    )
+
+
+def _reference_cache_path(descriptor: dict) -> Optional[Path]:
+    raw_root = os.getenv(REFERENCE_CACHE_DIR_ENV, "").strip()
+    if not raw_root:
+        return None
+    root = Path(raw_root).expanduser()
+    if not root.is_absolute():
+        root = REPO_ROOT / root
+    benchmark = str(descriptor["configuration"].get("benchmark") or "benchmark")
+    safe_benchmark = re.sub(r"[^A-Za-z0-9_.-]+", "_", benchmark).strip("_") or "benchmark"
+    return root / f"{safe_benchmark}.{descriptor['fingerprint']}.json"
+
+
+def _reference_validation_cacheable(inputs: dict, validation: Any) -> bool:
+    if not isinstance(validation, dict) or not validation.get("benchmark_ready"):
+        return False
+    if (validation.get("synthesis") or {}).get("status") != "passed":
+        return False
+    supports_csim = bool(inputs["meta"].get("supports_csim") and inputs.get("testbench_code"))
+    if supports_csim and (validation.get("csim") or {}).get("status") != "passed":
+        return False
+    if _env_flag(REFERENCE_COSIM_SELECTED_ONLY_ENV) and not validation.get(
+        "selected_reference_cosim_measurement_valid"
+    ):
+        return False
+    if _env_flag(REFERENCE_COSIM_BASELINE_ENV) and not validation.get(
+        "baseline_reference_cosim_measurement_valid"
+    ):
+        return False
+    return True
+
+
+def _strip_cached_work_dirs(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _strip_cached_work_dirs(item)
+            for key, item in value.items()
+            if key != "work_dir"
+        }
+    if isinstance(value, list):
+        return [_strip_cached_work_dirs(item) for item in value]
+    return value
+
+
+def _write_reference_validation_cache(
+    inputs: dict,
+    validation: dict,
+    *,
+    source_result_json: str = "",
+) -> Optional[Path]:
+    descriptor = _reference_cache_descriptor(inputs)
+    cache_path = _reference_cache_path(descriptor)
+    if (
+        cache_path is None
+        or not _paper_reference_cache_identity_complete(descriptor)
+        or not _reference_validation_cacheable(inputs, validation)
+    ):
+        return None
+    entry = {
+        "schema_version": REFERENCE_CACHE_SCHEMA_VERSION,
+        "fingerprint": descriptor["fingerprint"],
+        "configuration": descriptor["configuration"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "source_result_json": source_result_json,
+        "reference_validation": _strip_cached_work_dirs(validation),
+    }
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = cache_path.with_name(f".{cache_path.name}.tmp.{os.getpid()}")
+    temp_path.write_text(json.dumps(entry, indent=2, sort_keys=True, default=str) + "\n")
+    os.replace(temp_path, cache_path)
+    return cache_path
+
+
+def _load_reference_validation_cache(inputs: dict) -> tuple[Optional[dict], dict]:
+    descriptor = _reference_cache_descriptor(inputs)
+    cache_path = _reference_cache_path(descriptor)
+    provenance = {
+        "schema_version": REFERENCE_CACHE_SCHEMA_VERSION,
+        "enabled": cache_path is not None,
+        "hit": False,
+        "fingerprint": descriptor["fingerprint"],
+        "cache_path": str(cache_path) if cache_path else "",
+    }
+    if not _paper_reference_cache_identity_complete(descriptor):
+        provenance["enabled"] = False
+        provenance["rejection_reason"] = "paper_cache_toolchain_identity_incomplete"
+        return None, provenance
+    if cache_path is None or not cache_path.is_file():
+        return None, provenance
+    try:
+        entry = json.loads(cache_path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        provenance["rejection_reason"] = f"cache_read_failed: {exc}"
+        return None, provenance
+    if (
+        entry.get("schema_version") != REFERENCE_CACHE_SCHEMA_VERSION
+        or entry.get("fingerprint") != descriptor["fingerprint"]
+        or entry.get("configuration") != descriptor["configuration"]
+    ):
+        provenance["rejection_reason"] = "cache_identity_mismatch"
+        return None, provenance
+    validation = entry.get("reference_validation")
+    if not _reference_validation_cacheable(inputs, validation):
+        provenance["rejection_reason"] = "cached_reference_not_synth_csim_valid"
+        return None, provenance
+    require_cosim = os.getenv(REFERENCE_CACHE_REQUIRE_COSIM_ENV, "0").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    supports_cosim = _generated_cosim_supported(
+        inputs["meta"], inputs.get("testbench_code", "")
+    )
+    if require_cosim and supports_cosim and (validation.get("cosim") or {}).get("status") != "passed":
+        provenance["rejection_reason"] = "cached_reference_cosim_not_passed"
+        return None, provenance
+
+    cached = copy.deepcopy(validation)
+    original_source = cached.get("reference_source") or "local_vitis"
+    cached["reference_source"] = (
+        "cached_local_vitis" if original_source in {"local_vitis", "cached_local_vitis"}
+        else f"cached_{original_source}"
+    )
+    provenance.update({
+        "hit": True,
+        "source_result_json": entry.get("source_result_json") or "",
+        "original_reference_source": original_source,
+        "synthesis_status": (cached.get("synthesis") or {}).get("status"),
+        "csim_status": (cached.get("csim") or {}).get("status"),
+        "cosim_status": (cached.get("cosim") or {}).get("status"),
+    })
+    cached["reference_cache"] = provenance
+    return cached, provenance
 
 
 def _preferred_reference_file(meta: dict, workflow: list[dict]) -> str:
@@ -5907,14 +8476,89 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
     header_code = candidate.get("header_code", inputs.get("header_code", ""))
     top_function = meta.get("hls_top", "workload")
 
-    csim_signature_mismatch = ""
-    if supports_csim and run_csim_check:
+    contract_audit = candidate.get("public_contract_audit")
+    if not isinstance(contract_audit, dict):
+        contract_audit = _public_header_contract_audit(
+            inputs.get("header_code", ""),
+            header_code,
+            plain_code=inputs.get("c_code", ""),
+            testbench_code=inputs.get("testbench_code", ""),
+        )
+
+    expected_signature = _expected_top_signature(
+        inputs.get("header_code", ""),
+        inputs.get("testbench_code", ""),
+        top_function,
+    )
+    candidate_signature = _extract_function_signature(
+        hls_code, top_function, definitions_only=True
+    )
+    if expected_signature is None:
+        csim_signature_mismatch = (
+            f"canonical `{top_function}` signature is missing or unparseable"
+        )
+    elif candidate_signature is None:
+        csim_signature_mismatch = (
+            f"candidate `{top_function}` definition is missing or unparseable"
+        )
+    else:
         csim_signature_mismatch = _top_signature_mismatch_reason(
             hls_code,
-            header_code,
+            inputs.get("header_code", ""),
             inputs.get("testbench_code", ""),
             top_function,
         )
+
+    exclusion_reasons = []
+    if not contract_audit.get("passed"):
+        identifiers = [
+            item.get("identifier", "unknown")
+            for item in contract_audit.get("differences", [])
+        ]
+        exclusion_reasons.append(
+            "public workload/header contract mismatch"
+            + (f" ({', '.join(identifiers)})" if identifiers else "")
+        )
+    if csim_signature_mismatch:
+        exclusion_reasons.append(csim_signature_mismatch)
+
+    # Contract-incompatible upstream variants are not comparable experts.
+    # Exclude them before any CSim, synthesis, or co-simulation call.
+    if exclusion_reasons:
+        excluded_reason = "; ".join(exclusion_reasons)
+        return {
+            "variant_name": candidate.get("variant_name", "baseline"),
+            "file": candidate.get("file", ""),
+            "step_name": candidate.get("step_name", "baseline"),
+            "source_path": candidate.get("source_path", ""),
+            "benchmark_ready": False,
+            "invalid_reason": "Excluded incomparable reference variant: " + excluded_reason,
+            "synthesis": {
+                "status": "not_run",
+                "ran": False,
+                "success": False,
+                "error": "reference contract exclusion",
+                "report": {},
+            },
+            "csim": {
+                **_summarize_test_result(None, supports_csim),
+                "skip_reason": "reference contract exclusion",
+            },
+            "cosim": {
+                **_summarize_test_result(None, supports_cosim),
+                "skip_reason": "reference contract exclusion",
+            },
+            "report": {},
+            "selected": False,
+            "testbench_interface_mismatch": csim_signature_mismatch,
+            "public_contract_audit": contract_audit,
+            "reference_contract_status": "excluded",
+            "feasibility": {
+                "schema_version": "c2hls.candidate-feasibility.v1",
+                "feasible": False,
+                "reasons": ["reference_contract_incompatible"],
+            },
+        }
 
     outcome = _run_synth_csim_cosim(
         hls_code,
@@ -5929,6 +8573,8 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
         run_cosim_check=supports_cosim and run_cosim_check and not csim_signature_mismatch,
         cosim_depths=meta.get("cosim_depths", {}),
         cosim_requires_csim_pass=True,
+        golden_output_text=inputs.get("independent_golden_output", ""),
+        golden_output_specs=inputs.get("independent_golden_specs", {}),
     )
     synth_result = outcome["synth"]
     synth_summary = _summarize_synth_result(synth_result)
@@ -5959,6 +8605,20 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
         benchmark_ready = False
         invalid_reason = f"Gold HLS csim failed: {csim_summary.get('error', '') or 'testbench did not pass'}"
 
+    feasibility = _paper_candidate_feasibility(
+        synth_summary.get("report", {}),
+        csim=csim_summary,
+        correctness_required=supports_csim and run_csim_check,
+        part=meta.get("part", DEFAULT_PART),
+        clock_ns=meta.get("clock_ns", DEFAULT_CLOCK_NS),
+    )
+    if _feasibility_selection_enabled() and benchmark_ready and not feasibility.get("feasible"):
+        benchmark_ready = False
+        invalid_reason = (
+            "Gold HLS candidate is not feasible: "
+            + ", ".join(feasibility.get("reasons") or ["unknown"])
+        )
+
     return {
         "variant_name": candidate.get("variant_name", "baseline"),
         "file": candidate.get("file", ""),
@@ -5972,13 +8632,56 @@ def _validate_ground_truth_candidate(candidate: dict, inputs: dict,
         "report": synth_summary.get("report", {}),
         "selected": False,
         "testbench_interface_mismatch": csim_signature_mismatch,
+        "public_contract_audit": contract_audit,
+        "reference_contract_status": "passed",
+        "feasibility": feasibility,
     }
 
 
-def validate_gold_reference(inputs: dict) -> dict:
+def _execute_reference_candidate_cosim(candidate: dict, inputs: dict) -> dict:
+    """Run one offline reference RTL measurement with typed failure output.
+
+    This preflight evidence is deliberately separate from every method's
+    matched search budget.  It is used only after synthesis/CSim establish the
+    designated baseline or selected expert as a valid reference candidate.
+    """
+    meta = inputs["meta"]
+    try:
+        raw_cosim = run_cosim(
+            candidate["code"],
+            inputs.get("testbench_code", ""),
+            candidate.get("header_code", inputs.get("header_code", "")),
+            header_name=(
+                candidate.get("header_name")
+                or inputs.get("header_name")
+                or "kernel.h"
+            ),
+            top_function=meta.get("hls_top", "workload"),
+            part=meta.get("part", DEFAULT_PART),
+            clock_ns=meta.get("clock_ns", DEFAULT_CLOCK_NS),
+            extra_files=inputs.get("extra_files", []),
+            interface_depths=meta.get("cosim_depths", {}),
+            golden_output_text=inputs.get("independent_golden_output", ""),
+            golden_output_specs=inputs.get("independent_golden_specs", {}),
+        )
+        return _summarize_test_result(raw_cosim, True)
+    except Exception as exc:  # pragma: no cover - defensive Vitis path
+        return {
+            "status": "tool_error",
+            "supported": True,
+            "ran": True,
+            "success": False,
+            "passed": False,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+
+def _validate_gold_reference_uncached(inputs: dict) -> dict:
     meta = inputs["meta"]
     supports_csim = bool(meta.get("supports_csim") and inputs.get("testbench_code"))
-    supports_cosim = bool(meta.get("supports_cosim") and inputs.get("testbench_code"))
+    supports_cosim = _generated_cosim_supported(
+        meta, inputs.get("testbench_code", "")
+    )
     run_reference_cosim = os.getenv("C2HLS_REFERENCE_COSIM", "1").strip().lower() in {
         "1", "true", "yes", "on",
     }
@@ -6123,14 +8826,32 @@ def validate_gold_reference(inputs: dict) -> dict:
     preferred_file = _preferred_reference_file(meta, workflow)
     selected = None
     selection_reason = ""
-    if preferred_file:
+    feasibility_required = _feasibility_selection_enabled()
+    if feasibility_required:
+        feasible_entries = [
+            entry for entry in workflow
+            if entry.get("benchmark_ready")
+            and (entry.get("feasibility") or {}).get("feasible")
+        ]
+        if feasible_entries:
+            selected = min(
+                feasible_entries,
+                key=lambda entry: C2HLSOrchestrator._best_so_far_score(
+                    entry.get("report") or {}
+                ),
+            )
+            selection_reason = (
+                "selected fastest correct, device-fitting, target-timing "
+                "variant under the matched Vitis target"
+            )
+    elif preferred_file:
         for entry in workflow:
             if entry.get("file") == preferred_file and entry.get("benchmark_ready"):
                 selected = entry
                 selection_reason = f"selected preferred validated variant `{preferred_file}`"
                 break
 
-    if selected is None:
+    if selected is None and not feasibility_required:
         valid_entries = [entry for entry in workflow if entry.get("benchmark_ready")]
         optimized_entries = [entry for entry in valid_entries if entry.get("step_name") != "baseline"]
         if optimized_entries:
@@ -6140,11 +8861,82 @@ def validate_gold_reference(inputs: dict) -> dict:
             selected = valid_entries[-1]
             selection_reason = "selected latest validated baseline-only variant"
 
+    selected_reference_cosim_ran = False
+    if (
+        selected
+        and reference_source == "local_vitis"
+        and _env_flag(REFERENCE_COSIM_SELECTED_ONLY_ENV)
+        and not run_reference_cosim
+        and supports_cosim
+    ):
+        selected_candidate = next(
+            (
+                candidate
+                for candidate in validation_candidates
+                if candidate.get("file") == selected.get("file")
+            ),
+            None,
+        )
+        if selected_candidate is not None:
+            selected_reference_cosim_ran = True
+            selected["cosim"] = _execute_reference_candidate_cosim(
+                selected_candidate, inputs
+            )
+
+    # The recovery metric needs executed RTL cycles for the designated
+    # baseline as well as the selected expert.  Measure that baseline once in
+    # common reference preflight; never charge it to a method's five-search
+    # synthesis/candidate budget.
+    baseline_entry = next(
+        (
+            entry
+            for entry in workflow
+            if entry.get("step_name") == "baseline"
+            and entry.get("benchmark_ready")
+        ),
+        None,
+    )
+    baseline_reference_cosim_ran = bool(
+        baseline_entry and (baseline_entry.get("cosim") or {}).get("ran")
+    )
+    if (
+        baseline_entry
+        and reference_source == "local_vitis"
+        and _env_flag(REFERENCE_COSIM_BASELINE_ENV)
+        and not run_reference_cosim
+        and supports_cosim
+    ):
+        if selected and baseline_entry.get("file") == selected.get("file"):
+            baseline_entry["cosim"] = selected.get("cosim") or {}
+            baseline_reference_cosim_ran = selected_reference_cosim_ran
+        else:
+            baseline_candidate = next(
+                (
+                    candidate
+                    for candidate in validation_candidates
+                    if candidate.get("file") == baseline_entry.get("file")
+                ),
+                None,
+            )
+            if baseline_candidate is not None:
+                baseline_reference_cosim_ran = True
+                baseline_entry["cosim"] = _execute_reference_candidate_cosim(
+                    baseline_candidate, inputs
+                )
+
     for entry in workflow:
         entry["selected"] = bool(selected and entry.get("file") == selected.get("file"))
 
     if not selected:
-        last_error = workflow[-1].get("invalid_reason") if workflow else "Missing valid ground-truth workflow"
+        last_error = (
+            "no correct, device-fitting, target-timing reference variant"
+            if feasibility_required and any(
+                entry.get("benchmark_ready") for entry in workflow
+            )
+            else workflow[-1].get("invalid_reason")
+            if workflow
+            else "Missing valid ground-truth workflow"
+        )
         return {
             "benchmark_ready": False,
             "invalid_reason": last_error or "Missing valid ground-truth workflow",
@@ -6167,15 +8959,43 @@ def validate_gold_reference(inputs: dict) -> dict:
                 "reason": last_error or "Missing valid ground-truth workflow",
                 "profile_required": True,
             },
+            "selected_reference_cosim_measurement_valid": False,
         }
 
     selection_fallback = (
         selected.get("step_name") == "baseline"
         and any(entry.get("step_name") != "baseline" for entry in workflow)
     )
+    selected_reference_cosim_valid = _selected_cosim_measurement_ok(
+        selected.get("cosim")
+    )
+    baseline_reference_cosim_valid = _selected_cosim_measurement_ok(
+        baseline_entry.get("cosim") if baseline_entry else None
+    )
+    selected_measurement_required = bool(
+        supports_cosim and _env_flag(REFERENCE_COSIM_SELECTED_ONLY_ENV)
+    )
+    baseline_measurement_required = bool(
+        supports_cosim and _env_flag(REFERENCE_COSIM_BASELINE_ENV)
+    )
+    missing_measurements = []
+    if selected_measurement_required and not selected_reference_cosim_valid:
+        missing_measurements.append("selected expert executed RTL cosim cycles")
+    if baseline_measurement_required and not baseline_reference_cosim_valid:
+        missing_measurements.append("designated baseline executed RTL cosim cycles")
+    measurement_ready = not missing_measurements
     return {
-        "benchmark_ready": True,
-        "invalid_reason": "",
+        "benchmark_ready": measurement_ready,
+        "frontier_synthesis_csim_valid": True,
+        "rtl_measurement_pair_valid": bool(
+            selected_reference_cosim_valid and baseline_reference_cosim_valid
+        ),
+        "invalid_reason": (
+            "Missing required reference measurement: "
+            + "; ".join(missing_measurements)
+            if missing_measurements
+            else ""
+        ),
         "top_function": meta.get("hls_top", "workload"),
         "synthesis": selected["synthesis"],
         "csim": selected["csim"],
@@ -6187,6 +9007,25 @@ def validate_gold_reference(inputs: dict) -> dict:
         "selected_variant_step": selected.get("step_name", ""),
         "selection_reason": selection_reason,
         "selection_fallback": selection_fallback,
+        "selected_reference_cosim_policy": {
+            "all_candidates": run_reference_cosim,
+            "selected_only": _env_flag(REFERENCE_COSIM_SELECTED_ONLY_ENV),
+            "selected_only_executed": selected_reference_cosim_ran,
+            "baseline_required": _env_flag(REFERENCE_COSIM_BASELINE_ENV),
+            "baseline_executed": baseline_reference_cosim_ran,
+            "outside_method_search_budget": True,
+        },
+        "selected_reference_cosim_measurement_valid": selected_reference_cosim_valid,
+        "baseline_reference_cosim_measurement_valid": baseline_reference_cosim_valid,
+        "baseline_reference": {
+            "variant_name": baseline_entry.get("variant_name", "") if baseline_entry else "",
+            "file": baseline_entry.get("file", "") if baseline_entry else "",
+            "step_name": baseline_entry.get("step_name", "") if baseline_entry else "",
+            "report": baseline_entry.get("report", {}) if baseline_entry else {},
+            "synthesis": baseline_entry.get("synthesis", {}) if baseline_entry else {},
+            "csim": baseline_entry.get("csim", {}) if baseline_entry else {},
+            "cosim": baseline_entry.get("cosim", {}) if baseline_entry else {},
+        },
         "selection_fallback_reason": (
             "optimized GT variants were unavailable or invalid; selected baseline"
             if selection_fallback else ""
@@ -6201,6 +9040,87 @@ def validate_gold_reference(inputs: dict) -> dict:
             "profile_required": False,
         },
     }
+
+
+def validate_gold_reference(inputs: dict) -> dict:
+    """Validate gold HLS evidence, reusing an exact-input cache when enabled."""
+    cached, cache_provenance = _load_reference_validation_cache(inputs)
+    benchmark = inputs.get("bench_name") or inputs.get("meta", {}).get("benchmark") or "benchmark"
+    if cached is not None:
+        logging.info(
+            "Reference validation cache hit for %s: synth=%s csim=%s cosim=%s",
+            benchmark,
+            cache_provenance.get("synthesis_status"),
+            cache_provenance.get("csim_status"),
+            cache_provenance.get("cosim_status"),
+        )
+        return cached
+
+    validation = _validate_gold_reference_uncached(inputs)
+    cache_path = _write_reference_validation_cache(inputs, validation)
+    if cache_provenance.get("enabled"):
+        cache_provenance["written"] = cache_path is not None
+        if cache_path is not None:
+            cache_provenance["cache_path"] = str(cache_path)
+        validation["reference_cache"] = cache_provenance
+    return validation
+
+
+def _reference_cycle_info(reference_validation: Optional[dict]) -> dict:
+    """Select the best gold cycle count for the predictive cosim policy.
+
+    Prefer measured RTL cycles from local cosim or a trusted external RTL
+    record. Fall back to the selected gold csynth latency only when no runtime
+    measurement exists. The source is retained so exported provenance states
+    exactly which comparison was made.
+    """
+    validation = reference_validation or {}
+
+    local_cosim = validation.get("cosim") or {}
+    local_cycles = _positive_int(local_cosim.get("kernel_runtime_cycles"))
+    if local_cycles is not None and (
+        local_cosim.get("passed") is True
+        or str(local_cosim.get("status") or "").lower() in {"pass", "passed"}
+    ):
+        return {
+            "cycles": local_cycles,
+            "source": "reference_validation.cosim.kernel_runtime_cycles",
+            "metric": "rtl_runtime_cycles",
+            "target": "vitis.cosim",
+        }
+
+    external = validation.get("external_validation") or {}
+    external_rtl = external.get("hw_emu") or external.get("rtl_sim") or {}
+    payload = external_rtl.get("payload") or {}
+    external_cycles = _positive_int(payload.get("kernel_runtime_cycles"))
+    if external_cycles is not None and (
+        external_rtl.get("passed") is True
+        or str(external_rtl.get("status") or "").lower() in {"pass", "passed"}
+    ):
+        run = external_rtl.get("run") or {}
+        target = run.get("target") or "external.rtl_sim"
+        return {
+            "cycles": external_cycles,
+            "source": "reference_validation.external_validation.rtl_sim",
+            "metric": "rtl_runtime_cycles",
+            "target": target,
+            "artifact": external_rtl.get("artifact") or "",
+            "line": external_rtl.get("line"),
+        }
+
+    report = validation.get("report") or {}
+    synth_cycles = _positive_int(
+        report.get("latency_cycles_worst") or report.get("latency_cycles")
+    )
+    if synth_cycles is not None:
+        return {
+            "cycles": synth_cycles,
+            "source": "reference_validation.report.latency_cycles",
+            "metric": "csynth_latency_cycles",
+            "target": "vitis.csynth",
+        }
+
+    return {}
 
 
 def _looks_like_reference_error(message: str) -> bool:
@@ -6249,6 +9169,7 @@ def _normalize_saved_test_summary(summary: dict | None, available: bool, ran: bo
         })
 
     cleaned = dict(summary)
+    explicit_status = str(cleaned.get("status") or "").strip().lower()
     supported = bool(cleaned.get("supported", available))
     if available and not supported and not cleaned.get("ran", False):
         supported = True
@@ -6258,7 +9179,11 @@ def _normalize_saved_test_summary(summary: dict | None, available: bool, ran: bo
     cleaned["ran"] = ran_value
     cleaned["success"] = bool(cleaned.get("success", False)) if ran_value else False
     cleaned["passed"] = passed if ran_value else False
-    cleaned["status"] = _test_status(supported, ran_value, cleaned["passed"])
+    cleaned["status"] = (
+        "timeout"
+        if explicit_status == "timeout"
+        else _test_status(supported, ran_value, cleaned["passed"])
+    )
     return _sanitize_test_summary(cleaned)
 
 
@@ -6492,8 +9417,22 @@ def _build_run_attribution(orchestrator, meta: dict) -> dict:
     """Capture which model + tool config produced this run, for downstream
     consumers (JSONL exporter, evals, side-by-side comparisons)."""
     import hls_eval
+    llm_summary = getattr(orchestrator, "_llm_usage_summary", lambda: {})()
+    decoding_events = [
+        {
+            "provider": event.get("provider"),
+            "model": event.get("model"),
+            **dict(event.get("decoding") or {}),
+        }
+        for event in (llm_summary.get("events") or [])
+    ]
+    try:
+        configured_decoding = orchestrator._configured_decoding()
+    except (AttributeError, TypeError, ValueError):
+        configured_decoding = {}
     return {
         "model": getattr(orchestrator, "gpt_model", None),
+        "model_revision": os.getenv("C2HLS_MODEL_REVISION") or None,
         "model_translator":     os.getenv(TRANSLATOR_MODEL_ENV)     or getattr(orchestrator, "gpt_model", None),
         "model_synthesis":      os.getenv(SYNTHESIS_MODEL_ENV)      or getattr(orchestrator, "gpt_model", None),
         "model_quality_repair": os.getenv(QUALITY_REPAIR_MODEL_ENV) or getattr(orchestrator, "gpt_model", None),
@@ -6504,8 +9443,89 @@ def _build_run_attribution(orchestrator, meta: dict) -> dict:
         "skill_mode": os.getenv("C2HLS_SKILL_MODE"),
         "skill_prompts": os.getenv("C2HLS_FORCE_SKILL_PROMPTS", "").strip().lower()
                          in {"1", "true", "yes", "on"},
+        "skill_library_provenance": getattr(orchestrator, "skill_library_provenance", {}) or {},
+        "skill_library_frozen": _env_flag(SKILL_LIBRARY_FROZEN_ENV),
+        "skill_control_enabled": _skill_library_control_enabled(),
+        "skill_online_updates_enabled": _skill_updates_enabled(),
+        "skill_persistence_enabled": (
+            not _env_flag(SKILL_LIBRARY_FROZEN_ENV)
+            and not _reference_blind_enabled()
+            and _env_flag("C2HLS_SKILL_LIBRARY_PERSIST", "1")
+        ),
+        "reference_blind": _reference_blind_enabled(),
+        "ground_truth_control_enabled": _ground_truth_control_enabled(),
+        "cosim_selected_only": _cosim_selected_only(),
+        "feasibility_selection": _feasibility_selection_enabled(),
+        "decoding": {
+            "configured": configured_decoding,
+            "effective": {
+                "per_call": decoding_events,
+                "all_calls_reported": len(decoding_events) == llm_summary.get("calls", 0),
+            },
+        },
+        "llm_usage": llm_summary,
+        "synthesis_evaluations": getattr(
+            orchestrator, "_synthesis_evaluation_summary", lambda: {}
+        )(),
+        "cosim_skip_slower_than_gold": os.getenv(
+            COSIM_SKIP_SLOWER_THAN_GOLD_ENV, "0"
+        ).strip().lower() in {"1", "true", "yes", "on"},
+        "cosim_skip_gold_ratio": _cosim_skip_gold_ratio(),
+        "cosim_reference_cycle_info": getattr(
+            orchestrator, "cosim_reference_cycle_info", {}
+        ) or {},
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+
+
+def _json_artifact_provenance(path: "str | Path") -> dict:
+    path = Path(path)
+    out = {
+        "path": str(path),
+        "exists": path.exists(),
+    }
+    if not path.exists():
+        return out
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        out["error"] = str(exc)
+        return out
+    out["bytes"] = len(raw)
+    out["sha256"] = hashlib.sha256(raw).hexdigest()
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return out
+    if isinstance(data, dict):
+        skills = data.get("skills")
+        out["schema"] = data.get("schema") or data.get("schema_version")
+        out["saved_at"] = data.get("saved_at")
+        if isinstance(skills, list):
+            out["skill_count"] = len(skills)
+    return {k: v for k, v in out.items() if v not in (None, "")}
+
+
+def _skill_library_provenance(skill_library=None) -> dict:
+    store_path = getattr(skill_library, "store_path", None) or (REPO_ROOT / "skills" / "skills.json")
+    package_path = REPO_ROOT / "hls_full_optimization_skills_schema_1_1_package" / "skills.json"
+    exact_frozen = bool(getattr(skill_library, "exact_frozen_snapshot", False))
+    payload = {
+        "loaded": skill_library is not None,
+        "store": _json_artifact_provenance(store_path),
+        "source_mode": "exact_frozen_snapshot" if exact_frozen else "default_merged_library",
+        "package_merged": not exact_frozen,
+    }
+    if not exact_frozen:
+        payload["package"] = _json_artifact_provenance(package_path)
+    if skill_library is not None:
+        try:
+            skills = skill_library.all()
+        except Exception:  # pragma: no cover - defensive telemetry only
+            skills = []
+        payload["loaded_skill_count"] = len(skills)
+        payload["loaded_skill_ids"] = [getattr(sk, "id", "") for sk in skills if getattr(sk, "id", "")]
+    return payload
 
 
 def _vitis_version() -> str:
@@ -6543,7 +9563,18 @@ def _finalize_singleshot_results(bench_name: str, meta: dict, success: bool,
     output["ground_truth_workflow"] = reference_validation.get("workflow", [])
     output["optimization_history"] = output.get("turn_history", [])
 
-    if output.get("phase") == "complete" and output.get("synth_report"):
+    selected_measurement_required = bool(
+        _cosim_selected_only() and _env_flag(FORCE_SELECTED_COSIM_ENV)
+    )
+    generated_measurement_ok = (
+        not selected_measurement_required
+        or _selected_cosim_measurement_ok(output.get("cosim"))
+    )
+    if (
+        output.get("phase") == "complete"
+        and output.get("synth_report")
+        and generated_measurement_ok
+    ):
         output["generated_status"] = "passed"
     else:
         output["generated_status"] = "failed"
@@ -6551,7 +9582,13 @@ def _finalize_singleshot_results(bench_name: str, meta: dict, success: bool,
     generated_csim = output.get("csim")
     generated_cosim = output.get("cosim")
     generated_csim_available = bool(meta.get("supports_csim") and meta.get("testbench_file"))
-    generated_cosim_available = bool(meta.get("supports_cosim") and meta.get("testbench_file"))
+    generated_cosim_available = bool(
+        meta.get("testbench_file")
+        and (
+            meta.get("supports_cosim")
+            or (_cosim_selected_only() and _env_flag(FORCE_SELECTED_COSIM_ENV))
+        )
+    )
     output["csim_status"] = {
         "ground_truth": _summary_status(
             reference_validation.get("csim"),
@@ -6562,7 +9599,7 @@ def _finalize_singleshot_results(bench_name: str, meta: dict, success: bool,
     output["cosim_status"] = {
         "ground_truth": _summary_status(
             reference_validation.get("cosim"),
-            bool(meta.get("supports_cosim") and meta.get("testbench_file")),
+            generated_cosim_available,
         ),
         "generated": _summary_status(generated_cosim, generated_cosim_available),
     }
@@ -6809,6 +9846,24 @@ def run_benchmark(bench_dir: str, output_dir: str = None,
         output_dir = _default_output_dir(bench_dir, bench_name)
     output_dir = str(output_dir)
 
+    independent_golden = _prepare_independent_golden(inputs)
+    inputs["independent_golden_output"] = independent_golden.get("output", "")
+    inputs["independent_golden_specs"] = independent_golden.get("specs", {})
+    inputs["independent_golden_provenance"] = independent_golden.get("provenance", {})
+    if not independent_golden.get("success"):
+        results = {
+            "benchmark": bench_name,
+            "success": False,
+            "phase": "independent_golden",
+            "error": independent_golden.get("error") or "independent golden invalid",
+            "correctness_status": "invalid_oracle",
+            "independent_golden": independent_golden.get("provenance", {}),
+        }
+        os.makedirs(output_dir, exist_ok=True)
+        with open(os.path.join(output_dir, f"{bench_name}_results.json"), "w") as f:
+            json.dump(results, f, indent=2, default=str)
+        return results
+
     orchestrator = C2HLSOrchestrator(
         gpt_model=gpt_model,
         turns_limitation=turns_limitation,
@@ -6821,10 +9876,15 @@ def run_benchmark(bench_dir: str, output_dir: str = None,
         reference_hls_top=inputs["meta"].get("hls_top", "workload"),
         part=inputs["meta"].get("part", DEFAULT_PART),
         clock_ns=inputs["meta"].get("clock_ns", DEFAULT_CLOCK_NS),
-        supports_cosim=bool(inputs["meta"].get("supports_cosim")),
+        supports_cosim=_generated_cosim_supported(
+            inputs["meta"], inputs.get("testbench_code", "")
+        ),
         cosim_depths=inputs["meta"].get("cosim_depths", {}),
         benchmark_name=bench_name,
         benchmark_context=inputs.get("benchmark_context", ""),
+        independent_golden_output=inputs.get("independent_golden_output", ""),
+        independent_golden_specs=inputs.get("independent_golden_specs", {}),
+        independent_golden_provenance=inputs.get("independent_golden_provenance", {}),
     )
 
     reference_validation = validate_gold_reference(inputs)
@@ -6846,11 +9906,26 @@ def run_benchmark(bench_dir: str, output_dir: str = None,
             json.dump(results, f, indent=2, default=str)
         return results
 
+    orchestrator.cosim_reference_cycle_info = (
+        _reference_cycle_info(reference_validation)
+        if _ground_truth_control_enabled() else {}
+    )
+    if orchestrator.cosim_reference_cycle_info:
+        logging.info(
+            "Gold-relative cosim precheck reference for %s: %s cycles (%s)",
+            bench_name,
+            orchestrator.cosim_reference_cycle_info.get("cycles"),
+            orchestrator.cosim_reference_cycle_info.get("source"),
+        )
+
     success, results = orchestrator.run(
         inputs["c_code"],
         inputs["header_code"],
         inputs["header_name"] or "kernel.h",
-        reference_validation.get("report", {}),
+        (
+            reference_validation.get("report", {})
+            if _ground_truth_control_enabled() else {}
+        ),
     )
 
     # Optional: run nova hw_emu on the final kernel for an authoritative
@@ -6871,6 +9946,13 @@ def run_benchmark(bench_dir: str, output_dir: str = None,
         reference_validation,
         orchestrator=orchestrator,
     )
+    if orchestrator.synth_report and reference_validation.get("report"):
+        results["offline_reference_comparison"] = compare_reports(
+            orchestrator.synth_report,
+            reference_validation.get("report", {}),
+        )
+    results["independent_golden"] = independent_golden.get("provenance", {})
+    results["cosim_reference_cycle_info"] = orchestrator.cosim_reference_cycle_info
 
     with open(os.path.join(output_dir, f"{bench_name}_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=str)
@@ -6883,6 +9965,7 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
                             turns_limitation: int = 3,
                             steps: list = None,
                             quality_repair_turns: int = DEFAULT_QUALITY_REPAIR_TURNS) -> dict:
+    total_started = time.monotonic()
     inputs = _load_benchmark_inputs(bench_dir)
     bench_name = inputs["bench_name"]
 
@@ -6890,7 +9973,28 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
         output_dir = _default_output_dir(bench_dir, bench_name, multistep=True)
     output_dir = str(output_dir)
 
-    available_gt = set(inputs["gt_variants"].keys())
+    independent_golden = _prepare_independent_golden(inputs)
+    inputs["independent_golden_output"] = independent_golden.get("output", "")
+    inputs["independent_golden_specs"] = independent_golden.get("specs", {})
+    inputs["independent_golden_provenance"] = independent_golden.get("provenance", {})
+    if not independent_golden.get("success"):
+        preflight_elapsed = time.monotonic() - total_started
+        return {
+            "benchmark": bench_name,
+            "success": False,
+            "phase": "independent_golden",
+            "error": independent_golden.get("error") or "independent golden invalid",
+            "correctness_status": "invalid_oracle",
+            "independent_golden": independent_golden.get("provenance", {}),
+            "preflight_elapsed_seconds": preflight_elapsed,
+            "search_elapsed_seconds": 0.0,
+            "total_elapsed_seconds": preflight_elapsed,
+        }
+
+    available_gt = (
+        set(inputs["gt_variants"].keys())
+        if _ground_truth_control_enabled() else set()
+    )
     if steps is None:
         env_strategy = os.getenv("C2HLS_STRATEGY", "").strip().lower()
         if env_strategy in ("combo", "combo_full"):
@@ -6905,7 +10009,12 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
         else:
             steps = [step for step in DEFAULT_OPT_STEPS if step in available_gt or step in OPTIMIZATION_PROMPTS]
 
-    logging.info("Benchmark %s: running steps %s (GT available: %s)", bench_name, steps, list(available_gt))
+    logging.info(
+        "Benchmark %s: running steps %s (oracle control: %s)",
+        bench_name,
+        steps,
+        _ground_truth_control_enabled(),
+    )
 
     orchestrator = C2HLSOrchestrator(
         gpt_model=gpt_model,
@@ -6919,14 +10028,20 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
         reference_hls_top=inputs["meta"].get("hls_top", "workload"),
         part=inputs["meta"].get("part", DEFAULT_PART),
         clock_ns=inputs["meta"].get("clock_ns", DEFAULT_CLOCK_NS),
-        supports_cosim=bool(inputs["meta"].get("supports_cosim")),
+        supports_cosim=_generated_cosim_supported(
+            inputs["meta"], inputs.get("testbench_code", "")
+        ),
         cosim_depths=inputs["meta"].get("cosim_depths", {}),
         benchmark_name=bench_name,
         benchmark_context=inputs.get("benchmark_context", ""),
+        independent_golden_output=inputs.get("independent_golden_output", ""),
+        independent_golden_specs=inputs.get("independent_golden_specs", {}),
+        independent_golden_provenance=inputs.get("independent_golden_provenance", {}),
     )
 
     reference_validation = validate_gold_reference(inputs)
     if not reference_validation.get("benchmark_ready"):
+        preflight_elapsed = time.monotonic() - total_started
         return {
             "benchmark": bench_name,
             "success": False,
@@ -6936,9 +10051,27 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
             "ground_truth_status": "invalid",
             "baseline_status": reference_validation.get("synthesis", {}).get("status", "failed"),
             "invalid_reference_reason": reference_validation.get("invalid_reason", ""),
+            "preflight_elapsed_seconds": preflight_elapsed,
+            "search_elapsed_seconds": 0.0,
+            "total_elapsed_seconds": preflight_elapsed,
         }
 
-    if reference_validation.get("reference_source") == "direct_jsonl":
+    orchestrator.cosim_reference_cycle_info = (
+        _reference_cycle_info(reference_validation)
+        if _ground_truth_control_enabled() else {}
+    )
+    if orchestrator.cosim_reference_cycle_info:
+        logging.info(
+            "Gold-relative cosim precheck reference for %s: %s cycles (%s)",
+            bench_name,
+            orchestrator.cosim_reference_cycle_info.get("cycles"),
+            orchestrator.cosim_reference_cycle_info.get("source"),
+        )
+
+    if (
+        _ground_truth_control_enabled()
+        and reference_validation.get("reference_source") == "direct_jsonl"
+    ):
         external_step_reports = _trusted_external_gt_step_reports(inputs)
         orchestrator._gt_step_reports.update(external_step_reports)
         if "baseline" in external_step_reports:
@@ -6949,18 +10082,44 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
             bench_name,
         )
 
+    preflight_elapsed = time.monotonic() - total_started
+    search_started = time.monotonic()
     success, results = orchestrator.run_multistep(
         inputs["c_code"],
         inputs["header_code"],
         inputs["header_name"] or "kernel.h",
         steps=steps,
-        gt_variants=inputs["gt_variants"],
-        gt_variant_headers=inputs.get("gt_variant_headers", {}),
-        reference_report=reference_validation.get("report", {}),
+        gt_variants=(inputs["gt_variants"] if _ground_truth_control_enabled() else {}),
+        gt_variant_headers=(
+            inputs.get("gt_variant_headers", {})
+            if _ground_truth_control_enabled() else {}
+        ),
+        reference_report=(
+            reference_validation.get("report", {})
+            if _ground_truth_control_enabled() else {}
+        ),
     )
+    orchestrator._seal_candidate_event_stream(
+        reason="controller terminated before completing candidate evaluation"
+    )
+    results["llm_usage"] = orchestrator._llm_usage_summary()
+    results["synthesis_evaluations"] = orchestrator._synthesis_evaluation_summary()
+    results["selected_winner_cosim_count"] = getattr(
+        orchestrator, "selected_winner_cosim_count", 0
+    )
+    results["total_synthesis_calls"] = orchestrator._total_synthesis_calls()
+    results["selected_code_sha256"] = getattr(
+        orchestrator, "selected_code_sha256", None
+    )
+    results["cosim_target_code_sha256"] = getattr(
+        orchestrator, "cosim_target_code_sha256", None
+    )
+    search_elapsed = time.monotonic() - search_started
 
     # Optional hw_emu on the final-step kernel for authoritative cycle count.
+    post_route_started = time.monotonic()
     _maybe_run_hw_emu_final(orchestrator, results, bench_name)
+    post_route_elapsed = time.monotonic() - post_route_started
 
     results["benchmark"] = bench_name
     results["success"] = success
@@ -6969,6 +10128,7 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
     results["ground_truth_status"] = "valid"
     results["baseline_status"] = reference_validation.get("synthesis", {}).get("status", "failed")
     results["invalid_reference_reason"] = ""
+    results["cosim_reference_cycle_info"] = orchestrator.cosim_reference_cycle_info
     results["ground_truth_variant"] = {
         "name": reference_validation.get("selected_variant_name", ""),
         "file": reference_validation.get("selected_variant_file", ""),
@@ -6979,11 +10139,39 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
     }
     results["ground_truth_workflow"] = reference_validation.get("workflow", [])
     results["optimization_history"] = results.get("generated_step_history", [])
+    if orchestrator.synth_report and reference_validation.get("report"):
+        results["offline_reference_comparison"] = compare_reports(
+            orchestrator.synth_report,
+            reference_validation.get("report", {}),
+        )
+    results["independent_golden"] = independent_golden.get("provenance", {})
+    results["preflight_elapsed_seconds"] = preflight_elapsed
+    results["search_elapsed_seconds"] = search_elapsed
+    results["post_route_elapsed_seconds"] = post_route_elapsed
+    results["total_elapsed_seconds"] = time.monotonic() - total_started
+    results["timing_scope"] = {
+        "schema_version": "c2hls.timing-scope.v1",
+        "paper_method_wall_time_field": "search_elapsed_seconds",
+        "preflight_includes": [
+            "public_input_load",
+            "cpu_golden_generation",
+            "reference_contract_audit",
+            "reference_frontier_synthesis_csim",
+            "baseline_and_selected_expert_cosim_or_cache",
+        ],
+        "search_includes": [
+            "llm_candidates",
+            "candidate_csim_golden",
+            "candidate_synthesis",
+            "selected_generated_cosim",
+        ],
+        "post_route_excluded_from_method_wall_time": True,
+    }
     results["coverage"] = _build_coverage(
         inputs["meta"],
         reference_validation,
-        results.get("baseline_csim"),
-        results.get("baseline_cosim"),
+        results.get("csim"),
+        results.get("cosim"),
     )
     results = sanitize_saved_result_record(results, reference_validation)
     orchestrator.save_multistep_results(output_dir, bench_name, results)

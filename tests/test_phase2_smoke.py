@@ -127,6 +127,39 @@ def test_skill_library_bootstrap_and_query(results, tee):
         results,
         tee,
     )
+    old_prompt_mode = os.environ.get("C2HLS_SKILL_PROMPT_MODE")
+    os.environ["C2HLS_SKILL_PROMPT_MODE"] = "action_only"
+    try:
+        action_rendered = (
+            render_skill_for_prompt(coalescing)
+            if coalescing is not None else ""
+        )
+        stencil = lib.get("hls-inplace-stencil-true-dependence")
+        stencil_rendered = render_skill_for_prompt(stencil) if stencil is not None else ""
+    finally:
+        if old_prompt_mode is None:
+            os.environ.pop("C2HLS_SKILL_PROMPT_MODE", None)
+        else:
+            os.environ["C2HLS_SKILL_PROMPT_MODE"] = old_prompt_mode
+    _check(
+        "schema11-action-only-trims-guards",
+        coalescing is not None
+        and "required steps:" in action_rendered
+        and "guards:" not in action_rendered
+        and "do not treat interface pragmas alone" not in action_rendered,
+        "action_only prompt mode keeps actionable steps and omits guard bullets",
+        results,
+        tee,
+    )
+    _check(
+        "schema11-action-only-filters-negative-required-steps",
+        "identify the array written by the loop body" in stencil_rendered
+        and "avoid false-dependence pragmas on the in-place array" not in stencil_rendered
+        and "avoid converting to separate input/output buffers" not in stencil_rendered,
+        "action_only prompt mode removes negative required-step bullets",
+        results,
+        tee,
+    )
 
 
 def test_skill_library_statistics_and_promote(results, tee):

@@ -5,6 +5,7 @@ HLS evaluation utilities: run Vitis HLS synthesis and parse reports.
 import os
 import re
 import csv
+import hashlib
 import shlex
 import shutil
 import signal
@@ -372,6 +373,137 @@ def _materialize_inputs(work_dir: str, hls_code: str, header_code: str, header_n
     }
 
 
+def run_native_testbench(
+    kernel_code: str,
+    testbench_code: str,
+    header_code: str = "",
+    header_name: str = "kernel.h",
+    *,
+    extra_files=None,
+    work_dir: str = None,
+    timeout: int = 180,
+) -> dict:
+    """Execute the plain-C functional specification as an independent oracle.
+
+    This path deliberately does not invoke Vitis and does not inspect expert
+    HLS code.  It compiles the pragma-stripped input together with the public
+    benchmark testbench, then captures both stdout and stderr (PolyBench emits
+    dumps on stderr).  The output is consumed by :mod:`golden_output` when each
+    generated candidate is C-simulated.
+    """
+    if work_dir is None:
+        work_dir = make_tempdir(prefix="cpu_golden_")
+    inputs = _materialize_inputs(
+        work_dir,
+        kernel_code,
+        header_code,
+        header_name,
+        testbench_code=testbench_code,
+        extra_files=extra_files,
+    )
+    executable = os.path.join(work_dir, "cpu_golden")
+    sources = [inputs["src_file"], inputs["tb_file"]]
+    sources.extend(
+        path
+        for path in inputs["extra_files"]
+        if Path(path).suffix.lower() in {".c", ".cc", ".cpp", ".cxx"}
+    )
+    compile_cmd = [
+        "g++",
+        "-std=c++17",
+        "-O0",
+        f"-I{work_dir}",
+        *sources,
+        "-lm",
+        "-o",
+        executable,
+    ]
+    try:
+        compile_result = subprocess.run(
+            compile_cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=work_dir,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "success": False,
+            "passed": False,
+            "stage": "compile",
+            "error": f"CPU-golden compilation failed: {type(exc).__name__}: {exc}",
+            "work_dir": work_dir,
+        }
+    if compile_result.returncode != 0:
+        log = (compile_result.stdout or "") + (compile_result.stderr or "")
+        return {
+            "success": False,
+            "passed": False,
+            "stage": "compile",
+            "error": _extract_vitis_failure_reason(log, "CPU-golden compilation failed"),
+            "log": log,
+            "work_dir": work_dir,
+        }
+    try:
+        execution = subprocess.run(
+            [executable],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=work_dir,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "success": False,
+            "passed": False,
+            "stage": "execute",
+            "error": f"CPU-golden execution failed: {type(exc).__name__}: {exc}",
+            "work_dir": work_dir,
+        }
+    output = (execution.stdout or "") + (execution.stderr or "")
+    passed = execution.returncode == 0
+    return {
+        "success": passed,
+        "passed": passed,
+        "stage": "execute",
+        "returncode": execution.returncode,
+        "error": "" if passed else f"CPU-golden testbench exited with {execution.returncode}",
+        "output": output,
+        "output_sha256": hashlib.sha256(output.encode("utf-8")).hexdigest(),
+        "work_dir": work_dir,
+    }
+
+
+def _apply_independent_golden(
+    result: dict,
+    *,
+    golden_output_text: str = "",
+    golden_output_specs=None,
+) -> dict:
+    """Correct a tool-success result using an independent output comparator."""
+    if not golden_output_text:
+        return result
+    from golden_output import compare_hlsfactory_dumps
+
+    comparison = compare_hlsfactory_dumps(
+        golden_output_text,
+        result.get("log", ""),
+        specs=golden_output_specs or {},
+    ).to_dict()
+    result["correctness"] = comparison
+    result["golden_output_sha256"] = hashlib.sha256(
+        golden_output_text.encode("utf-8")
+    ).hexdigest()
+    if result.get("passed") and not comparison.get("passed"):
+        result["passed"] = False
+        result["success"] = False
+        result["error"] = (
+            "Independent golden-output comparison failed: "
+            f"{comparison.get('reason', 'unknown')}"
+        )
+    return result
+
+
 def _inject_interface_depths(hls_code: str, interface_depths: dict) -> str:
     if not interface_depths:
         return hls_code
@@ -382,9 +514,121 @@ def _inject_interface_depths(hls_code: str, interface_depths: dict) -> str:
             port = match.group(1)
             depth = interface_depths.get(port)
             if depth is not None and 'depth=' not in line:
-                line = line.rstrip() + f' depth={depth}'
+                stripped = line.rstrip()
+                # Preserve multi-line HLS pragmas. Appending after a trailing
+                # backslash turns the next line into C/C++ tokens, e.g.
+                # `max_read_burst_length` becomes an undeclared identifier.
+                if stripped.endswith("\\"):
+                    line = stripped[:-1].rstrip() + f' depth={depth} \\'
+                else:
+                    line = stripped + f' depth={depth}'
         lines.append(line)
     return "\n".join(lines)
+
+
+def _m_axi_pragma_ports(hls_code: str) -> set:
+    return set(
+        re.findall(
+            r'#pragma\s+HLS\s+INTERFACE\s+m_axi\b.*?\bport\s*=\s*([A-Za-z_][A-Za-z0-9_]*)',
+            hls_code or "",
+        )
+    )
+
+
+def _split_top_params(params: str) -> list:
+    out = []
+    start = 0
+    depth = 0
+    for idx, char in enumerate(params):
+        if char in "([{<":
+            depth += 1
+        elif char in ")]}>":
+            depth = max(0, depth - 1)
+        elif char == "," and depth == 0:
+            item = params[start:idx].strip()
+            if item:
+                out.append(item)
+            start = idx + 1
+    tail = params[start:].strip()
+    if tail:
+        out.append(tail)
+    return out
+
+
+def _top_argument_names(hls_code: str, top_function: str) -> list:
+    if not hls_code or not top_function:
+        return []
+    func_re = re.compile(
+        rf"(?:extern\s+\"C\"\s*)?(?:[\w:<>,~*&\s]+?)\b{re.escape(top_function)}\s*"
+        r"\((?P<params>.*?)\)\s*(?:\{|;)",
+        re.DOTALL,
+    )
+    match = func_re.search(hls_code)
+    if not match:
+        return []
+    names = []
+    for param in _split_top_params(match.group("params")):
+        param = re.sub(r"/\*.*?\*/", " ", param).strip()
+        if not param or param == "void":
+            continue
+        # Handles `int *out`, `int out[4]`, `const int vertex_num`.
+        name_match = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[[^\]]*\]\s*)*$", param)
+        if name_match:
+            names.append(name_match.group(1))
+    return names
+
+
+def _cosim_interface_depth_directives(hls_code: str, top_function: str,
+                                      interface_depths: dict) -> str:
+    """Emit Tcl directives for depth-known ports lacking source pragmas.
+
+    Vitis HLS C/RTL cosim requires m_axi depths. If the source has explicit
+    m_axi pragmas, `_inject_interface_depths()` handles them in-source. Plain
+    external kernels often have only array/pointer arguments and no pragmas;
+    Vitis then invents a shared `gmem` interface and cosim aborts with a depth
+    error. Tcl directives keep the benchmark source plain while supplying the
+    missing hardware interface contract for cosim.
+    """
+    if not interface_depths:
+        return ""
+    pragma_ports = _m_axi_pragma_ports(hls_code)
+    lines = []
+    inserted = 0
+    axilite_ports = set()
+    for port, depth in interface_depths.items():
+        if port in pragma_ports:
+            continue
+        try:
+            depth_int = int(depth)
+        except (TypeError, ValueError):
+            continue
+        if depth_int <= 0:
+            continue
+        bundle = f"gmem_{inserted}"
+        lines.append(
+            f"set_directive_interface -mode m_axi -depth {depth_int} "
+            f"-offset slave -bundle {bundle} {{{top_function}}} {{{port}}}"
+        )
+        lines.append(
+            f"set_directive_interface -mode s_axilite -bundle control "
+            f"{{{top_function}}} {{{port}}}"
+        )
+        axilite_ports.add(port)
+        inserted += 1
+    if inserted:
+        for port in _top_argument_names(hls_code, top_function):
+            if port in axilite_ports:
+                continue
+            lines.append(
+                f"set_directive_interface -mode s_axilite -bundle control "
+                f"{{{top_function}}} {{{port}}}"
+            )
+            axilite_ports.add(port)
+        lines.append(
+            f"set_directive_interface -mode s_axilite -bundle control "
+            f"{{{top_function}}} return"
+        )
+    return "\n".join(lines) + ("\n" if lines else "")
 
 
 def run_hls_synthesis(
@@ -664,6 +908,8 @@ def run_csim(
     clock_ns: float = DEFAULT_CLOCK_NS,
     work_dir: str = None,
     extra_files=None,
+    golden_output_text: str = "",
+    golden_output_specs=None,
 ) -> dict:
     """Run Vitis HLS C-simulation (csim)."""
     if work_dir is None:
@@ -719,13 +965,13 @@ exit
     )
     success = passed and not has_error
 
-    return {
+    return _apply_independent_golden({
         "success": success,
         "passed": passed,
         "error": "" if success else _extract_vitis_failure_reason(log, "Csim failed"),
         "log": log,
         "work_dir": work_dir,
-    }
+    }, golden_output_text=golden_output_text, golden_output_specs=golden_output_specs)
 
 
 def run_cosim(
@@ -739,6 +985,8 @@ def run_cosim(
     work_dir: str = None,
     extra_files=None,
     interface_depths=None,
+    golden_output_text: str = "",
+    golden_output_specs=None,
 ) -> dict:
     """Run Vitis HLS co-simulation (cosim)."""
     if work_dir is None:
@@ -769,6 +1017,7 @@ add_files {src_file}
 open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default
+{_cosim_interface_depth_directives(hls_code, top_function, interface_depths)}
 csynth_design
 if {{[info exists ::env(LIBRARY_PATH)]}} {{ unset ::env(LIBRARY_PATH) }}
 {cosim_cmd}
@@ -815,7 +1064,7 @@ exit
     if kernel_runtime_cycles is not None and kernel_clock_freq_mhz:
         kernel_runtime_us = kernel_runtime_cycles / kernel_clock_freq_mhz
 
-    return {
+    return _apply_independent_golden({
         "success": success,
         "passed": passed,
         "error": "" if success else _extract_vitis_failure_reason(log, "Cosim failed"),
@@ -824,7 +1073,7 @@ exit
         "kernel_runtime_cycles": kernel_runtime_cycles,
         "kernel_runtime_us": kernel_runtime_us,
         "kernel_clock_freq_mhz": kernel_clock_freq_mhz,
-    }
+    }, golden_output_text=golden_output_text, golden_output_specs=golden_output_specs)
 
 
 def _stage_nova_workdir(nova_bench_dir: str,

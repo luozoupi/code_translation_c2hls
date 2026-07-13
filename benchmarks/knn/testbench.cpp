@@ -8,12 +8,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <cmath>
 #include "knn.h"
 
 extern "C" void workload(
     float inputQuery[NUM_FEATURE],
     float searchSpace[NUM_PT_IN_SEARCHSPACE * NUM_FEATURE],
     float distance[NUM_PT_IN_SEARCHSPACE]);
+
+static bool tolerance_mismatch(float reference, float actual, float tolerance)
+{
+    return !std::isfinite(reference) || !std::isfinite(actual) ||
+           fabsf(reference - actual) > tolerance * (fabsf(reference) + 1.0f);
+}
 
 /* Golden reference */
 static void knn_ref(float query[NUM_FEATURE],
@@ -58,7 +65,7 @@ int main() {
     float tol = 1e-4f;
     int mismatches = 0;
     for (int i = 0; i < NUM_PT_IN_SEARCHSPACE; i++) {
-        if (fabsf(ref_dist[i] - dut_dist[i]) > tol * (fabsf(ref_dist[i]) + 1.0f)) {
+        if (tolerance_mismatch(ref_dist[i], dut_dist[i], tol)) {
             if (mismatches < 5) {
                 printf("  mismatch[%d]: ref=%.6f dut=%.6f\n", i, ref_dist[i], dut_dist[i]);
             }

@@ -130,18 +130,33 @@ def test_flash_mode_wiring(results, tee):
         "slack_ns": 0.1,
         "estimated_clock_period_ns": 3.2,
         "requested_clock_period_ns": 3.33,
+        "bram": 1,
+        "dsp": 1,
+        "ff": 100,
+        "lut": 100,
+        "uram": 0,
     }
     timing_bad = {
         "latency_ns": 10.0,
         "slack_ns": -0.5,
         "estimated_clock_period_ns": 3.83,
         "requested_clock_period_ns": 3.33,
+        "bram": 1,
+        "dsp": 1,
+        "ff": 100,
+        "lut": 100,
+        "uram": 0,
     }
     slow_timing_bad = {
         "latency_ns": 1000.0,
         "slack_ns": -0.5,
         "estimated_clock_period_ns": 3.83,
         "requested_clock_period_ns": 3.33,
+        "bram": 1,
+        "dsp": 1,
+        "ff": 100,
+        "lut": 100,
+        "uram": 0,
     }
     _check(
         "flash-ranker-allows-large-latency-win",
@@ -152,10 +167,20 @@ def test_flash_mode_wiring(results, tee):
         tee,
     )
     _check(
-        "flash-ranker-demotes-slow-timing-bad",
-        c2hls.C2HLSOrchestrator._best_so_far_score(clean)
-        < c2hls.C2HLSOrchestrator._best_so_far_score(slow_timing_bad),
-        "timing penalty still breaks latency ties against timing-violating reports",
+        "paper-feasibility-rejects-slow-timing-bad",
+        c2hls._paper_candidate_feasibility(
+            clean,
+            csim={"ran": True, "passed": True},
+            part="xcu280-fsvh2892-2L-e",
+            clock_ns=3.33,
+        )["feasible"]
+        and not c2hls._paper_candidate_feasibility(
+            slow_timing_bad,
+            csim={"ran": True, "passed": True},
+            part="xcu280-fsvh2892-2L-e",
+            clock_ns=3.33,
+        )["feasible"],
+        "paper selection gates target timing before latency ranking",
         results,
         tee,
     )
@@ -212,6 +237,36 @@ def test_skill_library_and_router(results, tee):
             and "guards:" in rendered
             and "interface pragmas alone" in rendered,
             "renderer exposes package checklists and coalescing guardrails",
+            results,
+            tee,
+        )
+        old_prompt_mode = os.environ.get("C2HLS_SKILL_PROMPT_MODE")
+        os.environ["C2HLS_SKILL_PROMPT_MODE"] = "action_only"
+        try:
+            action_rendered = (
+                render_skill_for_prompt(coalescing_skill)
+                if coalescing_skill is not None else ""
+            )
+        finally:
+            if old_prompt_mode is None:
+                os.environ.pop("C2HLS_SKILL_PROMPT_MODE", None)
+            else:
+                os.environ["C2HLS_SKILL_PROMPT_MODE"] = old_prompt_mode
+        _check(
+            "schema11-skill-action-only-trims-guards",
+            "required steps:" in action_rendered
+            and "guards:" not in action_rendered
+            and "interface pragmas alone" not in action_rendered,
+            "action_only runtime prompt mode omits guard bullets",
+            results,
+            tee,
+        )
+        src_single = inspect.getsource(c2hls.C2HLSOrchestrator._optimization_step_attempt_single)
+        _check(
+            "action-only-suppresses-avoid-skills",
+            "avoid_skills_suppressed" in src_single
+            and "prompt_mode=render_skill_prompt_mode" in src_single,
+            "orchestrator records action_only mode and renders without avoid-tier additions",
             results,
             tee,
         )

@@ -8,9 +8,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <cmath>
 #include "lud.h"
 
 extern "C" void workload(float result[GRID_ROWS * GRID_COLS]);
+
+static bool tolerance_mismatch(float reference, float actual, float tolerance)
+{
+    return !std::isfinite(reference) || !std::isfinite(actual) ||
+           fabsf(reference - actual) > tolerance * (fabsf(reference) + 1.0f);
+}
 
 /* Golden reference: Doolittle LU decomposition */
 static void lud_ref(float result[GRID_ROWS * GRID_COLS])
@@ -64,8 +71,7 @@ int main() {
     int mismatches = 0;
     for (int i = 0; i < GRID_ROWS * GRID_COLS; i++) {
         float diff = fabsf(ref_mat[i] - dut_mat[i]);
-        float scale = fabsf(ref_mat[i]) + 1.0f;
-        if (diff > tol * scale) {
+        if (tolerance_mismatch(ref_mat[i], dut_mat[i], tol)) {
             if (mismatches < 5) {
                 printf("  mismatch[%d,%d]: ref=%.6f dut=%.6f diff=%.6e\n",
                        i / GRID_COLS, i % GRID_COLS, ref_mat[i], dut_mat[i], diff);

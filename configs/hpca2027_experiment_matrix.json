@@ -1,0 +1,325 @@
+{
+  "schema_version": "c2hls.hpca2027-experiment-matrix.v1",
+  "study": {
+    "name": "reference-blind-fpga-microarchitecture-recovery",
+    "paper_title": "Recovering FPGA Microarchitectures from Plain C with Compiler-in-the-Loop Agents",
+    "primary_profile": "hpca2027_reference_blind",
+    "oracle_profile": "legacy_oracle_reference_guided",
+    "notes": [
+      "Every primary and replication cell is reference-blind. Expert sources and metrics are offline evaluation artifacts only.",
+      "The oracle campaign is a separately labelled upper bound and must never be pooled with the primary results.",
+      "All 132 rows have executable runner mappings; launch remains gated on immutable model and skill identities."
+    ]
+  },
+  "target": {
+    "toolchain": "Vitis HLS 2023.2",
+    "part": "xcu280-fsvh2892-2L-e",
+    "platform": "xilinx_u280_gen3x16_xdma_1_202211_1",
+    "clock_ns": 3.33,
+    "flow_target": "vitis"
+  },
+  "required_env": [
+    "C2HLS_VITIS_SETTINGS"
+  ],
+  "budget": {
+    "max_llm_candidates": 5,
+    "max_synthesis_evaluations": 5,
+    "candidate_correctness_gate": "csim_with_independent_golden_check",
+    "cosim_policy": "selected_winner_only",
+    "winner_rule": "minimum_estimated_latency_among_correct_feasible_candidates"
+  },
+  "decoding": {
+    "temperature": 0.2,
+    "top_p": 0.95,
+    "seed_env": "C2HLS_LLM_SEED"
+  },
+  "statistics": {
+    "performance_profile_tau_max": 10.0,
+    "performance_profile_ticks": [1.0, 1.25, 2.0, 4.0, 10.0],
+    "paired_bootstrap": {
+      "statistic": "mean_paired_failure_aware_profile_auc_difference",
+      "confidence": 0.95,
+      "replicates": 10000,
+      "seed": 2027
+    },
+    "frozen_skill_gate": {
+      "ci_rule": "lower_bound_strictly_above_zero",
+      "correct_solve_rule": "not_lower_than_dynamic_no_skill"
+    }
+  },
+  "benchmark_sets": {
+    "rodinia_primary": [
+      {
+        "id": "StreamCluster",
+        "role": "irregular",
+        "path": "benchmarks/StreamCluster",
+        "testbench": "benchmarks/StreamCluster/testbench.cpp",
+        "golden_check_required": true
+      },
+      {
+        "id": "hotspot",
+        "role": "stencil",
+        "path": "benchmarks/hotspot",
+        "testbench": "benchmarks/hotspot/testbench.cpp",
+        "golden_check_required": true
+      },
+      {
+        "id": "kmeans",
+        "role": "clustering",
+        "path": "benchmarks/kmeans",
+        "testbench": "benchmarks/kmeans/testbench.cpp",
+        "golden_check_required": true
+      },
+      {
+        "id": "knn",
+        "role": "distance",
+        "path": "benchmarks/knn",
+        "testbench": "benchmarks/knn/testbench.cpp",
+        "golden_check_required": true
+      },
+      {
+        "id": "lavaMD",
+        "role": "compute_bound",
+        "path": "benchmarks/lavaMD",
+        "testbench": "benchmarks/lavaMD/testbench.cpp",
+        "golden_check_required": true
+      },
+      {
+        "id": "lud",
+        "role": "dense_linear_algebra",
+        "path": "benchmarks/lud",
+        "testbench": "benchmarks/lud/testbench.cpp",
+        "golden_check_required": true
+      },
+      {
+        "id": "nw",
+        "role": "dynamic_programming",
+        "path": "benchmarks/nw",
+        "testbench": "benchmarks/nw/testbench.cpp",
+        "golden_check_required": true
+      },
+      {
+        "id": "pathfinder",
+        "role": "memory_bound",
+        "path": "benchmarks/pathfinder",
+        "testbench": "benchmarks/pathfinder/testbench.cpp",
+        "golden_check_required": true
+      },
+      {
+        "id": "srad",
+        "role": "image_processing",
+        "path": "benchmarks/srad",
+        "testbench": "benchmarks/srad/testbench.cpp",
+        "golden_check_required": true
+      }
+    ],
+    "representative_three": [
+      {
+        "id": "pathfinder",
+        "stratum": "memory_bound"
+      },
+      {
+        "id": "lavaMD",
+        "stratum": "compute_bound"
+      },
+      {
+        "id": "StreamCluster",
+        "stratum": "irregular"
+      }
+    ]
+  },
+  "models": {
+    "qwen_27b": {
+      "role": "primary_local",
+      "model_id": "qwen3.6-27b",
+      "provider": "local_openai_compatible",
+      "seed_control": "provider_enforced",
+      "revision_env": "C2HLS_QWEN27B_REVISION",
+      "required_env": [
+        "OPENAI_BASE_URL",
+        "C2HLS_QWEN27B_REVISION"
+      ]
+    },
+    "claude_sonnet_4_6": {
+      "role": "commercial_anchor",
+      "model_id": "claude-sonnet-4-6",
+      "provider": "anthropic",
+      "seed_control": "unsupported_by_provider_record_as_repeated_trial",
+      "revision_env": "C2HLS_SONNET46_REVISION",
+      "required_env": [
+        "ANTHROPIC_API_KEY",
+        "C2HLS_SONNET46_REVISION"
+      ]
+    }
+  },
+  "methods": {
+    "one_shot_best_of_five": {
+      "label": "matched-budget best-of-five one-shot",
+      "skills": "off",
+      "mapping_status": "supported",
+      "runner": "run_paper_baseline.py",
+      "strategy": "one_shot_best_of_five"
+    },
+    "pragma_only": {
+      "label": "pragma-only search",
+      "skills": "off",
+      "mapping_status": "supported",
+      "runner": "run_paper_baseline.py",
+      "strategy": "pragma_only"
+    },
+    "flash_c2hls": {
+      "label": "flash C2HLS",
+      "skills": "off",
+      "mapping_status": "supported",
+      "runner": "run_agentic_sweep.py",
+      "strategy": "flash"
+    },
+    "dynamic_no_skills": {
+      "label": "dynamic C2HLS without skills",
+      "skills": "off",
+      "mapping_status": "supported",
+      "runner": "run_agentic_sweep.py",
+      "strategy": "dynamic"
+    },
+    "dynamic_frozen_skills": {
+      "label": "dynamic C2HLS with frozen skills",
+      "skills": "frozen",
+      "mapping_status": "supported",
+      "runner": "run_agentic_sweep.py",
+      "strategy": "dynamic",
+      "required_env": [
+        "C2HLS_SKILL_LIBRARY_PATH",
+        "C2HLS_SKILL_SNAPSHOT_SHA256"
+      ]
+    }
+  },
+  "profiles": {
+    "hpca2027_reference_blind": {
+      "reference_blind": true,
+      "env": {
+        "C2HLS_SWEEP_PROFILE": "hpca2027_reference_blind",
+        "C2HLS_REFERENCE_BLIND": "1",
+        "C2HLS_ORACLE_MODE": "0",
+        "C2HLS_GT_AWARE_REVERT": "0",
+        "C2HLS_GT_COMPARISON_IN_CONTROL": "0",
+        "C2HLS_PHASE8_BASELINE_ALIGN": "0",
+        "C2HLS_SWEEP_BASELINE_ALIGN": "0",
+        "C2HLS_PHASE5_GT_PREPOP": "0",
+        "C2HLS_SWEEP_GT_PREPOP": "0",
+        "C2HLS_COSIM_SKIP_SLOWER_THAN_GOLD": "0",
+        "C2HLS_GOLD_RELATIVE_COSIM": "0",
+        "C2HLS_REFERENCE_METRICS_IN_PROMPTS": "0",
+        "C2HLS_REFERENCE_CODE_IN_PROMPTS": "0",
+        "C2HLS_TRANSCRIPT_AUDIT": "1",
+        "C2HLS_REFERENCE_BLIND_FAIL_ON_LEAK": "1"
+      }
+    },
+    "legacy_oracle_reference_guided": {
+      "reference_blind": false,
+      "oracle_upper_bound": true,
+      "env": {
+        "C2HLS_SWEEP_PROFILE": "legacy",
+        "C2HLS_REFERENCE_BLIND": "0",
+        "C2HLS_ORACLE_MODE": "1",
+        "C2HLS_GT_AWARE_REVERT": "1",
+        "C2HLS_GT_COMPARISON_IN_CONTROL": "1",
+        "C2HLS_PHASE8_BASELINE_ALIGN": "1",
+        "C2HLS_SWEEP_BASELINE_ALIGN": "1",
+        "C2HLS_PHASE5_GT_PREPOP": "1",
+        "C2HLS_SWEEP_GT_PREPOP": "1",
+        "C2HLS_COSIM_SKIP_SLOWER_THAN_GOLD": "0",
+        "C2HLS_GOLD_RELATIVE_COSIM": "0",
+        "C2HLS_REFERENCE_METRICS_IN_PROMPTS": "1",
+        "C2HLS_REFERENCE_CODE_IN_PROMPTS": "1",
+        "C2HLS_TRANSCRIPT_AUDIT": "0",
+        "C2HLS_REFERENCE_BLIND_FAIL_ON_LEAK": "0"
+      }
+    }
+  },
+  "campaigns": [
+    {
+      "id": "primary_seed0",
+      "purpose": "reference_isolated_primary",
+      "profile": "hpca2027_reference_blind",
+      "benchmark_set": "rodinia_primary",
+      "models": "all",
+      "methods": "all",
+      "seeds": [0]
+    },
+    {
+      "id": "representative_extra_seeds",
+      "purpose": "paired_seed_replication",
+      "profile": "hpca2027_reference_blind",
+      "benchmark_set": "representative_three",
+      "models": "all",
+      "methods": [
+        "one_shot_best_of_five",
+        "dynamic_no_skills",
+        "dynamic_frozen_skills"
+      ],
+      "seeds": [1, 2]
+    },
+    {
+      "id": "oracle_upper_bound_seed0",
+      "purpose": "reference_guided_oracle_upper_bound",
+      "profile": "legacy_oracle_reference_guided",
+      "benchmark_set": "representative_three",
+      "models": "all",
+      "methods": [
+        "dynamic_frozen_skills"
+      ],
+      "seeds": [0]
+    }
+  ],
+  "common_runner_env": {
+    "C2HLS_PART": "xcu280-fsvh2892-2L-e",
+    "C2HLS_DEVICE_PLATFORM": "xilinx_u280_gen3x16_xdma_1_202211_1",
+    "C2HLS_CLOCK_NS": "3.33",
+    "C2HLS_VITIS_VERSION": "2023.2",
+    "C2HLS_FLOW_TARGET": "vitis",
+    "C2HLS_LLM_TEMPERATURE": "0.2",
+    "C2HLS_LLM_TOP_P": "0.95",
+    "C2HLS_MAX_COMPLETION_TOKENS": "8192",
+    "C2HLS_SWEEP_CANDIDATES_PER_STEP": "5",
+    "C2HLS_CANDIDATES_PER_STEP": "5",
+    "C2HLS_LLM_CANDIDATE_BUDGET": "5",
+    "C2HLS_SYNTHESIS_EVAL_BUDGET": "5",
+    "C2HLS_COSIM_SELECTED_ONLY": "1",
+    "C2HLS_FORCE_SELECTED_COSIM": "1",
+    "C2HLS_CORRECTNESS_BEFORE_SYNTH": "1",
+    "C2HLS_DISABLE_CORRECTNESS_REPAIR": "0",
+    "C2HLS_SYNTH_REVERT_THRESHOLD": "0",
+    "C2HLS_PHASE5_LLM_RETRY": "0",
+    "C2HLS_CPU_GOLDEN_TIMEOUT": "180",
+    "C2HLS_COSIM_REQUIRED": "0",
+    "C2HLS_REFERENCE_VALIDATE_MODE": "all",
+    "C2HLS_SWEEP_REFERENCE_VALIDATE_MODE": "all",
+    "C2HLS_REFERENCE_COSIM": "0",
+    "C2HLS_REFERENCE_COSIM_SELECTED_ONLY": "1",
+    "C2HLS_REFERENCE_COSIM_BASELINE": "1",
+    "C2HLS_FEASIBILITY_SELECTION": "1",
+    "C2HLS_SKILL_LIBRARY_FROZEN": "1",
+    "C2HLS_SKILL_LIBRARY_PERSIST": "0",
+    "C2HLS_SKILL_UPDATE_STATS": "0",
+    "C2HLS_SWEEP_RESUME": "1",
+    "C2HLS_SWEEP_EXCLUDE": ""
+  },
+  "acceptance": {
+    "max_global_llm_candidates": 5,
+    "max_global_synthesis_evaluations": 5,
+    "require_every_candidate_csim_golden": true,
+    "require_selected_winner_executed_cosim": true,
+    "reject_predicted_cosim_as_measurement": true,
+    "require_complete_run_fingerprint": true,
+    "require_reference_isolation_audit_for_primary": true,
+    "note": "The expander is a dry-run tool only. A result ingester must reject rows whose recorded counters or status taxonomy violate these limits."
+  },
+  "expected_counts": {
+    "total_rows": 132,
+    "supported_mapping_rows": 132,
+    "unsupported_mapping_rows": 0,
+    "primary_rows": 90,
+    "replication_rows": 36,
+    "oracle_rows": 6
+  }
+}

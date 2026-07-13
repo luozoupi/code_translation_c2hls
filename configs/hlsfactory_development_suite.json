@@ -1,0 +1,27 @@
+{
+  "schema_version": "c2hls.development-suite.v1",
+  "name": "hlsfactory_polybench_float_small_28",
+  "role": "development_and_skill_mining_only",
+  "evaluation_use": "never_primary_or_held_out",
+  "correctness_policy": "independent_cpu_golden_with_authoritative_shapes",
+  "skill_policy": "mine_only_from_golden_correct_feasible_trajectories_then_freeze",
+  "kernel_count": 28,
+  "kernels": [
+    "hlsfactory_2mm", "hlsfactory_3mm", "hlsfactory_atax", "hlsfactory_bicg",
+    "hlsfactory_cholesky", "hlsfactory_correlation", "hlsfactory_covariance",
+    "hlsfactory_doitgen", "hlsfactory_durbin", "hlsfactory_fdtd_2d",
+    "hlsfactory_floyd_warshall", "hlsfactory_gemm", "hlsfactory_gemver",
+    "hlsfactory_gesummv", "hlsfactory_gramschmidt", "hlsfactory_heat_3d",
+    "hlsfactory_jacobi_1d", "hlsfactory_jacobi_2d", "hlsfactory_lu",
+    "hlsfactory_ludcmp", "hlsfactory_mvt", "hlsfactory_nussinov",
+    "hlsfactory_seidel_2d", "hlsfactory_symm", "hlsfactory_syr2k",
+    "hlsfactory_syrk", "hlsfactory_trisolv", "hlsfactory_trmm"
+  ],
+  "required_contracts": [
+    "testbench_sha256_matches_shape_registry",
+    "cpu_golden_output_names_match_registry",
+    "output_value_count_matches_declared_emission_shape",
+    "exact_integer_or_finite_tolerant_float_comparison",
+    "no_online_skill_update_on_primary_evaluation"
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "saved_at": "2026-05-29T19:06:49-0500",
+  "saved_at": "2026-07-09T06:45:10-0500",
   "schema": "1.1",
   "skills": [
     {
@@ -27,9 +27,9 @@
       ],
       "id": "axi-burst-coalescing-narrow-safe",
       "kind": "compound_transformation",
-      "last_used_at": "2026-05-19T13:37:09-0500",
-      "mean_advantage": 0.08241956281851404,
-      "occurrences": 7,
+      "last_used_at": "2026-07-09T06:30:07-0500",
+      "mean_advantage": 0.23469470369211887,
+      "occurrences": 14,
       "origin": "manual",
       "pattern": "m_axi port feeds a contiguous streaming loop, the active host/testbench contract expects the original scalar pointer types, and memory bandwidth limits performance",
       "required_steps": [
@@ -41,7 +41,7 @@
         "partition local lane buffers to match the lane factor",
         "validate csim/cosim and inspect synthesis reports for burst/widening success"
       ],
-      "sec_pass": 3,
+      "sec_pass": 10,
       "strategy": "preserve the public scalar pointer ABI; request 512-bit automatic m_axi widening with max_widen_bitwidth=512; use burst/outstanding pragmas; stage contiguous data into local buffers; pipeline load/store loops; and rewrite the compute loop to process LANES = 512 / element_bitwidth elements per memory beat when iterations are independent",
       "tags": [
         "coalescing",
@@ -316,9 +316,9 @@
       ],
       "id": "prompt-unroll",
       "kind": "compound_transformation",
-      "last_used_at": "2026-05-19T01:21:33-0500",
-      "mean_advantage": 0.8711423416579622,
-      "occurrences": 1,
+      "last_used_at": "2026-06-13T03:17:39-0500",
+      "mean_advantage": 0.8575958850297345,
+      "occurrences": 2,
       "origin": "prompt",
       "pattern": "a loop has independent iterations or a safely transformable reduction, and latency is dominated by arithmetic throughput rather than global-memory bandwidth",
       "required_steps": [
@@ -329,7 +329,7 @@
         "check DSP/LUT/FF/BRAM growth",
         "validate csim/cosim and compare achieved latency"
       ],
-      "sec_pass": 1,
+      "sec_pass": 2,
       "strategy": "apply partial or complete unrolling only after confirming independence or safe reduction structure; match array partitioning/banking to the unroll factor and verify resource growth",
       "tags": [
         "prompt-derived",
@@ -522,9 +522,9 @@
       ],
       "id": "loop-tripcount-when-bound-runtime",
       "kind": "diagnostic_or_transform",
-      "last_used_at": "2026-05-19T01:19:11-0500",
-      "mean_advantage": 0.0019889188805228015,
-      "occurrences": 1,
+      "last_used_at": "2026-06-13T04:42:05-0500",
+      "mean_advantage": -0.0012552068954329893,
+      "occurrences": 12,
       "origin": "manual",
       "pattern": "Vitis cannot bound a loop's trip count statically and reports implausible latency",
       "required_steps": [
@@ -533,7 +533,7 @@
         "preserve interface and functional behavior",
         "validate with csim/cosim/synthesis feedback"
       ],
-      "sec_pass": 1,
+      "sec_pass": 5,
       "strategy": "annotate the loop with #pragma HLS loop_tripcount min=N avg=N max=N",
       "tags": [
         "loop_tripcount",
@@ -796,9 +796,9 @@
       ],
       "id": "hls-coalescing-partition-lane-buffers",
       "kind": "supporting_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
+      "last_used_at": "2026-07-09T06:40:34-0500",
+      "mean_advantage": 0.8353760337539197,
+      "occurrences": 101,
       "origin": "curated",
       "pattern": "lane-level compute is introduced after 512-bit coalescing, but local buffers still have insufficient memory ports to feed all lanes in parallel",
       "required_steps": [
@@ -807,7 +807,7 @@
         "prefer complete partition for small lane buffers",
         "prefer cyclic partition for larger arrays with regular lane indexing"
       ],
-      "sec_pass": 0,
+      "sec_pass": 92,
       "strategy": "partition local lane buffers completely or cyclically by the lane/unroll factor so all unrolled lane operations can read/write without BRAM port conflicts",
       "tags": [
         "hls",
@@ -916,9 +916,9 @@
       ],
       "id": "hls-tile-1d-reuse-and-compute-restructure",
       "kind": "compound_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
+      "last_used_at": "2026-07-09T06:39:16-0500",
+      "mean_advantage": -0.17334918240589253,
+      "occurrences": 39,
       "origin": "curated",
       "pattern": "a one-dimensional loop or flattened array traversal repeatedly accesses a bounded contiguous region from global memory, and this working set can be staged locally to enable reuse, pipelining, unrolling, or local-buffer partitioning",
       "required_steps": [
@@ -933,7 +933,7 @@
         "handle N not divisible by TILE",
         "store only valid output elements"
       ],
-      "sec_pass": 0,
+      "sec_pass": 31,
       "strategy": "strip-mine the 1D iteration space into tiles, stage each tile into local memory, rewrite compute indexing from global indices to local tile indices, reuse tile data or exploit local tile bandwidth, and expose parallelism through pipelining, lane/inner-loop unrolling, and buffer partitioning when legal",
       "tags": [
         "hls",
@@ -1017,9 +1017,9 @@
       ],
       "id": "hls-tile-compute-inner-parallelism",
       "kind": "supporting_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
+      "last_used_at": "2026-06-13T02:08:21-0500",
+      "mean_advantage": -0.6344827586206897,
+      "occurrences": 1,
       "origin": "curated",
       "pattern": "a tile is already staged in local memory, but the compute loop still processes tile elements serially despite independent operations or available local memory bandwidth",
       "required_steps": [
@@ -1029,7 +1029,7 @@
         "partition or bank local tile buffers to match the unroll factor",
         "check resource growth and achieved II"
       ],
-      "sec_pass": 0,
+      "sec_pass": 1,
       "strategy": "pipeline the tile compute loop and partially unroll an independent inner dimension; partition or bank local tile buffers so all unrolled operations can be fed from local memory without port conflicts",
       "tags": [
         "hls",
@@ -1102,9 +1102,9 @@
       ],
       "id": "hls-tile-partition-local-buffers",
       "kind": "supporting_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
+      "last_used_at": "2026-07-09T06:43:41-0500",
+      "mean_advantage": 0.08716004099493863,
+      "occurrences": 65,
       "origin": "curated",
       "pattern": "tiled compute introduces parallel local-buffer accesses, but the local tile buffer has insufficient memory ports to support pipelining or unrolling",
       "required_steps": [
@@ -1114,7 +1114,7 @@
         "prefer cyclic partition for larger regularly indexed tile buffers",
         "inspect II and local memory resource usage after partitioning"
       ],
-      "sec_pass": 0,
+      "sec_pass": 50,
       "strategy": "partition or bank local tile buffers along the dimension accessed in parallel, matching the partition factor to the unroll factor or access pattern",
       "tags": [
         "hls",
@@ -1225,9 +1225,9 @@
       ],
       "id": "hls-pipeline-hot-loop-achieve-ii",
       "kind": "compound_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
+      "last_used_at": "2026-07-09T06:37:16-0500",
+      "mean_advantage": 0.03584263610293987,
+      "occurrences": 28,
       "origin": "curated",
       "pattern": "a frequently executed loop is scheduled sequentially or has high interval, and the loop can be made pipeline-eligible without violating true dependencies",
       "required_steps": [
@@ -1241,7 +1241,7 @@
         "if II is blocked by true recurrence, restructure legally or accept the best legal II",
         "validate csim/cosim and inspect scheduling warnings"
       ],
-      "sec_pass": 0,
+      "sec_pass": 18,
       "strategy": "pipeline the selected hot loop, then resolve dependencies, memory-port conflicts, global-memory access, and loop-body structure so the achieved II improves rather than only adding a pragma",
       "tags": [
         "hls",
@@ -1305,7 +1305,7 @@
         "local_memory_port_limited",
         "pipeline_blocked"
       ],
-      "confidence": "high",
+      "confidence": "medium",
       "guards": [
         "do not complete-partition large arrays blindly",
         "do not partition the wrong dimension",
@@ -1313,9 +1313,9 @@
       ],
       "id": "hls-pipeline-bank-local-buffers",
       "kind": "supporting_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
+      "last_used_at": "2026-07-09T06:42:49-0500",
+      "mean_advantage": 0.24778909016282358,
+      "occurrences": 66,
       "origin": "curated",
       "pattern": "a pipelined loop needs multiple local-buffer accesses per cycle, but the local array is not partitioned or banked enough to provide the required ports",
       "required_steps": [
@@ -1326,7 +1326,7 @@
         "match partition factor to unroll factor or access count",
         "re-run synthesis and check achieved II"
       ],
-      "sec_pass": 0,
+      "sec_pass": 34,
       "strategy": "partition or bank local arrays along the dimension accessed in parallel so the pipelined loop has enough local memory ports",
       "tags": [
         "hls",
@@ -1398,9 +1398,9 @@
       ],
       "id": "hls-pipeline-stage-global-memory",
       "kind": "supporting_transformation",
-      "last_used_at": null,
+      "last_used_at": "2026-06-13T03:21:31-0500",
       "mean_advantage": 0.0,
-      "occurrences": 0,
+      "occurrences": 1,
       "origin": "curated",
       "pattern": "a loop is pipeline-eligible, but direct global-memory access through m_axi prevents low II or stable scheduling",
       "required_steps": [
@@ -1411,7 +1411,7 @@
         "store results back with a pipelined loop",
         "combine with coalescing or tiling when access pattern supports it"
       ],
-      "sec_pass": 0,
+      "sec_pass": 1,
       "strategy": "separate global-memory load/store from compute, stage data into local buffers with pipelined burst-friendly loops, and pipeline the compute loop over local memory",
       "tags": [
         "hls",
@@ -1975,9 +1975,9 @@
       ],
       "id": "hls-doublebuffer-dataflow-stage-split",
       "kind": "supporting_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
+      "last_used_at": "2026-07-09T06:45:10-0500",
+      "mean_advantage": 0.28900082598964344,
+      "occurrences": 104,
       "origin": "curated",
       "pattern": "load, compute, and store logic is mixed in a single loop or function, preventing DATAFLOW scheduling or stage overlap",
       "required_steps": [
@@ -1989,7 +1989,7 @@
         "apply DATAFLOW at parent scope",
         "check dataflow report for actual concurrency"
       ],
-      "sec_pass": 0,
+      "sec_pass": 65,
       "strategy": "split the code into explicit producer/consumer stages connected by local buffers or streams, then apply DATAFLOW at the parent scope when dependencies allow",
       "tags": [
         "hls",
@@ -2296,9 +2296,9 @@
       ],
       "id": "hls-partition-select-complete-cyclic-block",
       "kind": "supporting_transformation",
-      "last_used_at": null,
-      "mean_advantage": 0.0,
-      "occurrences": 0,
+      "last_used_at": "2026-07-09T06:42:07-0500",
+      "mean_advantage": 0.4386614522219965,
+      "occurrences": 83,
       "origin": "curated",
       "pattern": "a local array needs more read/write ports for pipelined or unrolled access, but the correct partition style depends on access pattern and array size",
       "required_steps": [
@@ -2308,7 +2308,7 @@
         "match factor to unroll factor or port demand",
         "check II and resource usage"
       ],
-      "sec_pass": 0,
+      "sec_pass": 55,
       "strategy": "choose complete partition for small arrays or dimensions fully accessed in parallel, cyclic partition for regular interleaved lane accesses, and block partition for contiguous per-worker regions",
       "tags": [
         "hls",
@@ -2318,6 +2318,50 @@
         "kernel-independent"
       ],
       "template": "// Complete: small fully parallel dimension\n#pragma HLS ARRAY_PARTITION variable=small_buf complete dim=1\n\n// Cyclic: lane-indexed interleaved access\n#pragma HLS ARRAY_PARTITION variable=buf cyclic factor=UNROLL_FACTOR dim=1\n\n// Block: each worker owns a contiguous block\n#pragma HLS ARRAY_PARTITION variable=buf block factor=PE dim=1"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "loop_carried_dep",
+        "pipeline_blocked"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not suppress true RAW/WAR dependencies with dependence false pragmas",
+        "do not use local staging to accidentally change Gauss-Seidel-style ordering",
+        "do not assume a stencil is Jacobi-style; verify whether input and output arrays are distinct",
+        "cosim/csim must pass before treating a transform as valid"
+      ],
+      "id": "hls-inplace-stencil-true-dependence",
+      "kind": "guarded_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "a nested loop updates an element of an array in place while reading neighboring elements from the same array in the same time sweep; the report may show high II, pipeline_blocked, or loop-carried memory/operator dependence",
+      "required_steps": [
+        "identify the array written by the loop body",
+        "check whether the same array is read at neighboring indices in the same loop nest",
+        "classify the dependence as true unless an index proof shows it is false",
+        "preserve the original update order and boundary behavior",
+        "avoid false-dependence pragmas on the in-place array",
+        "avoid converting to separate input/output buffers unless algorithmically equivalent",
+        "for row-major 2D stencils, prefer row-buffer staging that preserves left-to-right update order",
+        "pipeline row load and writeback loops separately from the true-dependent compute loop",
+        "strength-reduce division by compile-time constants when this preserves expected results",
+        "if no legal transform is found, keep the baseline and report the true-dependence reason"
+      ],
+      "sec_pass": 0,
+      "strategy": "treat the carried dependence as real unless a legal algorithmic transform proves otherwise. Do not use false dependence pragmas or local buffering that changes the within-sweep update order. For row-major 2D stencils, first try legal row staging that keeps the same i/j sweep order: load the neighboring rows into small local buffers, update the current row buffer in place from left to right, and write the row back after the j sweep. Pipeline only the load/writeback loops at II=1 and pipeline the true-dependent compute loop without forcing II=1. If the update divides by a compile-time constant, use an equivalent reciprocal multiply to reduce operator latency. Prefer correctness-preserving wavefront/skewed scheduling, red-black coloring when the algorithm permits it, or accept the baseline/limited interface improvements with an explicit reason.",
+      "tags": [
+        "stencil",
+        "in-place",
+        "true-dependence",
+        "guardrail"
+      ],
+      "template": "// In-place neighbor update guardrail:\n//   A[i][j] = f(A[i-1][j], A[i][j-1], A[i][j], ...)\n// has true carried dependencies across loop iterations.\n// Do NOT add DEPENDENCE ... false unless the index proof is explicit.\n// Do NOT convert to Jacobi-style double-buffering unless that preserves\n// the original algorithm's update order and numerical results.\n// Legal first attempt for row-major 2D stencils:\n//   1. load previous/current/next rows into local row buffers;\n//   2. update current-row buffer left-to-right, preserving A[i][j-1]\n//      dependence as a real value dependence;\n//   3. write the updated current row back after the j sweep;\n//   4. replace division by a compile-time constant with reciprocal\n//      multiplication when numerically equivalent for the benchmark.\n"
     }
   ]
 }

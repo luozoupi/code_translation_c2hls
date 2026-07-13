@@ -8,11 +8,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <cmath>
 #include "hotspot.h"
 
 extern "C" void workload(float result[GRID_ROWS * GRID_COLS],
                          float temp[GRID_ROWS * GRID_COLS],
                          float power[GRID_ROWS * GRID_COLS]);
+
+static bool tolerance_mismatch(float reference, float actual, float tolerance)
+{
+    return !std::isfinite(reference) || !std::isfinite(actual) ||
+           fabsf(reference - actual) > tolerance * (fabsf(reference) + 1.0f);
+}
 
 /* Golden reference: single hotspot timestep */
 static void hotspot_ref(float* result, float* temp, float* power,
@@ -138,9 +145,7 @@ int main() {
     float tol = 1e-2f;
     int mismatches = 0;
     for (int i = 0; i < N; i++) {
-        float diff = fabsf(result_ref[i] - result_dut[i]);
-        float scale = fabsf(result_ref[i]) + 1.0f;
-        if (diff > tol * scale) {
+        if (tolerance_mismatch(result_ref[i], result_dut[i], tol)) {
             if (mismatches < 5) {
                 printf("  mismatch[%d,%d]: ref=%.6f dut=%.6f\n",
                        i / GRID_COLS, i % GRID_COLS, result_ref[i], result_dut[i]);

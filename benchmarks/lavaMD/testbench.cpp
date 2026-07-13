@@ -8,11 +8,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <cmath>
 #include "lavaMD.h"
 
 extern "C" void workload(TYPE pos_i[N_PADDED * POS_DIM],
                          TYPE q_i[N_PADDED],
                          TYPE pos_o[N * POS_DIM]);
+
+static bool tolerance_mismatch(float reference, float actual, float tolerance)
+{
+    return !std::isfinite(reference) || !std::isfinite(actual) ||
+           fabsf(reference - actual) > tolerance * (fabsf(reference) + 1.0f);
+}
 
 /* Golden reference: N-body force computation with padded layout */
 static void lavaMD_ref(TYPE* pos_i, TYPE* q_i, TYPE* pos_o)
@@ -121,8 +128,7 @@ int main() {
     int mismatches = 0;
     for (int i = 0; i < N * POS_DIM; i++) {
         float diff = fabsf(ref_pos_o[i] - dut_pos_o[i]);
-        float scale = fabsf(ref_pos_o[i]) + 1.0f;
-        if (diff > tol * scale) {
+        if (tolerance_mismatch(ref_pos_o[i], dut_pos_o[i], tol)) {
             if (mismatches < 5) {
                 printf("  mismatch[%d]: ref=%.6f dut=%.6f diff=%.6e\n",
                        i, ref_pos_o[i], dut_pos_o[i], diff);

@@ -1,0 +1,199 @@
+{
+  "schema_version": "1.0",
+  "campaign": "hpca2027_post_route_implementation",
+  "status": "not_started",
+  "null_policy": "A null value means not selected or not measured; it must never be replaced by a prediction.",
+  "paper_evidence_allowed": false,
+  "prerequisites": {
+    "held_out_suite": "Rodinia-HLS",
+    "valid_baseline_expert_pair_gate": {
+      "required_minimum": 8,
+      "observed": null,
+      "status": "pending"
+    },
+    "primary_campaign_frozen": false,
+    "claim_artifact_manifest_sha256": null,
+    "selection_protocol_sha256": null
+  },
+  "target": {
+    "toolchain": "Vitis 2023.2",
+    "part": "xcu280-fsvh2892-2L-e",
+    "target_clock_ns": 3.33,
+    "implementation_target": "post_route",
+    "winner_count": 5
+  },
+  "selection_policy": {
+    "status": "pending_freeze",
+    "source_population": "valid selected winners from the reference-isolated primary campaign",
+    "sample_without_replacement": true,
+    "stratified": true,
+    "stratification_dimensions": [
+      "kernel behavior",
+      "expert-recovery outcome",
+      "resource pressure"
+    ],
+    "freeze_before_tool_invocation": true,
+    "notes": "Freeze the deterministic selection rule and its SHA-256 before populating the five slots; do not choose examples after seeing implementation outcomes."
+  },
+  "winners": [
+    {
+      "slot": 1,
+      "status": "unassigned",
+      "stratum": null,
+      "kernel": null,
+      "model": null,
+      "method": null,
+      "seed": null,
+      "source_run_fingerprint": null,
+      "source_artifact_sha256": null,
+      "selection_reason": null,
+      "preconditions": {
+        "golden_correct": null,
+        "synthesis_feasible": null,
+        "target_timing_met": null,
+        "selected_cosim_executed_pass": null
+      },
+      "implementation": {
+        "status": "not_started",
+        "tool_version": null,
+        "report_sha256": null,
+        "timing_met": null,
+        "achieved_clock_ns": null,
+        "fmax_mhz": null,
+        "resources": null,
+        "elapsed_seconds": null,
+        "failure": null
+      }
+    },
+    {
+      "slot": 2,
+      "status": "unassigned",
+      "stratum": null,
+      "kernel": null,
+      "model": null,
+      "method": null,
+      "seed": null,
+      "source_run_fingerprint": null,
+      "source_artifact_sha256": null,
+      "selection_reason": null,
+      "preconditions": {
+        "golden_correct": null,
+        "synthesis_feasible": null,
+        "target_timing_met": null,
+        "selected_cosim_executed_pass": null
+      },
+      "implementation": {
+        "status": "not_started",
+        "tool_version": null,
+        "report_sha256": null,
+        "timing_met": null,
+        "achieved_clock_ns": null,
+        "fmax_mhz": null,
+        "resources": null,
+        "elapsed_seconds": null,
+        "failure": null
+      }
+    },
+    {
+      "slot": 3,
+      "status": "unassigned",
+      "stratum": null,
+      "kernel": null,
+      "model": null,
+      "method": null,
+      "seed": null,
+      "source_run_fingerprint": null,
+      "source_artifact_sha256": null,
+      "selection_reason": null,
+      "preconditions": {
+        "golden_correct": null,
+        "synthesis_feasible": null,
+        "target_timing_met": null,
+        "selected_cosim_executed_pass": null
+      },
+      "implementation": {
+        "status": "not_started",
+        "tool_version": null,
+        "report_sha256": null,
+        "timing_met": null,
+        "achieved_clock_ns": null,
+        "fmax_mhz": null,
+        "resources": null,
+        "elapsed_seconds": null,
+        "failure": null
+      }
+    },
+    {
+      "slot": 4,
+      "status": "unassigned",
+      "stratum": null,
+      "kernel": null,
+      "model": null,
+      "method": null,
+      "seed": null,
+      "source_run_fingerprint": null,
+      "source_artifact_sha256": null,
+      "selection_reason": null,
+      "preconditions": {
+        "golden_correct": null,
+        "synthesis_feasible": null,
+        "target_timing_met": null,
+        "selected_cosim_executed_pass": null
+      },
+      "implementation": {
+        "status": "not_started",
+        "tool_version": null,
+        "report_sha256": null,
+        "timing_met": null,
+        "achieved_clock_ns": null,
+        "fmax_mhz": null,
+        "resources": null,
+        "elapsed_seconds": null,
+        "failure": null
+      }
+    },
+    {
+      "slot": 5,
+      "status": "unassigned",
+      "stratum": null,
+      "kernel": null,
+      "model": null,
+      "method": null,
+      "seed": null,
+      "source_run_fingerprint": null,
+      "source_artifact_sha256": null,
+      "selection_reason": null,
+      "preconditions": {
+        "golden_correct": null,
+        "synthesis_feasible": null,
+        "target_timing_met": null,
+        "selected_cosim_executed_pass": null
+      },
+      "implementation": {
+        "status": "not_started",
+        "tool_version": null,
+        "report_sha256": null,
+        "timing_met": null,
+        "achieved_clock_ns": null,
+        "fmax_mhz": null,
+        "resources": null,
+        "elapsed_seconds": null,
+        "failure": null
+      }
+    }
+  ],
+  "board_execution": {
+    "status": "unavailable_current_environment",
+    "last_checked": "2026-07-13T03:01:54-05:00",
+    "observed": {
+      "/dev/xclmgmt0": false,
+      "/dev/dri/renderD128": false,
+      "xilinx_pci_function": false,
+      "xbutil_on_path": false,
+      "xrt_smi_on_path": false
+    },
+    "recheck_before_evidence_freeze": true,
+    "measurements": [],
+    "notes": "Board runtime remains unavailable unless physical U280 and XRT access changes; post-route reports are not board measurements."
+  }
+}

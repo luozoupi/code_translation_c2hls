@@ -1,0 +1,42 @@
+{
+  "schema_version": "c2hls.hlsfactory-output-shapes.v1",
+  "suite": "HLSFactory PolyBench float small",
+  "policy": {
+    "source": "public testbench print_array bounds",
+    "testbench_hash_required": true,
+    "missing_benchmark": "reject",
+    "missing_or_extra_output": "reject",
+    "default_float_atol": 1e-06,
+    "default_float_rtol": 1e-05
+  },
+  "benchmarks": {
+    "hlsfactory_2mm": {"testbench_sha256": "2b736a3038b420dab38525e1a9c7fd935abd5133a7c3772bab16edea03732f33", "outputs": {"D": {"shape": [40, 80], "logical_shape": [40, 80], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_3mm": {"testbench_sha256": "75bf7ef5f8bfc96d682f36c2345af0f3b3b87ccfb5cc22be08072351be0b346b", "outputs": {"G": {"shape": [40, 70], "logical_shape": [40, 70], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_atax": {"testbench_sha256": "9771a0737610c685310192d634c558c288aeee1bf65e8581959496f93f8ff2d8", "outputs": {"y": {"shape": [124], "logical_shape": [124], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_bicg": {"testbench_sha256": "6a8296d561d436f4b23a97788b35c9334c64ddb1cebf71f9c784029287a8d05a", "outputs": {"s": {"shape": [116], "logical_shape": [116], "layout": "dense", "kind": "float"}, "q": {"shape": [124], "logical_shape": [124], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_cholesky": {"testbench_sha256": "6a2095804405592c6db7eb0b1bfbb104508dd702fa2b1a1ad904a2b3a433e4aa", "outputs": {"A": {"shape": [7260], "logical_shape": [120, 120], "layout": "lower_triangle_inclusive_row_major", "kind": "float"}}},
+    "hlsfactory_correlation": {"testbench_sha256": "334b894ad7be4e9414a454f0aacdcea1a43b988a3792bcf5ab75cf4fb245b6c6", "outputs": {"corr": {"shape": [80, 80], "logical_shape": [80, 80], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_covariance": {"testbench_sha256": "501c3e65986466f4d786d05924d175103bda29f28389c1447a461b2f7cbe86eb", "outputs": {"cov": {"shape": [80, 80], "logical_shape": [80, 80], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_doitgen": {"testbench_sha256": "f543d717a8d61a3da8946fb3678e074a406e967e76212d2d7e45c7f2e7ea4baf", "outputs": {"A": {"shape": [25, 20, 30], "logical_shape": [25, 20, 30], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_durbin": {"testbench_sha256": "597c7d6a4e0ae56aa2abdd025008a0184446527c6e49f414ffc52394fa21dc7b", "outputs": {"y": {"shape": [120], "logical_shape": [120], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_fdtd_2d": {"testbench_sha256": "c4051cc7eb65b8205e0d82f9c4052e2e06eaa4d4930dfc8f7ed96653d4a258ff", "outputs": {"ex": {"shape": [60, 80], "logical_shape": [60, 80], "layout": "dense", "kind": "float"}, "ey": {"shape": [60, 80], "logical_shape": [60, 80], "layout": "dense", "kind": "float"}, "hz": {"shape": [60, 80], "logical_shape": [60, 80], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_floyd_warshall": {"testbench_sha256": "de74857f1ceb5739cebc59a719678f403eefb3d3302484a21419442d98c9b409", "outputs": {"path": {"shape": [180, 180], "logical_shape": [180, 180], "layout": "dense", "kind": "integer"}}},
+    "hlsfactory_gemm": {"testbench_sha256": "75fca2b97e442b6bf8d7d9a4abd94f4731bbdb52488ace596bc6325c673d0ca6", "outputs": {"C": {"shape": [60, 70], "logical_shape": [60, 70], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_gemver": {"testbench_sha256": "38a342248c0e75740e6424b52ac834061d9abfea150e92a1d1631fb0a61fdf2a", "outputs": {"w": {"shape": [120], "logical_shape": [120], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_gesummv": {"testbench_sha256": "e00324152407c0b03d10ab1cb03330f55afaef49de3fd07b0eb0873a19f3674c", "outputs": {"y": {"shape": [90], "logical_shape": [90], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_gramschmidt": {"testbench_sha256": "2bec0ed86ab64a40351130b444711e833fee4729a3e48b251a3e926acb5858b9", "outputs": {"R": {"shape": [80, 80], "logical_shape": [80, 80], "layout": "dense", "kind": "float"}, "Q": {"shape": [60, 80], "logical_shape": [60, 80], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_heat_3d": {"testbench_sha256": "547c15a3d707f6c9d82e9adcac2d629124b8ec7e256c4294f239ad2ea0ca4e9e", "outputs": {"A": {"shape": [20, 20, 20], "logical_shape": [20, 20, 20], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_jacobi_1d": {"testbench_sha256": "dd0826e726ecdb99f8be640863b1645c2adcc21227d812faf30f9b2b943652ac", "outputs": {"A": {"shape": [120], "logical_shape": [120], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_jacobi_2d": {"testbench_sha256": "ea61d51089a5b853812b4a9ea39cdfcdf0fb4f3340efc5d46ef9768ce8bd39a5", "outputs": {"A": {"shape": [90, 90], "logical_shape": [90, 90], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_lu": {"testbench_sha256": "814c06780ae7ea235ad64aefdb0d896730a48df71fdf8b7601173eb04d818d7e", "outputs": {"A": {"shape": [120, 120], "logical_shape": [120, 120], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_ludcmp": {"testbench_sha256": "4068b25136de23b260d329f7a492f4ab5a32e48f328b7b9d6060ec744e240dc9", "outputs": {"x": {"shape": [120], "logical_shape": [120], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_mvt": {"testbench_sha256": "5f032e2ddc166cdf7ba8b723f6ff886ea6e019a9550cdc8de5a9061b95f97e1c", "outputs": {"x1": {"shape": [120], "logical_shape": [120], "layout": "dense", "kind": "float"}, "x2": {"shape": [120], "logical_shape": [120], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_nussinov": {"testbench_sha256": "4fb91abb37e6badf097195352072d1f0887da326081c437cca8aab873f41df76", "outputs": {"table": {"shape": [16290], "logical_shape": [180, 180], "layout": "upper_triangle_inclusive_row_major", "kind": "integer"}}},
+    "hlsfactory_seidel_2d": {"testbench_sha256": "52b548afdb57af1629fd1e6b0c952ce6115c6df8fcc0650b297e54b41c744ff1", "outputs": {"A": {"shape": [120, 120], "logical_shape": [120, 120], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_symm": {"testbench_sha256": "b8a842e4da9b99d33af8e90927cb61eb242ad8b0aa0eee18dde1dac6b2b32017", "outputs": {"C": {"shape": [60, 80], "logical_shape": [60, 80], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_syr2k": {"testbench_sha256": "fecd6f7d8f67744060cda0e9debb599cb4e9abf7f531c66fe6aa71d7da5192ee", "outputs": {"C": {"shape": [80, 80], "logical_shape": [80, 80], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_syrk": {"testbench_sha256": "4503d8f42a314acfd9a3224d88495c3efb222bc77b44d63290b4baf0d14a944b", "outputs": {"C": {"shape": [80, 80], "logical_shape": [80, 80], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_trisolv": {"testbench_sha256": "bd6f4c6163414b7bfffbff05601b539445c07362d1ad1b6e875f21e251303718", "outputs": {"x": {"shape": [120], "logical_shape": [120], "layout": "dense", "kind": "float"}}},
+    "hlsfactory_trmm": {"testbench_sha256": "b22ed84ade9e6cf9adb5bfc2b980da44e0821dbeaf0a50c15f0863429e7bfa1f", "outputs": {"B": {"shape": [60, 80], "logical_shape": [60, 80], "layout": "dense", "kind": "float"}}}
+  }
+}

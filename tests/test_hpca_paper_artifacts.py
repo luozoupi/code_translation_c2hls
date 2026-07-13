@@ -126,8 +126,11 @@ def _successful_record(run_id: str, cycles: int, *, generated: bool) -> dict:
                 "provider_failure": False,
                 "tokens": 1000,
                 "llm_calls": 5,
-                "synthesis_calls": 5,
+                "synthesis_calls": 6,
+                "total_tool_calls": 6,
                 "selection_synthesis_evaluations": 5,
+                "selected_winner_cosim_count": 1,
+                "post_route_implementation_count": 0,
                 "wall_time_seconds": 120.0,
                 "candidates_evaluated": 5,
                 "candidate_events": events,
@@ -163,6 +166,7 @@ def _failed_record(run_id: str, failure_class: str = "cosim_failure") -> dict:
             "executed_cosim_cycles": None,
             "failure_class": failure_class,
             "synthesis_calls": 2,
+            "total_tool_calls": 2,
             "selection_synthesis_evaluations": 1,
         }
     )

@@ -84,12 +84,14 @@ provenance cannot leak an author home directory.
 Generated-method records additionally require
 `reference_isolation_status: passed`, the independently authenticated Boolean
 `provider_failure`, `tokens`, `llm_calls`,
-`synthesis_calls`, `selection_synthesis_evaluations`, `wall_time_seconds`, and
-`candidates_evaluated`. These fields must include failed attempts and be
-non-negative; call/candidate counts are integers. `synthesis_calls` is total
-tool attribution (including a selected-winner co-simulation if it reruns
-synthesis), while `selection_synthesis_evaluations` is the matched-budget
-quantity capped by the preregistration.
+`synthesis_calls`, `total_tool_calls`, `selection_synthesis_evaluations`,
+`selected_winner_cosim_count`, `post_route_implementation_count`,
+`wall_time_seconds`, and `candidates_evaluated`. These fields must include
+failed attempts and be non-negative; call/candidate counts are integers.
+`selection_synthesis_evaluations` is the matched-budget quantity capped by the
+preregistration. Both totals equal selection synthesis evaluations plus the
+selected-winner co-simulation flow plus the optional post-route implementation
+flow; skips consume zero calls.
 
 Every generated record also carries `candidate_events`, with exactly one
 ordered event for every evaluated candidate. An event contains:

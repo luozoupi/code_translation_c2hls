@@ -166,6 +166,13 @@ class HPCA2027ExperimentMatrixTests(unittest.TestCase):
                 self.assertEqual("1", env["C2HLS_COSIM_SELECTED_ONLY"])
                 self.assertEqual("1", env["C2HLS_CORRECTNESS_BEFORE_SYNTH"])
                 self.assertEqual("8192", env["C2HLS_MAX_COMPLETION_TOKENS"])
+                self.assertEqual("0", env["C2HLS_FEEDBACK_LLM"])
+                self.assertEqual(
+                    "artifacts/reference_validation_cache",
+                    env["C2HLS_REFERENCE_CACHE_DIR"],
+                )
+                self.assertEqual("0", env["C2HLS_SWEEP_HW_EMU"])
+                self.assertEqual("0", env["C2HLS_HW_EMU_FINAL"])
                 for role in (
                     "C2HLS_TRANSLATOR_MODEL",
                     "C2HLS_SYNTHESIS_MODEL",

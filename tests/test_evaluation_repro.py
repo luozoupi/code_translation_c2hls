@@ -21,14 +21,24 @@ class EvaluationProfileTests(unittest.TestCase):
             "C2HLS_PHASE8_BASELINE_ALIGN": "1",
             "C2HLS_PHASE5_GT_PREPOP": "1",
             "C2HLS_COSIM_SKIP_SLOWER_THAN_GOLD": "1",
+            "C2HLS_FEEDBACK_LLM": "1",
             "C2HLS_SKILL_LIBRARY_PERSIST": "1",
             "C2HLS_SKILL_UPDATE_STATS": "1",
+            "C2HLS_ALLOW_WIDE_ABI": "1",
+            "C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS": "0",
+            "C2HLS_HW_EMU_CLOCK_NS": "5.0",
+            "C2HLS_HW_EMU_CLOCK_MHZ": "200",
+            "C2HLS_EMU_ENV_SCRIPT": "/tmp/uncontrolled-emu-env.sh",
         }
         profile = repro.apply_evaluation_profile("paper", environ=env)
         self.assertTrue(profile["reference_blind"])
         self.assertEqual(profile["name"], repro.PAPER_PROFILE)
         for key, value in repro.REFERENCE_BLIND_OVERRIDES.items():
             self.assertEqual(env[key], value)
+        for key, value in repro.PAPER_POST_ROUTE_OVERRIDES.items():
+            self.assertEqual(env[key], value)
+            self.assertEqual(profile["invariants"][key], value)
+            self.assertEqual(profile["forced_overrides"][key]["effective"], value)
 
     def test_legacy_profile_does_not_rewrite_oracle_settings(self):
         env = {"C2HLS_GT_AWARE_REVERT": "1"}
@@ -61,6 +71,9 @@ class FingerprintTests(unittest.TestCase):
         )
         settings = repo / "settings64.sh"
         settings.write_text("# test Vitis settings\n", encoding="utf-8")
+        emu_script = repo / "scripts" / "setup_emu_env.sh"
+        emu_script.parent.mkdir(parents=True)
+        emu_script.write_text("#!/usr/bin/env bash\n# test emulation environment\n")
         (bench / "metadata.json").write_text(
             json.dumps({"benchmark": "tiny", "plain_c_file": "plain.cpp"})
         )
@@ -68,8 +81,18 @@ class FingerprintTests(unittest.TestCase):
         env = {
             "C2HLS_VITIS_VERSION": "2023.2",
             "C2HLS_VITIS_SETTINGS": str(settings),
+            "C2HLS_VITIS_USER_HOME": str(repo / "runtime" / "vitis_user_home"),
+            "C2HLS_TMP_ROOT": str(repo / "runtime" / "tmp"),
             "C2HLS_PART": "xcu280-fsvh2892-2L-e",
             "C2HLS_CLOCK_NS": "3.33",
+            "C2HLS_EMU_ENV_SCRIPT": str(emu_script),
+            "C2HLS_REFERENCE_CACHE_DIR": str(
+                repo / "artifacts" / "reference_validation_cache"
+            ),
+            "C2HLS_ALLOW_WIDE_ABI": "0",
+            "C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS": "1",
+            "C2HLS_HW_EMU_CLOCK_NS": "3.33",
+            "C2HLS_HW_EMU_CLOCK_MHZ": "",
             "C2HLS_STRATEGY": "dynamic",
             "C2HLS_DYNAMIC_ROUTING": "1",
             "C2HLS_SKILL_LIBRARY_FROZEN": "1",
@@ -136,6 +159,172 @@ class FingerprintTests(unittest.TestCase):
             (repo / "prompt_c2hls.py").write_text("# changed prompt\n")
             changed_prompt = self._build(repo, bench, env)
             self.assertNotEqual(first["sha256"], changed_prompt["sha256"])
+
+    def test_endpoint_identity_is_sensitive_and_never_serializes_credentials(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo, bench, env = self._fixture(Path(tmpdir))
+            default = self._build(repo, bench, env)
+            default_endpoint = default["payload"]["model"]["endpoint"]
+            self.assertTrue(default_endpoint["valid"])
+            self.assertEqual("loopback", default_endpoint["host_class"])
+
+            env["OPENAI_BASE_URL"] = "https://inference.example/v1"
+            remote = self._build(repo, bench, env)
+            self.assertNotEqual(default["sha256"], remote["sha256"])
+            self.assertNotEqual(
+                default_endpoint["endpoint_sha256"],
+                remote["payload"]["model"]["endpoint"]["endpoint_sha256"],
+            )
+
+            env["OPENAI_BASE_URL"] = (
+                "https://endpoint-user:endpoint-password@inference.example/v1"
+                "?api_key=endpoint-query-secret"
+            )
+            unsafe = self._build(repo, bench, env)
+            serialized = repro.canonical_json(unsafe)
+            for secret in (
+                "endpoint-user",
+                "endpoint-password",
+                "endpoint-query-secret",
+            ):
+                self.assertNotIn(secret, serialized)
+            endpoint = unsafe["payload"]["model"]["endpoint"]
+            self.assertFalse(endpoint["valid"])
+            self.assertEqual(["userinfo", "query"], endpoint["unsafe_components"])
+            issues = repro.fingerprint_completeness(unsafe)["issues"]
+            self.assertIn("model_endpoint_invalid", issues)
+            self.assertIn("model_endpoint_unsafe_components", issues)
+
+            anthropic = repro._endpoint_identity(
+                "claude-sonnet-4-6",
+                {"ANTHROPIC_BASE_URL": "https://anthropic-gateway.example"},
+            )
+            self.assertEqual("anthropic", anthropic["provider"])
+            self.assertEqual("ANTHROPIC_BASE_URL", anthropic["source_env"])
+            hosted = repro._endpoint_identity(
+                "gpt-5",
+                {"C2HLS_OPENAI_HOSTED_URL": "https://openai-gateway.example/v1"},
+            )
+            self.assertEqual("openai_hosted", hosted["provider"])
+            self.assertEqual("C2HLS_OPENAI_HOSTED_URL", hosted["source_env"])
+
+    def test_reference_cache_path_absence_and_matching_content_are_bound(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo, bench, env = self._fixture(Path(tmpdir))
+            cache_dir = Path(env["C2HLS_REFERENCE_CACHE_DIR"])
+            absent = self._build(repo, bench, env)
+            self.assertEqual(
+                "directory_absent", absent["payload"]["reference_cache"]["state"]
+            )
+
+            cache_dir.mkdir(parents=True)
+            unrelated = cache_dir / f"other.{'a' * 64}.json"
+            unrelated.write_text('{"unrelated": 1}\n')
+            no_entry = self._build(repo, bench, env)
+            self.assertEqual(
+                "entry_absent", no_entry["payload"]["reference_cache"]["state"]
+            )
+            unrelated.write_text('{"unrelated": 2}\n')
+            self.assertTrue(
+                repro.fingerprint_matches(no_entry, self._build(repo, bench, env))
+            )
+
+            matching = cache_dir / f"tiny.{'b' * 64}.json"
+            matching.write_text('{"reference_validation": 1}\n')
+            populated = self._build(repo, bench, env)
+            self.assertEqual(
+                "present", populated["payload"]["reference_cache"]["state"]
+            )
+            self.assertNotEqual(no_entry["sha256"], populated["sha256"])
+
+            matching.write_text('{"reference_validation": 2}\n')
+            tampered = self._build(repo, bench, env)
+            self.assertNotEqual(populated["sha256"], tampered["sha256"])
+
+            env["C2HLS_REFERENCE_CACHE_DIR"] = str(repo / "other-empty-cache")
+            other_absent = self._build(repo, bench, env)
+            self.assertNotEqual(absent["sha256"], other_absent["sha256"])
+
+    def test_vitis_user_home_relevant_state_is_bound_but_transient_logs_are_not(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo, bench, env = self._fixture(Path(tmpdir))
+            home = Path(env["C2HLS_VITIS_USER_HOME"])
+            absent = self._build(repo, bench, env)
+            self.assertEqual(
+                "home_absent",
+                absent["payload"]["toolchain"]["vitis_user_home"]["state"],
+            )
+
+            tclapp = home / ".Xilinx" / "Vivado" / "tclapp"
+            tclapp.mkdir(parents=True)
+            manifest = tclapp / "manifest.tcl"
+            manifest.write_text("set app_version 1\n")
+            configured = self._build(repo, bench, env)
+            self.assertNotEqual(absent["sha256"], configured["sha256"])
+
+            (home / ".Xilinx" / "session.log").write_text("volatile\n")
+            with_log = self._build(repo, bench, env)
+            self.assertTrue(repro.fingerprint_matches(configured, with_log))
+
+            manifest.write_text("set app_version 2\n")
+            changed = self._build(repo, bench, env)
+            self.assertNotEqual(configured["sha256"], changed["sha256"])
+
+            env["C2HLS_VITIS_USER_HOME"] = "relative/vitis_home"
+            relative = self._build(repo, bench, env)
+            issues = repro.fingerprint_completeness(relative)["issues"]
+            self.assertIn("vitis_user_home_path_not_absolute", issues)
+            self.assertIn("vitis_user_home_state_invalid", issues)
+
+    def test_post_route_controls_and_emu_script_content_are_bound(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo, bench, env = self._fixture(Path(tmpdir))
+            original = self._build(repo, bench, env)
+            for name, value, expected_issue in (
+                (
+                    "C2HLS_ALLOW_WIDE_ABI",
+                    "1",
+                    "paper_post_route_wide_abi_not_disabled",
+                ),
+                (
+                    "C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS",
+                    "0",
+                    "paper_post_route_debug_symbols_not_disabled",
+                ),
+                (
+                    "C2HLS_HW_EMU_CLOCK_MHZ",
+                    "275",
+                    "paper_post_route_clock_mhz_forbidden",
+                ),
+                (
+                    "C2HLS_HW_EMU_CLOCK_NS",
+                    "3.64",
+                    "paper_post_route_clock_ns_mismatch",
+                ),
+            ):
+                changed_env = dict(env)
+                changed_env[name] = value
+                changed = self._build(repo, bench, changed_env)
+                self.assertNotEqual(
+                    original["sha256"], changed["sha256"]
+                )
+                self.assertIn(
+                    expected_issue,
+                    repro.fingerprint_completeness(changed)["issues"],
+                )
+
+            script = Path(env["C2HLS_EMU_ENV_SCRIPT"])
+            script.write_text("#!/usr/bin/env bash\n# changed environment\n")
+            changed_script = self._build(repo, bench, env)
+            self.assertNotEqual(original["sha256"], changed_script["sha256"])
+
+            env["C2HLS_HW_EMU_FINAL"] = "1"
+            env["C2HLS_EMU_ENV_SCRIPT"] = "scripts/setup_emu_env.sh"
+            relative_script = self._build(repo, bench, env)
+            self.assertIn(
+                "post_route_emu_script_path_not_absolute",
+                repro.fingerprint_completeness(relative_script)["issues"],
+            )
 
     def test_tampered_payload_or_digest_never_matches(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -216,6 +405,70 @@ class FingerprintTests(unittest.TestCase):
 
 
 class ProvenanceStatusTests(unittest.TestCase):
+    @staticmethod
+    def _baseline_call_fixture(*, anthropic: bool = False) -> tuple[dict, dict]:
+        base_seed = 7
+        seed_supported = not anthropic
+        model = "claude-sonnet-4-6" if anthropic else "qwen/tiny"
+        provider = "anthropic" if anthropic else "openai"
+        policy = (
+            "unsupported_by_provider"
+            if anthropic
+            else "base_plus_candidate_index"
+        )
+        schedule = [
+            {
+                "candidate_index": index,
+                "requested_seed": base_seed + index,
+                "effective_seed": base_seed + index if seed_supported else None,
+                "seed_supported": seed_supported,
+            }
+            for index in range(5)
+        ]
+        fingerprint = {
+            "payload": {
+                "model": {
+                    "id": model,
+                    "revision": {"value": "weights-1", "resolved": True},
+                },
+                "decoding": {
+                    "temperature": "0.2",
+                    "top_p": "0.95",
+                    "seed": str(base_seed),
+                    "max_completion_tokens": "8192",
+                },
+                "paper_baseline": {
+                    "method": "one_shot_best_of_five",
+                    "max_llm_candidates": 5,
+                    "base_seed": base_seed,
+                    "seed_policy": policy,
+                    "candidate_seed_schedule": schedule,
+                },
+            }
+        }
+        events = []
+        for entry in schedule:
+            events.append(
+                {
+                    "provider": provider,
+                    "model": model,
+                    "model_revision": "weights-1",
+                    "max_tokens": 8192,
+                    "prompt_sha256": "a" * 64,
+                    "candidate_index": entry["candidate_index"],
+                    "requested_seed": entry["requested_seed"],
+                    "effective_seed": entry["effective_seed"],
+                    "seed_supported": entry["seed_supported"],
+                    "decoding": {
+                        "temperature": 0.2,
+                        "top_p": 0.95,
+                        "seed": entry["effective_seed"],
+                        "seed_supported": entry["seed_supported"],
+                    },
+                }
+            )
+        return fingerprint, {"llm_usage": {"calls": 5, "events": events}}
+
     def test_actual_call_model_decoding_and_revision_are_enforced(self):
         payload = {
             "model": {
@@ -250,6 +503,22 @@ class ProvenanceStatusTests(unittest.TestCase):
         issues = repro.effective_llm_call_issues(result, fingerprint)
         self.assertIn("llm_call_0:model_mismatch", issues)
         self.assertIn("llm_call_0:top_p_mismatch", issues)
+
+    def test_qwen_baseline_accepts_base_plus_candidate_index_and_rejects_tamper(self):
+        fingerprint, result = self._baseline_call_fixture()
+        self.assertEqual([], repro.effective_llm_call_issues(result, fingerprint))
+
+        result["llm_usage"]["events"][3]["decoding"]["seed"] = 7
+        issues = repro.effective_llm_call_issues(result, fingerprint)
+        self.assertIn("llm_call_3:seed_mismatch", issues)
+
+    def test_anthropic_baseline_records_explicit_unsupported_seed_schedule(self):
+        fingerprint, result = self._baseline_call_fixture(anthropic=True)
+        self.assertEqual([], repro.effective_llm_call_issues(result, fingerprint))
+
+        result["llm_usage"]["events"][2]["effective_seed"] = 9
+        issues = repro.effective_llm_call_issues(result, fingerprint)
+        self.assertIn("llm_call_2:baseline_seed_attribution_mismatch", issues)
 
     def test_predicted_cosim_skip_is_not_an_executed_timeout(self):
         status = repro.derive_status_taxonomy({

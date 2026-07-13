@@ -3811,6 +3811,10 @@ class C2HLSOrchestrator:
         self.llm_candidate_request_count = 0
         self._candidate_stream_started_monotonic: Optional[float] = None
         self.selected_winner_cosim_count = 0
+        # A post-route hw_emu attempt invokes a separate v++ implementation
+        # flow.  Keep it outside the five-candidate selection-synthesis budget
+        # while still including it in complete tool-call cost attribution.
+        self.post_route_implementation_count = 0
         self.selected_code_sha256: Optional[str] = None
         self.cosim_target_code_sha256: Optional[str] = None
         try:
@@ -4726,7 +4730,25 @@ class C2HLSOrchestrator:
     def _total_synthesis_calls(self) -> int:
         return int(getattr(self, "synthesis_eval_count", 0)) + int(
             getattr(self, "selected_winner_cosim_count", 0)
+        ) + int(
+            getattr(self, "post_route_implementation_count", 0)
         )
+
+    def _tool_call_attribution(self) -> dict:
+        total = self._total_synthesis_calls()
+        return {
+            "synthesis_evaluation_count": int(
+                getattr(self, "synthesis_eval_count", 0)
+            ),
+            "selected_winner_cosim_count": int(
+                getattr(self, "selected_winner_cosim_count", 0)
+            ),
+            "post_route_implementation_count": int(
+                getattr(self, "post_route_implementation_count", 0)
+            ),
+            "total_synthesis_calls": total,
+            "total_tool_calls": total,
+        }
 
     def _evaluate_candidate_with_repairs(self, candidate_code: str, label: str) -> dict:
         current_code = candidate_code
@@ -6959,10 +6981,7 @@ class C2HLSOrchestrator:
             "skill_library_provenance": self.skill_library_provenance,
             "llm_usage": self._llm_usage_summary(),
             "synthesis_evaluations": self._synthesis_evaluation_summary(),
-            "selected_winner_cosim_count": getattr(
-                self, "selected_winner_cosim_count", 0
-            ),
-            "total_synthesis_calls": self._total_synthesis_calls(),
+            **self._tool_call_attribution(),
             "selected_code_sha256": getattr(self, "selected_code_sha256", None),
             "cosim_target_code_sha256": getattr(
                 self, "cosim_target_code_sha256", None
@@ -7110,10 +7129,7 @@ class C2HLSOrchestrator:
             "preflight_patches": self.preflight_patches,
             "llm_usage": self._llm_usage_summary(),
             "synthesis_evaluations": self._synthesis_evaluation_summary(),
-            "selected_winner_cosim_count": getattr(
-                self, "selected_winner_cosim_count", 0
-            ),
-            "total_synthesis_calls": self._total_synthesis_calls(),
+            **self._tool_call_attribution(),
             "selected_code_sha256": getattr(self, "selected_code_sha256", None),
             "cosim_target_code_sha256": getattr(
                 self, "cosim_target_code_sha256", None
@@ -9547,6 +9563,7 @@ def _finalize_singleshot_results(bench_name: str, meta: dict, success: bool,
     output["success"] = success
     if orchestrator is not None:
         output["run"] = _build_run_attribution(orchestrator, meta)
+        output.update(orchestrator._tool_call_attribution())
     output["reference_validation"] = reference_validation
     output["ground_truth_report"] = reference_validation.get("report", {})
     output["ground_truth_status"] = "valid" if reference_validation.get("benchmark_ready") else "invalid"
@@ -9742,6 +9759,41 @@ def _wide_abi_markers(code: str) -> list[str]:
     return markers
 
 
+def _post_route_hw_emu_configuration(timeout: int) -> dict:
+    """Record the exact gates and environment inputs used by hw_emu."""
+
+    script_raw = os.getenv(
+        "C2HLS_EMU_ENV_SCRIPT",
+        str(REPO_ROOT / "scripts" / "setup_emu_env.sh"),
+    )
+    script = Path(script_raw).expanduser()
+    script_digest = (
+        hashlib.sha256(script.read_bytes()).hexdigest()
+        if script.is_file()
+        else None
+    )
+    return {
+        "schema_version": "c2hls.post-route-configuration.v1",
+        "hw_emu_enabled": _env_flag("C2HLS_HW_EMU_FINAL"),
+        "allow_wide_abi": _env_flag("C2HLS_ALLOW_WIDE_ABI"),
+        "emu_env_script": {
+            "configured_path": script_raw,
+            "resolved_path": str(script.resolve()) if script.exists() else str(script),
+            "sha256": script_digest,
+        },
+        "disable_debug_symbols": _env_flag(
+            "C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS"
+        ),
+        "clock_mhz_override": os.getenv("C2HLS_HW_EMU_CLOCK_MHZ") or None,
+        "clock_ns_override": os.getenv("C2HLS_HW_EMU_CLOCK_NS") or None,
+        "device_platform": os.getenv(
+            "C2HLS_DEVICE_PLATFORM",
+            "xilinx_u280_gen3x16_xdma_1_202211_1",
+        ),
+        "timeout_seconds": int(timeout),
+    }
+
+
 def _maybe_run_hw_emu_final(orchestrator, results: dict, bench_name: str,
                             timeout: int = 7200,
                             variant_step: "str | None" = None) -> None:
@@ -9758,13 +9810,24 @@ def _maybe_run_hw_emu_final(orchestrator, results: dict, bench_name: str,
       - requested final/selected variant cannot be staged exactly
       - orchestrator has no hls_code (failed before producing a kernel)
     """
-    if os.getenv("C2HLS_HW_EMU_FINAL", "").lower() not in ("1", "true", "yes"):
+    configuration = _post_route_hw_emu_configuration(timeout)
+    results["post_route_configuration"] = configuration
+    if not configuration["hw_emu_enabled"]:
+        results["hw_emu"] = {
+            "ran": False,
+            "skip_reason": "C2HLS_HW_EMU_FINAL is disabled",
+            "profile_required": False,
+            "implementation_call_count": 0,
+            "configuration": configuration,
+        }
         return
     if not orchestrator.hls_code:
         results["hw_emu"] = {
             "ran": False,
             "skip_reason": "no final HLS code available for hw_emu",
             "profile_required": True,
+            "implementation_call_count": 0,
+            "configuration": configuration,
         }
         return
     try:
@@ -9777,6 +9840,7 @@ def _maybe_run_hw_emu_final(orchestrator, results: dict, bench_name: str,
             "fallback_timeout_sec": timeout,
             "profile_required": True,
         })
+    configuration["timeout_seconds"] = timeout
     requested_step = variant_step or _infer_final_variant_step(results)
     variant, variant_error = _resolve_rodinia_variant(bench_name, requested_step)
     if not variant:
@@ -9785,10 +9849,12 @@ def _maybe_run_hw_emu_final(orchestrator, results: dict, bench_name: str,
             "skip_reason": variant_error,
             "profile_required": True,
             "requested_variant_step": requested_step,
+            "implementation_call_count": 0,
+            "configuration": configuration,
         }
         return
     wide_markers = _wide_abi_markers(orchestrator.hls_code)
-    allow_wide_abi = os.getenv("C2HLS_ALLOW_WIDE_ABI", "").lower() in ("1", "true", "yes")
+    allow_wide_abi = bool(configuration["allow_wide_abi"])
     if wide_markers and not allow_wide_abi:
         results["hw_emu"] = {
             "ran": False,
@@ -9806,6 +9872,8 @@ def _maybe_run_hw_emu_final(orchestrator, results: dict, bench_name: str,
             "interface_contract": "narrow_safe_default",
             "interface_mismatch": True,
             "wide_abi_markers": wide_markers,
+            "implementation_call_count": 0,
+            "configuration": configuration,
         }
         return
     logging.info("[hw_emu_final] Running on %s step=%s via %s",
@@ -9817,6 +9885,16 @@ def _maybe_run_hw_emu_final(orchestrator, results: dict, bench_name: str,
         kernel_basename=variant["kernel_basename"],
         timeout=timeout,
     )
+    implementation_count = hw.get("implementation_call_count")
+    if (
+        not isinstance(implementation_count, int)
+        or isinstance(implementation_count, bool)
+        or implementation_count not in {0, 1}
+    ):
+        implementation_count = 1 if hw.get("ran") is True else 0
+    orchestrator.post_route_implementation_count = int(
+        getattr(orchestrator, "post_route_implementation_count", 0)
+    ) + implementation_count
     # Strip log to keep results.json from blowing up.
     results["hw_emu"] = {k: v for k, v in hw.items() if k != "log"}
     results["hw_emu"].update({
@@ -9827,6 +9905,8 @@ def _maybe_run_hw_emu_final(orchestrator, results: dict, bench_name: str,
         "variant_index": variant["variant_index"],
         "source_repo": variant["source_repo"],
         "requested_variant_step": requested_step,
+        "implementation_call_count": implementation_count,
+        "configuration": configuration,
     })
     if hw.get("kernel_runtime_us") is not None:
         logging.info("[hw_emu_final] kernel_runtime_us=%.3f cycles=%s passed=%s",
@@ -10104,10 +10184,7 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
     )
     results["llm_usage"] = orchestrator._llm_usage_summary()
     results["synthesis_evaluations"] = orchestrator._synthesis_evaluation_summary()
-    results["selected_winner_cosim_count"] = getattr(
-        orchestrator, "selected_winner_cosim_count", 0
-    )
-    results["total_synthesis_calls"] = orchestrator._total_synthesis_calls()
+    results.update(orchestrator._tool_call_attribution())
     results["selected_code_sha256"] = getattr(
         orchestrator, "selected_code_sha256", None
     )
@@ -10120,6 +10197,9 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
     post_route_started = time.monotonic()
     _maybe_run_hw_emu_final(orchestrator, results, bench_name)
     post_route_elapsed = time.monotonic() - post_route_started
+    # Recompute after hw_emu: this optional v++ implementation call is outside
+    # the five selection syntheses but must be visible in total tool cost.
+    results.update(orchestrator._tool_call_attribution())
 
     results["benchmark"] = bench_name
     results["success"] = success

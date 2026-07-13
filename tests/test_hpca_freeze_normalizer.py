@@ -110,6 +110,11 @@ def _fingerprint(
         "prompts": _content_manifest("prompt_c2hls.py"),
         "model": {
             "id": MODEL_ID,
+            "endpoint": {
+                "valid": True,
+                "unsafe_components": [],
+                "endpoint_sha256": "e" * 64,
+            },
             "agents": {
                 "translator": MODEL_ID,
                 "synthesis": MODEL_ID,
@@ -142,6 +147,46 @@ def _fingerprint(
                 "executable_sha256": "d" * 64,
                 "error": None,
             },
+            "vitis_user_home": {
+                "configured_absolute": True,
+                "path": {
+                    "scope": "external",
+                    "absolute": True,
+                    "path_sha256": "a" * 64,
+                },
+                "state": "home_absent",
+                "files": [],
+                "file_count": 0,
+                "errors": [],
+                "sha256": "b" * 64,
+            },
+        },
+        "reference_cache": {
+            "enabled": False,
+            "path": None,
+            "state": "disabled",
+            "files": [],
+            "file_count": 0,
+            "errors": [],
+            "sha256": "c" * 64,
+        },
+        "post_route": {
+            "hw_emu_final": {"configured": "0", "effective": False},
+            "allow_wide_abi": {"configured": "0", "effective": False},
+            "disable_debug_symbols": {"configured": "1", "effective": True},
+            "clock_mhz": None,
+            "clock_ns": "3.33",
+            "emu_environment_script": {
+                "state": "present",
+                "configured_absolute": True,
+                "path": {
+                    "scope": "repository",
+                    "absolute": True,
+                    "path": "scripts/setup_emu_env.sh",
+                },
+                "bytes": 1,
+                "sha256": "d" * 64,
+            },
         },
         "search": {"strategy": strategy},
         "skills": {
@@ -165,6 +210,16 @@ def _fingerprint(
         "reference_isolation": dict(REFERENCE_BLIND_OVERRIDES),
     }
     if baseline_method is not None:
+        baseline_seed = int(seed)
+        candidate_seed_schedule = [
+            {
+                "candidate_index": index,
+                "requested_seed": baseline_seed + index,
+                "effective_seed": baseline_seed + index,
+                "seed_supported": True,
+            }
+            for index in range(5)
+        ]
         payload["paper_baseline"] = {
             "schema_version": "c2hls.paper-baseline.v1",
             "method": baseline_method,
@@ -172,6 +227,9 @@ def _fingerprint(
             "max_synthesis_evaluations": 5,
             "correctness_order": "csim_golden_before_synthesis",
             "cosim_policy": "selected_winner_only",
+            "base_seed": baseline_seed,
+            "seed_policy": "base_plus_candidate_index",
+            "candidate_seed_schedule": candidate_seed_schedule,
         }
     encoded = json.dumps(
         payload,
@@ -315,10 +373,14 @@ def _baseline_root(kernel: str = "k0", seed: int = 0) -> dict:
                 },
             }
         )
+        effective_seed = int(seed) + index
         llm_events.append(
             {
-                **_llm_call_fields(seed),
+                **_llm_call_fields(effective_seed),
                 "candidate_index": index,
+                "requested_seed": effective_seed,
+                "effective_seed": effective_seed,
+                "seed_supported": True,
                 "usage_available": True,
                 "total_tokens": 100,
                 "response_sha256": response_hash,
@@ -379,8 +441,11 @@ def _baseline_root(kernel: str = "k0", seed: int = 0) -> dict:
                 "events": synthesis_events,
             },
             # Five selection syntheses plus the selected-winner cosim flow.
+            "synthesis_evaluation_count": 5,
             "total_synthesis_calls": 6,
+            "total_tool_calls": 6,
             "selected_winner_cosim_count": 1,
+            "post_route_implementation_count": 0,
         }
     )
     return root
@@ -449,8 +514,11 @@ def _agentic_root(kernel: str = "k0", seed: int = 0) -> dict:
                     },
                 ],
             },
+            "synthesis_evaluation_count": 1,
             "total_synthesis_calls": 2,
+            "total_tool_calls": 2,
             "selected_winner_cosim_count": 1,
+            "post_route_implementation_count": 0,
             "synthesis_evaluations": {
                 "complete_candidate_event_stream": True,
                 "count": 1,
@@ -515,8 +583,11 @@ def _agentic_terminal_failure(
                 "ran": False,
                 "passed": False,
             },
+            "synthesis_evaluation_count": 0,
             "total_synthesis_calls": 0,
+            "total_tool_calls": 0,
             "selected_winner_cosim_count": 0,
+            "post_route_implementation_count": 0,
             "selected_code_sha256": None,
             "cosim_target_code_sha256": None,
         }
@@ -742,6 +813,9 @@ class FreezeNormalizerTests(unittest.TestCase):
         self.assertEqual(record["executed_cosim_cycles"], 650)
         self.assertEqual(record["selection_synthesis_evaluations"], 5)
         self.assertEqual(record["synthesis_calls"], 6)
+        self.assertEqual(record["total_tool_calls"], 6)
+        self.assertEqual(record["selected_winner_cosim_count"], 1)
+        self.assertEqual(record["post_route_implementation_count"], 0)
         self.assertEqual(record["candidate_events"][-1]["cumulative_tokens"], 500)
         self.assertTrue(record["candidate_events"][-1]["selected_for_executed_cosim"])
         self.assertEqual(
@@ -750,6 +824,48 @@ class FreezeNormalizerTests(unittest.TestCase):
         provenance_text = json.dumps(normalized["normalization_provenance"])
         self.assertNotIn(self.source_path_name(fixture), provenance_text)
         self.assertIn("source_sha256", provenance_text)
+
+    def test_post_route_implementation_is_attributed_outside_selection_budget(self):
+        source = _agentic_root()
+        source["post_route_implementation_count"] = 1
+        source["total_synthesis_calls"] = 3
+        source["total_tool_calls"] = 3
+        fixture = FreezeFixture(
+            self.root,
+            source,
+            method="dynamic_no_skills",
+            runner="run_agentic_sweep.py",
+        )
+        normalized = normalize_freeze_index(fixture.index_path)
+        record = normalized["evaluation_units"][0]["results"]["dynamic_no_skills"]
+        self.assertEqual(1, record["selection_synthesis_evaluations"])
+        self.assertEqual(1, record["selected_winner_cosim_count"])
+        self.assertEqual(1, record["post_route_implementation_count"])
+        self.assertEqual(3, record["synthesis_calls"])
+        self.assertEqual(3, record["total_tool_calls"])
+
+    def test_post_route_and_total_tool_attribution_tamper_are_rejected(self):
+        tampered_sources = []
+        missing_post_total = _agentic_root()
+        missing_post_total["post_route_implementation_count"] = 1
+        tampered_sources.append(missing_post_total)
+        mismatched_total_tool = _agentic_root()
+        mismatched_total_tool["total_tool_calls"] = 1
+        tampered_sources.append(mismatched_total_tool)
+
+        for index, source in enumerate(tampered_sources):
+            with self.subTest(index=index):
+                case_root = self.root / f"tamper-{index}"
+                case_root.mkdir()
+                fixture = FreezeFixture(
+                    case_root,
+                    source,
+                    method="dynamic_no_skills",
+                    runner="run_agentic_sweep.py",
+                )
+                with self.assertRaises(FreezeNormalizationError) as raised:
+                    normalize_freeze_index(fixture.index_path)
+                self.assertEqual("synthesis_attribution_mismatch", raised.exception.code)
 
     def test_raw_csynth_resources_and_fmax_are_normalized_with_u280_capacity(self):
         fixture = FreezeFixture(

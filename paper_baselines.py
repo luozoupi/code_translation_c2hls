@@ -931,7 +931,11 @@ class PaperBaselineEngine:
             "synthesis_evaluation_count": self.synthesis_count,
             "csim_evaluation_count": self.csim_count,
             "selected_winner_cosim_count": self.selected_winner_cosim_count,
+            "post_route_implementation_count": 0,
             "total_synthesis_calls": (
+                self.synthesis_count + self.selected_winner_cosim_count
+            ),
+            "total_tool_calls": (
                 self.synthesis_count + self.selected_winner_cosim_count
             ),
             "independent_golden": dict(

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -12,6 +14,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 import c2hls  # noqa: E402
+import hls_eval  # noqa: E402
 import run_agentic_sweep  # noqa: E402
 from scripts.normalize_hpca_freeze_index import _agentic_candidate_events  # noqa: E402
 
@@ -55,6 +58,7 @@ def _orchestrator() -> c2hls.C2HLSOrchestrator:
     orch.synthesis_eval_budget = 5
     orch._candidate_stream_started_monotonic = None
     orch.selected_winner_cosim_count = 0
+    orch.post_route_implementation_count = 0
     orch.selected_code_sha256 = None
     orch.cosim_target_code_sha256 = None
     orch.header_code = ""
@@ -159,8 +163,7 @@ class AgenticProducerContractTests(unittest.TestCase):
         root = {
             "llm_usage": usage,
             "synthesis_evaluations": summary,
-            "selected_winner_cosim_count": orch.selected_winner_cosim_count,
-            "total_synthesis_calls": orch._total_synthesis_calls(),
+            **orch._tool_call_attribution(),
             "selected_code_sha256": orch.selected_code_sha256,
             "cosim_target_code_sha256": orch.cosim_target_code_sha256,
         }
@@ -200,8 +203,7 @@ class AgenticProducerContractTests(unittest.TestCase):
         root = {
             "llm_usage": orch._llm_usage_summary(),
             "synthesis_evaluations": summary,
-            "selected_winner_cosim_count": 0,
-            "total_synthesis_calls": 0,
+            **orch._tool_call_attribution(),
             "selected_code_sha256": None,
             "cosim_target_code_sha256": None,
         }
@@ -244,8 +246,7 @@ class AgenticProducerContractTests(unittest.TestCase):
         result = {
             "llm_usage": orch._llm_usage_summary(),
             "synthesis_evaluations": orch._synthesis_evaluation_summary(),
-            "selected_winner_cosim_count": 1,
-            "total_synthesis_calls": orch._total_synthesis_calls(),
+            **orch._tool_call_attribution(),
             "selected_code_sha256": orch.selected_code_sha256,
             "cosim_target_code_sha256": orch.cosim_target_code_sha256,
         }
@@ -257,6 +258,133 @@ class AgenticProducerContractTests(unittest.TestCase):
         self.assertFalse(
             run_agentic_sweep._candidate_telemetry_contract(tampered)["complete"]
         )
+        tampered_post_route = copy.deepcopy(result)
+        tampered_post_route["post_route_implementation_count"] = 1
+        self.assertFalse(
+            run_agentic_sweep._candidate_telemetry_contract(tampered_post_route)[
+                "synthesis_attribution_complete"
+            ]
+        )
+        tampered_total_tools = copy.deepcopy(result)
+        tampered_total_tools["total_tool_calls"] -= 1
+        self.assertFalse(
+            run_agentic_sweep._candidate_telemetry_contract(tampered_total_tools)[
+                "synthesis_attribution_complete"
+            ]
+        )
+
+    def test_post_route_attempt_is_separate_and_included_in_total_tool_calls(self):
+        orch = _orchestrator()
+        orch.hls_code = "void workload() { ap_uint<512> wide; }"
+        orch.synthesis_eval_count = 2
+        orch.selected_winner_cosim_count = 1
+        variant = {
+            "bench_dir": "/public/nova/pathfinder/step3",
+            "kernel_basename": "pathfinder",
+            "variant_step": "step3",
+            "variant_name": "pathfinder-step3",
+            "variant_index": 3,
+            "source_repo": "rodinia-hls-nova",
+        }
+        hw_result = {
+            "ran": True,
+            "passed": False,
+            "success": False,
+            "implementation_call_count": 1,
+            "kernel_runtime_us": None,
+            "error": "implementation failed",
+            "log": "large tool log",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            emu_script = Path(tmp) / "setup_emu_env.sh"
+            emu_script.write_text("export XCL_EMULATION_MODE=hw_emu\n", encoding="utf-8")
+            emu_script_sha256 = hashlib.sha256(emu_script.read_bytes()).hexdigest()
+            environment = {
+                "C2HLS_HW_EMU_FINAL": "1",
+                "C2HLS_ALLOW_WIDE_ABI": "1",
+                "C2HLS_EMU_ENV_SCRIPT": str(emu_script),
+                "C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS": "1",
+                "C2HLS_HW_EMU_CLOCK_MHZ": "300",
+                "C2HLS_HW_EMU_CLOCK_NS": "3.33",
+                "C2HLS_HW_EMU_TIMEOUT": "123",
+            }
+            with (
+                patch.dict(os.environ, environment, clear=True),
+                patch.object(c2hls, "_resolve_rodinia_variant", return_value=(variant, "")),
+                patch.object(hls_eval, "run_hw_emu_via_nova", return_value=hw_result) as run_hw,
+            ):
+                results = {}
+                c2hls._maybe_run_hw_emu_final(
+                    orch, results, "pathfinder", variant_step="step3"
+                )
+
+        run_hw.assert_called_once_with(
+            variant["bench_dir"],
+            orch.hls_code,
+            kernel_basename=variant["kernel_basename"],
+            timeout=123,
+        )
+        attribution = orch._tool_call_attribution()
+        self.assertEqual(2, attribution["synthesis_evaluation_count"])
+        self.assertEqual(1, attribution["selected_winner_cosim_count"])
+        self.assertEqual(1, attribution["post_route_implementation_count"])
+        self.assertEqual(4, attribution["total_synthesis_calls"])
+        self.assertEqual(4, attribution["total_tool_calls"])
+        self.assertNotIn("log", results["hw_emu"])
+        self.assertEqual(1, results["hw_emu"]["implementation_call_count"])
+        configuration = results["post_route_configuration"]
+        self.assertTrue(configuration["allow_wide_abi"])
+        self.assertTrue(configuration["disable_debug_symbols"])
+        self.assertEqual("300", configuration["clock_mhz_override"])
+        self.assertEqual("3.33", configuration["clock_ns_override"])
+        self.assertEqual(
+            emu_script_sha256,
+            configuration["emu_env_script"]["sha256"],
+        )
+
+    def test_hw_emu_producer_counts_failed_invocation_but_not_staging_failure(self):
+        with patch.object(
+            hls_eval, "_stage_nova_workdir", return_value=(None, "missing benchmark")
+        ):
+            not_staged = hls_eval.run_hw_emu_via_nova("/missing")
+        self.assertEqual(0, not_staged["implementation_call_count"])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            staged = Path(tmp)
+            with (
+                patch.object(
+                    hls_eval, "_stage_nova_workdir", return_value=(staged, staged)
+                ),
+                patch.object(
+                    hls_eval,
+                    "_run_make_check_emu",
+                    return_value=("ERROR: link failed", False),
+                ),
+                patch.object(hls_eval, "_choose_latest", return_value=None),
+                patch.object(hls_eval, "_parse_runtime_us", return_value=(None, 0)),
+                patch.object(hls_eval, "_find_hw_emu_crash_marker", return_value=("", "")),
+                patch.object(
+                    hls_eval,
+                    "_resolve_hw_emu_clock",
+                    return_value=(300.0, None, True, "u280_default"),
+                ),
+            ):
+                attempted = hls_eval.run_hw_emu_via_nova("/public/nova")
+        self.assertTrue(attempted["ran"])
+        self.assertFalse(attempted["success"])
+        self.assertEqual(1, attempted["implementation_call_count"])
+
+    def test_disabled_post_route_skip_consumes_zero_calls(self):
+        orch = _orchestrator()
+        orch.hls_code = "void workload() {}"
+        orch.synthesis_eval_count = 1
+        with patch.dict(os.environ, {}, clear=True):
+            results = {}
+            c2hls._maybe_run_hw_emu_final(orch, results, "pathfinder")
+        self.assertFalse(results["hw_emu"]["ran"])
+        self.assertEqual(0, results["hw_emu"]["implementation_call_count"])
+        self.assertEqual(0, orch.post_route_implementation_count)
+        self.assertEqual(1, orch._tool_call_attribution()["total_tool_calls"])
 
 
 if __name__ == "__main__":

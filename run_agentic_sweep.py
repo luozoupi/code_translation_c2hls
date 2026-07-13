@@ -334,17 +334,34 @@ def _candidate_telemetry_contract(result: dict[str, Any]) -> dict[str, Any]:
         )
     )
     selection_count = result.get("selected_winner_cosim_count")
+    implementation_count = result.get("post_route_implementation_count")
     synthesis_count = synthesis.get("count")
-    total_calls = result.get("total_synthesis_calls")
+    total_synthesis_calls = result.get("total_synthesis_calls")
+    total_tool_calls = result.get("total_tool_calls")
+    expected_total = (
+        synthesis_count + selection_count + implementation_count
+        if all(
+            isinstance(value, int) and not isinstance(value, bool)
+            for value in (synthesis_count, selection_count, implementation_count)
+        )
+        else None
+    )
     synthesis_attribution_complete = (
         isinstance(selection_count, int)
         and not isinstance(selection_count, bool)
         and selection_count in {0, 1}
+        and isinstance(implementation_count, int)
+        and not isinstance(implementation_count, bool)
+        and implementation_count in {0, 1}
         and isinstance(synthesis_count, int)
         and not isinstance(synthesis_count, bool)
-        and isinstance(total_calls, int)
-        and not isinstance(total_calls, bool)
-        and total_calls == synthesis_count + selection_count
+        and synthesis_count >= 0
+        and isinstance(total_synthesis_calls, int)
+        and not isinstance(total_synthesis_calls, bool)
+        and isinstance(total_tool_calls, int)
+        and not isinstance(total_tool_calls, bool)
+        and total_synthesis_calls == expected_total
+        and total_tool_calls == expected_total
     )
     complete = bool(
         synthesis.get("complete_candidate_event_stream") is True
@@ -411,6 +428,17 @@ def _summarize(data: dict[str, Any]) -> dict[str, Any]:
         "best": _best_step(data),
         "steps_attempted": len(steps),
         "steps_success": sum(1 for step in steps if step.get("success")),
+        "tool_calls": {
+            "selection_synthesis_evaluations": data.get(
+                "synthesis_evaluation_count"
+            ),
+            "selected_winner_cosim": data.get("selected_winner_cosim_count"),
+            "post_route_implementation": data.get(
+                "post_route_implementation_count"
+            ),
+            "total_synthesis_calls": data.get("total_synthesis_calls"),
+            "total_tool_calls": data.get("total_tool_calls"),
+        },
         "step_cycles": [
             {
                 "step": step.get("step_name"),
@@ -435,6 +463,7 @@ def _summarize(data: dict[str, Any]) -> dict[str, Any]:
             "passed": hw.get("passed"),
             "cycles": hw.get("kernel_runtime_cycles"),
             "variant": hw.get("variant_name"),
+            "implementation_call_count": hw.get("implementation_call_count"),
             "error": hw.get("error") or hw.get("skip_reason"),
         },
     }

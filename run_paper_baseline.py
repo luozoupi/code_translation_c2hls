@@ -123,7 +123,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "selected_winner_cosim_count": result.get(
                     "selected_winner_cosim_count"
                 ),
+                "post_route_implementation_count": result.get(
+                    "post_route_implementation_count"
+                ),
                 "total_synthesis_calls": result.get("total_synthesis_calls"),
+                "total_tool_calls": result.get("total_tool_calls"),
                 "run_fingerprint_sha256": (
                     result.get("run_fingerprint") or {}
                 ).get("sha256"),

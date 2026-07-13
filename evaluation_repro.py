@@ -21,6 +21,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Iterable, Mapping, MutableMapping, Sequence
+from urllib.parse import urlsplit
 
 
 FINGERPRINT_SCHEMA = "c2hls.run-fingerprint.v1"
@@ -54,6 +55,10 @@ REFERENCE_BLIND_OVERRIDES: dict[str, str] = {
     "C2HLS_REFERENCE_COSIM": "0",
     "C2HLS_REFERENCE_COSIM_SELECTED_ONLY": "1",
     "C2HLS_REFERENCE_COSIM_BASELINE": "1",
+    # The optional feedback composer makes an additional 800-token LLM call.
+    # It is outside the preregistered one-candidate/one-call accounting and
+    # must not be inherited from an interactive shell during paper runs.
+    "C2HLS_FEEDBACK_LLM": "0",
     "C2HLS_FEASIBILITY_SELECTION": "1",
     "C2HLS_CORRECTNESS_BEFORE_SYNTH": "1",
     "C2HLS_DISABLE_CORRECTNESS_REPAIR": "0",
@@ -62,6 +67,23 @@ REFERENCE_BLIND_OVERRIDES: dict[str, str] = {
     "C2HLS_CPU_GOLDEN_TIMEOUT": "180",
     "C2HLS_SYNTHESIS_EVAL_BUDGET": "5",
     "C2HLS_LLM_CANDIDATE_BUDGET": "5",
+}
+
+# Post-route implementation is optional (C2HLS_HW_EMU_FINAL remains a
+# caller-controlled, preregistered matrix choice), but when it is requested
+# these controls must not drift with the invoking shell.
+PAPER_POST_ROUTE_OVERRIDES: dict[str, str] = {
+    "C2HLS_ALLOW_WIDE_ABI": "0",
+    "C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS": "1",
+    "C2HLS_HW_EMU_CLOCK_NS": "3.33",
+    "C2HLS_HW_EMU_CLOCK_MHZ": "",
+    "C2HLS_EMU_ENV_SCRIPT": str(
+        Path(__file__).resolve().parent / "scripts" / "setup_emu_env.sh"
+    ),
+}
+PAPER_PROFILE_OVERRIDES: dict[str, str] = {
+    **REFERENCE_BLIND_OVERRIDES,
+    **PAPER_POST_ROUTE_OVERRIDES,
 }
 
 _IMPLEMENTATION_SOURCES = (
@@ -89,6 +111,7 @@ _SKILL_SOURCES = (
     "hls_full_optimization_skills_schema_1_1_package/skills.json",
 )
 _CONTROL_ENV_NAMES = (
+    "C2HLS_ALLOW_WIDE_ABI",
     "C2HLS_ATTEMPTS_PER_CANDIDATE",
     "C2HLS_CANDIDATES_PER_STEP",
     "C2HLS_COMPILE_CHECK_TIMEOUT",
@@ -105,6 +128,7 @@ _CONTROL_ENV_NAMES = (
     "C2HLS_DYNAMIC_ROUTING",
     "C2HLS_DISABLE_CORRECTNESS_REPAIR",
     "C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS",
+    "C2HLS_FEEDBACK_LLM",
     "C2HLS_FEEDBACK_MODEL",
     "C2HLS_FEASIBILITY_SELECTION",
     "C2HLS_FLOW_TARGET",
@@ -112,6 +136,9 @@ _CONTROL_ENV_NAMES = (
     "C2HLS_GT_AWARE_REVERT",
     "C2HLS_GT_COMPARISON_IN_CONTROL",
     "C2HLS_HW_EMU_FINAL",
+    "C2HLS_HW_EMU_CLOCK_MHZ",
+    "C2HLS_HW_EMU_CLOCK_NS",
+    "C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS",
     "C2HLS_HW_EMU_TIMEOUT",
     "C2HLS_LLM_SEED",
     "C2HLS_LLM_CANDIDATE_BUDGET",
@@ -137,6 +164,8 @@ _CONTROL_ENV_NAMES = (
     "C2HLS_REFERENCE_COSIM_SELECTED_ONLY",
     "C2HLS_REFERENCE_METRICS_IN_PROMPTS",
     "C2HLS_REFERENCE_VALIDATE_MODE",
+    "C2HLS_SWEEP_HW_EMU",
+    "C2HLS_SWEEP_REFERENCE_CACHE_DIR",
     "C2HLS_SKILL_LIBRARY_FROZEN",
     "C2HLS_SKILL_LIBRARY_PERSIST",
     "C2HLS_SKILL_MODE",
@@ -155,6 +184,28 @@ _CONTROL_ENV_NAMES = (
     "C2HLS_TRANSLATOR_MODEL",
     "C2HLS_TURNS",
 )
+
+_VITIS_TRANSIENT_DIRECTORY_NAMES = {
+    ".cache",
+    "cache",
+    "log",
+    "logs",
+    "temp",
+    "tmp",
+    "vitis_hls",
+    "xsim",
+}
+_VITIS_TRANSIENT_SUFFIXES = {
+    ".jou",
+    ".lock",
+    ".log",
+    ".pb",
+    ".pid",
+    ".str",
+    ".tmp",
+    ".wdb",
+    ".xmsgs",
+}
 
 
 def canonical_json(value: Any) -> str:
@@ -225,7 +276,7 @@ def apply_evaluation_profile(
         raise ValueError(f"unknown C2HLS_SWEEP_PROFILE: {requested!r}")
 
     changed: dict[str, dict[str, str | None]] = {}
-    for key, value in REFERENCE_BLIND_OVERRIDES.items():
+    for key, value in PAPER_PROFILE_OVERRIDES.items():
         previous = env.get(key)
         if previous != value:
             changed[key] = {"previous": previous, "effective": value}
@@ -235,7 +286,7 @@ def apply_evaluation_profile(
         "name": PAPER_PROFILE,
         "reference_blind": True,
         "forced_overrides": changed,
-        "invariants": dict(REFERENCE_BLIND_OVERRIDES),
+        "invariants": dict(PAPER_PROFILE_OVERRIDES),
     }
 
 
@@ -307,6 +358,425 @@ def _env_value(environ: Mapping[str, str], *names: str, default: Any = None) -> 
         if value not in (None, ""):
             return value
     return default
+
+
+def _path_identity(path: Path, *, repo: Path) -> dict[str, Any]:
+    """Bind a path without publishing host-specific absolute directory names."""
+
+    expanded = Path(path).expanduser()
+    if not expanded.is_absolute():
+        return {
+            "scope": "relative",
+            "absolute": False,
+            "basename": expanded.name,
+            "path_sha256": sha256_bytes(str(expanded).encode("utf-8")),
+        }
+    resolved = expanded.resolve(strict=False)
+    try:
+        relative = resolved.relative_to(repo.resolve()).as_posix()
+    except ValueError:
+        return {
+            "scope": "external",
+            "absolute": True,
+            "basename": resolved.name,
+            "path_sha256": sha256_bytes(str(resolved).encode("utf-8")),
+        }
+    return {
+        "scope": "repository",
+        "absolute": True,
+        "path": relative,
+    }
+
+
+def _relative_file_manifest(root: Path, paths: Iterable[Path]) -> dict[str, Any]:
+    """Hash selected files by their lexical path below ``root``.
+
+    Only content digests and relative names are retained.  Read failures are
+    explicit and are part of the aggregate identity, so an unreadable input
+    cannot be mistaken for an empty one.
+    """
+
+    root = Path(root)
+    records: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for path in sorted((Path(item) for item in paths), key=lambda item: item.as_posix()):
+        try:
+            relative = path.relative_to(root).as_posix()
+        except ValueError:
+            relative = path.name
+        if relative in seen:
+            continue
+        seen.add(relative)
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            errors.append({"path": relative, "error": type(exc).__name__})
+            continue
+        records.append(
+            {"path": relative, "bytes": len(raw), "sha256": sha256_bytes(raw)}
+        )
+    records.sort(key=lambda item: item["path"])
+    errors.sort(key=lambda item: item["path"])
+    digest_material = {"files": records, "errors": errors}
+    return {
+        "files": records,
+        "file_count": len(records),
+        "errors": errors,
+        "sha256": sha256_json(digest_material),
+    }
+
+
+def _endpoint_identity(model_id: str, environ: Mapping[str, str]) -> dict[str, Any]:
+    """Return the active provider endpoint identity without recording secrets."""
+
+    lowered = (model_id or "").lower()
+    if lowered.startswith("claude"):
+        provider = "anthropic"
+        source_env = "ANTHROPIC_BASE_URL"
+        default_url = "https://api.anthropic.com"
+    elif lowered.startswith(("gpt-", "o1", "o3", "o4", "codex-")):
+        provider = "openai_hosted"
+        source_env = "C2HLS_OPENAI_HOSTED_URL"
+        default_url = "https://api.openai.com/v1"
+    else:
+        provider = "openai_compatible"
+        source_env = "OPENAI_BASE_URL"
+        default_url = "http://127.0.0.1:8000/v1"
+
+    configured = str(environ.get(source_env, "")).strip()
+    raw_url = configured or default_url
+    try:
+        parsed = urlsplit(raw_url)
+        hostname = (parsed.hostname or "").lower()
+        port = parsed.port
+    except ValueError:
+        return {
+            "provider": provider,
+            "source_env": source_env,
+            "explicit": bool(configured),
+            "valid": False,
+            "unsafe_components": ["unparseable_url"],
+            "endpoint_sha256": None,
+        }
+
+    unsafe_components: list[str] = []
+    if parsed.username is not None or parsed.password is not None:
+        unsafe_components.append("userinfo")
+    if parsed.query:
+        unsafe_components.append("query")
+    if parsed.fragment:
+        unsafe_components.append("fragment")
+
+    scheme = parsed.scheme.lower()
+    path = parsed.path or "/"
+    host_class = (
+        "loopback"
+        if hostname in {"localhost", "127.0.0.1", "::1"}
+        else "remote"
+    )
+    safe_components = {
+        "scheme": scheme,
+        "host_sha256": (
+            sha256_bytes(hostname.encode("utf-8")) if hostname else None
+        ),
+        "port": port,
+        "path_sha256": sha256_bytes(path.encode("utf-8")),
+    }
+    valid = bool(
+        scheme in {"http", "https"}
+        and hostname
+        and not unsafe_components
+    )
+    return {
+        "provider": provider,
+        "source_env": source_env,
+        "explicit": bool(configured),
+        "valid": valid,
+        "unsafe_components": unsafe_components,
+        "host_class": host_class,
+        **safe_components,
+        "endpoint_sha256": sha256_json(safe_components),
+    }
+
+
+def _reference_cache_manifest(
+    repo: Path,
+    benchmark: str,
+    environ: Mapping[str, str],
+) -> dict[str, Any]:
+    """Bind the configured cache location and this benchmark's cache entries."""
+
+    configured = str(environ.get("C2HLS_REFERENCE_CACHE_DIR", "")).strip()
+    if not configured:
+        return {
+            "enabled": False,
+            "path": None,
+            "state": "disabled",
+            "files": [],
+            "file_count": 0,
+            "errors": [],
+            "sha256": sha256_json([]),
+        }
+
+    configured_path = Path(configured).expanduser()
+    root = configured_path if configured_path.is_absolute() else repo / configured_path
+    root = root.resolve(strict=False)
+    result: dict[str, Any] = {
+        "enabled": True,
+        "path": _path_identity(root, repo=repo),
+        "configured_absolute": configured_path.is_absolute(),
+    }
+    if not root.exists():
+        result.update(
+            {
+                "state": "directory_absent",
+                "files": [],
+                "file_count": 0,
+                "errors": [],
+                "sha256": sha256_json([]),
+            }
+        )
+        return result
+    if not root.is_dir():
+        result.update(
+            {
+                "state": "not_directory",
+                "files": [],
+                "file_count": 0,
+                "errors": [],
+                "sha256": sha256_json([]),
+            }
+        )
+        return result
+
+    safe_benchmark = re.sub(r"[^A-Za-z0-9_.-]+", "_", benchmark).strip("_") or "benchmark"
+    entry_pattern = re.compile(
+        rf"{re.escape(safe_benchmark)}\.[0-9a-f]{{64}}\.json\Z",
+        re.IGNORECASE,
+    )
+    try:
+        matching = [
+            path
+            for path in root.iterdir()
+            if path.is_file() and entry_pattern.fullmatch(path.name)
+        ]
+    except OSError as exc:
+        result.update(
+            {
+                "state": "unreadable",
+                "files": [],
+                "file_count": 0,
+                "errors": [{"path": ".", "error": type(exc).__name__}],
+                "sha256": sha256_json(
+                    {"files": [], "errors": [{"path": ".", "error": type(exc).__name__}]}
+                ),
+            }
+        )
+        return result
+
+    manifest = _relative_file_manifest(root, matching)
+    result.update(manifest)
+    result["state"] = (
+        "unreadable"
+        if manifest["errors"]
+        else "present"
+        if manifest["file_count"]
+        else "entry_absent"
+    )
+    return result
+
+
+def _vitis_user_home_manifest(
+    repo: Path,
+    environ: Mapping[str, str],
+) -> dict[str, Any]:
+    """Bind deterministic configuration state read through Vitis's HOME."""
+
+    raw_home = str(environ.get("C2HLS_VITIS_USER_HOME", "")).strip()
+    if raw_home:
+        home = Path(raw_home).expanduser()
+        source = "C2HLS_VITIS_USER_HOME"
+    else:
+        raw_temp = str(
+            environ.get("C2HLS_TMP_ROOT", "/mnt/data/luo00466/tmp")
+        ).strip()
+        temp_root = Path(raw_temp or "/mnt/data/luo00466/tmp").expanduser()
+        home = temp_root / "vitis_user_home"
+        source = "C2HLS_TMP_ROOT/default"
+
+    result: dict[str, Any] = {
+        "source": source,
+        "configured_absolute": home.is_absolute(),
+        "path": _path_identity(home, repo=repo),
+    }
+    if not home.is_absolute():
+        result.update(
+            {
+                "state": "invalid_relative_path",
+                "files": [],
+                "file_count": 0,
+                "errors": [],
+                "sha256": sha256_json([]),
+            }
+        )
+        return result
+    home = home.resolve(strict=False)
+    if not home.exists():
+        result.update(
+            {
+                "state": "home_absent",
+                "files": [],
+                "file_count": 0,
+                "errors": [],
+                "sha256": sha256_json([]),
+            }
+        )
+        return result
+    if not home.is_dir():
+        result.update(
+            {
+                "state": "home_not_directory",
+                "files": [],
+                "file_count": 0,
+                "errors": [],
+                "sha256": sha256_json([]),
+            }
+        )
+        return result
+
+    xilinx_root = home / ".Xilinx"
+    if not xilinx_root.exists():
+        result.update(
+            {
+                "state": "xilinx_state_absent",
+                "files": [],
+                "file_count": 0,
+                "errors": [],
+                "sha256": sha256_json([]),
+            }
+        )
+        return result
+    if not xilinx_root.is_dir():
+        result.update(
+            {
+                "state": "xilinx_state_not_directory",
+                "files": [],
+                "file_count": 0,
+                "errors": [],
+                "sha256": sha256_json([]),
+            }
+        )
+        return result
+
+    paths: list[Path] = []
+    walk_errors: list[dict[str, str]] = []
+
+    def record_walk_error(exc: OSError) -> None:
+        walk_errors.append({"path": ".", "error": type(exc).__name__})
+
+    for current, directory_names, file_names in os.walk(
+        xilinx_root, topdown=True, onerror=record_walk_error, followlinks=False
+    ):
+        current_path = Path(current)
+        retained_directories: list[str] = []
+        for name in sorted(directory_names):
+            if name.lower() in _VITIS_TRANSIENT_DIRECTORY_NAMES:
+                continue
+            directory = current_path / name
+            if directory.is_symlink():
+                walk_errors.append(
+                    {
+                        "path": directory.relative_to(xilinx_root).as_posix(),
+                        "error": "SymlinkDirectoryUnsupported",
+                    }
+                )
+                continue
+            retained_directories.append(name)
+        directory_names[:] = retained_directories
+        for name in sorted(file_names):
+            path = current_path / name
+            if path.suffix.lower() in _VITIS_TRANSIENT_SUFFIXES:
+                continue
+            if path.is_file():
+                paths.append(path)
+
+    manifest = _relative_file_manifest(xilinx_root, paths)
+    if walk_errors:
+        manifest["errors"] = sorted(
+            [*manifest["errors"], *walk_errors], key=lambda item: item["path"]
+        )
+        manifest["sha256"] = sha256_json(
+            {"files": manifest["files"], "errors": manifest["errors"]}
+        )
+    result.update(manifest)
+    result["state"] = (
+        "unreadable"
+        if manifest["errors"]
+        else "present"
+        if manifest["file_count"]
+        else "empty"
+    )
+    return result
+
+
+def _post_route_manifest(repo: Path, environ: Mapping[str, str]) -> dict[str, Any]:
+    """Bind optional post-route implementation controls and setup script."""
+
+    raw_script = str(environ.get("C2HLS_EMU_ENV_SCRIPT", "")).strip()
+    configured_script = Path(raw_script).expanduser() if raw_script else (
+        repo / "scripts" / "setup_emu_env.sh"
+    )
+    script_path = (
+        configured_script
+        if configured_script.is_absolute()
+        else repo / configured_script
+    ).resolve(strict=False)
+    script: dict[str, Any] = {
+        "explicit": bool(raw_script),
+        "configured_absolute": configured_script.is_absolute(),
+        "path": _path_identity(script_path, repo=repo),
+    }
+    if not script_path.exists():
+        script.update({"state": "absent", "bytes": None, "sha256": None})
+    elif not script_path.is_file():
+        script.update({"state": "not_file", "bytes": None, "sha256": None})
+    else:
+        try:
+            raw = script_path.read_bytes()
+        except OSError as exc:
+            script.update(
+                {
+                    "state": "unreadable",
+                    "bytes": None,
+                    "sha256": None,
+                    "error": type(exc).__name__,
+                }
+            )
+        else:
+            script.update(
+                {
+                    "state": "present",
+                    "bytes": len(raw),
+                    "sha256": sha256_bytes(raw),
+                }
+            )
+
+    def flag(name: str, default: str = "0") -> dict[str, Any]:
+        raw = str(environ.get(name, default))
+        return {
+            "configured": raw,
+            "effective": raw.strip().lower() in {"1", "true", "yes"},
+        }
+
+    return {
+        "hw_emu_final": flag("C2HLS_HW_EMU_FINAL"),
+        "allow_wide_abi": flag("C2HLS_ALLOW_WIDE_ABI"),
+        "disable_debug_symbols": flag("C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS"),
+        "clock_mhz": _env_value(environ, "C2HLS_HW_EMU_CLOCK_MHZ"),
+        "clock_ns": _env_value(environ, "C2HLS_HW_EMU_CLOCK_NS"),
+        "emu_environment_script": script,
+    }
 
 
 def _configured_decoding(environ: Mapping[str, str]) -> dict[str, Any]:
@@ -483,6 +953,10 @@ def build_run_fingerprint(
     )
 
     vitis_probe = _probe_vitis_version(env)
+    endpoint = _endpoint_identity(model_id, env)
+    reference_cache = _reference_cache_manifest(repo, benchmark, env)
+    vitis_user_home = _vitis_user_home_manifest(repo, env)
+    post_route = _post_route_manifest(repo, env)
     payload: dict[str, Any] = {
         "schema_version": FINGERPRINT_SCHEMA,
         "profile": profile_name,
@@ -499,6 +973,7 @@ def build_run_fingerprint(
             "label": model_label,
             "id": model_id,
             "revision": _model_revision(model_id, env),
+            "endpoint": endpoint,
             "agents": {
                 "translator": _env_value(env, "C2HLS_TRANSLATOR_MODEL", default=model_id),
                 "synthesis": _env_value(env, "C2HLS_SYNTHESIS_MODEL", default=model_id),
@@ -521,7 +996,9 @@ def build_run_fingerprint(
             "part": _env_value(env, "C2HLS_PART"),
             "clock_ns": _env_value(env, "C2HLS_CLOCK_NS"),
             "device_platform": _env_value(env, "C2HLS_DEVICE_PLATFORM"),
+            "vitis_user_home": vitis_user_home,
         },
+        "post_route": post_route,
         "search": {
             "strategy": _env_value(env, "C2HLS_STRATEGY"),
             "dynamic_routing": _bool_env(env, "C2HLS_DYNAMIC_ROUTING"),
@@ -550,6 +1027,7 @@ def build_run_fingerprint(
         "reference_isolation": {
             key: env.get(key) for key in sorted(REFERENCE_BLIND_OVERRIDES)
         },
+        "reference_cache": reference_cache,
         "effective_configuration": {
             key: env.get(key) for key in _CONTROL_ENV_NAMES
         },
@@ -590,6 +1068,13 @@ def fingerprint_completeness(fingerprint: Mapping[str, Any]) -> dict[str, Any]:
         issues.append("model_revision_unresolved")
     model = payload.get("model") or {}
     primary_model_id = model.get("id")
+    endpoint = model.get("endpoint") or {}
+    if not isinstance(endpoint, Mapping) or not endpoint.get("valid"):
+        issues.append("model_endpoint_invalid")
+    if isinstance(endpoint, Mapping) and endpoint.get("unsafe_components"):
+        issues.append("model_endpoint_unsafe_components")
+    if not isinstance(endpoint, Mapping) or not endpoint.get("endpoint_sha256"):
+        issues.append("model_endpoint_identity_missing")
     agents = model.get("agents") or {}
     if not isinstance(agents, Mapping):
         issues.append("agent_model_identity_missing")
@@ -626,6 +1111,80 @@ def fingerprint_completeness(fingerprint: Mapping[str, Any]) -> dict[str, Any]:
         issues.append("actual_vitis_version_mismatch")
     if not toolchain.get("vitis_settings_sha256"):
         issues.append("toolchain_vitis_settings_sha256_missing")
+    vitis_user_home = toolchain.get("vitis_user_home") or {}
+    if not isinstance(vitis_user_home, Mapping):
+        issues.append("vitis_user_home_identity_missing")
+    else:
+        if not vitis_user_home.get("configured_absolute"):
+            issues.append("vitis_user_home_path_not_absolute")
+        if not vitis_user_home.get("path"):
+            issues.append("vitis_user_home_path_identity_missing")
+        if not vitis_user_home.get("sha256"):
+            issues.append("vitis_user_home_state_digest_missing")
+        if vitis_user_home.get("state") in {
+            "home_not_directory",
+            "invalid_relative_path",
+            "unreadable",
+            "xilinx_state_not_directory",
+        }:
+            issues.append("vitis_user_home_state_invalid")
+    reference_cache = payload.get("reference_cache") or {}
+    if not isinstance(reference_cache, Mapping):
+        issues.append("reference_cache_identity_missing")
+    else:
+        if not reference_cache.get("sha256"):
+            issues.append("reference_cache_state_digest_missing")
+        if reference_cache.get("enabled") and not reference_cache.get("path"):
+            issues.append("reference_cache_path_identity_missing")
+        if reference_cache.get("state") in {"not_directory", "unreadable"}:
+            issues.append("reference_cache_state_invalid")
+    post_route = payload.get("post_route")
+    if not isinstance(post_route, Mapping):
+        issues.append("post_route_identity_missing")
+    else:
+        required_post_route_keys = {
+            "allow_wide_abi",
+            "clock_mhz",
+            "clock_ns",
+            "disable_debug_symbols",
+            "emu_environment_script",
+            "hw_emu_final",
+        }
+        if not required_post_route_keys.issubset(post_route):
+            issues.append("post_route_controls_missing")
+        hw_emu = post_route.get("hw_emu_final") or {}
+        script = post_route.get("emu_environment_script") or {}
+        if not isinstance(hw_emu, Mapping) or not isinstance(
+            hw_emu.get("effective"), bool
+        ):
+            issues.append("post_route_hw_emu_setting_missing")
+        if not isinstance(script, Mapping) or script.get("state") != "present":
+            issues.append("post_route_emu_script_missing")
+        if not isinstance(script, Mapping) or not script.get("configured_absolute"):
+            issues.append("post_route_emu_script_path_not_absolute")
+        if not isinstance(script, Mapping) or not script.get("path"):
+            issues.append("post_route_emu_script_path_identity_missing")
+        if not isinstance(script, Mapping) or not script.get("sha256"):
+            issues.append("post_route_emu_script_digest_missing")
+        if payload.get("profile") == PAPER_PROFILE:
+            allow_wide = post_route.get("allow_wide_abi") or {}
+            disable_debug = post_route.get("disable_debug_symbols") or {}
+            if not isinstance(allow_wide, Mapping) or allow_wide.get("effective"):
+                issues.append("paper_post_route_wide_abi_not_disabled")
+            if not isinstance(disable_debug, Mapping) or not disable_debug.get(
+                "effective"
+            ):
+                issues.append("paper_post_route_debug_symbols_not_disabled")
+            if post_route.get("clock_ns") != "3.33":
+                issues.append("paper_post_route_clock_ns_mismatch")
+            if post_route.get("clock_mhz") not in (None, ""):
+                issues.append("paper_post_route_clock_mhz_forbidden")
+            script_path = script.get("path") if isinstance(script, Mapping) else {}
+            if not isinstance(script_path, Mapping) or (
+                script_path.get("scope") != "repository"
+                or script_path.get("path") != "scripts/setup_emu_env.sh"
+            ):
+                issues.append("paper_post_route_emu_script_mismatch")
     budget = payload.get("budgets") or {}
     if budget.get("candidate_budget") in (None, "", "unbounded"):
         issues.append("synthesis_evaluation_budget_unbounded")
@@ -678,6 +1237,7 @@ def effective_llm_call_issues(
     expected_model = model.get("id")
     expected_revision = (model.get("revision") or {}).get("value")
     configured = payload.get("decoding") or {}
+    baseline_contract = payload.get("paper_baseline")
     usage = result.get("llm_usage") or (result.get("run") or {}).get("llm_usage") or {}
     events = usage.get("events") if isinstance(usage, Mapping) else None
     calls = usage.get("calls") if isinstance(usage, Mapping) else None
@@ -686,6 +1246,58 @@ def effective_llm_call_issues(
         return ["effective_llm_call_records_missing"]
     if calls is None or int(calls) != len(events):
         issues.append("effective_llm_call_count_mismatch")
+
+    baseline_schedule: dict[int, Mapping[str, Any]] | None = None
+    baseline_seed_supported: bool | None = None
+    if isinstance(baseline_contract, Mapping):
+        seed_policy = baseline_contract.get("seed_policy")
+        if seed_policy == "base_plus_candidate_index":
+            baseline_seed_supported = True
+        elif seed_policy == "unsupported_by_provider":
+            baseline_seed_supported = False
+        else:
+            issues.append("baseline_seed_policy_invalid")
+
+        raw_base_seed = baseline_contract.get("base_seed")
+        if isinstance(raw_base_seed, int) and not isinstance(raw_base_seed, bool):
+            base_seed = raw_base_seed
+        else:
+            base_seed = None
+            issues.append("baseline_base_seed_invalid")
+        if base_seed is not None and not _numeric_equal(
+            base_seed, configured.get("seed")
+        ):
+            issues.append("baseline_base_seed_mismatch")
+
+        raw_schedule = baseline_contract.get("candidate_seed_schedule")
+        maximum = baseline_contract.get("max_llm_candidates")
+        if (
+            not isinstance(raw_schedule, list)
+            or not isinstance(maximum, int)
+            or isinstance(maximum, bool)
+            or len(raw_schedule) != maximum
+        ):
+            issues.append("baseline_seed_schedule_invalid")
+        elif base_seed is not None and baseline_seed_supported is not None:
+            baseline_schedule = {}
+            for candidate_index, raw_entry in enumerate(raw_schedule):
+                expected_requested = base_seed + candidate_index
+                expected_effective = (
+                    expected_requested if baseline_seed_supported else None
+                )
+                if (
+                    not isinstance(raw_entry, Mapping)
+                    or raw_entry.get("candidate_index") != candidate_index
+                    or raw_entry.get("requested_seed") != expected_requested
+                    or raw_entry.get("effective_seed") != expected_effective
+                    or raw_entry.get("seed_supported") is not baseline_seed_supported
+                ):
+                    issues.append(
+                        f"baseline_seed_schedule_{candidate_index}_mismatch"
+                    )
+                    continue
+                baseline_schedule[candidate_index] = raw_entry
+
     for index, event in enumerate(events):
         prefix = f"llm_call_{index}"
         if not isinstance(event, Mapping):
@@ -709,11 +1321,49 @@ def effective_llm_call_issues(
         for key in ("temperature", "top_p"):
             if not _numeric_equal(decoding.get(key), configured.get(key)):
                 issues.append(f"{prefix}:{key}_mismatch")
-        if decoding.get("seed_supported") is False:
-            if event.get("provider") != "anthropic" or decoding.get("seed") is not None:
+        seed_supported = decoding.get("seed_supported")
+        if not isinstance(seed_supported, bool):
+            issues.append(f"{prefix}:seed_support_unreported")
+
+        expected_seed = configured.get("seed")
+        expected_seed_supported: bool | None = None
+        if isinstance(baseline_contract, Mapping):
+            candidate_index = event.get("candidate_index")
+            if (
+                isinstance(candidate_index, bool)
+                or not isinstance(candidate_index, int)
+                or baseline_schedule is None
+                or candidate_index not in baseline_schedule
+            ):
+                issues.append(f"{prefix}:baseline_candidate_index_invalid")
+            else:
+                schedule_entry = baseline_schedule[candidate_index]
+                expected_seed = schedule_entry.get("effective_seed")
+                expected_seed_supported = bool(
+                    schedule_entry.get("seed_supported")
+                )
+                if (
+                    event.get("requested_seed")
+                    != schedule_entry.get("requested_seed")
+                    or event.get("effective_seed") != expected_seed
+                    or event.get("seed_supported") is not expected_seed_supported
+                ):
+                    issues.append(f"{prefix}:baseline_seed_attribution_mismatch")
+
+        if expected_seed_supported is False or (
+            expected_seed_supported is None and seed_supported is False
+        ):
+            if (
+                seed_supported is not False
+                or event.get("provider") != "anthropic"
+                or decoding.get("seed") is not None
+            ):
                 issues.append(f"{prefix}:unsupported_seed_status_invalid")
-        elif not _numeric_equal(decoding.get("seed"), configured.get("seed")):
-            issues.append(f"{prefix}:seed_mismatch")
+        else:
+            if seed_supported is not True:
+                issues.append(f"{prefix}:seed_support_status_invalid")
+            if not _numeric_equal(decoding.get("seed"), expected_seed):
+                issues.append(f"{prefix}:seed_mismatch")
     return issues
 
 

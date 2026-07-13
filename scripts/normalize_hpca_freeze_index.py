@@ -948,6 +948,62 @@ def _failure_class(
     return None
 
 
+def _required_tool_call_attribution(
+    root: Mapping[str, Any],
+    synthesis_summary: Mapping[str, Any],
+    location: str,
+) -> dict[str, int]:
+    """Validate selection, selected-cosim, and post-route call accounting."""
+
+    selection_syntheses = _required_int(
+        root.get("synthesis_evaluation_count"),
+        f"{location}.synthesis_evaluation_count",
+    )
+    summary_syntheses = _required_int(
+        synthesis_summary.get("count"),
+        f"{location}.synthesis_evaluations.count",
+    )
+    selected_cosim = _required_int(
+        root.get("selected_winner_cosim_count"),
+        f"{location}.selected_winner_cosim_count",
+    )
+    post_route = _required_int(
+        root.get("post_route_implementation_count"),
+        f"{location}.post_route_implementation_count",
+    )
+    total_synthesis = _required_int(
+        root.get("total_synthesis_calls"),
+        f"{location}.total_synthesis_calls",
+    )
+    total_tools = _required_int(
+        root.get("total_tool_calls"),
+        f"{location}.total_tool_calls",
+    )
+    expected_total = selection_syntheses + selected_cosim + post_route
+    if (
+        selection_syntheses < 0
+        or selection_syntheses != summary_syntheses
+        or selected_cosim not in {0, 1}
+        or post_route not in {0, 1}
+        or total_synthesis != expected_total
+        or total_tools != expected_total
+    ):
+        raise FreezeNormalizationError(
+            "synthesis_attribution_mismatch",
+            (
+                f"{location} total tool calls must equal selection syntheses "
+                "plus selected-winner cosim plus post-route implementation"
+            ),
+        )
+    return {
+        "synthesis_evaluation_count": selection_syntheses,
+        "selected_winner_cosim_count": selected_cosim,
+        "post_route_implementation_count": post_route,
+        "total_synthesis_calls": total_synthesis,
+        "total_tool_calls": total_tools,
+    }
+
+
 def _baseline_candidate_events(
     root: Mapping[str, Any], run_id: str, location: str
 ) -> list[dict[str, Any]]:
@@ -961,10 +1017,15 @@ def _baseline_candidate_events(
         synthesis_summary.get("events"), f"{location}.synthesis_evaluations.events"
     )
     missing: list[str] = []
-    if root.get("total_synthesis_calls") is None:
-        missing.append("total_synthesis_calls")
-    if root.get("selected_winner_cosim_count") is None:
-        missing.append("selected_winner_cosim_count")
+    for field in (
+        "synthesis_evaluation_count",
+        "selected_winner_cosim_count",
+        "post_route_implementation_count",
+        "total_synthesis_calls",
+        "total_tool_calls",
+    ):
+        if root.get(field) is None:
+            missing.append(field)
     for index, candidate in enumerate(candidates):
         if (
             not isinstance(candidate, dict)
@@ -979,7 +1040,7 @@ def _baseline_candidate_events(
             missing_fields=missing,
             producer_functions=[
                 "paper_baselines.PaperBaselineEngine._evaluate (record candidate completion time)",
-                "paper_baselines.PaperBaselineEngine.run (record placeholder completion times and total_synthesis_calls including selected cosim)",
+                "paper_baselines.PaperBaselineEngine.run (record placeholder completion times and complete tool-call attribution)",
             ],
         )
     llm_by_candidate: dict[int, dict[str, Any]] = {}
@@ -1228,6 +1289,7 @@ def _baseline_candidate_events(
             "synthesis_total_mismatch",
             f"{location} synthesis event count disagrees with total",
         )
+    _required_tool_call_attribution(root, synthesis_summary, location)
     return output
 
 
@@ -1256,8 +1318,15 @@ def _agentic_candidate_events(
     missing: list[str] = []
     if summary.get("complete_candidate_event_stream") is not True:
         missing.append("synthesis_evaluations.complete_candidate_event_stream")
-    if root.get("total_synthesis_calls") is None:
-        missing.append("total_synthesis_calls")
+    for field in (
+        "synthesis_evaluation_count",
+        "selected_winner_cosim_count",
+        "post_route_implementation_count",
+        "total_synthesis_calls",
+        "total_tool_calls",
+    ):
+        if root.get(field) is None:
+            missing.append(field)
     llm_usage = root.get("llm_usage") if isinstance(root.get("llm_usage"), dict) else {}
     llm_events = (
         llm_usage.get("events") if isinstance(llm_usage.get("events"), list) else []
@@ -1287,7 +1356,8 @@ def _agentic_candidate_events(
                 "c2hls.C2HLSOrchestrator._record_llm_usage (add candidate-evaluation ID and cumulative token/call snapshot)",
                 "c2hls.C2HLSOrchestrator._synth_and_test (record CSim status, report latency, fit/timing, failure and cumulative elapsed)",
                 "c2hls.C2HLSOrchestrator._optimization_step_attempt_single (emit compile/CSim-rejected candidates into the unified stream)",
-                "c2hls.C2HLSOrchestrator._run_selected_winner_cosim (mark the selected event and count total synthesis calls)",
+                "c2hls.C2HLSOrchestrator._run_selected_winner_cosim (mark the selected event and count its tool flow)",
+                "c2hls._maybe_run_hw_emu_final (count post-route implementation independently of selection synthesis)",
             ],
         )
 
@@ -1305,22 +1375,7 @@ def _agentic_candidate_events(
             "candidate_budget_mismatch",
             f"{location} candidate-request count disagrees with the unified stream",
         )
-    selected_cosim_count = _required_int(
-        root.get("selected_winner_cosim_count"),
-        f"{location}.selected_winner_cosim_count",
-    )
-    selection_synthesis_count = _required_int(
-        summary.get("count"), f"{location}.synthesis_evaluations.count"
-    )
-    if (
-        selected_cosim_count not in {0, 1}
-        or root.get("total_synthesis_calls")
-        != selection_synthesis_count + selected_cosim_count
-    ):
-        raise FreezeNormalizationError(
-            "synthesis_attribution_mismatch",
-            f"{location} total synthesis calls must equal selection syntheses plus selected cosim flow",
-        )
+    _required_tool_call_attribution(root, summary, location)
 
     if (
         _required_int(
@@ -1618,19 +1673,6 @@ def _normalize_generated_record(
                 f"{location} baseline must expose all five candidate outcomes",
             )
         events = _baseline_candidate_events(root, run_id, location)
-        selected_cosim_count = _required_int(
-            root.get("selected_winner_cosim_count"),
-            f"{location}.selected_winner_cosim_count",
-        )
-        if (
-            selected_cosim_count not in {0, 1}
-            or root.get("total_synthesis_calls")
-            != root.get("synthesis_evaluations", {}).get("count") + selected_cosim_count
-        ):
-            raise FreezeNormalizationError(
-                "synthesis_attribution_mismatch",
-                f"{location} total synthesis calls must equal selection syntheses plus selected cosim flow",
-            )
     elif runner == "run_agentic_sweep.py":
         contract = AGENTIC_METHOD_CONTRACTS.get(runner_method)
         if contract is None:
@@ -1670,6 +1712,15 @@ def _normalize_generated_record(
             "unknown_runner",
             f"{location}.runner must be run_agentic_sweep.py or run_paper_baseline.py",
         )
+
+    tool_attribution = _required_tool_call_attribution(
+        root,
+        _required_mapping(
+            root.get("synthesis_evaluations"),
+            f"{location}.synthesis_evaluations",
+        ),
+        location,
+    )
 
     skill_integrity = root.get("skill_snapshot_integrity")
     skill_integrity_failed = bool(
@@ -1905,10 +1956,16 @@ def _normalize_generated_record(
         "synthesis_calls": _required_int(
             root.get("total_synthesis_calls"), f"{location}.total_synthesis_calls"
         ),
-        "selection_synthesis_evaluations": _required_int(
-            (root.get("synthesis_evaluations") or {}).get("count"),
-            f"{location}.synthesis_evaluations.count",
-        ),
+        "total_tool_calls": tool_attribution["total_tool_calls"],
+        "selection_synthesis_evaluations": tool_attribution[
+            "synthesis_evaluation_count"
+        ],
+        "selected_winner_cosim_count": tool_attribution[
+            "selected_winner_cosim_count"
+        ],
+        "post_route_implementation_count": tool_attribution[
+            "post_route_implementation_count"
+        ],
         "wall_time_seconds": float(search_elapsed),
         "candidates_evaluated": len(events),
         "candidate_events": events,

@@ -674,6 +674,7 @@ def validate_matrix(
         "C2HLS_PHASE5_GT_PREPOP": "0",
         "C2HLS_REFERENCE_CODE_IN_PROMPTS": "0",
         "C2HLS_REFERENCE_METRICS_IN_PROMPTS": "0",
+        "C2HLS_FEEDBACK_LLM": "0",
     }
     actual_blind_env = primary_profile.get("env", {})
     for name, expected in required_blind_env.items():
@@ -707,6 +708,11 @@ def validate_matrix(
             "C2HLS_VITIS_SETTINGS must be resolved so the invoked Vitis binary can be probed",
         )
     required_common_env = {
+        "C2HLS_FEEDBACK_LLM": "0",
+        "C2HLS_REFERENCE_CACHE_DIR": "artifacts/reference_validation_cache",
+        "C2HLS_SWEEP_REFERENCE_CACHE_DIR": "artifacts/reference_validation_cache",
+        "C2HLS_SWEEP_HW_EMU": "0",
+        "C2HLS_HW_EMU_FINAL": "0",
         "C2HLS_CANDIDATES_PER_STEP": "5",
         "C2HLS_LLM_CANDIDATE_BUDGET": "5",
         "C2HLS_SYNTHESIS_EVAL_BUDGET": "5",

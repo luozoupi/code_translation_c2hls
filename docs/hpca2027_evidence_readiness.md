@@ -24,13 +24,11 @@ figures must come from accepted artifacts, not from this status document.
 
 ## Active HLSFactory queue is exploratory
 
-A read-only observation at `2026-07-13T04:43:07-05:00` found the tmux queue
-`c2hls_matrix_goldprecheck_full28_20260710` and its first
-`run_agentic_sweep.py` arm still active.  The visible summary contained 24 of
-28 benchmark rows (23 successful, one failed at Doitgen) for the Qwen 27B,
-flash, skill-off arm; an executed `syr2k` RTL co-simulation was still active.
-The queue script
-contains 12 full-28 arms in total.
+A read-only observation at `2026-07-13T11:07:50-05:00` found the tmux queue
+`c2hls_matrix_goldprecheck_full28_20260710` still active.  Its Qwen 27B,
+flash, skill-off arm had completed all 28 rows (27 successful and one failed
+at Doitgen).  The next, skill-on arm had completed `2mm` and was synthesizing
+`3mm`.  The queue script contains 12 full-28 arms in total.
 
 These artifacts are not HPCA headline evidence.  Their HLSFactory
 testbenches dump computed values but do not independently compare them with a

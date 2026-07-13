@@ -209,8 +209,11 @@ class PaperBaselineEngineTests(unittest.TestCase):
         self.assertEqual(4, result["selected_candidate_index"])
         self.assertEqual(5, result["llm_usage"]["calls"])
         self.assertEqual(5, result["synthesis_evaluations"]["count"])
+        self.assertEqual(5, result["synthesis_evaluation_count"])
         self.assertEqual(1, result["selected_winner_cosim_count"])
+        self.assertEqual(0, result["post_route_implementation_count"])
         self.assertEqual(6, result["total_synthesis_calls"])
+        self.assertEqual(6, result["total_tool_calls"])
         self.assertEqual(
             result["selected_code_sha256"], result["cosim_target_code_sha256"]
         )

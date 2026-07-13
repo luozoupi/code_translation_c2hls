@@ -1485,8 +1485,9 @@ def run_hw_emu_via_nova(
     reference measurement); pass an LLM-generated cpp for agentic validation.
 
     Returns:
-      {ran, passed, success, kernel_runtime_us, kernel_runtime_cycles,
-       kernel_clock_freq_mhz, profile_csv, error, work_dir, log}
+      {ran, passed, success, implementation_call_count, kernel_runtime_us,
+       kernel_runtime_cycles, kernel_clock_freq_mhz, profile_csv, error,
+       work_dir, log}
         passed   = testbench `Finished checking data: correct` AND a final
                    `Success.` marker appeared
         success  = passed AND profile_kernels.csv produced AND no timeout
@@ -1496,6 +1497,7 @@ def run_hw_emu_via_nova(
     if staged is None:
         return {
             "ran": False, "passed": False, "success": False,
+            "implementation_call_count": 0,
             "kernel_runtime_us": None, "kernel_runtime_cycles": None,
             "kernel_clock_freq_mhz": None, "profile_csv": "",
             "profile_compute_unit_rows": 0, "clock_source": "not_run",
@@ -1562,6 +1564,10 @@ def run_hw_emu_via_nova(
         "ran": True,
         "passed": passed,
         "success": success,
+        # One invocation of `make check TARGET=hw_emu` drives the separate
+        # v++ compile/link/implementation flow, irrespective of whether that
+        # attempt eventually passes, fails, or times out.
+        "implementation_call_count": 1,
         "kernel_runtime_us": kernel_runtime_us,
         "kernel_runtime_cycles": kernel_runtime_cycles,
         "kernel_clock_freq_mhz": kernel_clock_freq_mhz,

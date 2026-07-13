@@ -411,6 +411,10 @@ def _validate_candidate_events(record: dict[str, Any], where: str) -> None:
         raise ManifestError(f"{where} candidate elapsed time exceeds total wall time")
     if selected_count > 1:
         raise ManifestError(f"{where} selects more than one candidate for executed RTL co-simulation")
+    if selected_count != record["selected_winner_cosim_count"]:
+        raise ManifestError(
+            f"{where} selected-winner cosim count disagrees with its candidate events"
+        )
     if _record_is_solved(record) and selected_count != 1:
         raise ManifestError(f"{where} successful run must identify its one co-simulated winner")
     root_selected_hash = record.get("selected_code_sha256")
@@ -530,17 +534,42 @@ def _validate_record(
             "tokens",
             "llm_calls",
             "synthesis_calls",
+            "total_tool_calls",
             "selection_synthesis_evaluations",
+            "selected_winner_cosim_count",
+            "post_route_implementation_count",
             "wall_time_seconds",
             "candidates_evaluated",
         ):
             _require_nonnegative_number(rec.get(field), f"{where}.{field}")
         for field in (
-            "tokens", "llm_calls", "synthesis_calls", "selection_synthesis_evaluations",
-            "candidates_evaluated",
+            "tokens", "llm_calls", "synthesis_calls", "total_tool_calls",
+            "selection_synthesis_evaluations", "selected_winner_cosim_count",
+            "post_route_implementation_count", "candidates_evaluated",
         ):
             if not isinstance(rec.get(field), int) or isinstance(rec.get(field), bool):
                 raise ManifestError(f"{where}.{field} must be an integer")
+        if rec["selected_winner_cosim_count"] not in {0, 1}:
+            raise ManifestError(
+                f"{where}.selected_winner_cosim_count must be zero or one"
+            )
+        if rec["post_route_implementation_count"] not in {0, 1}:
+            raise ManifestError(
+                f"{where}.post_route_implementation_count must be zero or one"
+            )
+        expected_tool_calls = (
+            rec["selection_synthesis_evaluations"]
+            + rec["selected_winner_cosim_count"]
+            + rec["post_route_implementation_count"]
+        )
+        if (
+            rec["synthesis_calls"] != expected_tool_calls
+            or rec["total_tool_calls"] != expected_tool_calls
+        ):
+            raise ManifestError(
+                f"{where} total tool calls must equal selection syntheses plus "
+                "selected-winner cosim plus post-route implementation"
+            )
         _validate_candidate_events(rec, where)
     return rec
 

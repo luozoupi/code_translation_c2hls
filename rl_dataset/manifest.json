@@ -1,109 +1,121 @@
 {
-  "verified_kernels_mined": 63,
-  "benches_with_data": 25,
-  "sft_examples": 25,
-  "dpo_pairs": 25,
-  "reward": "cosim latency_cycles (lower better), gated on csim+cosim pass, vitis flow",
+  "selection": "all cosim-verified kernels, deduped by (bench, content-hash)",
+  "reward": "cosim latency_cycles (lower better), gated on csim+cosim PASS, vitis flow",
+  "format": "chat messages (system/user/assistant); DPO {prompt,chosen,rejected}",
+  "verified_kernels_mined": 442,
+  "sft_examples": 442,
+  "sft_train": 401,
+  "sft_val": 41,
+  "dpo_pairs": 302,
+  "benches": 26,
+  "sft_by_model": {
+    "opus": 318,
+    "sonnet": 124
+  },
   "per_bench": {
     "hlsfactory_2mm": {
-      "candidates": 3,
-      "best_cosim": 56414
+      "distinct_kernels": 15,
+      "best_cosim": 52722
     },
     "hlsfactory_3mm": {
-      "candidates": 3,
-      "best_cosim": 16738
+      "distinct_kernels": 15,
+      "best_cosim": 15919
     },
     "hlsfactory_atax": {
-      "candidates": 3,
-      "best_cosim": 107565
+      "distinct_kernels": 17,
+      "best_cosim": 33945
     },
     "hlsfactory_bicg": {
-      "candidates": 3,
-      "best_cosim": 72907
+      "distinct_kernels": 17,
+      "best_cosim": 38081
     },
     "hlsfactory_cholesky": {
-      "candidates": 2,
-      "best_cosim": 1824407
+      "distinct_kernels": 14,
+      "best_cosim": 1103442
     },
     "hlsfactory_correlation": {
-      "candidates": 2,
-      "best_cosim": 690865
+      "distinct_kernels": 19,
+      "best_cosim": 371898
     },
     "hlsfactory_covariance": {
-      "candidates": 3,
-      "best_cosim": 2055995
+      "distinct_kernels": 18,
+      "best_cosim": 627905
     },
     "hlsfactory_doitgen": {
-      "candidates": 3,
-      "best_cosim": 255537
+      "distinct_kernels": 20,
+      "best_cosim": 159525
     },
     "hlsfactory_durbin": {
-      "candidates": 3,
-      "best_cosim": 60915
+      "distinct_kernels": 19,
+      "best_cosim": 24459
     },
     "hlsfactory_fdtd-2d": {
-      "candidates": 2,
-      "best_cosim": 582125
+      "distinct_kernels": 16,
+      "best_cosim": 325415
     },
     "hlsfactory_floyd-warshall": {
-      "candidates": 2,
-      "best_cosim": 6092300
+      "distinct_kernels": 15,
+      "best_cosim": 1678114
     },
     "hlsfactory_gemm": {
-      "candidates": 2,
-      "best_cosim": 356674
+      "distinct_kernels": 19,
+      "best_cosim": 188495
     },
     "hlsfactory_gemver": {
-      "candidates": 3,
-      "best_cosim": 65371
+      "distinct_kernels": 19,
+      "best_cosim": 62328
     },
     "hlsfactory_gesummv": {
-      "candidates": 3,
-      "best_cosim": 55946
+      "distinct_kernels": 18,
+      "best_cosim": 20118
     },
     "hlsfactory_gramschmidt": {
-      "candidates": 2,
-      "best_cosim": 373419
+      "distinct_kernels": 11,
+      "best_cosim": 301194
     },
     "hlsfactory_jacobi-1d": {
-      "candidates": 3,
-      "best_cosim": 12139
+      "distinct_kernels": 18,
+      "best_cosim": 4699
     },
     "hlsfactory_jacobi-2d": {
-      "candidates": 1,
-      "best_cosim": 640275
+      "distinct_kernels": 13,
+      "best_cosim": 79515
     },
     "hlsfactory_lu": {
-      "candidates": 2,
-      "best_cosim": 3339480
+      "distinct_kernels": 18,
+      "best_cosim": 3325081
     },
     "hlsfactory_ludcmp": {
-      "candidates": 3,
-      "best_cosim": 9193985
+      "distinct_kernels": 17,
+      "best_cosim": 3394555
     },
     "hlsfactory_mvt": {
-      "candidates": 3,
-      "best_cosim": 150952
+      "distinct_kernels": 17,
+      "best_cosim": 53756
     },
     "hlsfactory_nussinov": {
-      "candidates": 3,
-      "best_cosim": 1214731
+      "distinct_kernels": 20,
+      "best_cosim": 887387
     },
     "hlsfactory_symm": {
-      "candidates": 1,
-      "best_cosim": 165076
+      "distinct_kernels": 22,
+      "best_cosim": 121703
     },
     "hlsfactory_syr2k": {
-      "candidates": 2,
-      "best_cosim": 991737
+      "distinct_kernels": 14,
+      "best_cosim": 94962
+    },
+    "hlsfactory_syrk": {
+      "distinct_kernels": 14,
+      "best_cosim": 186145
     },
     "hlsfactory_trisolv": {
-      "candidates": 3,
-      "best_cosim": 62640
+      "distinct_kernels": 17,
+      "best_cosim": 34308
     },
     "hlsfactory_trmm": {
-      "candidates": 3,
-      "best_cosim": 2621025
+      "distinct_kernels": 20,
+      "best_cosim": 52497
     }
   }
 }

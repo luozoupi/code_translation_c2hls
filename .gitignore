@@ -113,6 +113,11 @@ artifacts/*.pid
 
 # Root-level generated report exports
 /*.jsonl
+# the canonical merged Opus+Sonnet(+GPT-5.5) schema IS tracked (exception to /*.jsonl)
+!schema_records.jsonl
+
+# Transfer/archive zips (corpus/artifacts shipped to training nodes) — never commit
+*.zip
 
 # Generated experiment/dataset workspaces
 benchmarks_external/

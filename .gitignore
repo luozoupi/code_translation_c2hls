@@ -188,3 +188,32 @@ benchmarks_external/
 
 # Editor / IDE
 .cursor/
+
+# ---------------------------------------------------------------------------
+# Offline SFT/DPO kit — commit scripts/slurm/config only; keep weights & runs local
+# ---------------------------------------------------------------------------
+rl/.venv-trl/
+rl/logs/
+rl/outputs/
+rl/extracted/
+rl/prepared/
+rl/rl_*.zip
+rl/eval/heldout_ab_*/
+rl/eval/LATEST_HELDOUT_AB.root
+rl/scripts/__pycache__/
+
+# AutoSA / local research dumps (not part of shared c2hls flow commits)
+AutoSA_sources/
+AutoSA_sources.bak/
+benchmarks_autosa_dse/
+GPRO/
+
+# Nested PC2 artifact blobs (top-level artifacts/* patterns miss these)
+artifacts/pc2/*.zip
+artifacts/pc2/*.tar.gz
+artifacts/pc2/*.pid
+artifacts/rag/
+
+# Local scratch probes
+.quota_write_test
+

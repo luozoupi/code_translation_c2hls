@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+: "${XILINX_SIF:?source scripts/nibi/nibi_container_env.sh first}"
+exec apptainer exec "${XILINX_SIF}" bash -lc \
+  'export LIBRARY_PATH="/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu${LIBRARY_PATH:+:$LIBRARY_PATH}"; exec vitis-run "$@"' \
+  bash "$@"

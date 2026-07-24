@@ -141,8 +141,14 @@ _COMMON_FLASH_ENV = {
 
 def configure_curated_env(variant: FlashCuratedVariant, *, focus: str) -> None:
     """Apply env for one curated-matrix variant and curation focus."""
+    import sys
+
     from c2hls_paths import apply_runtime_defaults
     from c2hls_temp import configure_temp_env
+
+    scripts_root = Path(__file__).resolve().parents[1]
+    if str(scripts_root) not in sys.path:
+        sys.path.insert(0, str(scripts_root))
 
     from flash_shared.new_skills_lib import _apply_flash_skill_entries_env
 

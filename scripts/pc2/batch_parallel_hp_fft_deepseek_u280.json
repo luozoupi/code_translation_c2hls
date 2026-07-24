@@ -1,0 +1,43 @@
+{
+  "job_prefix": "bptahp_f",
+  "combined_hls_nodes": true,
+  "synth_nodes_per_variant": 16,
+  "synth_workers_per_node": 1,
+  "cosim_nodes_per_variant": 0,
+  "cosim_workers_per_node": 0,
+  "worker_cpus": 8,
+  "worker_mem_gb": 32,
+  "gpu_policy": "always_on",
+  "cosim_timeout_s": 7200,
+  "bench_order": "listed",
+  "bench_seeding": "short_first_waves",
+  "max_inflight_benches": 16,
+  "poll_sec": 2.0,
+  "coordinator_poll_sec": 15.0,
+  "pilot": {
+    "variant": "tier_a_90",
+    "workflow": "tier_a_flash",
+    "corpus": "tier_A_ready",
+    "benches": [
+      "hp_fft_n1024__UF1",
+      "hp_fft_n1024__UF16",
+      "hp_fft_n1024__UF2",
+      "hp_fft_n1024__UF32",
+      "hp_fft_n1024__UF4",
+      "hp_fft_n1024__UF8",
+      "hp_fft_n1024__no_StagePipeline",
+      "hp_fft_n1024__original_C_style",
+      "hp_fft_n256__UF1",
+      "hp_fft_n256__UF16",
+      "hp_fft_n256__UF2",
+      "hp_fft_n256__UF32",
+      "hp_fft_n256__UF4",
+      "hp_fft_n256__UF8",
+      "hp_fft_n256__no_StagePipeline",
+      "hp_fft_n256__original_C_style"
+    ],
+    "failure_policy": "ignore",
+    "model": "deepseek-chat",
+    "turns": 4
+  }
+}

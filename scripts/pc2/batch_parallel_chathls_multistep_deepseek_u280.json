@@ -1,0 +1,43 @@
+{
+  "job_prefix": "bpchms",
+  "synth_nodes_per_variant": 16,
+  "synth_workers_per_node": 1,
+  "cosim_nodes_per_variant": 0,
+  "cosim_workers_per_node": 0,
+  "combined_hls_nodes": true,
+  "worker_cpus": 16,
+  "worker_mem_gb": 64,
+  "gpu_policy": "always_on",
+  "cosim_timeout_s": 604800,
+  "bench_order": "listed",
+  "bench_seeding": "short_first_waves",
+  "max_inflight_benches": 16,
+  "poll_sec": 2.0,
+  "coordinator_poll_sec": 15.0,
+  "pilot": {
+    "variant": "chathls_ms_aav_n",
+    "workflow": "chathls_multistep",
+    "corpus": "chathls_ready",
+    "benches": [
+      "chathls_atax",
+      "chathls_bicg",
+      "chathls_covariance",
+      "chathls_gemm",
+      "chathls_gemm_blocked",
+      "chathls_gemm_ncubed",
+      "chathls_gesummv",
+      "chathls_kernel_2mm",
+      "chathls_kernel_3mm",
+      "chathls_kernel_symm",
+      "chathls_kernel_syr2k",
+      "chathls_kernel_syrk",
+      "chathls_matmul",
+      "chathls_mobilenet",
+      "chathls_mvt",
+      "chathls_transformer"
+    ],
+    "failure_policy": "ignore",
+    "model": "deepseek-chat",
+    "turns": 4
+  }
+}

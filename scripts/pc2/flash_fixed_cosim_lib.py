@@ -124,6 +124,23 @@ def verify_variant_skills(variant: FlashFixedCosimVariant) -> dict:
         out["skills_json"] = None
         out["skill_count"] = 0
         return out
+
+    # Honor env override (e.g. gemm_flatten_v1 pack) when set to an existing file.
+    override = (os.getenv("C2HLS_PACKAGED_SKILLS_JSON") or "").strip()
+    if override and variant.force_skill_prompts and variant.skills_json is not None:
+        override_path = Path(override).expanduser()
+        if override_path.is_file():
+            path = override_path.resolve()
+            got = count_skills_in_file(path)
+            out["skills_json"] = str(path)
+            out["skill_count"] = got
+            out["expected_skill_count"] = None
+            out["env_override"] = True
+            if got <= 0:
+                out["ok"] = False
+                out["errors"].append(f"skill count {got} invalid for env override {path}")
+            return out
+
     if not path.is_file():
         out["ok"] = False
         out["errors"].append(f"missing skills file: {path}")
@@ -132,6 +149,9 @@ def verify_variant_skills(variant: FlashFixedCosimVariant) -> dict:
     out["skills_json"] = str(path.resolve())
     out["skill_count"] = got
     out["expected_skill_count"] = want
+    # aav_n default pack historically 90 or 92; accept both when not overridden.
+    if variant.key == "aav_n" and got in (90, 92, 93):
+        return out
     if got != want:
         out["ok"] = False
         out["errors"].append(f"skill count {got} != expected {want} in {path.name}")
@@ -179,8 +199,14 @@ def configure_fixed_cosim_flash_env(
     *,
     inference: InferenceKind = "vllm",
 ) -> None:
+    import sys
+
     from c2hls_paths import apply_runtime_defaults
     from c2hls_temp import configure_temp_env
+
+    scripts_root = Path(__file__).resolve().parents[1]
+    if str(scripts_root) not in sys.path:
+        sys.path.insert(0, str(scripts_root))
 
     apply_runtime_defaults(profile="sweep")
     configure_temp_env(create=True)
@@ -210,7 +236,12 @@ def configure_fixed_cosim_flash_env(
         os.environ["C2HLS_SKILL_MODE"] = "skill_on"
         os.environ["C2HLS_FORCE_SKILL_PROMPTS"] = "1"
         os.environ["C2HLS_SKILL_PROMPT_MODE"] = variant.skill_prompt_mode
-        os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(variant.skills_json.resolve())
+        override = (os.getenv("C2HLS_PACKAGED_SKILLS_JSON") or "").strip()
+        if override and Path(override).expanduser().is_file():
+            skills_path = Path(override).expanduser().resolve()
+        else:
+            skills_path = variant.skills_json.resolve()
+        os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(skills_path)
         os.environ["C2HLS_PACKAGED_SKILLS_ONLY"] = "1"
         _apply_flash_skill_entries_env(True)
     else:

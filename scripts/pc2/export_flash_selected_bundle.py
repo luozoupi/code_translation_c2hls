@@ -68,16 +68,30 @@ def _copy_tree(src: Path, dst: Path) -> None:
     shutil.copytree(src, dst)
 
 
+def _resolve_bench_dir(bench: str) -> Path | None:
+    candidates = [
+        BENCHMARKS_DIR / bench,
+        REPO / "related_work/benchmarks/HLSFactory_benchmarks/chathls_ready" / bench,
+        REPO / "related_work/benchmarks/HLSFactory_benchmarks/tier_B_ready" / bench,
+        REPO / "related_work/benchmarks/HLSFactory_benchmarks/tier_A_ready" / bench,
+        REPO / "benchmarks_autosa_dse" / bench,
+    ]
+    for path in candidates:
+        if path.is_dir() and (path / "metadata.json").is_file():
+            return path
+    return None
+
+
 def _bench_metadata(bench: str) -> dict[str, Any]:
-    meta_path = BENCHMARKS_DIR / bench / "metadata.json"
-    if not meta_path.is_file():
+    bench_dir = _resolve_bench_dir(bench)
+    if bench_dir is None:
         return {}
-    return _load_json(meta_path)
+    return _load_json(bench_dir / "metadata.json")
 
 
 def _benchmark_files(bench: str) -> list[Path]:
-    bench_dir = BENCHMARKS_DIR / bench
-    if not bench_dir.is_dir():
+    bench_dir = _resolve_bench_dir(bench)
+    if bench_dir is None:
         return []
     meta = _bench_metadata(bench)
     names: set[str] = set()

@@ -172,11 +172,28 @@ def load_cosim_inputs(bench_dir: Path, *, full_size: bool | None = None) -> dict
 
     extra_files: list[dict[str, str]] = []
     seen: set[str] = set()
-    for rel_path in meta.get("cosim_support_files") or []:
+    # cosim_support_files (explicit) + support_files (e.g. mobilenet weights.h,
+    # transformer DRAM_*.txt). Headers must be staged for design compile; the old
+    # ".cpp-only" filter dropped weights.h and broke mobilenet cosim.
+    support_rels: list[str] = []
+    for key in ("cosim_support_files", "support_files"):
+        for rel_path in meta.get(key) or []:
+            if rel_path and rel_path not in support_rels:
+                support_rels.append(rel_path)
+    for rel_path in support_rels:
         file_path = bench_dir / rel_path
         if not file_path.exists():
             raise FileNotFoundError(f"{bench_dir.name}: cosim support file missing ({rel_path})")
-        extra_files.append({"path": rel_path, "content": file_path.read_text(), "tb": True})
+        # Data / host helpers are TB-side; headers are needed by the kernel too
+        # (hls_eval still add_files non-.cpp extras as design sources).
+        is_header = Path(rel_path).suffix.lower() in {".h", ".hpp", ".hh"}
+        extra_files.append(
+            {
+                "path": rel_path,
+                "content": file_path.read_text(encoding="utf-8", errors="ignore"),
+                "tb": not is_header,
+            }
+        )
         seen.add(rel_path)
 
     gold_src = meta.get("gold_hls_source_file") or "gold_hls_source.cpp"
@@ -189,9 +206,10 @@ def load_cosim_inputs(bench_dir: Path, *, full_size: bool | None = None) -> dict
         rel_path = item.get("path", "")
         if not rel_path or rel_path in seen:
             continue
-        if rel_path.endswith(".cpp"):
-            extra_files.append(item)
-            seen.add(rel_path)
+        # Keep headers, DRAM vectors, MachSuite data, and any helper sources.
+        # Restricting to .cpp previously dropped weights.h / DRAM_*.txt.
+        extra_files.append(item)
+        seen.add(rel_path)
 
     top_function = meta.get("translated_hls_top") or meta.get("hls_top") or "workload"
     return {

@@ -1,0 +1,37 @@
+{
+  "job_prefix": "bptaspec",
+  "combined_hls_nodes": true,
+  "synth_nodes_per_variant": 10,
+  "synth_workers_per_node": 1,
+  "cosim_nodes_per_variant": 0,
+  "cosim_workers_per_node": 0,
+  "worker_cpus": 8,
+  "worker_mem_gb": 32,
+  "gpu_policy": "always_on",
+  "cosim_timeout_s": 7200,
+  "bench_order": "listed",
+  "bench_seeding": "short_first_waves",
+  "max_inflight_benches": 10,
+  "poll_sec": 2.0,
+  "coordinator_poll_sec": 15.0,
+  "pilot": {
+    "variant": "tier_a_90",
+    "workflow": "tier_a_flash",
+    "corpus": "tier_A_ready",
+    "benches": [
+      "spector_hls_dct",
+      "spector_hls_fir",
+      "spector_hls_histogram",
+      "spector_hls_matrix_multiplication",
+      "spector_hls_mergesort",
+      "spector_hls_normals",
+      "spector_hls_sobel_filter_x",
+      "spector_hls_sobel_filter_y",
+      "spector_hls_spmv",
+      "spector_hls_template_matching"
+    ],
+    "failure_policy": "ignore",
+    "model": "deepseek-chat",
+    "turns": 4
+  }
+}

@@ -60,23 +60,51 @@ def count_skills(path: Path) -> int:
     return len(skills) if isinstance(skills, list) else 0
 
 
+def resolve_packaged_skills_json() -> Path:
+    """Honor C2HLS_PACKAGED_SKILLS_JSON when set to an existing file; else default 90skills."""
+    override = (os.getenv("C2HLS_PACKAGED_SKILLS_JSON") or "").strip()
+    if override:
+        path = Path(override).expanduser()
+        if path.is_file():
+            return path.resolve()
+    return SKILLS_90_JSON.resolve()
+
+
+def packaged_skills_env_override_active() -> bool:
+    override = (os.getenv("C2HLS_PACKAGED_SKILLS_JSON") or "").strip()
+    return bool(override) and Path(override).expanduser().is_file()
+
+
 def verify_skills_90() -> dict[str, Any]:
+    skills_path = resolve_packaged_skills_json()
+    override = packaged_skills_env_override_active()
     out: dict[str, Any] = {
         "ok": True,
         "errors": [],
-        "skills_json": str(SKILLS_90_JSON.resolve()),
+        "skills_json": str(skills_path),
         "skill_count": 0,
-        "expected_skill_count": 92,
+        # Packaged file is named 90skills; some overlays historically counted 92.
+        # gemm_flatten_v1 pack adds three skills → 93.
+        "expected_skill_count": 90,
+        "accepted_skill_counts": [90, 92, 93, 99],
+        "env_override": override,
     }
-    if not SKILLS_90_JSON.is_file():
+    if not skills_path.is_file():
         out["ok"] = False
-        out["errors"].append(f"missing skills file: {SKILLS_90_JSON}")
+        out["errors"].append(f"missing skills file: {skills_path}")
         return out
-    got = count_skills(SKILLS_90_JSON)
+    got = count_skills(skills_path)
     out["skill_count"] = got
-    if got != 92:
+    if override:
+        # Env override: accept any non-empty packaged skills list.
+        if got <= 0:
+            out["ok"] = False
+            out["errors"].append(f"skill count {got} invalid for env override {skills_path}")
+    elif got not in out["accepted_skill_counts"]:
         out["ok"] = False
-        out["errors"].append(f"skill count {got} != expected 92")
+        out["errors"].append(
+            f"skill count {got} not in accepted {out['accepted_skill_counts']}"
+        )
     return out
 
 
@@ -136,7 +164,7 @@ def configure_tier_a_flash_90skills_env() -> None:
     os.environ["C2HLS_SKILL_MODE"] = "skill_on"
     os.environ["C2HLS_FORCE_SKILL_PROMPTS"] = "1"
     os.environ["C2HLS_SKILL_PROMPT_MODE"] = "all_skills_avoids_global"
-    os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(SKILLS_90_JSON.resolve())
+    os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(resolve_packaged_skills_json())
     os.environ["C2HLS_PACKAGED_SKILLS_ONLY"] = "1"
     from flash_shared.new_skills_lib import _apply_flash_skill_entries_env
 
@@ -162,6 +190,7 @@ def configure_tier_a_flash_90skills_env() -> None:
 
 
 def env_snapshot() -> dict[str, Any]:
+    skills_path = resolve_packaged_skills_json()
     snap = {
         "matrix_family": MATRIX_FAMILY,
         "corpus": "tier_A_ready",
@@ -169,8 +198,9 @@ def env_snapshot() -> dict[str, Any]:
         "record_flow": os.getenv("C2HLS_RECORD_FLOW", "1") == "1",
         "skill_prompt_mode": "all_skills_avoids_global",
         "force_skill_prompts": True,
-        "skills_json": str(SKILLS_90_JSON.resolve()),
+        "skills_json": str(skills_path),
         "skills_json_mode": "packaged_only",
+        "skills_env_override": packaged_skills_env_override_active(),
         "target_part": os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e"),
         "target_clock_ns": os.getenv("C2HLS_CLOCK_NS", "3.33"),
         "timeouts": {
@@ -179,6 +209,6 @@ def env_snapshot() -> dict[str, Any]:
             "llm_s": int(os.getenv("C2HLS_LLM_TIMEOUT", "900")),
         },
     }
-    if SKILLS_90_JSON.is_file():
-        snap["skills_json_count"] = count_skills(SKILLS_90_JSON)
+    if skills_path.is_file():
+        snap["skills_json_count"] = count_skills(skills_path)
     return snap

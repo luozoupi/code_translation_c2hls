@@ -1,0 +1,29 @@
+{
+  "job_prefix": "bpchdsmt",
+  "synth_nodes_per_variant": 2,
+  "synth_workers_per_node": 1,
+  "cosim_nodes_per_variant": 0,
+  "cosim_workers_per_node": 0,
+  "combined_hls_nodes": true,
+  "worker_cpus": 8,
+  "worker_mem_gb": 32,
+  "gpu_policy": "always_on",
+  "cosim_timeout_s": 7200,
+  "bench_order": "listed",
+  "bench_seeding": "short_first_waves",
+  "max_inflight_benches": 2,
+  "poll_sec": 2.0,
+  "coordinator_poll_sec": 15.0,
+  "pilot": {
+    "variant": "chathls_aav_n",
+    "workflow": "chathls_flash",
+    "corpus": "chathls_ready",
+    "benches": [
+      "chathls_mobilenet",
+      "chathls_transformer"
+    ],
+    "failure_policy": "ignore",
+    "model": "deepseek-chat",
+    "turns": 4
+  }
+}

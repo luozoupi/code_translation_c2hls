@@ -14,6 +14,12 @@ from batch_parallel_queue import BatchParallelJob, BatchParallelQueue
 from flash_pipelined_bench import _load_benchmark_inputs
 
 
+def _sanitize_saved_result_record(results: dict, reference_validation: dict | None) -> dict:
+    from c2hls import sanitize_saved_result_record
+
+    return sanitize_saved_result_record(results, reference_validation)
+
+
 class TierABatchParallelBenchSession(BatchParallelBenchSession):
     REFERENCE_VALIDATION_NAME = "reference_validation.json"
 
@@ -135,6 +141,15 @@ class TierABatchParallelBenchSession(BatchParallelBenchSession):
 
         return compile_check_cpp(
             hls_code, header_code, header_name, extra_files=extra_files,
+        )
+
+    @staticmethod
+    def _csim_link_error(error: str) -> bool:
+        low = (error or "").lower()
+        return (
+            "ld returned 1 exit status" in low
+            or ("csim.exe" in low and "error 1" in low)
+            or "undefined reference" in low
         )
 
     def _csim_failed(self, outcome: dict) -> tuple[bool, str]:
@@ -291,7 +306,7 @@ class TierABatchParallelBenchSession(BatchParallelBenchSession):
                 "stage": "repair",
                 "meta": {
                     "repair": {
-                        "kind": "csim",
+                        "kind": "compile" if self._csim_link_error(csim_error) else "csim",
                         "error": csim_error,
                         "attempt": attempt,
                     },
@@ -442,7 +457,7 @@ class TierABatchParallelBenchSession(BatchParallelBenchSession):
                 "stage": "repair",
                 "meta": {
                     "repair": {
-                        "kind": "csim",
+                        "kind": "compile" if self._csim_link_error(csim_error) else "csim",
                         "error": csim_error,
                         "attempt": attempt,
                     },
@@ -475,6 +490,9 @@ class TierABatchParallelBenchSession(BatchParallelBenchSession):
             "steps": [],
             "pipelined": True,
         }
+        # Keep gold bookkeeping consistent with success path: ground_truth_report
+        # must mirror reference_validation.report even when the opt flow fails.
+        results = _sanitize_saved_result_record(results, self.reference_validation)
         result_json = self.cell_dir / f"{self.bench}_multistep_results.json"
         result_json.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
 

@@ -161,8 +161,23 @@ def artifact_paths(cell_dir: Path, bench: str, factor: int) -> dict[str, Path]:
     }
 
 
-def resolve_selected_kernel(cell_dir: Path, bench: str) -> tuple[Optional[Path], str]:
-    """Return (path, role) for the flash-selected kernel source."""
+def _result_success(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    return isinstance(data, dict) and data.get("success") is True
+
+
+def _resolve_flash_base_kernel(cell_dir: Path, bench: str) -> tuple[Optional[Path], str]:
+    """Return (path, role) for the flash-selected kernel source.
+
+    This is the base resolver: selected -> final -> legacy final. It never
+    considers post-pass outputs (pragma_opt/latency_opt), so it is safe to
+    use when a post-pass itself is resolving its own seed kernel.
+    """
     selected = cell_dir / f"{bench}_selected.cpp"
     if selected.is_file():
         return selected, "selected"
@@ -173,6 +188,66 @@ def resolve_selected_kernel(cell_dir: Path, bench: str) -> tuple[Optional[Path],
     if legacy.is_file():
         return legacy, "final"
     return None, ""
+
+
+def _latency_cycles_from_result(result_path: Path) -> Optional[float]:
+    if not result_path.is_file():
+        return None
+    try:
+        data = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or data.get("success") is not True:
+        return None
+    lat = data.get("latency_cycles")
+    if lat is None:
+        return None
+    try:
+        return float(lat)
+    except (TypeError, ValueError):
+        return None
+
+
+def resolve_selected_kernel(
+    cell_dir: Path, bench: str, *, include_post_passes: bool = True
+) -> tuple[Optional[Path], str]:
+    """Return (path, role) for the flash-selected kernel source.
+
+    When `include_post_passes` is True (the default), a successful
+    latency_opt / dataflow_latency_opt output is preferred (lower
+    ``latency_cycles`` wins when both exist), then a successful pragma_opt
+    output, falling back to the base flash-selected/final kernel. Pass
+    `include_post_passes=False` when a post-pass is resolving its own seed
+    kernel, to avoid recursively preferring its own (or a later) post-pass
+    output.
+    """
+    if include_post_passes:
+        candidates: list[tuple[float, Path, str]] = []
+        for role, cpp_name, res_name in (
+            ("latency_opt", f"{bench}_latency_opt.cpp", f"{bench}_latency_opt_result.json"),
+            (
+                "dataflow_latency_opt",
+                f"{bench}_dataflow_latency_opt.cpp",
+                f"{bench}_dataflow_latency_opt_result.json",
+            ),
+        ):
+            cpp = cell_dir / cpp_name
+            res = cell_dir / res_name
+            if not (cpp.is_file() and _result_success(res)):
+                continue
+            lat = _latency_cycles_from_result(res)
+            # Missing latency sorts after numbered ones; stable by role order.
+            key = lat if lat is not None else float("inf")
+            candidates.append((key, cpp, role))
+        if candidates:
+            candidates.sort(key=lambda item: (item[0], 0 if item[2] == "dataflow_latency_opt" else 1))
+            _lat, path, role = candidates[0]
+            return path, role
+        pragma_cpp = cell_dir / f"{bench}_pragma_opt.cpp"
+        pragma_res = cell_dir / f"{bench}_pragma_opt_result.json"
+        if pragma_cpp.is_file() and _result_success(pragma_res):
+            return pragma_cpp, "pragma_opt"
+    return _resolve_flash_base_kernel(cell_dir, bench)
 
 
 def load_existing_result(result_path: Path) -> Optional[dict[str, Any]]:

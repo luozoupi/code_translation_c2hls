@@ -59,10 +59,18 @@ def _split_csv(raw: str) -> list[str]:
 
 
 def _resolve_bench_dir(bench: str) -> Path:
-    meta = BENCHMARKS_DIR / bench / "metadata.json"
-    if not meta.is_file():
-        raise ValueError(f"unknown benchmark: {bench}")
-    return BENCHMARKS_DIR / bench
+    candidates = [
+        BENCHMARKS_DIR / bench,
+        REPO / "benchmarks_autosa_dse" / bench,
+        REPO / "benchmarks_autosa" / bench,
+        REPO / "related_work/benchmarks/HLSFactory_benchmarks/chathls_ready" / bench,
+        REPO / "related_work/benchmarks/HLSFactory_benchmarks/tier_B_ready" / bench,
+        REPO / "related_work/benchmarks/HLSFactory_benchmarks/tier_A_ready" / bench,
+    ]
+    for path in candidates:
+        if (path / "metadata.json").is_file():
+            return path
+    raise ValueError(f"unknown benchmark: {bench}")
 
 
 def _preflight_llm() -> None:
@@ -134,6 +142,11 @@ def main() -> int:
         help="Run csim + csynth on existing *_dataflow.cpp (no LLM)",
     )
     parser.add_argument(
+        "--no-prepare-kernel",
+        action="store_true",
+        help="With --validate-recovered: skip workload/INTERFACE prepare rewrite",
+    )
+    parser.add_argument(
         "--no-package-results",
         action="store_true",
         help="Skip building kernel bundle + reports after the batch",
@@ -154,7 +167,114 @@ def main() -> int:
             "user_skills=rules in system, skills+task brief in user"
         ),
     )
+    parser.add_argument(
+        "--rag",
+        action="store_true",
+        help="Enable UG1399 documentation RAG (off by default). Default mode: flashopt.",
+    )
+    parser.add_argument(
+        "--rag2",
+        action="store_true",
+        help="Enable RAG2 dual-policy retrieval (incompatible with --scrape).",
+    )
+    parser.add_argument(
+        "--rag-mode",
+        choices=["flashopt", "repair", "both", "everywhere"],
+        default=None,
+        help="RAG/RAG2 injection scope. Default: flashopt (--rag) or both (--rag2).",
+    )
+    parser.add_argument(
+        "--rag-corpus",
+        type=str,
+        default=None,
+        help="RAG index directory (default: artifacts/rag/ug1399).",
+    )
+    parser.add_argument(
+        "--rag2-opt-corpus",
+        type=str,
+        default=None,
+        help="RAG2 opt index directory (default: artifacts/rag/rag2_opt).",
+    )
+    parser.add_argument(
+        "--rag2-repair-corpus",
+        type=str,
+        default=None,
+        help="RAG2 repair index directory (default: artifacts/rag/rag2_repair).",
+    )
+    parser.add_argument(
+        "--rag-top-k",
+        type=int,
+        default=None,
+        help="Number of chunks to retrieve (default: 4).",
+    )
+    parser.add_argument(
+        "--scrape",
+        action="store_true",
+        help="With --rag: analysis→keyword PDF/doc scrape before action prompts.",
+    )
+    parser.add_argument(
+        "--scrape-corpus",
+        type=str,
+        default=None,
+        help="Colon/comma-separated PDF/HTML/TXT paths for --scrape.",
+    )
     args = parser.parse_args()
+
+    if args.rag2 and args.scrape:
+        parser.error("--rag2 is incompatible with --scrape")
+    if args.scrape and not args.rag:
+        parser.error("--scrape requires --rag")
+    if args.rag_mode and not (args.rag or args.rag2):
+        parser.error("--rag-mode requires --rag or --rag2")
+    if args.rag2:
+        os.environ["C2HLS_RAG2"] = "1"
+        os.environ["C2HLS_RAG_SCRAPE"] = "0"
+        if args.rag_mode:
+            os.environ["C2HLS_RAG_MODE"] = args.rag_mode
+        if args.rag_top_k is not None:
+            os.environ["C2HLS_RAG_TOP_K"] = str(args.rag_top_k)
+        if args.rag2_opt_corpus:
+            os.environ["C2HLS_RAG2_OPT_CORPUS"] = args.rag2_opt_corpus
+        if args.rag2_repair_corpus:
+            os.environ["C2HLS_RAG2_REPAIR_CORPUS"] = args.rag2_repair_corpus
+        from c2hls_rag import load_index
+        from c2hls_rag2 import rag2_config_from_env
+
+        rag2_cfg = rag2_config_from_env(
+            enabled=True,
+            mode=args.rag_mode,
+            opt_corpus_dir=args.rag2_opt_corpus,
+            repair_corpus_dir=args.rag2_repair_corpus,
+            top_k=args.rag_top_k,
+        )
+        load_index(rag2_cfg.opt_corpus_dir)
+        load_index(rag2_cfg.repair_corpus_dir)
+    if args.rag:
+        os.environ["C2HLS_RAG"] = "1"
+        if args.rag_mode:
+            os.environ["C2HLS_RAG_MODE"] = args.rag_mode
+        if args.rag_corpus:
+            os.environ["C2HLS_RAG_CORPUS"] = args.rag_corpus
+        if args.rag_top_k is not None:
+            os.environ["C2HLS_RAG_TOP_K"] = str(args.rag_top_k)
+        if args.scrape:
+            os.environ["C2HLS_RAG_SCRAPE"] = "1"
+            if args.scrape_corpus:
+                os.environ["C2HLS_RAG_SCRAPE_CORPUS"] = args.scrape_corpus
+        from c2hls_rag import get_index, rag_config_from_env
+
+        cfg = rag_config_from_env(
+            enabled=True,
+            mode=args.rag_mode,
+            corpus_dir=args.rag_corpus,
+            top_k=args.rag_top_k,
+            scrape_enabled=args.scrape if args.scrape else None,
+            scrape_corpus=args.scrape_corpus,
+        )
+        if args.scrape and not cfg.scrape_corpus_paths:
+            parser.error("--scrape requires --scrape-corpus with existing files")
+        if not args.scrape and not args.rag2:
+            get_index(cfg)
 
     try:
         prompt_policy = resolve_prompt_policy(args.prompt_policy)
@@ -192,6 +312,9 @@ def main() -> int:
     if args.pc2:
         configure_site("pc2")
     configure_post_flash_env()
+    # Validate mode always needs cosim when requested; local.env defaults RUN_COSIM=0.
+    if args.validate_recovered:
+        os.environ["C2HLS_RUN_COSIM"] = "1"
     os.environ["C2HLS_DATAFLOW_REPAIR_ROUNDS"] = str(args.turns)
     os.environ["C2HLS_DATAFLOW_CONTRACT_ROUNDS"] = str(args.contract_turns)
     if args.no_contract_check:
@@ -376,10 +499,13 @@ def main() -> int:
         )
         print(f"report: {build_out['report_md']}", flush=True)
 
-    # Batch finished (even with per-bench failures) — exit 0 so the supervised
-    # session marks compute complete and auto-stop can scancel the GPU job.
+    # Full-batch supervised sessions exit 0 even with per-bench failures so
+    # auto-stop can scancel the GPU. Streaming single-bench runs (--benches)
+    # must return non-zero on failure so the watcher does not mark them done.
     batch_done = len(summary) == len(plan)
     if not batch_done:
+        return 1
+    if bench_filter and attempted > 0 and ok < attempted:
         return 1
     return 0
 

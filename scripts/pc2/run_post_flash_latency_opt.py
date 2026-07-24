@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Post-pass HLS pragma optimization batch runner.
+"""Post-pass constrained latency optimization batch runner.
 
-Runs after flash-final or DATAFLOW kernels pass csim+csynth. Injects the curated
-Vitis HLS 2023.2 pragma guide into the LLM prompt.
+Runs after flash-final or DATAFLOW kernels pass csim+csynth. Uses analysis-guided
+plan→modify rounds with trajectory tracking and a hard device budget.
 
 Example::
 
-    python3 scripts/pc2/run_post_flash_pragma_opt.py --pc2 \\
+    python3 scripts/pc2/run_post_flash_latency_opt.py --pc2 \\
         --matrix-root artifacts/pc2/flash_all_new_skills_avoids_global_20260623_024548 \\
         --source flash_final --dry-run
 
-    python3 scripts/pc2/run_post_flash_pragma_opt.py --pc2 \\
+    python3 scripts/pc2/run_post_flash_latency_opt.py --pc2 \\
         --matrix-root artifacts/pc2/flash_all_new_skills_avoids_global_20260623_024548 \\
         --source dataflow --benches hlsfactory_gemm
 """
@@ -31,15 +31,16 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scripts" / "pc2"))
 
 from c2hls_paths import BENCHMARKS_DIR, configure_site
-from post_flash_pragma_opt import (
+from post_flash_latency_opt import (
     SOURCE_ROLES,
     SourceRole,
     configure_post_flash_env,
     discover_matrix_cells,
+    latency_round_limit,
     prompt_text_for_docs,
     repair_round_limit,
-    resolve_source_kernel,
-    run_pragma_opt_for_cell,
+    resolve_latency_source_kernel,
+    run_latency_opt_for_cell,
 )
 
 
@@ -69,7 +70,7 @@ def _preflight_llm() -> None:
     base = os.getenv("OPENAI_BASE_URL", "").strip().rstrip("/")
     if not base:
         raise RuntimeError(
-            "OPENAI_BASE_URL is not set. Submit with ./scripts/pc2/start_post_flash_pragma_opt.sh "
+            "OPENAI_BASE_URL is not set. Submit with ./scripts/pc2/start_post_flash_latency_opt.sh "
             "--submit or export OPENAI_BASE_URL."
         )
     api_key = os.getenv("OPENAI_API_KEY", "EMPTY")
@@ -87,7 +88,7 @@ def _preflight_llm() -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Post-pass HLS pragma optimization")
+    parser = argparse.ArgumentParser(description="Post-pass constrained latency optimization")
     parser.add_argument("--pc2", action="store_true", help="PC2 site paths + vLLM")
     parser.add_argument("--matrix-root", type=str, default="")
     parser.add_argument("--benches", type=str, default="", help="Comma-separated filter")
@@ -99,7 +100,18 @@ def main() -> int:
         help="Input kernel: flash_final (selected/final) or dataflow (passing *_dataflow.cpp)",
     )
     parser.add_argument("--model", type=str, default=os.getenv("C2HLS_MODEL", ""))
-    parser.add_argument("--turns", type=int, default=repair_round_limit())
+    parser.add_argument(
+        "--rounds",
+        type=int,
+        default=0,
+        help="Latency improvement rounds N (default: env C2HLS_LATENCY_OPT_ROUNDS or 3)",
+    )
+    parser.add_argument(
+        "--turns",
+        type=int,
+        default=repair_round_limit(),
+        help="Repair rounds R per failed validation (default: env or 3)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force", action="store_true", help="Re-run even if result exists")
     parser.add_argument("--show-prompts", action="store_true", help="Print prompts and exit")
@@ -107,13 +119,16 @@ def main() -> int:
 
     if args.show_prompts:
         prompts = prompt_text_for_docs()
-        print("=== SYSTEM ===\n")
-        print(prompts["system"])
-        print("\n=== INITIAL USER (template) ===\n")
-        print(prompts["initial_user"])
+        print("=== PLAN SYSTEM ===\n")
+        print(prompts["plan_system"])
+        print("\n=== PLAN USER (template) ===\n")
+        print(prompts["plan_user"])
+        print("\n=== MODIFY SYSTEM ===\n")
+        print(prompts["modify_system"])
+        print("\n=== MODIFY USER (template) ===\n")
+        print(prompts["modify_user"])
         print("\n=== REPAIR USER (template) ===\n")
         print(prompts["repair_user"])
-        print(f"\npragma guide: {prompts['pragma_guide_path']}")
         return 0
 
     if not args.matrix_root.strip():
@@ -123,8 +138,10 @@ def main() -> int:
     if args.pc2:
         configure_site("pc2")
     configure_post_flash_env()
-    os.environ["C2HLS_POST_FLASH_PRAGMA_OPT"] = "1"
-    os.environ["C2HLS_PRAGMA_OPT_REPAIR_ROUNDS"] = str(args.turns)
+    os.environ["C2HLS_POST_FLASH_LATENCY_OPT"] = "1"
+    os.environ["C2HLS_LATENCY_OPT_REPAIR_ROUNDS"] = str(args.turns)
+    if args.rounds > 0:
+        os.environ["C2HLS_LATENCY_OPT_ROUNDS"] = str(args.rounds)
 
     matrix_root = Path(args.matrix_root).expanduser()
     if not matrix_root.is_absolute():
@@ -143,7 +160,7 @@ def main() -> int:
     for cell in cells:
         bench = cell["bench"]
         cell_dir = Path(cell["cell_dir"])
-        kpath, role, _ = resolve_source_kernel(cell_dir, bench, source_role)
+        kpath, role, _ = resolve_latency_source_kernel(cell_dir, bench, source_role)
         plan.append({
             "bench": bench,
             "cell_dir": str(cell_dir),
@@ -153,10 +170,11 @@ def main() -> int:
         })
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    plan_path = matrix_root / f"post_flash_pragma_opt_plan_{source_role}_{stamp}.json"
+    plan_path = matrix_root / f"post_flash_latency_opt_plan_{source_role}_{stamp}.json"
     plan_path.write_text(json.dumps({
         "matrix_root": str(matrix_root),
         "source_role": source_role,
+        "latency_rounds": latency_round_limit(),
         "repair_rounds": repair_round_limit(),
         "cells": plan,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -185,7 +203,7 @@ def main() -> int:
         print(f"START {bench} ({source_role})", flush=True)
         t0 = time.time()
         try:
-            outcome = run_pragma_opt_for_cell(
+            outcome = run_latency_opt_for_cell(
                 bench=bench,
                 bench_dir=_resolve_bench_dir(bench),
                 cell_dir=Path(row["cell_dir"]),
@@ -208,7 +226,7 @@ def main() -> int:
         })
         print(f"DONE {bench} elapsed={elapsed}s success={outcome.success}", flush=True)
 
-    out_summary = matrix_root / f"post_flash_pragma_opt_summary_{source_role}_{stamp}.json"
+    out_summary = matrix_root / f"post_flash_latency_opt_summary_{source_role}_{stamp}.json"
     out_summary.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(f"summary: {out_summary}")
     ok = sum(1 for row in summary if row.get("success"))

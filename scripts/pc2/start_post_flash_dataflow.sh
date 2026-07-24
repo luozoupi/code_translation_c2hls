@@ -101,6 +101,9 @@ if [[ "${SUBMIT}" -eq 1 ]]; then
     STOP_ARGS=(--auto-stop-on-complete)
     pc2_log "GPU policy: scancel dedicated gpu job when worker finishes (delay via PC2_AUTO_STOP_DELAY_SEC)"
   fi
+  # Never let a parent campaign root remount the GPU endpoint path away from
+  # this session (gpu_serve used to write under BATCH_PARALLEL_CAMPAIGN_ROOT).
+  unset BATCH_PARALLEL_CAMPAIGN_ROOT || true
   exec "${SCRIPT_DIR}/start_session.sh" \
     --session-id "${SESSION_ID}" \
     --worker-cmd "${WORKER_CMD}" \

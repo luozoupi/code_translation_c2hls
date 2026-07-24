@@ -47,6 +47,92 @@ def test_resolve_selected_kernel_prefers_selected():
         assert role == "selected"
 
 
+def test_resolve_prefers_latency_opt(tmp_path):
+    from post_flash_mem_parallel import resolve_selected_kernel
+    bench = "atax"
+    (tmp_path / f"{bench}_selected.cpp").write_text("selected", encoding="utf-8")
+    (tmp_path / f"{bench}_latency_opt.cpp").write_text("opt", encoding="utf-8")
+    (tmp_path / f"{bench}_latency_opt_result.json").write_text(
+        '{"success": true}', encoding="utf-8"
+    )
+    path, role = resolve_selected_kernel(tmp_path, bench)
+    assert path.name == f"{bench}_latency_opt.cpp"
+    assert role == "latency_opt"
+
+
+def test_resolve_include_post_passes_false_returns_selected(tmp_path):
+    from post_flash_mem_parallel import resolve_selected_kernel
+    bench = "atax"
+    (tmp_path / f"{bench}_selected.cpp").write_text("selected", encoding="utf-8")
+    (tmp_path / f"{bench}_latency_opt.cpp").write_text("opt", encoding="utf-8")
+    (tmp_path / f"{bench}_latency_opt_result.json").write_text(
+        '{"success": true}', encoding="utf-8"
+    )
+    path, role = resolve_selected_kernel(tmp_path, bench, include_post_passes=False)
+    assert path.name == f"{bench}_selected.cpp"
+    assert role == "selected"
+
+
+def test_resolve_prefers_pragma_opt_over_base(tmp_path):
+    from post_flash_mem_parallel import resolve_selected_kernel
+    bench = "atax"
+    (tmp_path / f"{bench}_selected.cpp").write_text("selected", encoding="utf-8")
+    (tmp_path / f"{bench}_pragma_opt.cpp").write_text("pragma", encoding="utf-8")
+    (tmp_path / f"{bench}_pragma_opt_result.json").write_text(
+        '{"success": true}', encoding="utf-8"
+    )
+    path, role = resolve_selected_kernel(tmp_path, bench)
+    assert path.name == f"{bench}_pragma_opt.cpp"
+    assert role == "pragma_opt"
+
+
+def test_resolve_ignores_failed_latency_opt_result(tmp_path):
+    from post_flash_mem_parallel import resolve_selected_kernel
+    bench = "atax"
+    (tmp_path / f"{bench}_selected.cpp").write_text("selected", encoding="utf-8")
+    (tmp_path / f"{bench}_latency_opt.cpp").write_text("opt", encoding="utf-8")
+    (tmp_path / f"{bench}_latency_opt_result.json").write_text(
+        '{"success": false}', encoding="utf-8"
+    )
+    path, role = resolve_selected_kernel(tmp_path, bench)
+    assert path.name == f"{bench}_selected.cpp"
+    assert role == "selected"
+
+
+def test_resolve_prefers_dataflow_latency_opt_when_better(tmp_path):
+    from post_flash_mem_parallel import resolve_selected_kernel
+    bench = "atax"
+    (tmp_path / f"{bench}_selected.cpp").write_text("selected", encoding="utf-8")
+    (tmp_path / f"{bench}_latency_opt.cpp").write_text("flash_opt", encoding="utf-8")
+    (tmp_path / f"{bench}_latency_opt_result.json").write_text(
+        '{"success": true, "latency_cycles": 5000}', encoding="utf-8"
+    )
+    (tmp_path / f"{bench}_dataflow_latency_opt.cpp").write_text("df_opt", encoding="utf-8")
+    (tmp_path / f"{bench}_dataflow_latency_opt_result.json").write_text(
+        '{"success": true, "latency_cycles": 1828}', encoding="utf-8"
+    )
+    path, role = resolve_selected_kernel(tmp_path, bench)
+    assert path.name == f"{bench}_dataflow_latency_opt.cpp"
+    assert role == "dataflow_latency_opt"
+
+
+def test_resolve_prefers_lower_flash_latency_opt(tmp_path):
+    from post_flash_mem_parallel import resolve_selected_kernel
+    bench = "atax"
+    (tmp_path / f"{bench}_selected.cpp").write_text("selected", encoding="utf-8")
+    (tmp_path / f"{bench}_latency_opt.cpp").write_text("flash_opt", encoding="utf-8")
+    (tmp_path / f"{bench}_latency_opt_result.json").write_text(
+        '{"success": true, "latency_cycles": 1000}', encoding="utf-8"
+    )
+    (tmp_path / f"{bench}_dataflow_latency_opt.cpp").write_text("df_opt", encoding="utf-8")
+    (tmp_path / f"{bench}_dataflow_latency_opt_result.json").write_text(
+        '{"success": true, "latency_cycles": 2000}', encoding="utf-8"
+    )
+    path, role = resolve_selected_kernel(tmp_path, bench)
+    assert path.name == f"{bench}_latency_opt.cpp"
+    assert role == "latency_opt"
+
+
 def test_discover_matrix_cells_from_json():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -67,5 +153,11 @@ if __name__ == "__main__":
     test_extract_labeled_cpp_blocks()
     test_extract_labeled_kernel_only()
     test_resolve_selected_kernel_prefers_selected()
+    test_resolve_prefers_latency_opt(Path(tempfile.mkdtemp()))
+    test_resolve_include_post_passes_false_returns_selected(Path(tempfile.mkdtemp()))
+    test_resolve_prefers_pragma_opt_over_base(Path(tempfile.mkdtemp()))
+    test_resolve_ignores_failed_latency_opt_result(Path(tempfile.mkdtemp()))
+    test_resolve_prefers_dataflow_latency_opt_when_better(Path(tempfile.mkdtemp()))
+    test_resolve_prefers_lower_flash_latency_opt(Path(tempfile.mkdtemp()))
     test_discover_matrix_cells_from_json()
     print("test_post_flash_mem_parallel: ok")

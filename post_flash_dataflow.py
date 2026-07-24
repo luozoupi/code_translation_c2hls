@@ -343,6 +343,12 @@ def repair_round_limit() -> int:
         return DEFAULT_REPAIR_ROUNDS
 
 
+def dataflow_noskills_enabled() -> bool:
+    return os.getenv("C2HLS_DATAFLOW_NO_SKILLS", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
 def resolve_dataflow_skills_path() -> Path:
     """Skill file for DATAFLOW refactor (default: flash overlay JSON)."""
     from c2hls_paths import FLASH_NO_RMW_M_AXI_SKILL_ENTRIES_JSON
@@ -381,6 +387,21 @@ def build_dataflow_skills_prompt_block(
     path: Optional[Path] = None,
 ) -> tuple[str, dict[str, Any]]:
     """Load flash skill entries and render them for the DATAFLOW system prompt."""
+    if dataflow_noskills_enabled():
+        block = (
+            "## No packaged skills (RAG-only / noskills mode)\n\n"
+            "**DATAFLOW step rule:** always emit `#pragma HLS DATAFLOW` with static "
+            "load/compute/store tasks, distinct `gmemN` per port when needed, "
+            "`hls::stream` / ping-pong for overlap, and single-writer/single-reader locals.\n"
+        )
+        meta: dict[str, Any] = {
+            "skills_path": None,
+            "skill_count": 0,
+            "skill_ids": [],
+            "noskills": True,
+        }
+        return block, meta
+
     from skill_library import (
         SkillLibrary,
         _load_packaged_skills,
@@ -409,7 +430,7 @@ def build_dataflow_skills_prompt_block(
         f"Source: {skills_path.name} ({len(skills)} skills)\n\n"
     )
     body = "\n\n".join(render_skill_for_prompt(sk) for sk in skills)
-    meta: dict[str, Any] = {
+    meta = {
         "skills_path": str(skills_path),
         "skill_count": len(skills),
         "skill_ids": [sk.id for sk in skills],
@@ -483,6 +504,142 @@ def compose_dataflow_prompts(
     )
 
 
+def _prepend_scrape(prompt: str, scrape_block: str) -> str:
+    if not scrape_block:
+        return prompt
+    return scrape_block.rstrip() + "\n\n" + prompt.lstrip()
+
+
+def _rag2_enabled_for_dataflow() -> bool:
+    try:
+        from c2hls_rag2 import rag2_config_from_env, rag2_enabled_for_stage
+
+        return rag2_enabled_for_stage("dataflow", rag2_config_from_env())
+    except Exception:
+        return False
+
+
+def _scrape_enabled_for_dataflow() -> bool:
+    if _rag2_enabled_for_dataflow():
+        return True
+    from c2hls_rag import rag_config_from_env, should_inject
+
+    cfg = rag_config_from_env()
+    return bool(cfg.enabled and cfg.scrape_enabled and should_inject(cfg.mode, "dataflow"))
+
+
+def _scrape_cache_dir() -> Path:
+    repo = Path(__file__).resolve().parent
+    return Path(os.environ.get("C2HLS_TMP_ROOT", str(repo / "c2hls_tmp"))) / "rag_scrape_cache"
+
+
+def _load_flash_latency_summary(cell_dir: Path, bench: str) -> str:
+    candidates = [
+        cell_dir / "selected" / "synth_report.json",
+        cell_dir / f"{bench}_report.json",
+        cell_dir / "synth_report.json",
+    ]
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                from c2hls import format_report_summary
+
+                return format_report_summary(data)
+        except Exception:
+            try:
+                return path.read_text(encoding="utf-8")[:8000]
+            except Exception:
+                pass
+    return "(no latency report)"
+
+
+def _prepare_dataflow_scrape(
+    orchestrator: Any,
+    *,
+    code: str,
+    analysis_kind: str,
+    errors: str = "",
+    latency_report: str = "",
+) -> str:
+    def llm_call(messages):
+        return orchestrator._call_llm(messages, max_tokens=400)
+
+    if _rag2_enabled_for_dataflow():
+        try:
+            from c2hls_rag2 import rag2_config_from_env, retrieve_for_stage_rag2
+
+            cfg = rag2_config_from_env()
+            dataflow_repair = analysis_kind == "repair"
+            block = retrieve_for_stage_rag2(
+                cfg,
+                "dataflow",
+                code=code,
+                error=errors,
+                latency_report=latency_report,
+                llm_call=llm_call,
+                dataflow_repair=dataflow_repair,
+            )
+            if block:
+                import logging
+
+                logging.info("RAG2 dataflow %s chars=%d", analysis_kind, len(block))
+            return block
+        except Exception:
+            return ""
+
+    try:
+        from c2hls_rag import rag_config_from_env
+        from c2hls_rag_scrape import prepare_scrape_block
+
+        cfg = rag_config_from_env()
+        if not cfg.scrape_enabled or not cfg.scrape_corpus_paths:
+            return ""
+
+        block, kws = prepare_scrape_block(
+            llm_call=llm_call,
+            analysis_kind=analysis_kind,
+            code=code,
+            errors=errors,
+            latency_report=latency_report,
+            corpus_paths=list(cfg.scrape_corpus_paths),
+            cache_dir=_scrape_cache_dir(),
+        )
+        if kws:
+            import logging
+
+            logging.info("RAG scrape dataflow %s keywords=%s chars=%d", analysis_kind, kws, len(block))
+        return block
+    except Exception:
+        return ""
+
+
+def _append_dataflow_rag(text: str, query: str) -> str:
+    try:
+        if _rag2_enabled_for_dataflow():
+            from c2hls_rag2 import rag2_config_from_env, retrieve_rag2
+
+            cfg = rag2_config_from_env()
+            block = retrieve_rag2(cfg, policy="opt", query=query)
+            if block:
+                return _prepend_scrape(text, block)
+            return text
+
+        from c2hls_rag import rag_config_from_env, retrieve_for_stage
+
+        cfg = rag_config_from_env()
+        if cfg.scrape_enabled:
+            return text
+        block = retrieve_for_stage(cfg, "dataflow", query)
+    except Exception:
+        return text
+    if not block:
+        return text
+    return text.rstrip() + "\n\n" + block
+
+
 def format_dataflow_initial_user(
     bundle: DataflowPromptBundle,
     *,
@@ -500,7 +657,8 @@ def format_dataflow_initial_user(
     }
     if bundle.prompt_policy == "user_skills":
         kwargs["skills_block"] = skills_block
-    return bundle.initial_user_template.format(**kwargs)
+    text = bundle.initial_user_template.format(**kwargs)
+    return _append_dataflow_rag(text, kwargs.get("kernel_code", "")[:4000])
 
 
 def format_dataflow_repair_user(
@@ -524,7 +682,9 @@ def format_dataflow_repair_user(
     }
     if bundle.prompt_policy == "user_skills":
         kwargs["skills_block"] = skills_block
-    return bundle.repair_user_template.format(**kwargs)
+    text = bundle.repair_user_template.format(**kwargs)
+    q = (kwargs.get("error", "") + "\n" + kwargs.get("kernel_code", ""))[:6000]
+    return _append_dataflow_rag(text, q)
 
 
 def compose_dataflow_system_prompt(
@@ -707,8 +867,9 @@ def run_dataflow_for_cell(
         _run_synth_csim_cosim,
         compile_check_cpp,
     )
-    from c2hls_temp import join_temp_tag
+    from c2hls_temp import join_temp_tag, set_temp_bench
 
+    set_temp_bench(bench)
     inputs = _load_benchmark_inputs(str(bench_dir))
     kernel_path, kernel_role = resolve_selected_kernel(cell_dir, bench)
     if kernel_path is None:
@@ -742,6 +903,7 @@ def run_dataflow_for_cell(
     prompt_bundle = compose_dataflow_prompts(prompt_policy)
     system = prompt_bundle.system_prompt
     skills_meta = prompt_bundle.skills_meta
+    latency_summary = _load_flash_latency_summary(cell_dir, bench)
     user = format_dataflow_initial_user(
         prompt_bundle,
         benchmark_context=benchmark_context,
@@ -749,6 +911,14 @@ def run_dataflow_for_cell(
         header_code=header_code,
         kernel_code=selected_kernel,
     )
+    if _scrape_enabled_for_dataflow():
+        scrape = _prepare_dataflow_scrape(
+            orchestrator,
+            code=selected_kernel,
+            analysis_kind="latency",
+            latency_report=latency_summary,
+        )
+        user = _prepend_scrape(user, scrape)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
@@ -848,6 +1018,9 @@ def run_dataflow_for_cell(
                     stage = "testbench"
                 else:
                     tag = join_temp_tag(bench, STEP_TAG, f"a{attempt}")
+                    run_cosim = os.getenv("C2HLS_RUN_COSIM", "0").strip().lower() in {
+                        "1", "true", "yes", "on",
+                    }
                     outcome = _run_synth_csim_cosim(
                         kernel_code,
                         header_code=header_code,
@@ -858,12 +1031,14 @@ def run_dataflow_for_cell(
                         extra_files=extra_files,
                         testbench_code=testbench_code,
                         run_csim_check=True,
-                        run_cosim_check=False,
+                        run_cosim_check=run_cosim,
+                        cosim_depths=meta.get("cosim_depths") or {},
                         log_prefix="[dataflow]",
                         temp_tag=tag,
                     )
                     synth = outcome.get("synth") or {}
                     csim_summary = outcome.get("csim")
+                    cosim_summary = outcome.get("cosim")
                     stage = "csynth"
                     if synth.get("success"):
                         csim_pass = (
@@ -871,12 +1046,18 @@ def run_dataflow_for_cell(
                             or csim_summary.get("passed")
                             or csim_summary.get("status") == "passed"
                         )
-                        if csim_pass:
-                            success = True
-                            synth_report = synth.get("report") or {}
-                        else:
+                        if not csim_pass:
                             attempt_error = (csim_summary or {}).get("error") or "csim failed"
                             stage = "csim"
+                        elif run_cosim and cosim_summary is not None and not (
+                            cosim_summary.get("passed")
+                            or cosim_summary.get("status") == "passed"
+                        ):
+                            attempt_error = (cosim_summary or {}).get("error") or "cosim failed"
+                            stage = "cosim"
+                        else:
+                            success = True
+                            synth_report = synth.get("report") or {}
                     else:
                         attempt_error = synth.get("error") or "csynth failed"
 
@@ -901,6 +1082,14 @@ def run_dataflow_for_cell(
                 header_code=header_code,
                 kernel_code=kernel_code,
             )
+            if _scrape_enabled_for_dataflow():
+                scrape = _prepare_dataflow_scrape(
+                    orchestrator,
+                    code=kernel_code,
+                    analysis_kind="repair",
+                    errors=attempt_error,
+                )
+                repair_user = _prepend_scrape(repair_user, scrape)
             repair_messages = [
                 {"role": "system", "content": system},
                 {"role": "user", "content": repair_user},
@@ -977,6 +1166,27 @@ def run_dataflow_for_cell(
                 json.dumps(result_payload, indent=2, default=str) + "\n",
                 encoding="utf-8",
             )
+
+        from post_flash_latency_opt import maybe_chain_latency_opt
+
+        latency_outcome = maybe_chain_latency_opt(
+            bench=bench,
+            bench_dir=bench_dir,
+            cell_dir=cell_dir,
+            orchestrator=orchestrator,
+            source_role="dataflow",
+            skip_existing=True,
+        )
+        if latency_outcome is not None:
+            result_payload["latency_opt_chain"] = {
+                "success": latency_outcome.success,
+                "error": latency_outcome.error,
+                "result": latency_outcome.result,
+            }
+            paths["result"].write_text(
+                json.dumps(result_payload, indent=2, default=str) + "\n",
+                encoding="utf-8",
+            )
     return DataflowOutcome(bench, success, str(cell_dir), last_error, result_payload)
 
 
@@ -1000,6 +1210,21 @@ def configure_post_flash_env() -> None:
     os.environ.setdefault("C2HLS_RUN_COSIM", "0")
     os.environ.setdefault("C2HLS_COSIM_REQUIRED", "0")
     os.environ.setdefault("C2HLS_REFERENCE_COSIM", "0")
+    matrix = (
+        os.environ.get("C2HLS_POST_FLASH_MATRIX_ROOT")
+        or os.environ.get("BATCH_PARALLEL_CAMPAIGN_ROOT")
+        or ""
+    ).strip()
+    if matrix and not os.environ.get("C2HLS_TMP_RUN", "").strip():
+        run_slug = Path(matrix).name
+        if run_slug:
+            os.environ["C2HLS_TMP_RUN"] = run_slug
+    if dataflow_noskills_enabled():
+        os.environ.pop("C2HLS_DATAFLOW_SKILL_ENTRIES_JSON", None)
+        os.environ.pop("C2HLS_FLASH_SKILL_ENTRIES_JSON", None)
+        os.environ.pop("C2HLS_PACKAGED_SKILLS_JSON", None)
+        os.environ.pop("C2HLS_PACKAGED_SKILLS_ONLY", None)
+        return
     skills_path = resolve_dataflow_skills_path()
     errors = validate_dataflow_skill_entries(skills_path)
     if errors:
@@ -1112,6 +1337,7 @@ def validate_recovered_dataflow_cell(
     success = False
     synth_report: dict[str, Any] = {}
     csim_summary: Optional[dict[str, Any]] = None
+    cosim_summary: Optional[dict[str, Any]] = None
 
     ok, err = compile_check_cpp(
         kernel_code,
@@ -1136,12 +1362,13 @@ def validate_recovered_dataflow_cell(
             extra_files=extra_files,
             testbench_code=testbench_code,
             run_csim_check=True,
-            run_cosim_check=False,
+            run_cosim_check=True,  # validate mode always runs cosim (user request)
             log_prefix="[dataflow-validate]",
             temp_tag=tag,
         )
         synth = outcome.get("synth") or {}
         csim_summary = outcome.get("csim")
+        cosim_summary = outcome.get("cosim")
         stage = "csynth"
         if synth.get("success"):
             csim_pass = (
@@ -1150,8 +1377,22 @@ def validate_recovered_dataflow_cell(
                 or csim_summary.get("status") == "passed"
             )
             if csim_pass:
-                success = True
-                synth_report = synth.get("report") or {}
+                run_cosim = True
+                if cosim_summary is None:
+                    cosim_pass = False
+                    last_error = "cosim was not run"
+                    stage = "cosim"
+                else:
+                    cosim_pass = bool(
+                        cosim_summary.get("passed")
+                        or cosim_summary.get("status") == "passed"
+                    )
+                if cosim_pass:
+                    success = True
+                    synth_report = synth.get("report") or {}
+                else:
+                    last_error = (cosim_summary or {}).get("error") or "cosim failed"
+                    stage = "cosim"
             else:
                 last_error = (csim_summary or {}).get("error") or "csim failed"
                 stage = "csim"
@@ -1171,6 +1412,7 @@ def validate_recovered_dataflow_cell(
         "prepare": prep_meta,
         "synth_report": synth_report,
         "csim": csim_summary,
+        "cosim": cosim_summary,
         "latency_cycles": synth_report.get("latency_cycles"),
         "finished_at": datetime.now(timezone.utc).isoformat(),
     }

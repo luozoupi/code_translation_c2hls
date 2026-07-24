@@ -1,0 +1,55 @@
+{
+  "benchmark": "chathls_transformer",
+  "source_repo": "ChatHLS-ACL-26",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/transformer/transformer.cpp",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/transformer/transformer.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "hls_baseline.cpp",
+  "header_file": "transformer.h",
+  "baseline_variant": "chathls_transformer_baseline",
+  "translated_hls_top": "transformer",
+  "hls_top": "transformer",
+  "testbench_file": "testbench.cpp",
+  "support_files": [
+    "DRAM_FF_weights_1.txt",
+    "DRAM_FF_weights_2.txt",
+    "DRAM_attn_input.txt",
+    "DRAM_layer_norm_weights_1.txt",
+    "DRAM_layer_norm_weights_2.txt",
+    "DRAM_output.txt",
+    "DRAM_weights_k.txt",
+    "DRAM_weights_q.txt",
+    "DRAM_weights_v.txt"
+  ],
+  "variants": [
+    {
+      "name": "chathls_transformer_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/transformer/transformer.cpp"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {
+    "DRAM_attn_input": 256,
+    "DRAM_weights_q": 1024,
+    "DRAM_weights_k": 1024,
+    "DRAM_weights_v": 1024,
+    "DRAM_layer_norm_weights_1": 64,
+    "DRAM_FF_weights_1": 4096,
+    "DRAM_FF_weights_2": 4096,
+    "DRAM_layer_norm_weights_2": 64,
+    "DRAM_output": 256
+  },
+  "cosim_harness": "vitis_hls_c_rtl",
+  "preferred_gt_file": "hls_baseline.cpp",
+  "chathls_source_dir": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/transformer",
+  "plain_c_file": "plain.cpp",
+  "kernel_top": "transformer",
+  "cosim_required": false,
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "smoke_testbench": true,
+  "extern_c_top": true
+}

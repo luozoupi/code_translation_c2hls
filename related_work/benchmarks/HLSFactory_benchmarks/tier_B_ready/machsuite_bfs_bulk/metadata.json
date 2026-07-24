@@ -1,0 +1,77 @@
+{
+  "benchmark": "machsuite_bfs_bulk",
+  "source_repo": "HLSFactory_tier_B",
+  "dataset": "machsuite",
+  "design": "bfs_bulk",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_B/machsuite/bfs_bulk/bfs.c",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_B/machsuite/bfs_bulk/bfs.c",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "bfs.c",
+  "header_file": "bfs.h",
+  "baseline_variant": "machsuite_bfs_bulk_0_baseline",
+  "translated_hls_top": "bfs",
+  "hls_top": "bfs",
+  "kernel_top": "bfs",
+  "testbench_file": "testbench.cpp",
+  "support_files": [
+    "support.c",
+    "local_support.c",
+    "input.data",
+    "check.data"
+  ],
+  "include_dirs": [],
+  "variants": [
+    {
+      "name": "machsuite_bfs_bulk_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_B/machsuite/bfs_bulk/bfs.c"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {},
+  "cosim_harness": "vitis_hls_c_rtl",
+  "preferred_gt_file": "hls_baseline.cpp",
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "skip_phase_a": false,
+  "strip_report": {
+    "removed_hls_pragmas": 0,
+    "removed_accel_pragmas": 0,
+    "removed_pragma_hls_macros": 0,
+    "removed_vpragma_hls": 0,
+    "removed_pragma_macro_defines": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "removed_hls_artifact_comment_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "a5478036548e5811c0571f95bbc69a36d47bb0d230ac8391103c8aa69013f435",
+    "gold_hls_baseline_sha256": "a5478036548e5811c0571f95bbc69a36d47bb0d230ac8391103c8aa69013f435",
+    "plain_c_sha256": "c5e5502f24e69538df533e05377b250fc30c2aeeef4c81717267a446b25e7471",
+    "plain_derived_from_gold_hls": true
+  },
+  "parsed_defines": {
+    "MAX_N_EDGES": "158",
+    "SCALE": "8",
+    "EDGE_FACTOR": "16",
+    "N_NODES": "(1LL<<SCALE)",
+    "N_EDGES": "(N_NODES*EDGE_FACTOR)",
+    "N_LEVELS": "10",
+    "MAX_LEVEL": "INT8_MAX",
+    "SECTION_TERMINATED": "-1",
+    "__PRNG_H__": "#include <stdlib.h>",
+    "LAG1": "(UINT16_C(24))",
+    "LAG2": "(UINT16_C(55))",
+    "RAND_SSIZE": "((UINT16_C(1))<<6)",
+    "RAND_SMASK": "(RAND_SSIZE-1)",
+    "RAND_EXHAUST_LIMIT": "LAG2",
+    "RAND_REFILL_COUNT": "((LAG2*10)-RAND_EXHAUST_LIMIT)",
+    "PRNG_RAND_MAX": "UINT64_MAX"
+  }
+}

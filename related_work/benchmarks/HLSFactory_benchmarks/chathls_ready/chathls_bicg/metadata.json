@@ -1,0 +1,41 @@
+{
+  "benchmark": "chathls_bicg",
+  "source_repo": "ChatHLS-ACL-26",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/bicg/bicg.cpp",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/bicg/bicg.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "hls_baseline.cpp",
+  "header_file": null,
+  "baseline_variant": "chathls_bicg_baseline",
+  "translated_hls_top": "bicg",
+  "hls_top": "bicg",
+  "testbench_file": "testbench.cpp",
+  "support_files": [],
+  "variants": [
+    {
+      "name": "chathls_bicg_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/bicg/bicg.cpp"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {
+    "A": 1596,
+    "s": 38,
+    "q": 42,
+    "p": 38,
+    "r": 42
+  },
+  "cosim_harness": "vitis_hls_c_rtl",
+  "preferred_gt_file": "hls_baseline.cpp",
+  "chathls_source_dir": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/bicg",
+  "plain_c_file": "plain.cpp",
+  "kernel_top": "bicg",
+  "cosim_required": false,
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "smoke_testbench": true,
+  "extern_c_top": true
+}

@@ -1,0 +1,74 @@
+{
+  "benchmark": "machsuite_viterbi",
+  "source_repo": "HLSFactory_tier_B",
+  "dataset": "machsuite",
+  "design": "viterbi",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_B/machsuite/viterbi/viterbi.c",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_B/machsuite/viterbi/viterbi.c",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "viterbi.c",
+  "header_file": "viterbi.h",
+  "baseline_variant": "machsuite_viterbi_0_baseline",
+  "translated_hls_top": "viterbi",
+  "hls_top": "viterbi",
+  "kernel_top": "viterbi",
+  "testbench_file": "testbench.cpp",
+  "support_files": [
+    "support.c",
+    "local_support.c",
+    "input.data",
+    "check.data"
+  ],
+  "include_dirs": [],
+  "variants": [
+    {
+      "name": "machsuite_viterbi_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_B/machsuite/viterbi/viterbi.c"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {},
+  "cosim_harness": "vitis_hls_c_rtl",
+  "preferred_gt_file": "hls_baseline.cpp",
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "skip_phase_a": false,
+  "strip_report": {
+    "removed_hls_pragmas": 0,
+    "removed_accel_pragmas": 0,
+    "removed_pragma_hls_macros": 0,
+    "removed_vpragma_hls": 0,
+    "removed_pragma_macro_defines": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "removed_hls_artifact_comment_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "9864b6c75c127650318d658066e24bd003a9b5ad3923696e824543db12cf16ce",
+    "gold_hls_baseline_sha256": "9864b6c75c127650318d658066e24bd003a9b5ad3923696e824543db12cf16ce",
+    "plain_c_sha256": "4949604cfca4cb55d0ad66ba0f506a397bf31153fb372894877e9c06a5bc58df",
+    "plain_derived_from_gold_hls": true
+  },
+  "parsed_defines": {
+    "TYPE": "double",
+    "N_STATES": "64",
+    "N_OBS": "140",
+    "N_TOKENS": "64",
+    "SECTION_TERMINATED": "-1",
+    "__PRNG_H__": "#include <stdlib.h>",
+    "LAG1": "(UINT16_C(24))",
+    "LAG2": "(UINT16_C(55))",
+    "RAND_SSIZE": "((UINT16_C(1))<<6)",
+    "RAND_SMASK": "(RAND_SSIZE-1)",
+    "RAND_EXHAUST_LIMIT": "LAG2",
+    "RAND_REFILL_COUNT": "((LAG2*10)-RAND_EXHAUST_LIMIT)",
+    "PRNG_RAND_MAX": "UINT64_MAX"
+  }
+}

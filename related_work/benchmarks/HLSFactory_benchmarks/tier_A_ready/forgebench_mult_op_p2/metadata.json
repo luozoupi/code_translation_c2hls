@@ -1,0 +1,67 @@
+{
+  "benchmark": "forgebench_mult_op_p2",
+  "source_repo": "HLSFactory_tier_A",
+  "dataset": "forgebench",
+  "design": "mult_op_p2",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/mult_op_p2/top.cpp",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/mult_op_p2/top.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "top.cpp",
+  "header_file": "top.h",
+  "baseline_variant": "forgebench_mult_op_p2_0_baseline",
+  "translated_hls_top": "top",
+  "hls_top": "top",
+  "kernel_top": "top",
+  "testbench_file": "testbench.cpp",
+  "support_files": [
+    "support/DRAM_1.txt",
+    "support/DRAM_2.txt",
+    "support/DRAM_3.txt",
+    "support/DRAM_4.txt"
+  ],
+  "include_dirs": [
+    "support"
+  ],
+  "variants": [
+    {
+      "name": "forgebench_mult_op_p2_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/mult_op_p2/top.cpp"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {
+    "DRAM_1": 1024,
+    "DRAM_2": 64,
+    "DRAM_3": 16,
+    "DRAM_4": 16
+  },
+  "cosim_harness": "vitis_hls_c_rtl",
+  "preferred_gt_file": "hls_baseline.cpp",
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "skip_phase_a": false,
+  "strip_report": {
+    "removed_hls_pragmas": 11,
+    "removed_accel_pragmas": 0,
+    "removed_pragma_hls_macros": 0,
+    "removed_vpragma_hls": 0,
+    "removed_pragma_macro_defines": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "removed_hls_artifact_comment_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "b7194af7b242b953564ee5d043c0f4abfc168bd2744de54f123a4002fefc83c4",
+    "gold_hls_baseline_sha256": "b7194af7b242b953564ee5d043c0f4abfc168bd2744de54f123a4002fefc83c4",
+    "plain_c_sha256": "3a217047603f9cdde90ca042b77bed0b6507a0ee8ce377f903f1494b713c3997",
+    "plain_derived_from_gold_hls": true
+  },
+  "synth_timeout_s": 3600
+}

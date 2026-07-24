@@ -1,0 +1,71 @@
+{
+  "benchmark": "forgebench_mlp",
+  "source_repo": "HLSFactory_tier_A",
+  "dataset": "forgebench",
+  "design": "mlp",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/mlp/top.cpp",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/mlp/top.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "top.cpp",
+  "header_file": "top.h",
+  "baseline_variant": "forgebench_mlp_0_baseline",
+  "translated_hls_top": "top",
+  "hls_top": "top",
+  "kernel_top": "top",
+  "testbench_file": "testbench.cpp",
+  "support_files": [
+    "support/DRAM_1.txt",
+    "support/DRAM_2.txt",
+    "support/DRAM_3.txt",
+    "support/DRAM_4.txt",
+    "support/DRAM_5.txt",
+    "support/DRAM_6.txt"
+  ],
+  "include_dirs": [
+    "support"
+  ],
+  "variants": [
+    {
+      "name": "forgebench_mlp_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/mlp/top.cpp"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {
+    "DRAM_1": 16384,
+    "DRAM_2": 8192,
+    "DRAM_3": 32768,
+    "DRAM_4": 2048,
+    "DRAM_5": 4096,
+    "DRAM_6": 4096
+  },
+  "cosim_harness": "vitis_hls_c_rtl",
+  "preferred_gt_file": "hls_baseline.cpp",
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "skip_phase_a": true,
+  "strip_report": {
+    "removed_hls_pragmas": 32,
+    "removed_accel_pragmas": 0,
+    "removed_pragma_hls_macros": 0,
+    "removed_vpragma_hls": 0,
+    "removed_pragma_macro_defines": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "removed_hls_artifact_comment_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "be5c31045352cf9bd720ed010a14192617409550a3da1fbf9c2b3618b7ae0b19",
+    "gold_hls_baseline_sha256": "be5c31045352cf9bd720ed010a14192617409550a3da1fbf9c2b3618b7ae0b19",
+    "plain_c_sha256": "119527d84113781a185424e8688a81075817e247481f87f5e3b4a003744ee292",
+    "plain_derived_from_gold_hls": true
+  },
+  "synth_timeout_s": 3600
+}

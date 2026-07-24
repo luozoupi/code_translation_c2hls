@@ -1,0 +1,54 @@
+{
+  "benchmark": "hp_fft_n256__no_StagePipeline",
+  "source_repo": "HLSFactory_tier_A",
+  "dataset": "hp_fft_hls",
+  "design": "n256__no_StagePipeline",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/hp_fft_hls/n256__no_StagePipeline/FFT.cpp",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/hp_fft_hls/n256__no_StagePipeline/FFT.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "FFT.cpp",
+  "header_file": "FFT.h",
+  "baseline_variant": "hp_fft_n256__no_StagePipeline_0_baseline",
+  "translated_hls_top": "FFT_TOP",
+  "hls_top": "FFT_TOP",
+  "kernel_top": "FFT_TOP",
+  "testbench_file": "testbench.cpp",
+  "support_files": [],
+  "include_dirs": [],
+  "variants": [
+    {
+      "name": "hp_fft_n256__no_StagePipeline_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/hp_fft_hls/n256__no_StagePipeline/FFT.cpp"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {},
+  "cosim_harness": "vitis_hls_c_rtl",
+  "preferred_gt_file": "hls_baseline.cpp",
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "skip_phase_a": false,
+  "strip_report": {
+    "removed_hls_pragmas": 12,
+    "removed_accel_pragmas": 0,
+    "removed_pragma_hls_macros": 0,
+    "removed_vpragma_hls": 0,
+    "removed_pragma_macro_defines": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "removed_hls_artifact_comment_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "105a8944110c210f7f4c9b187d2c98ead409713284f0124f28101ada6004e931",
+    "gold_hls_baseline_sha256": "105a8944110c210f7f4c9b187d2c98ead409713284f0124f28101ada6004e931",
+    "plain_c_sha256": "d8bef7f44f310ce8985b395520f361fdd5d239b1f44e8b75692f41ea6bd96c78",
+    "plain_derived_from_gold_hls": true
+  }
+}

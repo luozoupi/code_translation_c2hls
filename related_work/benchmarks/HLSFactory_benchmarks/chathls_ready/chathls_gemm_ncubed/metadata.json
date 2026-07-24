@@ -1,0 +1,35 @@
+{
+  "benchmark": "chathls_gemm_ncubed",
+  "source_repo": "ChatHLS-ACL-26",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/gemm_ncubed/gemm_ncubed.cpp",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/gemm_ncubed/gemm_ncubed.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "hls_baseline.cpp",
+  "header_file": null,
+  "baseline_variant": "chathls_gemm_ncubed_baseline",
+  "translated_hls_top": "gemm_ncubed",
+  "hls_top": "gemm_ncubed",
+  "testbench_file": "testbench.cpp",
+  "support_files": [],
+  "variants": [
+    {
+      "name": "chathls_gemm_ncubed_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/gemm_ncubed/gemm_ncubed.cpp"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {},
+  "cosim_harness": "vitis_hls_c_rtl",
+  "preferred_gt_file": "hls_baseline.cpp",
+  "chathls_source_dir": "/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/benchmark/benchmark_optimization/gemm_ncubed",
+  "plain_c_file": "plain.cpp",
+  "kernel_top": "gemm_ncubed",
+  "cosim_required": false,
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "smoke_testbench": true,
+  "extern_c_top": true
+}

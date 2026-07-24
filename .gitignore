@@ -133,8 +133,19 @@ results_hwemu_smoke/
 external_datasets/
 /external_datasets
 
-# Local research clones / scratch (not for the shared repo)
-related_work/
+# Local research clones / scratch (not for the shared repo).
+# Keep the ready benchmark corpora tracked so teammates can pull them.
+related_work/*
+!related_work/benchmarks/
+related_work/benchmarks/*
+!related_work/benchmarks/HLSFactory_benchmarks/
+related_work/benchmarks/HLSFactory_benchmarks/*
+!related_work/benchmarks/HLSFactory_benchmarks/tier_A_ready/
+!related_work/benchmarks/HLSFactory_benchmarks/tier_A_ready/**
+!related_work/benchmarks/HLSFactory_benchmarks/tier_B_ready/
+!related_work/benchmarks/HLSFactory_benchmarks/tier_B_ready/**
+!related_work/benchmarks/HLSFactory_benchmarks/chathls_ready/
+!related_work/benchmarks/HLSFactory_benchmarks/chathls_ready/**
 
 # Fixed cosim benchmark corpus — prepare locally (see scripts/prepare_hlsfactory_cosim_benchmarks.py)
 benchmarks_cosim/

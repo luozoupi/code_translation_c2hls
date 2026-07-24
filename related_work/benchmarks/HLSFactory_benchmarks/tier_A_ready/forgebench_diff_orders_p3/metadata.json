@@ -1,0 +1,66 @@
+{
+  "benchmark": "forgebench_diff_orders_p3",
+  "source_repo": "HLSFactory_tier_A",
+  "dataset": "forgebench",
+  "design": "diff_orders_p3",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/diff_orders_p3/top.cpp",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/diff_orders_p3/top.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "top.cpp",
+  "header_file": "top.h",
+  "baseline_variant": "forgebench_diff_orders_p3_0_baseline",
+  "translated_hls_top": "top",
+  "hls_top": "top",
+  "kernel_top": "top",
+  "testbench_file": "testbench.cpp",
+  "support_files": [
+    "support/DRAM_1.txt",
+    "support/DRAM_2.txt",
+    "support/DRAM_3.txt",
+    "support/DRAM_4.txt"
+  ],
+  "include_dirs": [
+    "support"
+  ],
+  "variants": [
+    {
+      "name": "forgebench_diff_orders_p3_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/diff_orders_p3/top.cpp"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {
+    "DRAM_1": 8192,
+    "DRAM_2": 16384,
+    "DRAM_3": 8192,
+    "DRAM_4": 8192
+  },
+  "cosim_harness": "vitis_hls_c_rtl",
+  "preferred_gt_file": "hls_baseline.cpp",
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "skip_phase_a": false,
+  "strip_report": {
+    "removed_hls_pragmas": 26,
+    "removed_accel_pragmas": 0,
+    "removed_pragma_hls_macros": 0,
+    "removed_vpragma_hls": 0,
+    "removed_pragma_macro_defines": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "removed_hls_artifact_comment_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "6366fd7068c1e465416f75327944a6312e133e21b5dd43162415c76af0f38d33",
+    "gold_hls_baseline_sha256": "6366fd7068c1e465416f75327944a6312e133e21b5dd43162415c76af0f38d33",
+    "plain_c_sha256": "033efc563aad4a93d2cb668f47d7f6e5b3f8dd350757a61328c73c4349888f0b",
+    "plain_derived_from_gold_hls": true
+  }
+}

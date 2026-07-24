@@ -1,0 +1,78 @@
+{
+  "benchmark": "forgebench_llama_transformer_p2",
+  "source_repo": "HLSFactory_tier_A",
+  "dataset": "forgebench",
+  "design": "llama_transformer_p2",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/llama_transformer_p2/top.cpp",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/llama_transformer_p2/top.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "top.cpp",
+  "header_file": "top.h",
+  "baseline_variant": "forgebench_llama_transformer_p2_0_baseline",
+  "translated_hls_top": "top",
+  "hls_top": "top",
+  "kernel_top": "top",
+  "testbench_file": "testbench.cpp",
+  "support_files": [
+    "support/BRAM_rms_norm_weights_1.txt",
+    "support/BRAM_rms_norm_weights_2.txt",
+    "support/DRAM_FF_weights_1.txt",
+    "support/DRAM_FF_weights_2.txt",
+    "support/DRAM_attn_input.txt",
+    "support/DRAM_output.txt",
+    "support/DRAM_rms_norm_weights_1.txt",
+    "support/DRAM_rms_norm_weights_2.txt",
+    "support/DRAM_weights_k.txt",
+    "support/DRAM_weights_q.txt",
+    "support/DRAM_weights_v.txt"
+  ],
+  "include_dirs": [
+    "support"
+  ],
+  "variants": [
+    {
+      "name": "forgebench_llama_transformer_p2_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/forgebench/llama_transformer_p2/top.cpp"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {
+    "DRAM_attn_input": 256,
+    "DRAM_weights_q": 1024,
+    "DRAM_weights_k": 1024,
+    "DRAM_weights_v": 1024,
+    "DRAM_rms_norm_weights_1": 64,
+    "DRAM_FF_weights_1": 4096,
+    "DRAM_FF_weights_2": 4096,
+    "DRAM_rms_norm_weights_2": 64,
+    "DRAM_output": 256
+  },
+  "cosim_harness": "vitis_hls_c_rtl",
+  "preferred_gt_file": "hls_baseline.cpp",
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "skip_phase_a": true,
+  "strip_report": {
+    "removed_hls_pragmas": 9,
+    "removed_accel_pragmas": 0,
+    "removed_pragma_hls_macros": 0,
+    "removed_vpragma_hls": 0,
+    "removed_pragma_macro_defines": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "removed_hls_artifact_comment_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "50e582d53f4db87f560e9082d02f6556d9a388d84024439ac08918c2172b4128",
+    "gold_hls_baseline_sha256": "50e582d53f4db87f560e9082d02f6556d9a388d84024439ac08918c2172b4128",
+    "plain_c_sha256": "3e2e7d56f7630a4c0ed7bfb69a466895ed889522dd399e1c64676fb6a479f3c6",
+    "plain_derived_from_gold_hls": true
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "benchmark": "spector_hls_template_matching",
+  "source_repo": "HLSFactory_tier_A",
+  "dataset": "spector_hls",
+  "design": "template_matching",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/spector_hls/template_matching/fpga_temp_match.cpp",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/spector_hls/template_matching/fpga_temp_match.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "fpga_temp_match.cpp",
+  "header_file": "fpga_temp_matching.h",
+  "baseline_variant": "spector_hls_template_matching_0_baseline",
+  "translated_hls_top": "SAD_MATCH",
+  "hls_top": "SAD_MATCH",
+  "kernel_top": "SAD_MATCH",
+  "testbench_file": "testbench.cpp",
+  "support_files": [],
+  "include_dirs": [],
+  "variants": [
+    {
+      "name": "spector_hls_template_matching_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/related_work/benchmarks/HLSFactory_benchmarks/tier_A/spector_hls/template_matching/fpga_temp_match.cpp"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {},
+  "cosim_harness": "vitis_hls_c_rtl",
+  "preferred_gt_file": "hls_baseline.cpp",
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "skip_phase_a": false,
+  "strip_report": {
+    "removed_hls_pragmas": 6,
+    "removed_accel_pragmas": 0,
+    "removed_pragma_hls_macros": 7,
+    "removed_vpragma_hls": 0,
+    "removed_pragma_macro_defines": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "removed_hls_artifact_comment_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "95d3683bf53e910c796a4a8fdfc2f421ff1e28bf2d32e1f229f8ef7e03bc702f",
+    "gold_hls_baseline_sha256": "95d3683bf53e910c796a4a8fdfc2f421ff1e28bf2d32e1f229f8ef7e03bc702f",
+    "plain_c_sha256": "7abf9c194638119b760da85d7e22084079ab18a98f955e7b9b13770df262417d",
+    "plain_derived_from_gold_hls": true
+  }
+}

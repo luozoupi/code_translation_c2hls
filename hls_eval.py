@@ -86,6 +86,9 @@ VITIS_SETTINGS = _resolve_vitis_settings()
 DEFAULT_PART = os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e")
 DEFAULT_CLOCK_NS = float(os.getenv("C2HLS_CLOCK_NS", "3.33"))
 DEFAULT_FLOW_TARGET = os.getenv("C2HLS_FLOW_TARGET", "vitis")
+# Classic 2023.2 has vitis_hls (runs a tcl via -f), not the 2024.1+ vitis-run
+# unified CLI. HLS_TCL_RUNNER lets the same tcl run on either.
+HLS_TCL_RUNNER = os.getenv("HLS_TCL_RUNNER", "vitis-run --tcl --input_file")
 DEFAULT_COSIM_TRACE_LEVEL = os.getenv("C2HLS_COSIM_TRACE_LEVEL", "none").strip()
 SYNTH_TIMEOUT = int(os.getenv("C2HLS_SYNTH_TIMEOUT", "1200"))  # 20 minutes
 CSIM_TIMEOUT = int(os.getenv("C2HLS_CSIM_TIMEOUT", "180"))     # 3 minutes
@@ -472,7 +475,7 @@ exit
     with open(tcl_file, "w") as f:
         f.write(tcl_content)
 
-    cmd = f"cd {work_dir} && vitis-run --tcl --input_file {tcl_file}"
+    cmd = f"cd {work_dir} && {HLS_TCL_RUNNER} {tcl_file}"
     log, timed_out = _run_vitis_cmd(cmd, SYNTH_TIMEOUT)
     if timed_out:
         return {
@@ -741,7 +744,7 @@ exit
     with open(tcl_file, "w") as f:
         f.write(tcl_content)
 
-    cmd = f"cd {work_dir} && vitis-run --tcl --input_file {tcl_file}"
+    cmd = f"cd {work_dir} && {HLS_TCL_RUNNER} {tcl_file}"
     log, timed_out = _run_vitis_cmd(cmd, CSIM_TIMEOUT)
     if timed_out:
         return {
@@ -789,6 +792,16 @@ def run_cosim(
     if work_dir is None:
         work_dir = make_tempdir(prefix="hls_cosim_")
 
+    # Extras marked compile!=False are testbench compile units (e.g. the gold
+    # cosim shim) and must be added as `add_files -tb`; compile:False ones are
+    # materialized only (the shim #includes them). _materialize_inputs drops the
+    # flag, so split here and record the compile-unit paths for the tcl.
+    _compile_tb_extras = []
+    for _it in (extra_files or []):
+        _d = _it if isinstance(_it, dict) else {"path": _it[0], "content": _it[1]}
+        if _d.get("path") and _d.get("compile") is not False:
+            _compile_tb_extras.append(os.path.join(work_dir, _d["path"]))
+
     inputs = _materialize_inputs(
         work_dir, hls_code, header_code, header_name,
         testbench_code=testbench_code,
@@ -825,8 +838,10 @@ add_files {src_file}
     else:
         libpath_tcl = "if {[info exists ::env(LIBRARY_PATH)]} { unset ::env(LIBRARY_PATH) }"
 
-    tcl_content += f"""add_files -tb {tb_file}
-open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
+    tcl_content += f"add_files -tb {tb_file}\n"
+    for _extra_tb in _compile_tb_extras:
+        tcl_content += f"add_files -tb {_extra_tb}\n"
+    tcl_content += f"""open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default
 csynth_design
@@ -838,7 +853,7 @@ exit
     with open(tcl_file, "w") as f:
         f.write(tcl_content)
 
-    cmd = f"cd {work_dir} && vitis-run --tcl --input_file {tcl_file}"
+    cmd = f"cd {work_dir} && {HLS_TCL_RUNNER} {tcl_file}"
     log, timed_out = _run_vitis_cmd(cmd, COSIM_TIMEOUT)
     if timed_out:
         return {

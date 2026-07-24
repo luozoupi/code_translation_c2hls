@@ -3509,6 +3509,10 @@ class C2HLSOrchestrator:
         do_cosim = bool(self.testbench_code and self.supports_cosim)
         if run_cosim is not None:
             do_cosim = run_cosim and bool(self.testbench_code and self.supports_cosim)
+        # C2HLS_DISABLE_COSIM: skip the (slow, ~30min) candidate cosim during
+        # generation. Artifacts are cosim-verified in a separate CPU batch after.
+        if os.getenv("C2HLS_DISABLE_COSIM", "").strip().lower() in ("1", "true", "yes", "on"):
+            do_cosim = False
         return _run_synth_csim_cosim(
             code,
             header_code=self.header_code,
@@ -7297,14 +7301,30 @@ if __name__ == "__main__":
     steps = args.steps.split(",") if args.steps else None
 
     if args.all:
-        index_path = REPO_ROOT / "benchmarks" / "index.json"
+        # C2HLS_BENCH_ROOT points --all at an alternate suite (e.g. polybench-26)
+        # without touching the repo; default is the repo's benchmarks/.
+        bench_root = Path(os.getenv("C2HLS_BENCH_ROOT", str(REPO_ROOT / "benchmarks")))
+        index_path = bench_root / "index.json"
         with open(index_path, "r") as f:
             benchmarks = json.load(f)
 
         all_results = []
         for meta in benchmarks:
             bench_name = meta["benchmark"]
-            bench_dir = REPO_ROOT / "benchmarks" / bench_name
+            bench_dir = bench_root / bench_name
+            bench_out = os.path.join(args.output_dir, bench_name) if args.output_dir else None
+            # Resumable --all: skip a benchmark whose result already exists so a
+            # preempted sweep continues instead of restarting. C2HLS_NO_RESUME=1 re-runs.
+            if bench_out and not os.getenv("C2HLS_NO_RESUME"):
+                suffix = "_multistep_results.json" if args.multistep else "_results.json"
+                done_f = os.path.join(bench_out, f"{bench_name}{suffix}")
+                if os.path.exists(done_f):
+                    print(f"  SKIP (already done): {done_f}")
+                    try:
+                        all_results.append(json.load(open(done_f)))
+                    except Exception:
+                        pass
+                    continue
             print(f"\n{'='*60}")
             print(f"Running: {bench_name}")
             print(f"{'='*60}")
@@ -7312,6 +7332,7 @@ if __name__ == "__main__":
                 if args.multistep:
                     result = run_benchmark_multistep(
                         str(bench_dir),
+                        output_dir=bench_out,
                         gpt_model=args.model,
                         turns_limitation=args.turns,
                         steps=steps,
@@ -7321,6 +7342,7 @@ if __name__ == "__main__":
                 else:
                     result = run_benchmark(
                         str(bench_dir),
+                        output_dir=bench_out,
                         gpt_model=args.model,
                         turns_limitation=args.turns,
                         quality_repair_turns=args.quality_repair_turns,
@@ -7340,7 +7362,10 @@ if __name__ == "__main__":
         passed = sum(1 for result in all_results if result.get("success"))
         print(f"\n  Total: {passed}/{len(all_results)} passed")
 
-        results_dir = REPO_ROOT / ("results_multistep" if args.multistep else "results")
+        if args.output_dir:
+            results_dir = Path(args.output_dir)
+        else:
+            results_dir = REPO_ROOT / ("results_multistep" if args.multistep else "results")
         os.makedirs(results_dir, exist_ok=True)
         with open(results_dir / "all_results.json", "w") as f:
             json.dump(all_results, f, indent=2, default=str)

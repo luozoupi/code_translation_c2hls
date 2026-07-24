@@ -1,0 +1,21 @@
+bench,bench_id,size_family,flash_best,flash_avg,flash_worst,flash_csynth,flash_cosim,flash_lut,flash_dsp,dataflow_status,dataflow_error,dataflow_best,dataflow_avg,dataflow_worst,dataflow_csynth,dataflow_cosim,dataflow_lut,dataflow_dsp,final_stage,final_csynth,final_best,final_avg,final_worst,final_cosim,final_lut,final_dsp,gold_csynth,speedup_vs_gold
+atax,chathls_atax,chathls_imported_mini,1098,1098,1098,1098,,19081,168,pass,,1477,1477,1477,1477,,21577,29,flash,1098,1098,1098,1098,,19081,168,236250,215.1639344262295
+bicg,chathls_bicg,chathls_imported_mini,1893,1893,1893,1893,,20080,304,pass,,1987,1987,1987,1987,,16637,64,flash,1893,1893,1893,1893,,20080,304,234516,123.88589540412045
+covariance,chathls_covariance,chathls_imported_mini,7135,8227,9403,8227,1081,42269,128,pass,,5412,6504,7680,6504,,31216,128,dataflow,6504,5412,6504,7680,1081,31216,128,233415,35.88791512915129
+gemm,chathls_gemm,chathls_imported_mini,32930,32930,32930,32930,,7153,8,fail,"DATAFLOW contract check failed (3 breach(es)):
+- [m_axi-port-concurrent-rw] Port `C` has concurrent reader(s) ['load_all_inputs'] and writer(s) ['store_outputs'] — split read/write phases or fuse task",,,,,,,,flash,32930,32930,32930,32930,,7153,8,2871462,87.19896750683267
+gemm_blocked,chathls_gemm_blocked,machsuite_64,1319078,1319078,1319078,1319078,3955,15321,8,pass,,1843291,1843291,1843291,1843291,,13673,8,flash,1319078,1319078,1319078,1319078,3955,15321,8,901125,0.6831476228092652
+gemm_ncubed,chathls_gemm_ncubed,machsuite_64,34135,34135,34135,34135,4359,26361,104,pass,,43215,43215,43215,43215,,20153,64,flash,34135,34135,34135,34135,4359,26361,104,295512,8.657155412333383
+gesummv,chathls_gesummv,chathls_imported_mini,2314,2314,2314,2314,20,10508,8,pass,,2317,2317,2317,2317,,15044,8,flash,2314,2314,2314,2314,20,10508,8,1499,0.6477960242005186
+2mm,chathls_kernel_2mm,chathls_imported_hlsfactory_sized,37645,37645,37645,37645,,88103,771,pass,,40922,40922,40922,40922,,80303,771,flash,37645,37645,37645,37645,,88103,771,25296077,671.9637933324478
+3mm,chathls_kernel_3mm,chathls_imported_hlsfactory_sized,93850,93850,93850,93850,159298,127188,882,fail,/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/c2hls_tmp/batch_parallel_chathls_fd_ds_rag2_20260721_123449/chathls_kernel_3mm/c2hls_compile__run_compile_006/kernel.cpp:1:10: fatal error: kernel.h: No ,,,,,,,,flash,93850,93850,93850,93850,159298,127188,882,45441119,484.1888012786361
+symm,chathls_kernel_symm,chathls_imported_hlsfactory_sized,201753,2846553,5582553,2846553,,13143,11,fail,"DATAFLOW contract check failed (2 breach(es)):
+- [local-buffer-multi-writer] Local `local_C` has multiple writer tasks ['compute_task', 'load_C_task'] — use fused load/compute or ping-pong buffers. (s",,,,,,,,flash,2846553,201753,2846553,5582553,,13143,11,37430401,13.149377861575035
+syr2k,chathls_kernel_syr2k,chathls_imported_hlsfactory_sized,407673,407673,407673,407673,,12955,38,fail,,,,,,,,,flash,407673,407673,407673,407673,,12955,38,1952641,4.789723626534012
+syrk,chathls_kernel_syrk,chathls_imported_hlsfactory_sized,40153,979273,1942473,979273,10404,9815,8,fail,"DATAFLOW contract check failed (5 breach(es)):
+- [m_axi-port-concurrent-rw] Port `C` has concurrent reader(s) ['load_C_task'] and writer(s) ['store_C_task'] — split read/write phases or fuse tasks. (s",,,,,,,,flash,979273,40153,979273,1942473,10404,9815,8,1183841,1.2088978252234055
+matmul,chathls_matmul,chathls_imported_mini,6301,6301,6301,6301,515,21708,24,pass,,6298,6298,6298,6298,,93541,24,dataflow,6298,6298,6298,6298,515,93541,24,34963,5.551444903143855
+mobilenet,chathls_mobilenet,unknown,,,,,19818,178449,952,fail,"ERROR: [HLS 214-194] in function 'compute_conv1_task(signed char*, signed char*)': Undefined function conv2d (/scratch/hpc-prf-llmfpga/asa582/projects/c2hls/c2hls_tmp/batch_parallel_chathls_fd_ds_rag2",,,,,,,,none,,,,,19818,,,,
+mvt,chathls_mvt,chathls_imported_mini,5007,5007,5007,5007,66,13186,4,fail,,,,,,,,,flash,5007,5007,5007,5007,66,13186,4,14327,2.861394048332335
+transformer,chathls_transformer,unknown,94209,94209,94209,94209,246,73438,123,fail,"DATAFLOW contract check failed (2 breach(es)):
+- [RULE_1] The DATAFLOW region contains only 3 sequential stages (load_all_inputs_task, compute_fused_task, store_output_task); however, the pipeline is ",,,,,,,,flash,94209,94209,94209,94209,246,73438,123,73953,0.7849886953475782

@@ -1,0 +1,17 @@
+bench,size_family,ch_csynth,ch_legal,ch_legal_note,ch_source,c2_csynth,c2_stage,c2_legal_note,c2_util_dsp_pct,c2_util_ff_pct,old_c2_csynth,pair_legal,speedup_c2_over_ch,winner
+2mm,chathls_imported_hlsfactory_sized,7582,True,ok,primary_session,829138,flash,ok,14.74,7.30,37645,True,0.009144,chathls
+3mm,chathls_imported_hlsfactory_sized,7018,False,illegal_or_missing(ff=133%),primary_session,14957,dataflow,ok,17.09,9.88,93850,False,,incomplete
+atax,chathls_imported_mini,915,True,ok,primary_session,1146,dataflow,ok,3.72,1.45,1098,True,0.798429,chathls
+bicg,chathls_imported_mini,843,True,ok,primary_session,1135,flash,ok,1.68,1.07,1893,True,0.742731,chathls
+covariance,chathls_imported_mini,10750,True,ok,primary_session,8030,flash,ok,1.42,1.08,6504,True,1.338730,c2hls
+gemm,chathls_imported_mini,902,True,ok,primary_session,824,dataflow,ok,3.70,1.31,32930,True,1.094660,c2hls
+gemm_blocked,machsuite_64,2097166,True,ok,primary_session,210832,dataflow,ok,46.93,22.41,1319078,True,9.947095,c2hls
+gemm_ncubed,machsuite_64,4627,True,ok,primary_session,12959,dataflow,ok,7.80,4.05,34135,True,0.357049,chathls
+gesummv,chathls_imported_mini,482,True,ok,primary_session,659,dataflow,ok,2.66,1.09,2314,True,0.731411,chathls
+matmul,chathls_imported_mini,16398,True,primary_illegal(dsp=221%); fallback opt-matmul-hybrid-u280-20260716-214729,legal_fallback,2456,dataflow,ok,1.06,1.18,6298,True,6.676710,c2hls
+mobilenet,unknown,,False,illegal_or_missing(no_latency),primary_session,,,illegal(no_legal_c2),,,,False,,incomplete
+mvt,chathls_imported_mini,1234,True,ok,primary_session,5003,flash,ok,0.04,0.72,5007,True,0.246652,chathls
+symm,chathls_imported_hlsfactory_sized,311596,True,ok,primary_session,,,illegal(no_legal_c2),,,2846553,False,,incomplete
+syr2k,chathls_imported_hlsfactory_sized,394721,True,ok,primary_session,995108,flash,ok,0.12,10.29,407673,True,0.396661,chathls
+syrk,chathls_imported_hlsfactory_sized,388881,True,ok,primary_session,24181,flash,ok,12.67,4.57,979273,True,16.082089,c2hls
+transformer,unknown,80676,True,ok,primary_session,20940,dataflow,ok,2.48,7.94,94209,True,3.852722,c2hls

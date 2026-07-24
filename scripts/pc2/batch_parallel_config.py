@@ -44,6 +44,7 @@ class BatchParallelConfig:
     gpu_policy: str = "batch_park"  # batch_park | always_on
     # If true, synth-role workers also claim cosim jobs (cosim_nodes_per_variant=0).
     combined_hls_nodes: bool = False
+    gpu_renew_before_s: int = 600
     park_threshold_s: float = 7200.0
     long_cosim_park_s: float = 3600.0
     park_grace_s: float = 1800.0
@@ -113,6 +114,7 @@ class BatchParallelConfig:
             "gpu_batch_flush_s": self.gpu_batch_flush_s,
             "gpu_policy": self.gpu_policy,
             "combined_hls_nodes": self.combined_hls_nodes,
+            "gpu_renew_before_s": self.gpu_renew_before_s,
             "park_threshold_s": self.park_threshold_s,
             "long_cosim_park_s": self.long_cosim_park_s,
             "park_grace_s": self.park_grace_s,
@@ -177,6 +179,12 @@ def seed_kwargs_for_workflow(workflow: str) -> dict[str, str]:
             "initial_kind": "synth",
             "initial_phase": "reference",
             "initial_stage": "gold_gate",
+        }
+    if workflow == "zero_shot_direct":
+        return {
+            "initial_kind": "codegen",
+            "initial_phase": "flash",
+            "initial_stage": "optimize",
         }
     return {}
 

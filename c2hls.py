@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
-from c2hls_paths import active_site, configure_site, rodinia_variant_roots
+from c2hls_paths import active_site, configure_site, is_open_weight_site, rodinia_variant_roots
 from dotenv import load_dotenv
 from openai import OpenAI
 from c2hls_temp import get_temp_tag, join_temp_tag, make_tempdir, temp_tag_scope
@@ -66,7 +66,7 @@ TRUSTED_EXTERNAL_REFERENCE_REPOS = {"rodinia-hls", "rodinia-hls-nova"}
 _DIRECT_REFERENCE_CACHE: dict | None = None
 
 # Paths to API key files (used only when ANTHROPIC_API_KEY / OPENAI_API_KEY
-# environment variables are unset). Team defaults apply unless --pc2 / C2HLS_SITE=pc2.
+# environment variables are unset). Team defaults apply unless --pc2 / --fir / C2HLS_SITE.
 from c2hls_paths import claude_key_file, openai_key_file
 from flash_flow_artifacts import (
     capture_step_skills,
@@ -103,7 +103,7 @@ EXHAUSTIVE_CANDIDATE_ATTEMPTS_ENV = "C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS"
 # then revert if still regressing). Set to 0 to disable the guard entirely.
 STEP_REGRESSION_THRESHOLD = float(os.getenv("C2HLS_STEP_REGRESSION_THRESHOLD", "1.10"))
 
-# PC2-only global skill prompt modes (see scripts/pc2/run_flash_all_skills_*_batch.py).
+# Open-weight cluster global skill prompt modes (pc2 / fir flash batches).
 GLOBAL_SKILL_PROMPT_MODES = frozenset({
     "all_skills_avoids_global",
     "all_skills_no_avoids_global",
@@ -138,15 +138,27 @@ def _flash_experiment_enabled() -> bool:
     }
 
 
+def _skip_phase_b_enabled() -> bool:
+    return os.getenv("C2HLS_SKIP_PHASE_B", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _flash_opt_prompt_zero_shot() -> bool:
+    return os.getenv("C2HLS_FLASH_OPT_PROMPT_MODE", "").strip().lower() in {
+        "zero_shot", "zero-shot", "0shot", "0_shot",
+    }
+
+
 def _skill_prompt_mode() -> str:
     mode = os.getenv("C2HLS_SKILL_PROMPT_MODE", "bottleneck").strip().lower()
     if (
         mode in GLOBAL_SKILL_PROMPT_MODES
-        and active_site() != "pc2"
+        and not is_open_weight_site()
         and not _flash_experiment_enabled()
     ):
         logging.warning(
-            "C2HLS_SKILL_PROMPT_MODE=%s ignored outside pc2; using bottleneck",
+            "C2HLS_SKILL_PROMPT_MODE=%s ignored outside open-weight sites (pc2/fir); using bottleneck",
             mode,
         )
         return "bottleneck"
@@ -869,6 +881,16 @@ def _summary_status(summary: Optional[dict], available: bool) -> str:
     return _test_status(available, False, False)
 
 
+def _repair_disabled() -> bool:
+    raw = os.getenv("C2HLS_DISABLE_REPAIR", "0").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
+def _skip_failure_repair(turn: int, attempt_limit: int) -> bool:
+    """True when no further LLM repair should run after a failed attempt."""
+    return _repair_disabled() or turn >= attempt_limit - 1
+
+
 def _cosim_required_for_correctness() -> bool:
     raw = os.getenv("C2HLS_COSIM_REQUIRED", "1").strip().lower()
     return raw in ("1", "true", "yes", "on")
@@ -1026,6 +1048,21 @@ def _llm_timeout_seconds(default: float = 600.0) -> float:
         )
         return default
     return max(1.0, parsed)
+
+
+def _notify_batch_llm_hook(event: str, **fields) -> None:
+    module = os.getenv("C2HLS_BATCH_LLM_HOOK_MODULE", "").strip()
+    if not module:
+        return
+    try:
+        import importlib
+
+        mod = importlib.import_module(module)
+        fn = getattr(mod, event, None)
+        if callable(fn):
+            fn(**fields)
+    except Exception:
+        logging.getLogger(__name__).debug("batch llm hook %s failed", event, exc_info=True)
 
 
 def _is_hosted_openai_model(model_name: str) -> bool:
@@ -2735,7 +2772,12 @@ class TranslatorAgent(_AgentBase):
             return True
 
         logging.info("=== [Phase A] Validating C code compilation ===")
-        orch._append_history("system", Instruction_c2hls)
+        if _flash_opt_prompt_zero_shot():
+            from prompt_c2hls import Instruction_c2hls_zero_shot
+
+            orch._append_history("system", Instruction_c2hls_zero_shot)
+        else:
+            orch._append_history("system", Instruction_c2hls)
 
         ok, err = compile_check_cpp(
             c_code, header_code, header_name, extra_files=orch.extra_files,
@@ -2746,16 +2788,25 @@ class TranslatorAgent(_AgentBase):
             return True
 
         logging.warning("[Phase A] C code fails to compile: %s", err)
+        if _repair_disabled():
+            orch._append_history(
+                "system",
+                "[Phase A] FAIL: C code does not compile (repair disabled).",
+            )
+            return False
         for turn in range(orch.turns_limitation):
             prompt = q_validate_c_code.format(
                 c_code=orch.c_code,
                 header_code=orch.header_code,
                 benchmark_context=orch.benchmark_context,
             )
-            orch.messages = [
-                {"role": "system", "content": Instruction_c2hls},
-                {"role": "user", "content": prompt},
-            ]
+            orch.messages = llm_messages(
+                system=llm_system_instruction(
+                    zero_shot=_flash_opt_prompt_zero_shot(),
+                    translate=True,
+                ),
+                user=prompt,
+            )
             reply = self._call_llm(orch.messages)
             orch._append_history("assistant", reply)
 
@@ -2788,20 +2839,26 @@ class TranslatorAgent(_AgentBase):
         orch.phaseb_mode = mode
         logging.info("=== [Phase B] Translating C to HLS (mode=%s) ===", mode)
 
-        prompt_template = (
-            q_translate_c_to_hls_functional
-            if mode == "functional"
-            else q_translate_c_to_hls
-        )
-        prompt = prompt_template.format(
-            c_code=orch.c_code,
-            header_code=orch.header_code,
-            benchmark_context=orch.benchmark_context,
-        )
-        orch.messages = [
-            {"role": "system", "content": Instruction_c2hls},
-            {"role": "user", "content": prompt},
-        ]
+        zero_shot = _flash_opt_prompt_zero_shot()
+        if zero_shot:
+            prompt = q_translate_zero_shot.format(
+                c_code=orch.c_code,
+                header_code=orch.header_code,
+            )
+            system_instruction = llm_system_instruction(zero_shot=True, translate=True)
+        else:
+            prompt_template = (
+                q_translate_c_to_hls_functional
+                if mode == "functional"
+                else q_translate_c_to_hls
+            )
+            prompt = prompt_template.format(
+                c_code=orch.c_code,
+                header_code=orch.header_code,
+                benchmark_context=orch.benchmark_context,
+            )
+            system_instruction = llm_system_instruction(zero_shot=False, translate=True)
+        orch.messages = llm_messages(system=system_instruction, user=prompt)
 
         reply = self._call_llm(orch.messages)
         orch._append_history("user", prompt)
@@ -2963,6 +3020,8 @@ class SynthesisAgent(_AgentBase):
                 error_class_history.append(_classify_synth_error(err))
                 if self._should_revert(error_class_history, best_state, threshold):
                     return self._revert_and_exit(error_class_history, best_state, threshold)
+                if _skip_failure_repair(turn, orch.turns_limitation):
+                    continue
                 fix_prompt = c_compilation_fix.format(
                     compile_error=err,
                     hls_code=orch.hls_code,
@@ -3100,52 +3159,52 @@ class SynthesisAgent(_AgentBase):
             error_class_history.append(_classify_synth_error(result["error"]))
             if self._should_revert(error_class_history, best_state, threshold):
                 return self._revert_and_exit(error_class_history, best_state, threshold)
-
-            is_timeout = "timed out" in result["error"].lower()
-            guidance = self._compose_repair_guidance(
-                result["error"], report=result.get("report"),
-            )
-            history_block = _format_attempt_history(orch.turn_results, "B")
-            if is_timeout:
-                fix_prompt = hls_synthesis_timeout_fix.format(
-                    timeout=600,
-                    hls_code=orch.hls_code,
-                    header_code=orch.header_code,
-                    benchmark_context=orch.benchmark_context,
-                    repair_guidance=guidance,
-                    attempt_history=history_block,
+            if not _skip_failure_repair(turn, orch.turns_limitation):
+                is_timeout = "timed out" in result["error"].lower()
+                guidance = self._compose_repair_guidance(
+                    result["error"], report=result.get("report"),
                 )
-            else:
-                fix_prompt = hls_synthesis_fix.format(
-                    synth_error=result["error"],
-                    hls_code=orch.hls_code,
-                    header_code=orch.header_code,
-                    target_context=_target_context_for_prompt(orch.part, orch.clock_ns),
-                    benchmark_context=orch.benchmark_context,
-                    repair_guidance=guidance,
-                    attempt_history=history_block,
-                )
-            if _scrape_enabled_for("repair"):
-                scrape = _scrape_docs_for_repair(
-                    lambda msgs: self._call_llm(msgs, max_tokens=400),
-                    code=orch.hls_code or "",
-                    error=result.get("error") or "",
-                )
-                fix_prompt = _prepend_scrape(fix_prompt, scrape)
-            else:
-                fix_prompt = _rag_append(
-                    fix_prompt,
-                    "repair",
-                    f"{(result.get('error') or '')[:2000]}\n{(orch.hls_code or '')[:4000]}",
-                )
-            orch.messages.append({"role": "user", "content": fix_prompt})
-            reply = self._call_llm(orch.messages)
-            orch.messages.append({"role": "assistant", "content": reply})
-            orch._append_history("user", fix_prompt)
-            orch._append_history("assistant", reply)
-            fixed = extract_cpp_code(reply)
-            if fixed:
-                orch.hls_code = fixed
+                history_block = _format_attempt_history(orch.turn_results, "B")
+                if is_timeout:
+                    fix_prompt = hls_synthesis_timeout_fix.format(
+                        timeout=600,
+                        hls_code=orch.hls_code,
+                        header_code=orch.header_code,
+                        benchmark_context=orch.benchmark_context,
+                        repair_guidance=guidance,
+                        attempt_history=history_block,
+                    )
+                else:
+                    fix_prompt = hls_synthesis_fix.format(
+                        synth_error=result["error"],
+                        hls_code=orch.hls_code,
+                        header_code=orch.header_code,
+                        target_context=_target_context_for_prompt(orch.part, orch.clock_ns),
+                        benchmark_context=orch.benchmark_context,
+                        repair_guidance=guidance,
+                        attempt_history=history_block,
+                    )
+                if _scrape_enabled_for("repair"):
+                    scrape = _scrape_docs_for_repair(
+                        lambda msgs: self._call_llm(msgs, max_tokens=400),
+                        code=orch.hls_code or "",
+                        error=result.get("error") or "",
+                    )
+                    fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                else:
+                    fix_prompt = _rag_append(
+                        fix_prompt,
+                        "repair",
+                        f"{(result.get('error') or '')[:2000]}\n{(orch.hls_code or '')[:4000]}",
+                    )
+                orch.messages.append({"role": "user", "content": fix_prompt})
+                reply = self._call_llm(orch.messages)
+                orch.messages.append({"role": "assistant", "content": reply})
+                orch._append_history("user", fix_prompt)
+                orch._append_history("assistant", reply)
+                fixed = extract_cpp_code(reply)
+                if fixed:
+                    orch.hls_code = fixed
 
         orch._append_history(
             "system",
@@ -4112,49 +4171,53 @@ class C2HLSOrchestrator:
         if not model:
             model = self.gpt_model
 
-        kind, client = self._client_for_model(model)
-        if kind == "anthropic":
-            system_text = ""
-            conv_messages = []
-            for message in messages:
-                if message["role"] == "system":
-                    system_text += message["content"] + "\n"
-                else:
-                    conv_messages.append({"role": message["role"],
-                                          "content": message["content"]})
-            response = client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                system=system_text.strip() if system_text else "",
-                messages=conv_messages,
-            )
+        _notify_batch_llm_hook("llm_enter", model=model, agent_name=agent_name)
+        try:
+            kind, client = self._client_for_model(model)
+            if kind == "anthropic":
+                system_text = ""
+                conv_messages = []
+                for message in messages:
+                    if message["role"] == "system":
+                        system_text += message["content"] + "\n"
+                    else:
+                        conv_messages.append({"role": message["role"],
+                                              "content": message["content"]})
+                response = client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    system=system_text.strip() if system_text else "",
+                    messages=conv_messages,
+                )
+                self._record_llm_usage(
+                    provider="anthropic",
+                    model=model,
+                    agent_name=agent_name,
+                    usage=getattr(response, "usage", None),
+                    messages=messages,
+                    max_tokens=max_tokens,
+                )
+                return response.content[0].text
+
+            kwargs = {"model": model, "messages": messages}
+            if _is_hosted_openai_model(model):
+                kwargs["max_completion_tokens"] = max_tokens
+            else:
+                kwargs["max_tokens"] = max_tokens
+            if "qwen" in model.lower():
+                kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+            response = client.chat.completions.create(**kwargs)
             self._record_llm_usage(
-                provider="anthropic",
+                provider="openai",
                 model=model,
                 agent_name=agent_name,
                 usage=getattr(response, "usage", None),
                 messages=messages,
                 max_tokens=max_tokens,
             )
-            return response.content[0].text
-
-        kwargs = {"model": model, "messages": messages}
-        if _is_hosted_openai_model(model):
-            kwargs["max_completion_tokens"] = max_tokens
-        else:
-            kwargs["max_tokens"] = max_tokens
-        if "qwen" in model.lower():
-            kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
-        response = client.chat.completions.create(**kwargs)
-        self._record_llm_usage(
-            provider="openai",
-            model=model,
-            agent_name=agent_name,
-            usage=getattr(response, "usage", None),
-            messages=messages,
-            max_tokens=max_tokens,
-        )
-        return response.choices[0].message.content
+            return response.choices[0].message.content
+        finally:
+            _notify_batch_llm_hook("llm_exit", model=model, agent_name=agent_name)
 
     def _append_history(self, role: str, content: str):
         self.history.append({"role": role, "content": content})
@@ -4917,6 +4980,10 @@ class C2HLSOrchestrator:
 
             self.hls_code = new_code
             self.synth_report = result["report"]
+            if outcome.get("csim") is not None:
+                self.generated_csim = outcome["csim"]
+            if outcome.get("cosim") is not None:
+                self.generated_cosim = outcome["cosim"]
             ctx["flash_step_result"] = step_result
             ctx["flash_done"] = True
             self._pipelined_ctx = ctx
@@ -5566,6 +5633,10 @@ class C2HLSOrchestrator:
                 # Accept: commit and return.
                 self.hls_code = new_code
                 self.synth_report = new_report
+                if attempt.get("csim") is not None:
+                    self.generated_csim = attempt["csim"]
+                if attempt.get("cosim") is not None:
+                    self.generated_cosim = attempt["cosim"]
                 if outer_turn > 0:
                     attempt["regression_retry_succeeded"] = True
                 return attempt
@@ -5670,6 +5741,10 @@ class C2HLSOrchestrator:
                     )
                     self.hls_code = new_code
                     self.synth_report = new_report
+                    if attempt.get("csim") is not None:
+                        self.generated_csim = attempt["csim"]
+                    if attempt.get("cosim") is not None:
+                        self.generated_cosim = attempt["cosim"]
                     attempt["alignment_decision"] = {
                         "consistent_with_gt": True,
                         "reason": alignment.reason,
@@ -5805,22 +5880,36 @@ class C2HLSOrchestrator:
             format_report_summary(self.synth_report)
             if self.synth_report else "(no prior report)"
         )
-        prompt_template = OPTIMIZATION_PROMPTS.get(step_name)
-        if prompt_template is None:
-            prompt_template = q_optimize_generic
+        zero_shot = _flash_opt_prompt_zero_shot()
+        skip_phase_b = _skip_phase_b_enabled()
+        if step_name == "flash" and zero_shot:
+            from prompt_c2hls import flash_optimization_prompt
+
+            prompt_template = flash_optimization_prompt(
+                zero_shot=True,
+                skip_phase_b=skip_phase_b,
+            )
             prompt = prompt_template.format(
-                optimization_name=step_name,
-                optimization_description=f"Apply {step_name} optimization.",
-                synth_report=report_str,
                 header_code=self.header_code,
                 current_code=self.hls_code,
             )
         else:
-            prompt = prompt_template.format(
-                synth_report=report_str,
-                header_code=self.header_code,
-                current_code=self.hls_code,
-            )
+            prompt_template = OPTIMIZATION_PROMPTS.get(step_name)
+            if prompt_template is None:
+                prompt_template = q_optimize_generic
+                prompt = prompt_template.format(
+                    optimization_name=step_name,
+                    optimization_description=f"Apply {step_name} optimization.",
+                    synth_report=report_str,
+                    header_code=self.header_code,
+                    current_code=self.hls_code,
+                )
+            else:
+                prompt = prompt_template.format(
+                    synth_report=report_str,
+                    header_code=self.header_code,
+                    current_code=self.hls_code,
+                )
 
         signal = _build_profile_signal(
             self.synth_report or {}, part=self.part,
@@ -5996,15 +6085,11 @@ class C2HLSOrchestrator:
                 f"{step_name}\n{(self.hls_code or '')[:4000]}\n{report_str[:1500]}",
             )
 
-        system_instruction = (
-            Instruction_c2hls_flash
-            if step_name == "flash"
-            else Instruction_c2hls_multistep
+        system_instruction = llm_system_instruction(
+            zero_shot=zero_shot,
+            step_name=step_name,
         )
-        self.messages = [
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": prompt},
-        ]
+        self.messages = llm_messages(system=system_instruction, user=prompt)
 
         self._append_history("user", f"[Step: {step_name}] {prompt}")
         max_tokens = (
@@ -6082,33 +6167,34 @@ class C2HLSOrchestrator:
                 step_turn_records.append({"turn": turn, "phase": "B",
                                           "success": False, "error": err})
                 logging.warning("[Step: %s] Compile error: %s", step_name, err[:200])
-                fix_prompt = c_compilation_fix.format(
-                    compile_error=err,
-                    hls_code=new_code,
-                    benchmark_context=self.benchmark_context,
-                    repair_guidance=self.synthesis._compose_repair_guidance(err, report=None),
-                    attempt_history=_format_attempt_history(step_turn_records, "B"),
-                )
-                if _scrape_enabled_for("repair"):
-                    scrape = _scrape_docs_for_repair(
-                        lambda msgs: self._call_llm(msgs, max_tokens=400),
-                        code=new_code or "",
-                        error=err,
+                if not _skip_failure_repair(turn, attempt_limit):
+                    fix_prompt = c_compilation_fix.format(
+                        compile_error=err,
+                        hls_code=new_code,
+                        benchmark_context=self.benchmark_context,
+                        repair_guidance=self.synthesis._compose_repair_guidance(err, report=None),
+                        attempt_history=_format_attempt_history(step_turn_records, "B"),
                     )
-                    fix_prompt = _prepend_scrape(fix_prompt, scrape)
-                else:
-                    fix_prompt = _rag_append(
-                        fix_prompt,
-                        "repair",
-                        f"{err[:2000]}\n{(new_code or '')[:4000]}",
-                    )
-                self.messages.append({"role": "user", "content": fix_prompt})
-                reply = self._call_llm(self.messages)
-                self.messages.append({"role": "assistant", "content": reply})
-                self._append_history("assistant", reply)
-                fixed = extract_cpp_code(reply)
-                if fixed:
-                    new_code = fixed
+                    if _scrape_enabled_for("repair"):
+                        scrape = _scrape_docs_for_repair(
+                            lambda msgs: self._call_llm(msgs, max_tokens=400),
+                            code=new_code or "",
+                            error=err,
+                        )
+                        fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                    else:
+                        fix_prompt = _rag_append(
+                            fix_prompt,
+                            "repair",
+                            f"{err[:2000]}\n{(new_code or '')[:4000]}",
+                        )
+                    self.messages.append({"role": "user", "content": fix_prompt})
+                    reply = self._call_llm(self.messages)
+                    self.messages.append({"role": "assistant", "content": reply})
+                    self._append_history("assistant", reply)
+                    fixed = extract_cpp_code(reply)
+                    if fixed:
+                        new_code = fixed
                 continue
 
             outcome = self._synth_and_test(new_code, log_prefix=f"[Step: {step_name}]", step_name=step_name)
@@ -6175,7 +6261,11 @@ class C2HLSOrchestrator:
                 correctness_disabled = bool(int(
                     os.getenv("C2HLS_DISABLE_CORRECTNESS_REPAIR", "0") or "0"
                 ))
-                if (csim_failed or cosim_failed) and not correctness_disabled:
+                if (
+                    (csim_failed or cosim_failed)
+                    and not correctness_disabled
+                    and not _repair_disabled()
+                ):
                     gate_name = "csim" if csim_failed else "cosim"
                     gate_summary = csim_summary if csim_failed else cosim_summary
                     gate_error = (
@@ -6295,50 +6385,51 @@ class C2HLSOrchestrator:
             })
             step_turn_records.append({"turn": turn, "phase": "B",
                                       "success": False, "error": result["error"]})
-            is_timeout = "timed out" in result["error"].lower()
-            guidance = self.synthesis._compose_repair_guidance(
-                result["error"], report=result.get("report"),
-            )
-            history_block = _format_attempt_history(step_turn_records, "B")
-            if is_timeout:
-                fix_prompt = hls_synthesis_timeout_fix.format(
-                    timeout=600,
-                    hls_code=new_code,
-                    header_code=self.header_code,
-                    benchmark_context=self.benchmark_context,
-                    repair_guidance=guidance,
-                    attempt_history=history_block,
+            if not _skip_failure_repair(turn, attempt_limit):
+                is_timeout = "timed out" in result["error"].lower()
+                guidance = self.synthesis._compose_repair_guidance(
+                    result["error"], report=result.get("report"),
                 )
-            else:
-                fix_prompt = hls_synthesis_fix.format(
-                    synth_error=result["error"],
-                    hls_code=new_code,
-                    header_code=self.header_code,
-                    target_context=_target_context_for_prompt(self.part, self.clock_ns),
-                    benchmark_context=self.benchmark_context,
-                    repair_guidance=guidance,
-                    attempt_history=history_block,
-                )
-            if _scrape_enabled_for("repair"):
-                scrape = _scrape_docs_for_repair(
-                    lambda msgs: self._call_llm(msgs, max_tokens=400),
-                    code=new_code or "",
-                    error=result.get("error") or "",
-                )
-                fix_prompt = _prepend_scrape(fix_prompt, scrape)
-            else:
-                fix_prompt = _rag_append(
-                    fix_prompt,
-                    "repair",
-                    f"{result['error'][:2000]}\n{(new_code or '')[:4000]}",
-                )
-            self.messages.append({"role": "user", "content": fix_prompt})
-            reply = self._call_llm(self.messages)
-            self.messages.append({"role": "assistant", "content": reply})
-            self._append_history("assistant", reply)
-            fixed = extract_cpp_code(reply)
-            if fixed:
-                new_code = fixed
+                history_block = _format_attempt_history(step_turn_records, "B")
+                if is_timeout:
+                    fix_prompt = hls_synthesis_timeout_fix.format(
+                        timeout=600,
+                        hls_code=new_code,
+                        header_code=self.header_code,
+                        benchmark_context=self.benchmark_context,
+                        repair_guidance=guidance,
+                        attempt_history=history_block,
+                    )
+                else:
+                    fix_prompt = hls_synthesis_fix.format(
+                        synth_error=result["error"],
+                        hls_code=new_code,
+                        header_code=self.header_code,
+                        target_context=_target_context_for_prompt(self.part, self.clock_ns),
+                        benchmark_context=self.benchmark_context,
+                        repair_guidance=guidance,
+                        attempt_history=history_block,
+                    )
+                if _scrape_enabled_for("repair"):
+                    scrape = _scrape_docs_for_repair(
+                        lambda msgs: self._call_llm(msgs, max_tokens=400),
+                        code=new_code or "",
+                        error=result.get("error") or "",
+                    )
+                    fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                else:
+                    fix_prompt = _rag_append(
+                        fix_prompt,
+                        "repair",
+                        f"{result['error'][:2000]}\n{(new_code or '')[:4000]}",
+                    )
+                self.messages.append({"role": "user", "content": fix_prompt})
+                reply = self._call_llm(self.messages)
+                self.messages.append({"role": "assistant", "content": reply})
+                self._append_history("assistant", reply)
+                fixed = extract_cpp_code(reply)
+                if fixed:
+                    new_code = fixed
 
         if exhaustive and successful_attempts:
             chosen = min(
@@ -6565,6 +6656,10 @@ class C2HLSOrchestrator:
 
         self.hls_code = new_code
         self.synth_report = new_report
+        if attempt.get("csim") is not None:
+            self.generated_csim = attempt["csim"]
+        if attempt.get("cosim") is not None:
+            self.generated_cosim = attempt["cosim"]
         attempt["forward_eval_committed"] = True
         return attempt
 
@@ -6584,7 +6679,32 @@ class C2HLSOrchestrator:
         if not self.run_phase_a(c_code, header_code, header_name):
             return False, {"phase": "A", "error": "C code validation failed"}
 
-        if not self.run_phase_b(multistep=True):
+        baseline_csim = None
+        baseline_cosim = None
+        skip_phase_b = _skip_phase_b_enabled()
+        if skip_phase_b:
+            logging.info(
+                "=== [Phase B] Skipped (flash seeds from plain C; C2HLS_SKIP_PHASE_B=1) ==="
+            )
+            self._append_history(
+                "system",
+                "[Phase B] Skipped: zero-shot direct flash from plain.cpp.",
+            )
+            self.hls_code = self.c_code
+            self.synth_report = None
+            baseline_report: dict = {}
+            if record_flow_enabled():
+                self._flow_phase_b_code = ""
+                self._flow_phase_b_report = {}
+            self._baseline_report = baseline_report
+            baseline_alignment = {"skipped": True, "reason": "skip_phase_b"}
+            self._record_phase_b_fast_candidate(reference_report)
+            baseline_comparison = (
+                self.run_phase_c(reference_report) if reference_report else {}
+            )
+            step_results = []
+            best_so_far_history: list = []
+        elif not self.run_phase_b(multistep=True):
             return False, {
                 "phase": "B",
                 "error": "Baseline HLS synthesis/correctness failed",
@@ -6595,33 +6715,35 @@ class C2HLSOrchestrator:
                 "baseline_cosim": self.generated_cosim,
                 "preflight_patches": self.preflight_patches,
             }
+        else:
+            # Phase 8 (opt-in via C2HLS_PHASE8_BASELINE_ALIGN=1): if our Phase B
+            # baseline is significantly worse than the reference baseline,
+            # re-translate with metric-only feedback before optimization
+            # starts. This stops a bad initial translation from poisoning
+            # every downstream optimization step.
+            baseline_alignment = self._baseline_alignment_loop(reference_report)
+            self._record_phase_b_fast_candidate(reference_report)
 
-        # Phase 8 (opt-in via C2HLS_PHASE8_BASELINE_ALIGN=1): if our Phase B
-        # baseline is significantly worse than the reference baseline,
-        # re-translate with metric-only feedback before optimization
-        # starts. This stops a bad initial translation from poisoning
-        # every downstream optimization step.
-        baseline_alignment = self._baseline_alignment_loop(reference_report)
-        self._record_phase_b_fast_candidate(reference_report)
+            baseline_report = dict(self.synth_report) if self.synth_report else {}
+            if record_flow_enabled():
+                self._flow_phase_b_code = self.hls_code
+                self._flow_phase_b_report = dict(baseline_report)
+            # Store on self so _optimization_step_attempt can diff per-loop
+            # bottlenecks of any subsequent step against the baseline (Pillar 1).
+            self._baseline_report = baseline_report
+            baseline_comparison = self.run_phase_c(reference_report) if reference_report else {}
+            baseline_csim = self.generated_csim
+            baseline_cosim = self.generated_cosim
+            step_results = []
 
-        baseline_report = dict(self.synth_report) if self.synth_report else {}
-        if record_flow_enabled():
-            self._flow_phase_b_code = self.hls_code
-            self._flow_phase_b_report = dict(baseline_report)
-        # Store on self so _optimization_step_attempt can diff per-loop
-        # bottlenecks of any subsequent step against the baseline (Pillar 1).
-        self._baseline_report = baseline_report
-        baseline_comparison = self.run_phase_c(reference_report) if reference_report else {}
-        step_results = []
-
-        # Phase 6a: best-so-far history. Seed with the baseline so a
-        # trajectory that finds nothing better still has a fallback.
-        # Always-on (no env flag) — trivial overhead, big upside.
-        best_so_far_history: list = []
-        self._record_best_so_far(
-            best_so_far_history, step_index=-1,
-            step_name="baseline", source="baseline",
-        )
+            # Phase 6a: best-so-far history. Seed with the baseline so a
+            # trajectory that finds nothing better still has a fallback.
+            # Always-on (no env flag) — trivial overhead, big upside.
+            best_so_far_history = []
+            self._record_best_so_far(
+                best_so_far_history, step_index=-1,
+                step_name="baseline", source="baseline",
+            )
 
         # Phase 3: seed the GT baseline so trajectory-alignment can
         # walk back to it when computing parent_gt_report.
@@ -6940,12 +7062,26 @@ class C2HLSOrchestrator:
         # it and overwrite final_report / hls_code with that snapshot.
         promotion = self._promote_best_so_far(best_so_far_history)
 
+        final_csim = self.generated_csim
+        final_cosim = self.generated_cosim
+        for step in reversed(step_results):
+            if isinstance(step.get("csim"), dict) and step["csim"].get("ran"):
+                final_csim = step.get("csim")
+                break
+        for step in reversed(step_results):
+            step_cosim = step.get("cosim") if isinstance(step.get("cosim"), dict) else {}
+            if step_cosim.get("kernel_runtime_cycles"):
+                final_cosim = step.get("cosim")
+                break
+
         return True, {
             "phase": "flash" if self.strategy == "flash" else "multistep",
             "baseline_report": baseline_report,
             "baseline_comparison": baseline_comparison,
-            "baseline_csim": self.generated_csim,
-            "baseline_cosim": self.generated_cosim,
+            "baseline_csim": baseline_csim,
+            "baseline_cosim": baseline_cosim,
+            "csim": final_csim,
+            "cosim": final_cosim,
             "final_report": self.synth_report,
             "steps": step_results,
             "generated_step_history": [
@@ -6954,8 +7090,8 @@ class C2HLSOrchestrator:
                     "success": True,
                     "report": baseline_report,
                     "comparison": baseline_comparison,
-                    "csim": self.generated_csim,
-                    "cosim": self.generated_cosim,
+                    "csim": baseline_csim,
+                    "cosim": baseline_cosim,
                 },
                 *step_results,
             ],

@@ -126,7 +126,18 @@ class FlashPipelinedBenchSession:
                 self.inputs["header_name"] or "kernel.h",
             ):
                 raise RuntimeError("Phase A failed")
-            orch._pipelined_ctx = {"phase_b_attempt": 0, "flash_attempt": 0}
+            from c2hls import _skip_phase_b_enabled
+
+            if _skip_phase_b_enabled():
+                orch.hls_code = orch.c_code
+                orch.synth_report = None
+                orch._pipelined_ctx = {
+                    "phase_b_attempt": 0,
+                    "flash_attempt": 0,
+                    "phase_b_skipped": True,
+                }
+            else:
+                orch._pipelined_ctx = {"phase_b_attempt": 0, "flash_attempt": 0}
             self._save_state(orch)
 
         self.orchestrator = orch

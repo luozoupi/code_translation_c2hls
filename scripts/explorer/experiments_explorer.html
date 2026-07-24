@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Experiment Explorer</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --done: #3dd68c;
+      --claimed: #5b9cf5;
+      --failed: #f87171;
+      --accent: #a78bfa;
+      --warn: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #151d2b 0%, var(--bg) 100%);
+    }
+    header h1 { margin: 0 0 0.25rem; font-size: 1.35rem; }
+    header .sub { color: var(--muted); font-size: 0.88rem; }
+    main { padding: 1rem 1.5rem 2rem; max-width: 1600px; margin: 0 auto; }
+    .tabs { display: flex; gap: 0.35rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .tab {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 0.45rem 0.9rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.88rem;
+    }
+    .tab.active { color: var(--text); border-color: var(--accent); background: #222a3d; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; align-items: center; }
+    .filters select, .filters input[type="search"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.35rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    .filters input[type="search"] { min-width: 220px; }
+    .btn {
+      background: #2a3550;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.35rem 0.7rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.82rem;
+    }
+    .btn.primary { background: #3b2f6b; border-color: var(--accent); }
+    .btn:hover { filter: brightness(1.1); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td { text-align: left; padding: 0.4rem 0.45rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; font-size: 0.72rem; text-transform: uppercase; white-space: nowrap; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    tr.planned td { opacity: 0.75; }
+    tr.expanded + tr.detail td { background: #121a28; padding: 0.75rem; }
+    .speedup { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .speedup.good { color: var(--done); }
+    .speedup.flat { color: var(--muted); }
+    .speedup.bad { color: var(--failed); }
+    .pill {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .pill.planned { color: var(--warn); border-color: #6b5520; }
+    .layout-2 { display: grid; gap: 1rem; }
+    @media (min-width: 1000px) {
+      .layout-2.wide { grid-template-columns: 320px 1fr; }
+    }
+    .bench-list {
+      max-height: 420px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+    }
+    .bench-list label {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+      font-size: 0.82rem;
+      padding: 0.15rem 0;
+    }
+    .bench-group { margin-bottom: 0.6rem; }
+    .bench-group h3 { margin: 0 0 0.25rem; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; }
+  .selected-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; min-height: 1.5rem; }
+    .chip {
+      background: #222a3d;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.15rem 0.55rem;
+      font-size: 0.75rem;
+    }
+    footer { text-align: center; color: var(--muted); font-size: 0.78rem; padding: 1rem; }
+    #error { color: var(--failed); margin-bottom: 0.75rem; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; }
+    .muted { color: var(--muted); font-size: 0.82rem; }
+    tfoot td { border-top: 2px solid var(--border); font-weight: 600; background: rgba(167,139,250,0.06); }
+    tfoot tr.table-header-repeat th {
+      border-top: 2px solid var(--border);
+      border-bottom: none;
+      background: var(--panel);
+      font-weight: 500;
+    }
+    .grid-top { display: grid; gap: 1rem; }
+    @media (min-width: 900px) {
+      .grid-top { grid-template-columns: 280px 1fr 1fr; }
+      .grid-mid { grid-template-columns: 1fr 1fr; }
+    }
+    .progress-wrap { text-align: center; padding: 0.5rem 0; }
+    .progress-ring {
+      --pct: 0;
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      background: conic-gradient(var(--done) calc(var(--pct) * 1%), #2d3a4f 0);
+      display: grid; place-items: center;
+      margin: 0 auto 0.75rem;
+    }
+    .progress-ring-inner {
+      width: 108px; height: 108px; border-radius: 50%;
+      background: var(--panel);
+      display: grid; place-items: center;
+      font-size: 1.75rem; font-weight: 700;
+    }
+    .stats { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+    .pill.done { color: var(--done); border-color: #2d6b4f; }
+    .pill.claimed { color: var(--claimed); border-color: #2d5080; }
+    .pill.pending { color: #c4cdd9; }
+    .pill.failed { color: var(--failed); border-color: #7f3d3d; }
+    .pill.active-live { color: var(--claimed); border-color: var(--accent); }
+    .kv { display: grid; gap: 0.35rem; font-size: 0.88rem; }
+    .kv div { display: flex; justify-content: space-between; gap: 1rem; }
+    .kv span:first-child { color: var(--muted); }
+    .ok { color: var(--done); }
+    .bad { color: var(--failed); }
+    .status {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      padding: 0.15rem 0.45rem; border-radius: 4px; text-transform: uppercase;
+    }
+    .status.done { background: #1a3d2e; color: var(--done); }
+    .status.claimed { background: #1a2f4d; color: var(--claimed); }
+    .status.pending { background: #2a3140; color: #b8c2d0; }
+    .status.failed { background: #3d2222; color: var(--failed); }
+    .htag {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      padding: 0.12rem 0.4rem; border-radius: 4px; white-space: nowrap;
+    }
+    .htag.running { background: #1a2f4d; color: var(--claimed); }
+    .htag.pass { background: #1a3d2e; color: var(--done); }
+    .htag.fail { background: #3d2222; color: var(--failed); }
+    .htag.crash { background: #3d3020; color: var(--warn); }
+    .htag.next { background: #2a3140; color: #c4cdd9; border: 1px dashed var(--border); }
+    .phase { font-size: 0.78rem; color: var(--accent); }
+    .events { max-height: 320px; overflow-y: auto; font-size: 0.82rem; font-family: ui-monospace, monospace; }
+    .events div { padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
+    .events .ts { color: var(--muted); margin-right: 0.5rem; }
+    .err-cell { color: var(--failed); font-size: 0.78rem; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Experiment Explorer</h1>
+    <div class="sub" id="subtitle">Loading catalog…</div>
+  </header>
+  <main>
+    <div id="error"></div>
+    <div class="toolbar">
+      <label class="muted"><input type="checkbox" id="auto-refresh" /> Auto-refresh (30s)</label>
+      <button class="btn" id="btn-refresh">Refresh now</button>
+      <span class="muted" id="updated">—</span>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="browse">Browse</button>
+      <button class="tab" data-tab="live">Live progress</button>
+      <button class="tab" data-tab="compare-runs">Compare runs</button>
+      <button class="tab" data-tab="compare-benches">Compare benches</button>
+    </div>
+
+    <section class="panel active" id="panel-browse">
+      <div class="card">
+        <h2>Filters</h2>
+        <div class="filters" id="browse-filters"></div>
+        <div class="toolbar">
+          <button class="btn" id="select-all-filtered">Select all (filtered)</button>
+          <button class="btn" id="clear-selection">Clear selection</button>
+          <span class="muted" id="selection-count">0 selected</span>
+        </div>
+      </div>
+      <div class="card" style="overflow-x:auto;">
+        <h2>Experiments</h2>
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Label</th>
+              <th>Site</th>
+              <th>Workflow</th>
+              <th>Cosim</th>
+              <th>Corpus</th>
+              <th>Skills</th>
+              <th>Model</th>
+              <th>Stamp</th>
+              <th>OK/Fail</th>
+              <th title="Mean final csynth latency (best case)">csynth best</th>
+              <th title="Mean final csynth latency (average)">csynth avg</th>
+              <th title="Mean final csynth latency (worst case)">csynth worst</th>
+              <th title="Geo-mean cosim speedup vs benchmarks/ gold baseline (excludes LLM error and csynth timeout benches)">cosim÷</th>
+              <th>best÷best</th>
+              <th>avg÷avg</th>
+              <th>worst÷worst</th>
+            </tr>
+          </thead>
+          <tbody id="browse-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-live">
+      <div class="card">
+        <h2>Campaign</h2>
+        <div class="toolbar">
+          <select id="live-campaign-select" style="min-width:320px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;"></select>
+          <label class="muted"><input type="checkbox" id="live-auto-refresh" /> Auto-refresh (5s)</label>
+          <span class="muted" id="live-updated">—</span>
+        </div>
+      </div>
+      <div class="grid grid-top" style="margin-bottom:1rem;">
+        <div class="card progress-wrap">
+          <h2>Progress</h2>
+          <div class="progress-ring" id="live-ring"><div class="progress-ring-inner" id="live-pct">—</div></div>
+          <div class="stats" id="live-stats"></div>
+        </div>
+        <div class="card">
+          <h2>GPU</h2>
+          <div class="kv" id="live-gpu"></div>
+        </div>
+        <div class="card">
+          <h2>Campaign state</h2>
+          <div class="kv" id="live-campaign"></div>
+        </div>
+      </div>
+      <div class="grid grid-mid" style="margin-bottom:1rem;">
+        <div class="card">
+          <h2>Compute nodes</h2>
+          <table>
+            <thead><tr><th>Node</th><th>Bench</th><th>Phase</th><th>csynth</th><th>csim</th><th>cosim</th><th>Host</th><th>Slurm</th><th>State</th></tr></thead>
+            <tbody id="live-slots"></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h2>Recent events</h2>
+          <div class="events" id="live-events"></div>
+        </div>
+      </div>
+      <div class="card" style="overflow-x:auto;">
+        <h2>All benches</h2>
+        <table>
+          <thead><tr><th>Bench</th><th>Status</th><th>Phase</th><th>csynth</th><th>csim</th><th>cosim</th><th title="Final csynth latency (best case)">csynth best</th><th title="Final csynth latency (average)">csynth avg</th><th title="Final csynth latency (worst case)">csynth worst</th><th title="Gold cosim cycles from benchmarks/ hls_baseline.cpp">cosim base</th><th title="Generated cosim RTL cycles">cosim gen</th><th title="benchmarks/ cosim base ÷ generated cosim">cosim÷</th><th>best÷best</th><th>avg÷avg</th><th>worst÷worst</th><th>Worker</th><th>Error</th></tr></thead>
+          <tbody id="live-benches"></tbody>
+          <tfoot>
+            <tr id="live-benches-foot-summary" style="display:none"></tr>
+            <tr class="table-header-repeat">
+              <th>Bench</th><th>Status</th><th>Phase</th><th>csynth</th><th>csim</th><th>cosim</th><th title="Final csynth latency (best case)">csynth best</th><th title="Final csynth latency (average)">csynth avg</th><th title="Final csynth latency (worst case)">csynth worst</th><th title="Gold cosim cycles from benchmarks/ hls_baseline.cpp">cosim base</th><th title="Generated cosim RTL cycles">cosim gen</th><th title="benchmarks/ cosim base ÷ generated cosim">cosim÷</th><th>best÷best</th><th>avg÷avg</th><th>worst÷worst</th><th>Worker</th><th>Error</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-compare-runs">
+      <div class="layout-2 wide">
+        <div class="card">
+          <h2>Selected experiments</h2>
+          <div class="selected-chips" id="runs-selected-chips"></div>
+          <p class="muted">Select experiments in Browse, or check boxes below.</p>
+          <div id="runs-picker" style="max-height:360px;overflow-y:auto;margin-top:0.5rem;"></div>
+          <div class="toolbar" style="margin-top:0.75rem;">
+            <button class="btn primary" id="btn-compare-runs">Compare</button>
+            <button class="btn" id="btn-export-runs">Copy CSV</button>
+          </div>
+        </div>
+        <div class="card" id="runs-results">
+          <h2>Geomean comparison</h2>
+          <p class="muted">baseline_latency ÷ final_latency (&gt;1 = faster)</p>
+          <div id="runs-results-table"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-compare-benches">
+      <div class="layout-2 wide">
+        <div>
+          <div class="card">
+            <h2>Experiments</h2>
+            <div class="toolbar">
+              <button class="btn" id="bench-exp-select-all">Select all experiments</button>
+              <button class="btn" id="bench-exp-clear">Clear</button>
+            </div>
+            <div id="bench-exp-picker" style="max-height:200px;overflow-y:auto;"></div>
+          </div>
+          <div class="card">
+            <h2>Benches</h2>
+            <div class="toolbar">
+              <button class="btn" id="bench-select-all">Select all benches</button>
+              <button class="btn" id="bench-select-intersection">Select intersection</button>
+              <button class="btn" id="bench-clear">Clear benches</button>
+            </div>
+            <div class="bench-list" id="bench-picker"></div>
+            <div class="toolbar" style="margin-top:0.75rem;">
+              <button class="btn primary" id="btn-compare-benches">Compare</button>
+              <button class="btn" id="btn-export-benches">Copy CSV</button>
+            </div>
+          </div>
+        </div>
+        <div class="card" id="bench-results">
+          <h2>Filtered comparison</h2>
+          <div id="bench-summary-table"></div>
+          <h2 style="margin-top:1.25rem;">Per-bench matrix (cosim base / gen)</h2>
+          <div id="bench-matrix-table" style="overflow-x:auto;"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer>Experiment explorer · csynth speedup geomeans</footer>
+
+  <script>
+    const REFRESH_MS = 30000;
+    const LIVE_REFRESH_MS = 5000;
+    let indexData = null;
+    let selectedIds = new Set();
+    let expandedId = null;
+    let benchExpIds = new Set();
+    let selectedBenches = new Set();
+    let lastRunsCompare = null;
+    let lastBenchCompare = null;
+    let liveCampaigns = [];
+    let liveCampaignId = null;
+    let liveSnapshot = null;
+    let liveRefreshTimer = null;
+    let refreshTimer = null;
+    let activeTab = "browse";
+
+    const el = (id) => document.getElementById(id);
+
+    function fmtDuration(sec) {
+      if (sec == null || sec < 0) return "—";
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      if (h) return `${h}h ${m}m`;
+      if (m) return `${m}m ${s}s`;
+      return `${s}s`;
+    }
+
+    function statusClass(s) { return s || "pending"; }
+
+    function hlsTag(value) {
+      const v = (value || "—").toLowerCase();
+      if (v === "—" || v === "") return `<span class="htag muted">—</span>`;
+      if (v === "off") return `<span class="htag">off</span>`;
+      if (v === "running") return `<span class="htag running">run</span>`;
+      if (v === "next") return `<span class="htag next">next</span>`;
+      if (v === "pass") return `<span class="htag pass">pass</span>`;
+      if (v === "fail") return `<span class="htag fail">fail</span>`;
+      if (v === "crash") return `<span class="htag crash">crash</span>`;
+      if (v === "not_run") return `<span class="htag muted">not run</span>`;
+      return `<span class="phase">${value}</span>`;
+    }
+
+    function cosimStatusSpan(cos) {
+      return hlsTag((cos && cos.status) ? cos.status : "—");
+    }
+
+    function issuesText(issues) {
+      if (!issues || !issues.length) return "—";
+      return issues.join(", ");
+    }
+
+    function cosimSummaryLabel(csg) {
+      const counts = csg?.status_counts || {};
+      const parts = [];
+      if (counts.pass) parts.push(`${counts.pass} pass`);
+      if (counts.fail) parts.push(`${counts.fail} fail`);
+      if (counts.crash) parts.push(`${counts.crash} crash`);
+      if (counts.not_run) parts.push(`${counts.not_run} not run`);
+      const suffix = parts.length ? ` · ${parts.join(", ")}` : "";
+      return `${speedupSpan(csg?.geomean)}<div class="muted" style="font-size:0.75rem;">n=${csg?.n ?? 0}${suffix}</div>`;
+    }
+
+    function fmtSpeedup(v) {
+      if (v == null || !Number.isFinite(v)) return "—";
+      if (v >= 100) return `${v.toFixed(0)}×`;
+      if (v >= 10) return `${v.toFixed(1)}×`;
+      return `${v.toFixed(2)}×`;
+    }
+
+    function fmtCycles(v) {
+      if (v == null || !Number.isFinite(v)) return "—";
+      return Math.round(v).toLocaleString();
+    }
+
+    function speedupSpan(v) {
+      if (v == null || !Number.isFinite(v)) return `<span class="speedup">—</span>`;
+      const cls = v > 1.01 ? "good" : (v < 0.99 ? "bad" : "flat");
+      return `<span class="speedup ${cls}">${fmtSpeedup(v)}</span>`;
+    }
+
+    const CSYNTH_FAIL_ISSUES = new Set([
+      "llm_connection_error", "llm_timeout", "csynth_timeout", "flash_csynth_fail",
+    ]);
+
+    function benchCsynthFailed(info) {
+      if (!info) return false;
+      if (info.status && info.status !== "ok") return true;
+      const issues = info.run_issues || [];
+      return issues.some((i) => CSYNTH_FAIL_ISSUES.has(i));
+    }
+
+    function csynthSpeedupSpan(sp, info, kind) {
+      if (benchCsynthFailed(info)) return hlsTag("fail");
+      const v = sp ? sp[kind] : null;
+      return speedupSpan(v);
+    }
+
+    function cosimSpeedupSpan(cos, info) {
+      const st = (cos && cos.status) ? cos.status : "not_run";
+      if (st === "fail" || st === "crash") return hlsTag(st);
+      if (benchCsynthFailed(info)) return hlsTag("fail");
+      if (st === "not_run" && cos && cos.expected) return hlsTag("fail");
+      if (st === "not_run") return hlsTag("not run");
+      return speedupSpan(cos ? cos.speedup : null);
+    }
+
+    function latencySpan(lat, kind) {
+      if (!lat || lat[kind] == null) return `<span class="speedup">—</span>`;
+      return `<span class="speedup">${fmtCycles(lat[kind])}</span>`;
+    }
+
+    function fmtTs(iso) {
+      if (!iso) return "—";
+      try { return new Date(iso).toLocaleString(); } catch { return iso; }
+    }
+
+    function filteredExperiments() {
+      if (!indexData) return [];
+      const site = el("filter-site")?.value || "";
+      const workflow = el("filter-workflow")?.value || "";
+      const cosim = el("filter-cosim")?.value || "";
+      const corpus = el("filter-corpus")?.value || "";
+      const skills = el("filter-skills")?.value || "";
+      const model = el("filter-model")?.value || "";
+      const q = (el("filter-search")?.value || "").toLowerCase();
+      return (indexData.experiments || []).filter((exp) => {
+        if (site && exp.site !== site) return false;
+        if (workflow && exp.workflow !== workflow) return false;
+        if (cosim && exp.cosim !== cosim) return false;
+        if (corpus && exp.corpus !== corpus) return false;
+        if (skills && exp.skills_mode !== skills) return false;
+        if (model && exp.model !== model) return false;
+        if (q) {
+          const hay = `${exp.id} ${exp.label} ${exp.dirname || ""}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+    }
+
+    function buildFilterSelects() {
+      const facets = indexData?.facets || {};
+      const specs = [
+        ["filter-site", "site", "All sites"],
+        ["filter-workflow", "workflow", "All workflows"],
+        ["filter-cosim", "cosim", "All cosim"],
+        ["filter-corpus", "corpus", "All corpora"],
+        ["filter-skills", "skills_mode", "All skills"],
+        ["filter-model", "model", "All models"],
+      ];
+      el("browse-filters").innerHTML = specs.map(([id, key, label]) => {
+        const opts = (facets[key] || []).map((v) => `<option value="${v}">${v}</option>`).join("");
+        return `<select id="${id}"><option value="">${label}</option>${opts}</select>`;
+      }).join("") + `<input type="search" id="filter-search" placeholder="Search label or id…" />`;
+      ["filter-site","filter-workflow","filter-cosim","filter-corpus","filter-skills","filter-model","filter-search"]
+        .forEach((id) => el(id)?.addEventListener("input", renderBrowse));
+      ["filter-site","filter-workflow","filter-cosim","filter-corpus","filter-skills","filter-model"]
+        .forEach((id) => el(id)?.addEventListener("change", renderBrowse));
+    }
+
+    function renderBrowse() {
+      const rows = filteredExperiments();
+      el("browse-body").innerHTML = rows.map((exp) => {
+        const gm = exp.geomean || {};
+        const lm = exp.latency_mean || {};
+        const csg = exp.cosim_speedup_geomean || {};
+        const c = exp.counts || {};
+        const checked = selectedIds.has(exp.id) ? "checked" : "";
+        const planned = exp.planned ? "planned" : "";
+        const okfail = exp.planned ? "—" : `${c.ok || 0}/${c.fail || 0}`;
+        const skills = exp.skill_variant ? `${exp.skills_mode} (${exp.skill_variant})` : (exp.skills_mode || "—");
+        return `<tr class="${planned} ${expandedId === exp.id ? "expanded" : ""}" data-id="${exp.id}">
+          <td><input type="checkbox" class="exp-check" data-id="${exp.id}" ${checked} /></td>
+          <td><a href="#" class="exp-toggle" data-id="${exp.id}">${exp.label}</a>${exp.planned ? ' <span class="pill planned">planned</span>' : ""}</td>
+          <td>${exp.site}</td>
+          <td>${exp.workflow}</td>
+          <td>${exp.cosim}</td>
+          <td>${exp.corpus}</td>
+          <td>${skills}</td>
+          <td>${(exp.model || "—").split("/").pop()}</td>
+          <td>${exp.stamp || "—"}</td>
+          <td>${okfail}</td>
+          <td>${latencySpan(lm, "best")}</td>
+          <td>${latencySpan(lm, "avg")}</td>
+          <td>${latencySpan(lm, "worst")}</td>
+          <td>${cosimSummaryLabel(csg)}</td>
+          <td>${speedupSpan(gm.best)}</td>
+          <td>${speedupSpan(gm.avg)}</td>
+          <td>${speedupSpan(gm.worst)}</td>
+        </tr>`;
+      }).join("") || "<tr><td colspan='17'>No experiments match filters</td></tr>";
+
+      if (expandedId) {
+        const exp = (indexData.experiments || []).find((e) => e.id === expandedId);
+        if (exp) {
+          const benchRows = Object.entries(exp.benches || {}).map(([short, info]) => {
+            const sp = info.speedup || {};
+            const lat = info.latency || {};
+            const cos = info.cosim || {};
+            return `<tr>
+              <td>${short}</td><td>${info.status}</td>
+              <td>${latencySpan(lat, "best")}</td>
+              <td>${latencySpan(lat, "avg")}</td>
+              <td>${latencySpan(lat, "worst")}</td>
+              <td>${cosimStatusSpan(cos)}</td>
+              <td>${cos.winning_step || "—"}</td>
+              <td><span class="speedup">${fmtCycles(cos.baseline)}</span></td>
+              <td><span class="speedup">${fmtCycles(cos.generated)}</span></td>
+              <td>${cosimSpeedupSpan(cos, info)}</td>
+              <td>${csynthSpeedupSpan(sp, info, "best")}</td>
+              <td>${csynthSpeedupSpan(sp, info, "avg")}</td>
+              <td>${csynthSpeedupSpan(sp, info, "worst")}</td>
+              <td class="err-cell">${issuesText(info.run_issues)}</td>
+            </tr>`;
+          }).join("");
+          const detail = `<tr class="detail"><td colspan="17">
+            ${exp.notes ? `<p class="muted">${exp.notes}</p>` : ""}
+            <p class="muted">${exp.path || "no path"}</p>
+            <table><thead><tr><th>Bench</th><th>Status</th><th>csynth best</th><th>csynth avg</th><th>csynth worst</th><th>cosim</th><th>winner</th><th>cosim base</th><th>cosim gen</th><th>cosim÷</th><th>best÷best</th><th>avg÷avg</th><th>worst÷worst</th><th>Issues</th></tr></thead>
+            <tbody>${benchRows || "<tr><td colspan='14'>No bench data</td></tr>"}</tbody></table>
+          </td></tr>`;
+          const row = el("browse-body").querySelector(`tr[data-id="${CSS.escape(expandedId)}"]`);
+          if (row) row.insertAdjacentHTML("afterend", detail);
+        }
+      }
+
+      document.querySelectorAll(".exp-check").forEach((cb) => {
+        cb.addEventListener("change", (e) => {
+          const id = e.target.dataset.id;
+          if (e.target.checked) selectedIds.add(id); else selectedIds.delete(id);
+          updateSelectionCount();
+          renderPickers();
+        });
+      });
+      document.querySelectorAll(".exp-toggle").forEach((a) => {
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          const id = a.dataset.id;
+          expandedId = expandedId === id ? null : id;
+          renderBrowse();
+        });
+      });
+      updateSelectionCount();
+    }
+
+    function updateSelectionCount() {
+      el("selection-count").textContent = `${selectedIds.size} selected`;
+      renderPickers();
+    }
+
+    function renderPickers() {
+      const exps = indexData?.experiments || [];
+      const chipHtml = [...selectedIds].map((id) => {
+        const exp = exps.find((e) => e.id === id);
+        return `<span class="chip">${exp?.label || id}</span>`;
+      }).join("");
+      el("runs-selected-chips").innerHTML = chipHtml || "<span class='muted'>None</span>";
+
+      el("runs-picker").innerHTML = exps.map((exp) => {
+        const checked = selectedIds.has(exp.id) ? "checked" : "";
+        return `<label><input type="checkbox" class="runs-pick" data-id="${exp.id}" ${checked}/> ${exp.label}</label>`;
+      }).join("");
+
+      document.querySelectorAll(".runs-pick").forEach((cb) => {
+        cb.addEventListener("change", (e) => {
+          const id = e.target.dataset.id;
+          if (e.target.checked) selectedIds.add(id); else selectedIds.delete(id);
+          updateSelectionCount();
+          renderBrowse();
+        });
+      });
+
+      el("bench-exp-picker").innerHTML = exps.map((exp) => {
+        const checked = benchExpIds.has(exp.id) ? "checked" : "";
+        return `<label><input type="checkbox" class="bench-exp-pick" data-id="${exp.id}" ${checked}/> ${exp.label}</label>`;
+      }).join("");
+
+      document.querySelectorAll(".bench-exp-pick").forEach((cb) => {
+        cb.addEventListener("change", (e) => {
+          const id = e.target.dataset.id;
+          if (e.target.checked) benchExpIds.add(id); else benchExpIds.delete(id);
+          renderBenchPicker();
+        });
+      });
+
+      renderBenchPicker();
+    }
+
+    function renderBenchPicker() {
+      const exps = (indexData?.experiments || []).filter((e) => benchExpIds.has(e.id));
+      const byCorpus = {};
+      for (const exp of exps) {
+        for (const [short, info] of Object.entries(exp.benches || {})) {
+          const corpus = info.corpus || "unknown";
+          byCorpus[corpus] = byCorpus[corpus] || new Set();
+          byCorpus[corpus].add(short);
+        }
+      }
+      if (!Object.keys(byCorpus).length) {
+        const all = indexData?.all_benches || [];
+        for (const b of all) {
+          byCorpus[b.corpus] = byCorpus[b.corpus] || new Set();
+          byCorpus[b.corpus].add(b.bench);
+        }
+      }
+      el("bench-picker").innerHTML = Object.keys(byCorpus).sort().map((corpus) => {
+        const items = [...byCorpus[corpus]].sort().map((bench) => {
+          const checked = selectedBenches.has(bench) ? "checked" : "";
+          return `<label><input type="checkbox" class="bench-pick" data-bench="${bench}" ${checked}/> ${bench}</label>`;
+        }).join("");
+        return `<div class="bench-group"><h3>${corpus}</h3>${items}</div>`;
+      }).join("");
+
+      document.querySelectorAll(".bench-pick").forEach((cb) => {
+        cb.addEventListener("change", (e) => {
+          const bench = e.target.dataset.bench;
+          if (e.target.checked) selectedBenches.add(bench); else selectedBenches.delete(bench);
+        });
+      });
+    }
+
+    function renderRunsCompare(data) {
+      lastRunsCompare = data;
+      const summaries = data.summaries || [];
+      if (!summaries.length) {
+        el("runs-results-table").innerHTML = "<p class='muted'>Select 2+ experiments with data and click Compare.</p>";
+        return;
+      }
+      const cols = summaries.map((s) => `<th title="${s.id}">${s.label}</th>`).join("");
+      const row = (label, key) => {
+        const cells = summaries.map((s) => speedupSpan(s.geomean?.[key])).join("");
+        return `<tr><td>${label}</td>${cells}</tr>`;
+      };
+      const latRow = (label, key) => {
+        const cells = summaries.map((s) => latencySpan(s.latency_mean, key)).join("");
+        return `<tr><td>${label}</td>${cells}</tr>`;
+      };
+      const cosimRow = (label) => {
+        const cells = summaries.map((s) => speedupSpan(s.cosim_speedup_geomean?.geomean)).join("");
+        return `<tr><td>${label}</td>${cells}</tr>`;
+      };
+      const nrow = summaries.map((s) => `<td>${s.geomean?.n ?? 0}</td>`).join("");
+      let delta = "";
+      if (summaries.length === 2 && data.pairwise_delta) {
+        const d = data.pairwise_delta;
+        delta = `<tr><td>Δ avg (A/B)</td><td colspan="${summaries.length}">${fmtSpeedup(d.delta_avg)}</td></tr>`;
+      }
+      el("runs-results-table").innerHTML = `<table>
+        <thead><tr><th>Metric</th>${cols}</tr></thead>
+        <tbody>
+          ${latRow("Mean csynth best", "best")}
+          ${latRow("Mean csynth avg", "avg")}
+          ${latRow("Mean csynth worst", "worst")}
+          ${cosimRow("Geo-mean cosim÷")}
+          ${row("Geo-mean best÷best", "best")}
+          ${row("Geo-mean avg÷avg", "avg")}
+          ${row("Geo-mean worst÷worst", "worst")}
+          <tr><td>n benches</td>${nrow}</tr>
+          ${delta}
+        </tbody>
+      </table>`;
+    }
+
+    function renderBenchCompare(data) {
+      lastBenchCompare = data;
+      const summaries = data.summaries || [];
+      if (!summaries.length) {
+        el("bench-summary-table").innerHTML = "<p class='muted'>No comparison data.</p>";
+        el("bench-matrix-table").innerHTML = "";
+        return;
+      }
+      const cols = summaries.map((s) => `<th>${s.label}</th>`).join("");
+      const row = (label, key) => {
+        const cells = summaries.map((s) => speedupSpan(s.geomean?.[key])).join("");
+        return `<tr><td>${label}</td>${cells}</tr>`;
+      };
+      const latRow = (label, key) => {
+        const cells = summaries.map((s) => latencySpan(s.latency_mean, key)).join("");
+        return `<tr><td>${label}</td>${cells}</tr>`;
+      };
+      const cosimRow = (label) => {
+        const cells = summaries.map((s) => speedupSpan(s.cosim_speedup_geomean?.geomean)).join("");
+        return `<tr><td>${label}</td>${cells}</tr>`;
+      };
+      el("bench-summary-table").innerHTML = `<table>
+        <thead><tr><th>Filtered summary</th>${cols}</tr></thead>
+        <tbody>
+          ${latRow("Mean csynth best", "best")}
+          ${latRow("Mean csynth avg", "avg")}
+          ${latRow("Mean csynth worst", "worst")}
+          ${cosimRow("Geo-mean cosim÷")}
+          ${row("best÷best", "best")}
+          ${row("avg÷avg", "avg")}
+          ${row("worst÷worst", "worst")}
+          <tr><td>n benches</td>${summaries.map((s) => `<td>${s.geomean?.n ?? 0}</td>`).join("")}</tr>
+        </tbody>
+      </table>`;
+
+      const perBench = data.per_bench || [];
+      const header = `<tr><th>Bench</th>${summaries.map((s) => `<th>${s.label}</th>`).join("")}</tr>`;
+      const body = perBench.map((row) => {
+        const cells = summaries.map((s) => {
+          const cell = row.experiments?.[s.id];
+          if (!cell) return "<td>—</td>";
+          const lat = latencySpan(cell.latency, "avg");
+          const cos = cell.cosim || {};
+          const cosBase = fmtCycles(cos.baseline);
+          const cosGen = fmtCycles(cos.generated);
+          const cosSp = cos.speedup == null || !Number.isFinite(cos.speedup) ? "—" : fmtSpeedup(cos.speedup);
+          const sp = cell.speedup?.avg;
+          const spTxt = sp == null || !Number.isFinite(sp) ? "—" : fmtSpeedup(sp);
+          return `<td>${cosBase} / ${cosGen}<br><span class="muted">cosim ${cosSp} · csynth ${spTxt}</span></td>`;
+        }).join("");
+        return `<tr><td>${row.bench}</td>${cells}</tr>`;
+      }).join("");
+      el("bench-matrix-table").innerHTML = `<table><thead>${header}</thead><tbody>${body}</tbody></table>`;
+    }
+
+    async function fetchLiveCampaigns() {
+      const res = await fetch("/api/live/campaigns");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      liveCampaigns = data.campaigns || [];
+      const sel = el("live-campaign-select");
+      const prev = liveCampaignId;
+      sel.innerHTML = liveCampaigns.map((c) => {
+        const tag = c.active ? " [active]" : (c.campaign_status === "complete" ? " [done]" : (c.campaign_status === "aborted" ? " [aborted]" : (c.summary?.claimed ? " [claimed]" : "")));
+        const sup = c.live_supported ? "" : " (no live UI)";
+        return `<option value="${c.id}">${c.label}${tag}${sup}</option>`;
+      }).join("") || `<option value="">No batch_parallel campaigns</option>`;
+      if (!liveCampaigns.length) {
+        liveCampaignId = null;
+        return;
+      }
+      if (prev && liveCampaigns.some((c) => c.id === prev)) {
+        sel.value = prev;
+        liveCampaignId = prev;
+      } else {
+        const pick = liveCampaigns.find((c) => c.active && (c.summary?.claimed || 0) > 0)
+          || liveCampaigns.find((c) => c.active)
+          || liveCampaigns[0];
+        liveCampaignId = pick.id;
+        sel.value = pick.id;
+      }
+    }
+
+    async function fetchLiveSnapshot() {
+      if (!liveCampaignId) return;
+      const camp = liveCampaigns.find((c) => c.id === liveCampaignId);
+      if (camp && !camp.live_supported) {
+        el("error").textContent = "Live snapshot is only supported for Fir batch_parallel campaigns.";
+        return;
+      }
+      const res = await fetch(`/api/live/snapshot?id=${encodeURIComponent(liveCampaignId)}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      liveSnapshot = await res.json();
+      renderLive();
+      el("live-updated").textContent = `Updated ${fmtTs(liveSnapshot.updated_at)}`;
+    }
+
+    function renderLive() {
+      const data = liveSnapshot;
+      if (!data) return;
+      const s = data.summary || {};
+      const total = s.total || 0;
+      const done = s.done || 0;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      el("live-ring").style.setProperty("--pct", pct);
+      el("live-pct").textContent = `${pct}%`;
+      el("live-stats").innerHTML = [
+        ["done", s.done], ["claimed", s.claimed], ["pending", s.pending], ["failed", s.failed],
+      ].map(([k, v]) => `<span class="pill ${k}">${k} ${v ?? 0}</span>`).join("");
+
+      const ep = data.endpoint || {};
+      const gpu = data.gpu || {};
+      el("live-gpu").innerHTML = [
+        ["Job", gpu.job_id || "—"],
+        ["Slurm", gpu.slurm_state || "—"],
+        ["Time left", fmtDuration(gpu.time_left_sec)],
+        ["Dedicated", gpu.dedicated_job_id || "—"],
+        ["Endpoint", ep.healthy ? `<span class="ok">healthy</span>` : `<span class="bad">down</span>`],
+        ["URL", ep.url || "—"],
+      ].map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join("");
+
+      const c = data.campaign || {};
+      el("live-campaign").innerHTML = [
+        ["Status", c.campaign_status || "—"],
+        ["GPU mode", c.gpu_mode || "—"],
+        ["Compute", c.compute_state || "—"],
+        ["Pending flash", data.status?.pending_flash ?? "—"],
+        ["Vitis running", data.status?.claimed_flash ?? "—"],
+        ["LLM in flight", data.status?.llm_in_flight?.bench || "—"],
+      ].map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join("");
+
+      el("live-slots").innerHTML = (data.slots || []).map((slot) => {
+        const bench = slot.bench ? slot.bench.replace(/^hlsfactory_/, "") : "—";
+        const hls = slot.hls || {};
+        return `<tr>
+          <td>n${slot.node_index}</td>
+          <td>${bench}</td>
+          <td>${hlsTag(hls.phase)}</td>
+          <td>${hlsTag(hls.csynth)}</td>
+          <td>${hlsTag(hls.csim)}</td>
+          <td>${hlsTag(hls.cosim)}</td>
+          <td>${slot.hostname || "—"}</td>
+          <td>${slot.slurm_job_id || "—"}</td>
+          <td>${slot.slurm_state || "—"}</td>
+        </tr>`;
+      }).join("") || "<tr><td colspan='9'>No slots</td></tr>";
+
+      el("live-events").innerHTML = (data.recent_events || []).slice().reverse().map((e) => {
+        const detail = e.bench ? ` ${e.bench.replace(/^hlsfactory_/, "")}` : "";
+        const ok = e.success === true ? " ✓" : (e.success === false ? " ✗" : "");
+        return `<div><span class="ts">${fmtTs(e.ts)}</span>${e.event}${detail}${ok}</div>`;
+      }).join("") || "<div>No events yet</div>";
+
+      const ss = data.speedup_summary || {};
+      const lm = ss.latency_mean || {};
+      const csg = ss.cosim_speedup_geomean || {};
+      el("live-benches").innerHTML = (data.jobs || []).map((j) => {
+        const hls = j.hls || {};
+        const sp = j.speedup || {};
+        const lat = j.latency || {};
+        const cos = j.cosim || {};
+        const issues = j.run_issues || (j.hls || {}).issues || [];
+        const info = { status: j.status === "done" || j.status === "ok" ? "ok" : j.status, run_issues: issues };
+        return `<tr>
+          <td>${j.bench.replace(/^hlsfactory_/, "")}</td>
+          <td><span class="status ${statusClass(j.status)}">${j.status}</span></td>
+          <td>${hlsTag(hls.phase)}</td>
+          <td>${hlsTag(hls.csynth)}</td>
+          <td>${hlsTag(hls.csim)}</td>
+          <td>${cos.status ? cosimStatusSpan(cos) : hlsTag(hls.cosim)}</td>
+          <td>${latencySpan(lat, "best")}</td>
+          <td>${latencySpan(lat, "avg")}</td>
+          <td>${latencySpan(lat, "worst")}</td>
+          <td><span class="speedup">${fmtCycles(cos.baseline)}</span></td>
+          <td><span class="speedup">${fmtCycles(cos.generated)}</span></td>
+          <td>${cosimSpeedupSpan(cos, info)}</td>
+          <td>${csynthSpeedupSpan(sp, info, "best")}</td>
+          <td>${csynthSpeedupSpan(sp, info, "avg")}</td>
+          <td>${csynthSpeedupSpan(sp, info, "worst")}</td>
+          <td>${j.worker_id || "—"}</td>
+          <td class="err-cell" title="${(j.error || issuesText(issues)).replace(/"/g, "'")}">${j.status === "failed" ? (j.error || "") : issuesText(issues)}</td>
+        </tr>`;
+      }).join("");
+
+      const n = ss.n || 0;
+      const summaryRow = el("live-benches-foot-summary");
+      if (n > 0) {
+        summaryRow.style.display = "table-row";
+        summaryRow.innerHTML = `
+        <td colspan="6">Summary (n=${n})</td>
+        <td>${latencySpan(lm, "best")}</td>
+        <td>${latencySpan(lm, "avg")}</td>
+        <td>${latencySpan(lm, "worst")}</td>
+        <td colspan="2"></td>
+        <td>${speedupSpan(csg.geomean)}</td>
+        <td>${speedupSpan(ss.best_geomean)}</td>
+        <td>${speedupSpan(ss.avg_geomean)}</td>
+        <td>${speedupSpan(ss.worst_geomean)}</td>
+        <td colspan="2"></td>`;
+      } else {
+        summaryRow.style.display = "none";
+        summaryRow.innerHTML = "";
+      }
+    }
+
+    function syncLiveRefresh() {
+      if (liveRefreshTimer) clearInterval(liveRefreshTimer);
+      liveRefreshTimer = null;
+      if (activeTab === "live" && el("live-auto-refresh").checked) {
+        liveRefreshTimer = setInterval(() => {
+          fetchLiveSnapshot().catch((e) => { el("error").textContent = e.message; });
+        }, LIVE_REFRESH_MS);
+      }
+    }
+
+    function syncBrowseRefresh() {
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = null;
+      if (activeTab === "browse" && el("auto-refresh").checked) {
+        refreshTimer = setInterval(() => fetchIndex().catch(() => {}), REFRESH_MS);
+      }
+    }
+
+    function syncAllRefresh() {
+      syncBrowseRefresh();
+      syncLiveRefresh();
+    }
+
+    async function initLive() {
+      await fetchLiveCampaigns();
+      await fetchLiveSnapshot();
+      syncLiveRefresh();
+    }
+
+    async function fetchIndex() {
+      const res = await fetch("/api/index");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      indexData = await res.json();
+      el("subtitle").textContent = `${indexData.experiments?.length || 0} experiments · ${indexData.repo_root || ""}`;
+      el("updated").textContent = `Updated ${fmtTs(indexData.updated_at)}`;
+      buildFilterSelects();
+      renderBrowse();
+      renderPickers();
+      el("error").textContent = "";
+    }
+
+    async function compareRuns() {
+      const ids = [...selectedIds];
+      if (ids.length < 1) {
+        el("error").textContent = "Select at least one experiment.";
+        return;
+      }
+      const res = await fetch(`/api/compare?ids=${encodeURIComponent(ids.join(","))}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      renderRunsCompare(await res.json());
+    }
+
+    async function compareBenches() {
+      const ids = [...benchExpIds];
+      const benches = [...selectedBenches];
+      if (ids.length < 1 || benches.length < 1) {
+        el("error").textContent = "Select experiments and benches to compare.";
+        return;
+      }
+      const url = `/api/compare?ids=${encodeURIComponent(ids.join(","))}&benches=${encodeURIComponent(benches.join(","))}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      renderBenchCompare(await res.json());
+    }
+
+    function benchesIntersection() {
+      const exps = (indexData?.experiments || []).filter((e) => benchExpIds.has(e.id) && !e.planned);
+      if (!exps.length) return;
+      let inter = null;
+      for (const exp of exps) {
+        const ok = new Set(
+          Object.entries(exp.benches || {})
+            .filter(([, info]) => info.status === "ok")
+            .map(([b]) => b)
+        );
+        inter = inter === null ? ok : new Set([...inter].filter((b) => ok.has(b)));
+      }
+      selectedBenches = inter || new Set();
+      renderBenchPicker();
+    }
+
+    function copyCsv(tableId) {
+      const table = document.querySelector(`#${tableId} table`);
+      if (!table) return;
+      const rows = [...table.querySelectorAll("tr")].map((tr) =>
+        [...tr.querySelectorAll("th,td")].map((td) => td.textContent.trim()).join(",")
+      );
+      navigator.clipboard.writeText(rows.join("\n"));
+    }
+
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+        tab.classList.add("active");
+        activeTab = tab.dataset.tab;
+        el(`panel-${tab.dataset.tab}`).classList.add("active");
+        if (activeTab === "live") {
+          initLive().catch((e) => { el("error").textContent = e.message; });
+        }
+        syncAllRefresh();
+      });
+    });
+
+    el("live-campaign-select").addEventListener("change", (e) => {
+      liveCampaignId = e.target.value;
+      fetchLiveSnapshot().catch((err) => { el("error").textContent = err.message; });
+    });
+    el("live-auto-refresh").addEventListener("change", syncLiveRefresh);
+
+    el("select-all-filtered").addEventListener("click", () => {
+      filteredExperiments().forEach((exp) => selectedIds.add(exp.id));
+      renderBrowse();
+    });
+    el("clear-selection").addEventListener("click", () => {
+      selectedIds.clear();
+      renderBrowse();
+    });
+    el("btn-refresh").addEventListener("click", () => fetchIndex().catch((e) => { el("error").textContent = e.message; }));
+    el("btn-compare-runs").addEventListener("click", () => compareRuns().catch((e) => { el("error").textContent = e.message; }));
+    el("btn-compare-benches").addEventListener("click", () => compareBenches().catch((e) => { el("error").textContent = e.message; }));
+    el("bench-exp-select-all").addEventListener("click", () => {
+      (indexData?.experiments || []).forEach((e) => benchExpIds.add(e.id));
+      renderPickers();
+    });
+    el("bench-exp-clear").addEventListener("click", () => {
+      benchExpIds.clear();
+      renderPickers();
+    });
+    el("bench-select-all").addEventListener("click", () => {
+      document.querySelectorAll(".bench-pick").forEach((cb) => {
+        selectedBenches.add(cb.dataset.bench);
+        cb.checked = true;
+      });
+    });
+    el("bench-select-intersection").addEventListener("click", benchesIntersection);
+    el("bench-clear").addEventListener("click", () => {
+      selectedBenches.clear();
+      renderBenchPicker();
+    });
+    el("btn-export-runs").addEventListener("click", () => copyCsv("runs-results-table"));
+    el("btn-export-benches").addEventListener("click", () => copyCsv("bench-matrix-table"));
+
+    el("auto-refresh").addEventListener("change", syncBrowseRefresh);
+
+    fetchIndex().catch((e) => { el("error").textContent = `Failed to load: ${e.message}`; });
+  </script>
+</body>
+</html>

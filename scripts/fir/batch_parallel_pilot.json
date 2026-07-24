@@ -1,0 +1,24 @@
+{
+  "compute_nodes": 2,
+  "workers_per_node": 2,
+  "worker_cpus": 8,
+  "worker_mem_gb": 32,
+  "poll_sec": 5.0,
+  "coordinator_poll_sec": 30.0,
+  "auto_stop_delay_sec": 120,
+  "gpu_policy": "batch_park",
+  "gpu_batch_threshold": 2,
+  "gpu_batch_flush_s": 3600,
+  "park_threshold_s": 1800,
+  "long_vitis_park_s": 3600,
+  "park_grace_s": 300,
+  "llm_burst_grace_s": 300,
+  "long_vitis_benches": ["hlsfactory_lu", "hlsfactory_3mm"],
+  "job_prefix": "firbp",
+  "artifact_prefix": "batch_parallel",
+  "pilot": {
+    "benches": ["hlsfactory_2mm", "hlsfactory_lu", "hlsfactory_3mm"],
+    "model": "mistralai/Devstral-2-123B-Instruct-2512",
+    "turns": 4
+  }
+}

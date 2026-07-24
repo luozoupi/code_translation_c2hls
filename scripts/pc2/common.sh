@@ -125,6 +125,43 @@ pc2_cancel_job() {
   fi
 }
 
+# Slurm TIME_LEFT for a running job, in seconds (empty if unknown/unlimited).
+pc2_job_time_left_sec() {
+  local job_id="$1"
+  [[ -n "${job_id}" && "${job_id}" != "null" && "${job_id}" != "None" ]] || return 1
+  "${C2HLS_PYTHON:-python3}" - "${job_id}" <<'PY'
+import subprocess, sys
+
+def parse_time_left(text: str):
+    text = (text or "").strip()
+    if not text or text in {"NOT_SET", "UNLIMITED", "N/A"}:
+        return None
+    if "-" in text:
+        days, rest = text.split("-", 1)
+        h, m, s = (rest + ":00").split(":")[:3]
+        return int(days) * 86400 + int(h) * 3600 + int(m) * 60 + int(s)
+    parts = (text + ":00").split(":")[:3]
+    if len(parts) == 3:
+        h, m, s = parts
+        return int(h) * 3600 + int(m) * 60 + int(s)
+    return None
+
+job_id = sys.argv[1]
+try:
+    out = subprocess.check_output(
+        ["squeue", "-h", "-j", job_id, "-o", "%L"],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+except subprocess.CalledProcessError:
+    raise SystemExit(1)
+left = parse_time_left(out.splitlines()[0] if out else "")
+if left is None:
+    raise SystemExit(1)
+print(left)
+PY
+}
+
 # Resolve Slurm job-name prefix for batch_parallel (env > campaign.json > default).
 pc2_batch_job_prefix() {
   if [[ -n "${PC2_BATCH_JOB_PREFIX:-}" ]]; then

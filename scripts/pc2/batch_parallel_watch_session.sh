@@ -258,6 +258,113 @@ PY
   [[ "${adopted}" -eq 1 ]]
 }
 
+_read_gpu_renew_before_s() {
+  _campaign_py <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1]) / "campaign.json"
+doc = json.loads(p.read_text()) if p.is_file() else {}
+cfg = doc.get("config") or {}
+print(int(cfg.get("gpu_renew_before_s") or 600))
+PY
+}
+
+_read_gpu_renew_pending() {
+  _campaign_py <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1]) / "campaign.json"
+doc = json.loads(p.read_text()) if p.is_file() else {}
+print(1 if doc.get("gpu_renew_pending") else 0)
+PY
+}
+
+_set_gpu_renew_pending() {
+  local pending="$1"
+  _campaign_py "${pending}" <<'PY'
+import json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+pending = sys.argv[2] == "1"
+p = root / "campaign.json"
+doc = json.loads(p.read_text())
+if pending:
+    doc["gpu_renew_pending"] = True
+else:
+    doc.pop("gpu_renew_pending", None)
+p.write_text(json.dumps(doc, indent=2) + "\n")
+PY
+}
+
+_wait_gpu_endpoint() {
+  local tries=0
+  while [[ "${tries}" -lt 120 ]]; do
+    if pc2_endpoint_healthy; then
+      return 0
+    fi
+    sleep 5
+    tries=$((tries + 1))
+  done
+  return 1
+}
+
+_maybe_renew_gpu() {
+  local gpu_mode job_id renew_before left old_id new_id
+  gpu_mode="$(_read_gpu_mode)"
+  [[ "${gpu_mode}" == "up" ]] || return 0
+  if pc2_session_is_borrowed_gpu; then
+    return 0
+  fi
+  if [[ "$(_read_gpu_renew_pending)" -eq 1 ]]; then
+    return 0
+  fi
+  job_id="$(_read_gpu_job_id)"
+  if ! pc2_job_is_running "${job_id}"; then
+    return 0
+  fi
+  renew_before="$(_read_gpu_renew_before_s)"
+  left="$(pc2_job_time_left_sec "${job_id}" 2>/dev/null || true)"
+  if [[ -z "${left}" || "${left}" -gt "${renew_before}" ]]; then
+    return 0
+  fi
+  _set_gpu_renew_pending 1
+  old_id="${job_id}"
+  pc2_log "watch: gpu ${old_id} TIME_LEFT=${left}s (<= ${renew_before}s); submitting replacement"
+  new_id="$(
+    BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}" \
+      "${SCRIPT_DIR}/batch_parallel_submit_gpu.sh"
+  )"
+  new_id="${new_id%%;*}"
+  _campaign_py "${new_id}" <<'PY'
+import json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+new_id = sys.argv[2]
+p = root / "campaign.json"
+doc = json.loads(p.read_text())
+doc["gpu_job_id"] = new_id
+p.write_text(json.dumps(doc, indent=2) + "\n")
+PY
+  if _wait_gpu_endpoint; then
+    pc2_log "watch: gpu rolling renew ok old=${old_id} new=${new_id}"
+    pc2_cancel_job "${old_id}"
+  else
+    pc2_log "watch: gpu rolling renew failed to get healthy endpoint for ${new_id}; keeping ${old_id}"
+    _campaign_py "${old_id}" <<'PY'
+import json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+old_id = sys.argv[2]
+p = root / "campaign.json"
+doc = json.loads(p.read_text())
+doc["gpu_job_id"] = old_id
+p.write_text(json.dumps(doc, indent=2) + "\n")
+PY
+    pc2_cancel_job "${new_id}"
+  fi
+  _set_gpu_renew_pending 0
+}
+
 _check_gpu() {
   if [[ "$(_campaign_no_gpu)" == "1" ]]; then
     return 0
@@ -279,6 +386,7 @@ _check_gpu() {
   fi
 
   if pc2_job_is_running "${job_id}"; then
+    _maybe_renew_gpu
     return 0
   fi
 

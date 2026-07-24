@@ -38,9 +38,17 @@ c2hls_tmp/
 #   artifacts/flash_api/  e.g. flash_top5_comparison.tex, *.md tables.
 # ---------------------------------------------------------------------------
 artifacts/pc2/*/
+artifacts/fir/*/
 artifacts/flash_api/*/
+artifacts/team/*/
+# Explorer catalog disk cache (regenerated locally)
+artifacts/.explorer/
 # PC2 supervised-session state (Slurm job ids, LLM endpoint, watch logs)
 artifacts/pc2/sessions/
+artifacts/fir/sessions/
+artifacts/fir/session.json
+artifacts/fir/llm_endpoint.json
+artifacts/fir/watch.log
 artifacts/pc2/session.json
 artifacts/pc2/llm_endpoint.json
 artifacts/pc2/watch.log
@@ -52,6 +60,7 @@ nohup*.log
 slurm-*.out
 slurm-*.err
 artifacts/pc2/slurm-*
+artifacts/fir/slurm-*
 artifacts/pc2/*_stamp.txt
 # Ignore nested scratch slurm dirs, but keep the RL job templates tracked.
 **/slurm/
@@ -74,8 +83,10 @@ test*.log
 
 # Environment variables (real secrets — keep out of git)
 # PC2 machine config: local.env is committed on this branch.
+# Fir machine config: fir.env (gitignored).
 .env
 .env.local
+fir.env
 
 # c2hls debug-rerun artifacts — _rerun_cosim_with_log.sh / _rerun_phase_b_
 # extended_timeout.sh leave behind 200-300MB Vitis logs per debug session.

@@ -37,7 +37,7 @@ job_id="$(
     --cpus-per-task="${PC2_GPU_CPUS_PER_TASK}" \
     --mem="${PC2_GPU_MEM}" \
     --gres="gpu:h100:${PC2_GPU_GPUS}" \
-    --time="${PC2_WALLTIME:-12:00:00}" \
+    --time="${PC2_GPU_WALLTIME:-${PC2_WALLTIME:-12:00:00}}" \
     "${SCRIPT_DIR}/gpu_serve.sbatch.sh"
 )"
 echo "${job_id}"

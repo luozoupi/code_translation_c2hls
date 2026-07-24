@@ -1,0 +1,14 @@
+{
+  "compute_nodes": 2,
+  "workers_per_node": 2,
+  "worker_cpus": 8,
+  "worker_mem_gb": 32,
+  "gpu_policy": "always_on",
+  "job_prefix": "firbp",
+  "artifact_prefix": "batch_parallel",
+  "pilot": {
+    "benches": ["hlsfactory_2mm", "hlsfactory_lu", "hlsfactory_3mm"],
+    "model": "mistralai/Devstral-2-123B-Instruct-2512",
+    "turns": 4
+  }
+}

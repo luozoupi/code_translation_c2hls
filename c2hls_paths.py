@@ -3,16 +3,17 @@
 Repo-relative paths (benchmarks, skills package, scripts, …) are derived from
 ``REPO_ROOT`` and are always portable.
 
-Machine-specific paths use one of two **sites**:
+Machine-specific paths use one of three **sites**:
 
-* **team** (default) — hardcoded paths for the team's development server.
-* **pc2** — paths from ``local.env`` (gitignored) on the PC2 cluster.
+* **team** (default) — team's development server; commercial API LLM inference.
+* **pc2** — PC2 cluster; open-weight vLLM + module Vitis (``local.env``).
+* **fir** — Alliance Canada Fir; open-weight vLLM + scratch Vitis (``fir.env``).
 
-Select a site with ``--pc2`` on the command line or ``C2HLS_SITE=pc2`` in the
-environment. Example::
+Select a site with ``--pc2`` / ``--fir`` or ``C2HLS_SITE``. Example::
 
     ./c2hls.py --pc2 --bench nw
-    C2HLS_SITE=pc2 python run_agentic_sweep.py
+    ./c2hls.py --fir --bench-dir benchmarks/hlsfactory_gemm --multistep --strategy flash
+    C2HLS_SITE=fir python run_agentic_sweep.py
 """
 from __future__ import annotations
 
@@ -33,6 +34,9 @@ SKILLS_PACKAGE_DIR = REPO_ROOT / "hls_full_optimization_skills_schema_1_1_packag
 SKILLS_MUTABLE_DIR = REPO_ROOT / "skills"
 ANALYSIS_DIR = REPO_ROOT / "analysis"
 ARTIFACTS_DIR = REPO_ROOT / "artifacts"
+PC2_ARTIFACTS_DIR = ARTIFACTS_DIR / "pc2"
+FIR_ARTIFACTS_DIR = ARTIFACTS_DIR / "fir"
+TEAM_ARTIFACTS_DIR = ARTIFACTS_DIR / "team"
 FLASH_API_ARTIFACTS_DIR = ARTIFACTS_DIR / "flash_api"
 SCHEMAS_DIR = REPO_ROOT / "schemas"
 SCRIPTS_DIR = REPO_ROOT / "scripts"
@@ -103,18 +107,57 @@ PC2_DEFAULTS: dict[str, str] = {
     "C2HLS_GT_BASELINE_FALLBACK": "1",
 }
 
-SITES = frozenset({"team", "pc2"})
+# Fir (Alliance Canada) — Apptainer Vitis SIF on compute; vLLM via ../inference/.
+_FIR_SCRATCH = "/scratch/asa582"
+FIR_DEFAULTS: dict[str, str] = {
+    "C2HLS_XILINX_SIF": f"{_FIR_SCRATCH}/containers/xilinx_vitis_2023.2.standalone.sif",
+    "C2HLS_USE_CONTAINER": "1",
+    "C2HLS_TMP_ROOT": f"{_FIR_SCRATCH}/tmp/c2hls",
+    "C2HLS_VITIS_USER_HOME": f"{_FIR_SCRATCH}/tmp/vitis_user_home",
+    "C2HLS_MODEL": "mistralai/Devstral-2-123B-Instruct-2512",
+    "FIR_LLM_MODEL": "mistralai/Devstral-2-123B-Instruct-2512",
+    "OPENAI_API_KEY": "EMPTY",
+    "OPENAI_BASE_URL": "http://127.0.0.1:8000/v1",
+    "FIR_INFERENCE_ROOT": f"{_FIR_SCRATCH}/workspaces/inference",
+    "FIR_GPU_MODULES": "python/3.11.5 cuda/12.6",
+    "FIR_GPU_PARTITION": "gpubase_bynode_b1",
+    "FIR_COMPUTE_PARTITION": "cpubase_bynode_b1",
+    "FIR_SLURM_ACCOUNT": "def-zhenman_gpu",
+    "FIR_WALLTIME": "3:00:00",
+    "FIR_LLM_PORT": "8000",
+    "FIR_GPU_GPUS": "4",
+    "FIR_VLLM_TENSOR_PARALLEL_SIZE": "4",
+    # Fir pilot: csynth + csim only (same as PC2 flash runs).
+    "C2HLS_RUN_COSIM": "0",
+    "C2HLS_COSIM_REQUIRED": "0",
+    "C2HLS_REFERENCE_COSIM": "0",
+    "C2HLS_HW_EMU_FINAL": "0",
+    "C2HLS_GT_BASELINE_FALLBACK": "1",
+}
+
+SITES = frozenset({"team", "pc2", "fir"})
+_OPEN_WEIGHT_SITES = frozenset({"pc2", "fir"})
 _ACTIVE_SITE: str | None = None
 
 
+def is_open_weight_site(site: str | None = None) -> bool:
+    """True for clusters that use self-hosted vLLM (not commercial API)."""
+    if site is None:
+        site = active_site()
+    return site in _OPEN_WEIGHT_SITES
+
+
 def bootstrap_site(argv: list[str] | None = None) -> str:
-    """Detect site from ``C2HLS_SITE`` or ``--pc2`` in *argv* (default ``sys.argv``)."""
+    """Detect site from ``C2HLS_SITE``, ``--pc2``, or ``--fir`` in *argv*."""
     if argv is None:
         argv = sys.argv
     site = os.environ.get("C2HLS_SITE", "").strip().lower()
     if "--pc2" in argv:
         site = "pc2"
         os.environ["C2HLS_SITE"] = "pc2"
+    elif "--fir" in argv:
+        site = "fir"
+        os.environ["C2HLS_SITE"] = "fir"
     if site not in SITES:
         site = "team"
         os.environ.setdefault("C2HLS_SITE", "team")
@@ -125,13 +168,44 @@ def active_site() -> str:
     return _ACTIVE_SITE or bootstrap_site()
 
 
-def _load_local_env_file() -> None:
+def site_artifacts_dir(site: str | None = None) -> Path:
+    """Per-site artifact root (pc2 / fir / flash_api / team)."""
+    site = (site or active_site()).lower()
+    if site == "pc2":
+        return PC2_ARTIFACTS_DIR
+    if site == "fir":
+        return FIR_ARTIFACTS_DIR
+    if site == "flash_api":
+        return FLASH_API_ARTIFACTS_DIR
+    return TEAM_ARTIFACTS_DIR
+
+
+def _parse_env_file(path: Path) -> None:
+    """Load KEY=VALUE lines from *path* (no python-dotenv required)."""
+    if not path.is_file():
+        return
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            os.environ.setdefault(key, value)
+
+
+def _load_site_env_file(filename: str) -> None:
+    _parse_env_file(REPO_ROOT / filename)
     try:
         from dotenv import load_dotenv
     except ImportError:
         return
-    load_dotenv(REPO_ROOT / "local.env")
-    load_dotenv(REPO_ROOT / ".env")
+    load_dotenv(REPO_ROOT / filename, override=False)
 
 
 def configure_site(site: str | None = None) -> str:
@@ -144,11 +218,17 @@ def configure_site(site: str | None = None) -> str:
     _ACTIVE_SITE = site
 
     if site == "pc2":
-        _load_local_env_file()
+        _load_site_env_file("local.env")
+        _load_site_env_file(".env")
         for key, value in PC2_DEFAULTS.items():
             os.environ.setdefault(key, value)
         os.environ.setdefault("C2HLS_TMP_ROOT", str(REPO_TMP_DIR))
+    elif site == "fir":
+        _load_site_env_file("fir.env")
+        for key, value in FIR_DEFAULTS.items():
+            os.environ.setdefault(key, value)
     else:
+        _load_site_env_file(".env")
         for key, value in TEAM_DEFAULTS.items():
             os.environ.setdefault(key, value)
 
@@ -162,10 +242,16 @@ def load_local_env() -> None:
 
 
 def add_site_argument(parser) -> None:
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "--pc2",
         action="store_true",
-        help="Use PC2 cluster paths from local.env (default: team server paths)",
+        help="PC2 cluster: open-weight vLLM + module Vitis (local.env)",
+    )
+    group.add_argument(
+        "--fir",
+        action="store_true",
+        help="Alliance Fir: open-weight vLLM + scratch Vitis (fir.env)",
     )
 
 
@@ -184,8 +270,8 @@ def required_path(name: str, hint: str = "") -> Path:
     p = optional_path(name)
     if p is None:
         msg = (
-            f"{name} is not set. For PC2, copy local.env.example to local.env "
-            "and configure it (or pass --pc2 only after local.env exists)."
+            f"{name} is not set. For PC2 copy local.env.example to local.env; "
+            "for Fir copy fir.env.example to fir.env."
         )
         if hint:
             msg = f"{msg} {hint}"

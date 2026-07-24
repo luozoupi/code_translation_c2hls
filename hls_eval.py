@@ -40,8 +40,12 @@ logging.basicConfig(
 #                         would emit for U50/U280 deployment; Vivado flow
 #                         omits it. Use "vitis" for cross-tool comparisons.
 #   C2HLS_SYNTH_TIMEOUT   Max seconds for csynth_design.
+#   C2HLS_VITIS_JOBS        config_compile -jobs N and cosim -XsimJobs N
+#                           (defaults to SLURM_CPUS_PER_TASK when set, else 1).
 #   C2HLS_CSIM_TIMEOUT    Max seconds for csim_design.
 #   C2HLS_COSIM_TIMEOUT   Max seconds for cosim_design.
+#   C2HLS_COSIM_LIBRARY_PATH  Host glibc search path for cosim.tv.exe link
+#                         (Fir Apptainer). Empty disables the TCL override.
 #   C2HLS_VITIS_USER_HOME Writable HOME for Vitis/Vivado subprocesses.
 #   C2HLS_COSIM_TRACE_LEVEL
 #                         Vitis cosim trace level. Default "none" avoids
@@ -117,6 +121,42 @@ CSIM_TIMEOUT = int(os.getenv("C2HLS_CSIM_TIMEOUT", "180"))     # 3 minutes
 COSIM_TIMEOUT = int(os.getenv("C2HLS_COSIM_TIMEOUT", "1200"))  # 20 minutes
 KERNEL_CLOCK_ID = 0
 VITIS_USER_HOME_ENV = "C2HLS_VITIS_USER_HOME"
+
+
+def _vitis_jobs() -> int:
+    """Parallel HLS/csynth/cosim jobs (config_compile -jobs / -XsimJobs)."""
+    for key in ("C2HLS_VITIS_JOBS", "SLURM_CPUS_PER_TASK"):
+        raw = os.getenv(key, "").strip()
+        if not raw:
+            continue
+        try:
+            jobs = int(raw)
+        except ValueError:
+            continue
+        if jobs > 0:
+            return jobs
+    return 1
+
+
+def _config_compile_jobs_tcl() -> str:
+    jobs = _vitis_jobs()
+    if jobs <= 1:
+        return ""
+    return f"config_compile -jobs {jobs}\n"
+
+
+def _cosim_design_tcl(*, trace_level: str | None = None) -> str:
+    """Tcl cosim_design line, including -XsimJobs when jobs > 1."""
+    cmd = "cosim_design"
+    level = (trace_level if trace_level is not None else DEFAULT_COSIM_TRACE_LEVEL).strip()
+    if level:
+        cmd += f" -trace_level {level}"
+    jobs = _vitis_jobs()
+    if jobs > 1:
+        cmd += f' -argv "-XsimJobs {jobs}"'
+    return cmd
+
+
 # =============================================================================
 
 
@@ -357,6 +397,17 @@ def _run_vitis_cmd_logged(
     return output, timed_out
 
 
+def _cosim_tcl_library_path_setup() -> str:
+    """Return TCL that points cosim's linker at host glibc inside Apptainer."""
+    lib_path = os.getenv(
+        "C2HLS_COSIM_LIBRARY_PATH",
+        "/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu",
+    ).strip()
+    if not lib_path:
+        return ""
+    return f"set ::env(LIBRARY_PATH) {{{lib_path}}}\n"
+
+
 def _extract_vitis_failure_reason(log: str, fallback: str) -> str:
     if not log:
         return fallback
@@ -553,7 +604,7 @@ add_files {src_file}
     tcl_content += f"""open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default
-csynth_design
+{_config_compile_jobs_tcl()}csynth_design
 exit
 """
     with open(tcl_file, "w") as f:
@@ -1070,9 +1121,8 @@ add_files {src_rel}
     tcl_content += f"""open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default
-csynth_design
-if {{[info exists ::env(LIBRARY_PATH)]}} {{ unset ::env(LIBRARY_PATH) }}
-{cosim_cmd}
+{_config_compile_jobs_tcl()}csynth_design
+{_cosim_tcl_library_path_setup()}{cosim_cmd}
 exit
 """
     tcl_file = os.path.join(work_dir, "run_cosim.tcl")

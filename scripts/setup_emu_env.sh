@@ -3,8 +3,8 @@
 # Usage:  source scripts/setup_emu_env.sh
 #
 # Default (team): hardcoded paths for the team development server.
-# PC2: set C2HLS_SITE=pc2 (or pass --pc2 to the parent script) and configure
-#      local.env — see local.env.example.
+# PC2: set C2HLS_SITE=pc2 (or pass --pc2) and configure local.env.
+# Fir: set C2HLS_SITE=fir (or pass --fir) and configure fir.env.
 
 # shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")/source_local_env.sh"
@@ -13,6 +13,10 @@ if [[ "${C2HLS_SITE:-team}" == "pc2" ]]; then
   # shellcheck disable=SC1091
   source "$(dirname "${BASH_SOURCE[0]}")/pc2/setup_vitis_env.sh"
   pc2_setup_vitis_env
+elif [[ "${C2HLS_SITE:-team}" == "fir" ]]; then
+  # shellcheck disable=SC1091
+  source "$(dirname "${BASH_SOURCE[0]}")/fir/setup_vitis_env.sh"
+  fir_setup_vitis_env
 else
   # Vitis HLS + Vivado tooling
   # shellcheck disable=SC1091

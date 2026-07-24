@@ -23,6 +23,16 @@ Phase A compile checks use g++ with Vitis HLS include paths available.
 
 Always provide complete code in a ```cpp code fence."""
 
+# Zero-shot: short expert system instruction (no pragma list / fence coaching).
+Instruction_c2hls_zero_shot = """You are an expert in FPGA High-Level Synthesis (HLS) using Xilinx Vitis HLS. Your task is to add HLS pragmas and optimizations to plain C/C++ code to make it synthesizable and efficient on FPGAs.
+
+The testbench-visible top function name always comes from benchmark metadata (`metadata.json` → `translated_hls_top`): `kernel_*` for HLSFactory, `workload` for Rodinia/MachSuite. Never invent a different top or add a second wrapper."""
+
+_ZERO_SHOT_USER_PREFIX = (
+    "You are an expert HLS engineer. Translate and optimize the following C kernel "
+    "into synthesizable Vitis HLS C++.\n\n"
+)
+
 # Shared top-function rules for Phase B and repair prompts.
 # The exact top name always comes from metadata.json via {benchmark_context}
 # (HLSFactory: kernel_* ; Rodinia/MachSuite: workload). Never hardcode either name.
@@ -814,6 +824,75 @@ OUTPUT FORMAT (mandatory):
 - If the kernel is large, still emit the full file; the harness will ask you
   to continue if the reply is cut off mid-fence. Do not summarize or omit code.
 """
+
+# Zero-shot flash prompts (minimal body; expert prefix + short system instruction).
+q_optimize_zero_shot_phaseb = _ZERO_SHOT_USER_PREFIX + """Header:
+```cpp
+{header_code}
+```
+
+Current code:
+```cpp
+{current_code}
+```
+
+Respond with complete C++ code in one ```cpp ...``` fence.
+"""
+
+q_optimize_zero_shot_direct = _ZERO_SHOT_USER_PREFIX + """Header:
+```cpp
+{header_code}
+```
+
+C code:
+```cpp
+{current_code}
+```
+
+Respond with complete C++ code in one ```cpp ...``` fence.
+"""
+
+# Zero-shot Phase B translation.
+q_translate_zero_shot = _ZERO_SHOT_USER_PREFIX + """Header:
+```cpp
+{header_code}
+```
+
+C code:
+```cpp
+{c_code}
+```
+
+Respond with complete C++ code in one ```cpp ...``` fence.
+"""
+
+
+def flash_optimization_prompt(*, zero_shot: bool, skip_phase_b: bool) -> str:
+    """Return the flash-step prompt template for the active experiment mode."""
+    if zero_shot:
+        return q_optimize_zero_shot_direct if skip_phase_b else q_optimize_zero_shot_phaseb
+    return q_optimize_flash
+
+
+def llm_system_instruction(*, zero_shot: bool, step_name: str = "", translate: bool = False) -> str:
+    """System prompt for an LLM call. Absolute 0-shot uses an empty instruction."""
+    if zero_shot:
+        return Instruction_c2hls_zero_shot
+    if step_name == "flash":
+        return Instruction_c2hls_flash
+    if translate:
+        return Instruction_c2hls
+    return Instruction_c2hls_multistep
+
+
+def llm_messages(*, system: str, user: str) -> list[dict[str, str]]:
+    """Build chat messages; omit the system role when the instruction is empty."""
+    if system:
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+    return [{"role": "user", "content": user}]
 
 
 # Map step names to prompts

@@ -84,6 +84,14 @@ from tier_b_flash_batch_parallel_bench import execute_job as tier_b_flash_execut
 from tier_b_gold_batch_parallel_bench import execute_job as tier_b_gold_execute_job
 from flash_fixed_cosim_lib import VARIANTS, configure_fixed_cosim_flash_env, resolve_cosim_benches
 from run_flash_fixed_cosim_batch import _cell_dir as rodinia_cell_dir
+from zero_shot_cosim_lib import VARIANTS as ZERO_SHOT_VARIANTS, configure_zero_shot_cosim_env
+
+
+def is_zero_shot_workflow(campaign: dict[str, Any]) -> bool:
+    workflow = str(
+        ((campaign.get("config") or {}).get("pilot") or {}).get("workflow") or ""
+    )
+    return workflow.startswith("zero_shot")
 
 
 def seed_kwargs_for_campaign(campaign: dict[str, Any], cfg: BatchParallelConfig | None = None) -> dict[str, str]:
@@ -165,6 +173,12 @@ def configure_campaign_env(campaign: dict[str, Any], variant_key: str) -> None:
     if is_tier_a_workflow(campaign):
         configure_tier_a_campaign_env()
         return
+    if is_zero_shot_workflow(campaign):
+        variant = ZERO_SHOT_VARIANTS.get(variant_key)
+        if variant is None:
+            raise ValueError(f"unknown zero-shot variant {variant_key}")
+        configure_zero_shot_cosim_env(variant)
+        return
     variant = VARIANTS.get(variant_key)
     if variant is None:
         raise ValueError(f"unknown variant {variant_key}")
@@ -192,6 +206,8 @@ def validate_variant(campaign: dict[str, Any], variant_key: str) -> bool:
         return variant_key == TIER_B_VARIANT
     if is_tier_a_workflow(campaign):
         return variant_key == TIER_A_VARIANT
+    if is_zero_shot_workflow(campaign):
+        return variant_key in ZERO_SHOT_VARIANTS
     return variant_key in VARIANTS
 
 
@@ -234,6 +250,11 @@ def cell_dir_for_job(
         return tier_b_cell_dir(cell_root, job.bench, tier_b_gold_model_cell_tag(model_id))
     if is_tier_a_workflow(campaign):
         return tier_a_cell_dir(cell_root, job.bench, tier_a_model_cell_tag(model_id))
+    if is_zero_shot_workflow(campaign):
+        variant = ZERO_SHOT_VARIANTS[job.variant]
+        return rodinia_cell_dir(
+            cell_root, job.bench, tier_a_model_cell_tag(model_id), variant
+        )
     variant = VARIANTS[job.variant]
     return rodinia_cell_dir(cell_root, job.bench, tier_a_model_cell_tag(model_id), variant)
 

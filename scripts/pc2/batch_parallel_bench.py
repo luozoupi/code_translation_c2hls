@@ -344,7 +344,7 @@ class BatchParallelBenchSession(FlashPipelinedBenchSession):
       clock_ns=orch.clock_ns,
       extra_files=orch.extra_files,
       testbench_code=orch.testbench_code,
-      run_csim_check=False,
+      run_csim_check=bool(orch.testbench_code),
       run_cosim_check=bool(orch.testbench_code and orch.supports_cosim),
       cosim_depths=orch.cosim_depths,
       log_prefix=f"[{job.phase} cosim]",

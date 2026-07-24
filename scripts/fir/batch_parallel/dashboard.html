@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fir batch_parallel — campaign dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --done: #3dd68c;
+      --claimed: #5b9cf5;
+      --pending: #6b7280;
+      --failed: #f87171;
+      --accent: #a78bfa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #151d2b 0%, var(--bg) 100%);
+    }
+    header h1 { margin: 0 0 0.25rem; font-size: 1.35rem; font-weight: 600; }
+    header .sub { color: var(--muted); font-size: 0.9rem; }
+    main { padding: 1.25rem 1.5rem 2rem; max-width: 1400px; margin: 0 auto; }
+    .grid { display: grid; gap: 1rem; }
+    @media (min-width: 900px) {
+      .grid-top { grid-template-columns: 280px 1fr 1fr; }
+      .grid-mid { grid-template-columns: 1fr 1fr; }
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .progress-wrap { text-align: center; padding: 0.5rem 0; }
+    .progress-ring {
+      --pct: 0;
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      background: conic-gradient(var(--done) calc(var(--pct) * 1%), #2d3a4f 0);
+      display: grid; place-items: center;
+      margin: 0 auto 0.75rem;
+    }
+    .progress-ring-inner {
+      width: 108px; height: 108px; border-radius: 50%;
+      background: var(--panel);
+      display: grid; place-items: center;
+      font-size: 1.75rem; font-weight: 700;
+    }
+    .stats { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+    .pill {
+      font-size: 0.78rem; padding: 0.2rem 0.55rem; border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+    .pill.done { color: var(--done); border-color: #2d6b4f; }
+    .pill.claimed { color: var(--claimed); border-color: #2d5080; }
+    .pill.pending { color: #c4cdd9; }
+    .pill.failed { color: var(--failed); border-color: #7f3d3d; }
+    .kv { display: grid; gap: 0.35rem; font-size: 0.88rem; }
+    .kv div { display: flex; justify-content: space-between; gap: 1rem; }
+    .kv span:first-child { color: var(--muted); }
+    .ok { color: var(--done); }
+    .bad { color: var(--failed); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .status {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      padding: 0.15rem 0.45rem; border-radius: 4px; text-transform: uppercase;
+    }
+    .status.done { background: #1a3d2e; color: var(--done); }
+    .status.claimed { background: #1a2f4d; color: var(--claimed); }
+    .status.pending { background: #2a3140; color: #b8c2d0; }
+    .status.failed { background: #3d2222; color: var(--failed); }
+    .htag {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      padding: 0.12rem 0.4rem; border-radius: 4px; white-space: nowrap;
+    }
+    .htag.running { background: #1a2f4d; color: var(--claimed); }
+    .htag.pass { background: #1a3d2e; color: var(--done); }
+    .htag.fail { background: #3d2222; color: var(--failed); }
+    .htag.next { background: #2a3140; color: #c4cdd9; border: 1px dashed var(--border); }
+    .phase { font-size: 0.78rem; color: var(--accent); }
+    .events { max-height: 320px; overflow-y: auto; font-size: 0.82rem; font-family: ui-monospace, monospace; }
+    .events div { padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
+    .events .ts { color: var(--muted); margin-right: 0.5rem; }
+    .err { color: var(--failed); font-size: 0.78rem; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .speedup { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .speedup.good { color: var(--done); }
+    .speedup.flat { color: var(--muted); }
+    tfoot td {
+      border-top: 2px solid var(--border);
+      border-bottom: none;
+      font-weight: 600;
+      background: rgba(167, 139, 250, 0.06);
+    }
+    tfoot tr.table-header-repeat th {
+      border-top: 2px solid var(--border);
+      border-bottom: none;
+      background: var(--panel);
+      font-weight: 500;
+    }
+    footer { text-align: center; color: var(--muted); font-size: 0.78rem; padding: 1rem; }
+    footer .btn {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.78rem;
+    }
+    footer .btn:hover { border-color: var(--accent); }
+    #error { color: var(--failed); margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="title">Fir batch_parallel</h1>
+    <div class="sub" id="subtitle">Loading…</div>
+  </header>
+  <main>
+    <div id="error"></div>
+    <div class="grid grid-top" style="margin-bottom: 1rem;">
+      <div class="card progress-wrap">
+        <h2>Progress</h2>
+        <div class="progress-ring" id="ring"><div class="progress-ring-inner" id="pct">—</div></div>
+        <div class="stats" id="stats"></div>
+      </div>
+      <div class="card">
+        <h2>GPU</h2>
+        <div class="kv" id="gpu"></div>
+      </div>
+      <div class="card">
+        <h2>Campaign</h2>
+        <div class="kv" id="campaign"></div>
+      </div>
+    </div>
+    <div class="grid grid-mid" style="margin-bottom: 1rem;">
+      <div class="card">
+        <h2>Compute nodes</h2>
+        <table>
+          <thead><tr><th>Node</th><th>Bench</th><th>Phase</th><th title="HLS synthesis (runs first)">csynth</th><th title="C simulation (after csynth passes)">csim</th><th>cosim</th><th>Host</th><th>Slurm</th><th>State</th></tr></thead>
+          <tbody id="slots"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>Recent events</h2>
+        <div class="events" id="events"></div>
+      </div>
+    </div>
+    <div class="card" style="overflow-x:auto;">
+      <h2>All benches</h2>
+      <table>
+        <thead><tr><th>Bench</th><th>Status</th><th>Phase</th><th title="HLS synthesis (runs first)">csynth</th><th title="C simulation (after csynth passes)">csim</th><th>cosim</th><th title="Final csynth latency (best case)">csynth best</th><th title="Final csynth latency (average)">csynth avg</th><th title="Final csynth latency (worst case)">csynth worst</th><th title="Gold cosim cycles from benchmarks/ hls_baseline.cpp">cosim base</th><th title="Generated cosim RTL cycles">cosim gen</th><th title="benchmarks/ cosim base ÷ generated cosim">cosim÷</th><th title="Baseline best-case ÷ final best-case csynth latency">best÷best</th><th title="Baseline avg ÷ final avg csynth latency">avg÷avg</th><th title="Baseline worst ÷ final worst csynth latency">worst÷worst</th><th>Worker</th><th>Error</th></tr></thead>
+        <tbody id="benches"></tbody>
+        <tfoot>
+          <tr id="benches-foot-summary" style="display:none"></tr>
+          <tr class="table-header-repeat">
+            <th>Bench</th><th>Status</th><th>Phase</th><th title="HLS synthesis (runs first)">csynth</th><th title="C simulation (after csynth passes)">csim</th><th>cosim</th><th title="Final csynth latency (best case)">csynth best</th><th title="Final csynth latency (average)">csynth avg</th><th title="Final csynth latency (worst case)">csynth worst</th><th title="Gold cosim cycles from benchmarks/ hls_baseline.cpp">cosim base</th><th title="Generated cosim RTL cycles">cosim gen</th><th title="benchmarks/ cosim base ÷ generated cosim">cosim÷</th><th title="Baseline best-case ÷ final best-case csynth latency">best÷best</th><th title="Baseline avg ÷ final avg csynth latency">avg÷avg</th><th title="Baseline worst ÷ final worst csynth latency">worst÷worst</th><th>Worker</th><th>Error</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </main>
+  <footer>
+    <label class="muted"><input type="checkbox" id="auto-refresh" /> Auto-refresh (5s)</label>
+    <button class="btn" id="btn-refresh" type="button" style="margin-left:0.75rem;">Refresh now</button>
+    <span class="muted" style="margin-left:0.75rem;">Updated <span id="updated">—</span></span>
+  </footer>
+  <script>
+    const REFRESH_MS = 5000;
+
+    function el(id) { return document.getElementById(id); }
+
+    function fmtTs(iso) {
+      if (!iso) return "—";
+      try { return new Date(iso).toLocaleString(); } catch { return iso; }
+    }
+
+    function fmtDuration(sec) {
+      if (sec == null || sec < 0) return "—";
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      if (h) return `${h}h ${m}m`;
+      if (m) return `${m}m ${s}s`;
+      return `${s}s`;
+    }
+
+    function statusClass(s) { return s || "pending"; }
+
+    function hlsTag(value) {
+      const v = (value || "—").toLowerCase();
+      if (v === "—" || v === "") return `<span class="htag muted">—</span>`;
+      if (v === "off") return `<span class="htag off">off</span>`;
+      if (v === "running") return `<span class="htag running">run</span>`;
+      if (v === "next") return `<span class="htag next">next</span>`;
+      if (v === "pass") return `<span class="htag pass">pass</span>`;
+      if (v === "fail") return `<span class="htag fail">fail</span>`;
+      return `<span class="phase">${value}</span>`;
+    }
+
+    function fmtSpeedup(v) {
+      if (v == null || !Number.isFinite(v)) return "—";
+      if (v >= 100) return `${v.toFixed(0)}×`;
+      if (v >= 10) return `${v.toFixed(1)}×`;
+      return `${v.toFixed(2)}×`;
+    }
+
+    function fmtCycles(v) {
+      if (v == null || !Number.isFinite(v)) return "—";
+      return Math.round(v).toLocaleString();
+    }
+
+    function speedupCell(v) {
+      if (v == null || !Number.isFinite(v)) return `<span class="speedup">—</span>`;
+      const cls = v > 1.01 ? "good" : (v < 0.99 ? "bad" : "flat");
+      return `<span class="speedup ${cls}">${fmtSpeedup(v)}</span>`;
+    }
+
+    const CSYNTH_FAIL_ISSUES = new Set([
+      "llm_connection_error", "llm_timeout", "csynth_timeout", "flash_csynth_fail",
+    ]);
+
+    function benchCsynthFailed(info) {
+      if (!info) return false;
+      if (info.status && info.status !== "ok") return true;
+      const issues = info.run_issues || [];
+      return issues.some((i) => CSYNTH_FAIL_ISSUES.has(i));
+    }
+
+    function csynthSpeedupCell(sp, info, kind) {
+      if (benchCsynthFailed(info)) return `<span class="htag fail">fail</span>`;
+      const v = sp ? sp[kind] : null;
+      return speedupCell(v);
+    }
+
+    function cosimSpeedupCell(cos, info) {
+      const st = (cos && cos.status) ? cos.status : "not_run";
+      if (st === "fail" || st === "crash") return `<span class="htag ${st}">${st}</span>`;
+      if (benchCsynthFailed(info)) return `<span class="htag fail">fail</span>`;
+      if (st === "not_run" && cos && cos.expected) return `<span class="htag fail">fail</span>`;
+      if (st === "not_run") return `<span class="htag muted">not run</span>`;
+      return speedupCell(cos ? cos.speedup : null);
+    }
+
+    function latencyCell(lat, kind) {
+      if (!lat || lat[kind] == null) return `<span class="speedup">—</span>`;
+      return `<span class="speedup">${fmtCycles(lat[kind])}</span>`;
+    }
+
+    function render(data) {
+      const s = data.summary || {};
+      const total = s.total || 0;
+      const done = s.done || 0;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+
+      el("title").textContent = data.campaign_name || "Fir batch_parallel";
+      el("subtitle").textContent = data.campaign_root || "";
+      el("ring").style.setProperty("--pct", pct);
+      el("pct").textContent = `${pct}%`;
+      el("stats").innerHTML = [
+        ["done", s.done], ["claimed", s.claimed], ["pending", s.pending], ["failed", s.failed],
+      ].map(([k, v]) => `<span class="pill ${k}">${k} ${v ?? 0}</span>`).join("");
+
+      const ep = data.endpoint || {};
+      const gpu = data.gpu || {};
+      el("gpu").innerHTML = [
+        ["Job", gpu.job_id || "—"],
+        ["Slurm", gpu.slurm_state || "—"],
+        ["Time left", fmtDuration(gpu.time_left_sec)],
+        ["Dedicated", gpu.dedicated_job_id || "—"],
+        ["Endpoint", ep.healthy ? `<span class="ok">healthy</span>` : `<span class="bad">down</span>`],
+        ["URL", ep.url || "—"],
+      ].map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join("");
+
+      const c = data.campaign || {};
+      el("campaign").innerHTML = [
+        ["Status", c.campaign_status || "—"],
+        ["GPU mode", c.gpu_mode || "—"],
+        ["Compute", c.compute_state || "—"],
+        ["Pending flash", data.status?.pending_flash ?? "—"],
+        ["Vitis running", data.status?.claimed_flash ?? "—"],
+        ["LLM in flight", data.status?.llm_in_flight?.bench || "—"],
+      ].map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join("");
+
+      el("slots").innerHTML = (data.slots || []).map(slot => {
+        const bench = slot.bench ? slot.bench.replace(/^hlsfactory_/, "") : "—";
+        const hls = slot.hls || {};
+        return `<tr>
+          <td>n${slot.node_index}</td>
+          <td>${bench}</td>
+          <td>${hlsTag(hls.phase)}</td>
+          <td>${hlsTag(hls.csynth)}</td>
+          <td>${hlsTag(hls.csim)}</td>
+          <td>${hlsTag(hls.cosim)}</td>
+          <td>${slot.hostname || "—"}</td>
+          <td>${slot.slurm_job_id || "—"}</td>
+          <td>${slot.slurm_state || "—"}</td>
+        </tr>`;
+      }).join("") || "<tr><td colspan='9'>No slots</td></tr>";
+
+      el("events").innerHTML = (data.recent_events || []).slice().reverse().map(e => {
+        const detail = e.bench ? ` ${e.bench.replace(/^hlsfactory_/, "")}` : "";
+        const ok = e.success === true ? " ✓" : (e.success === false ? " ✗" : "");
+        return `<div><span class="ts">${fmtTs(e.ts)}</span>${e.event}${detail}${ok}</div>`;
+      }).join("") || "<div>No events yet</div>";
+
+      const ss = data.speedup_summary || {};
+      const lm = ss.latency_mean || {};
+      const csg = ss.cosim_speedup_geomean || {};
+      el("benches").innerHTML = (data.jobs || []).map(j => {
+        const hls = j.hls || {};
+        const sp = j.speedup || {};
+        const lat = j.latency || {};
+        const cos = j.cosim || {};
+        const info = {
+          status: j.status === "done" || j.status === "ok" ? "ok" : j.status,
+          run_issues: j.run_issues || [],
+        };
+        return `<tr>
+        <td>${j.bench.replace(/^hlsfactory_/, "")}</td>
+        <td><span class="status ${statusClass(j.status)}">${j.status}</span></td>
+        <td>${hlsTag(hls.phase)}</td>
+        <td>${hlsTag(hls.csynth)}</td>
+        <td>${hlsTag(hls.csim)}</td>
+        <td>${hlsTag(hls.cosim)}</td>
+        <td>${latencyCell(lat, "best")}</td>
+        <td>${latencyCell(lat, "avg")}</td>
+        <td>${latencyCell(lat, "worst")}</td>
+        <td><span class="speedup">${fmtCycles(cos.baseline)}</span></td>
+        <td><span class="speedup">${fmtCycles(cos.generated)}</span></td>
+        <td>${cosimSpeedupCell(cos, info)}</td>
+        <td>${csynthSpeedupCell(sp, info, "best")}</td>
+        <td>${csynthSpeedupCell(sp, info, "avg")}</td>
+        <td>${csynthSpeedupCell(sp, info, "worst")}</td>
+        <td>${j.worker_id || "—"}</td>
+        <td class="err" title="${(j.error || "").replace(/"/g, "'")}">${j.status === "failed" ? (j.error || "") : ""}</td>
+      </tr>`;
+      }).join("");
+
+      const n = ss.n || 0;
+      const summaryRow = el("benches-foot-summary");
+      if (n > 0) {
+        summaryRow.style.display = "table-row";
+        summaryRow.innerHTML = `
+        <td colspan="6">Summary (n=${n})</td>
+        <td>${latencyCell(lm, "best")}</td>
+        <td>${latencyCell(lm, "avg")}</td>
+        <td>${latencyCell(lm, "worst")}</td>
+        <td colspan="2"></td>
+        <td>${speedupCell(csg.geomean)}</td>
+        <td>${speedupCell(ss.best_geomean)}</td>
+        <td>${speedupCell(ss.avg_geomean)}</td>
+        <td>${speedupCell(ss.worst_geomean)}</td>
+        <td colspan="2"></td>`;
+      } else {
+        summaryRow.style.display = "none";
+        summaryRow.innerHTML = "";
+      }
+
+      el("updated").textContent = `Updated ${fmtTs(data.updated_at)}`;
+      el("error").textContent = "";
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch("/api/snapshot");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        render(await res.json());
+      } catch (err) {
+        el("error").textContent = `Failed to load snapshot: ${err.message}`;
+      }
+    }
+
+    let refreshTimer = null;
+    function syncRefresh() {
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = null;
+      if (el("auto-refresh").checked) {
+        refreshTimer = setInterval(refresh, REFRESH_MS);
+      }
+    }
+
+    el("auto-refresh").addEventListener("change", syncRefresh);
+    el("btn-refresh").addEventListener("click", refresh);
+    refresh();
+    syncRefresh();
+  </script>
+</body>
+</html>

@@ -53,7 +53,10 @@ slurm-*.out
 slurm-*.err
 artifacts/pc2/slurm-*
 artifacts/pc2/*_stamp.txt
+# Ignore nested scratch slurm dirs, but keep the RL job templates tracked.
 **/slurm/
+!rl/slurm/
+!rl/slurm/**
 
 # Logs
 *.log

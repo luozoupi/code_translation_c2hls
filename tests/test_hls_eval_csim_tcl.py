@@ -38,10 +38,26 @@ class CsimTclExtraFilesTests(unittest.TestCase):
         lines = hls_eval._tcl_tb_extra_add_lines(work_dir, extra_files, skip_abs_paths=skip)
         self.assertEqual(lines, [])
 
-    def test_honors_tb_false(self) -> None:
-        work_dir = "/tmp/hls_csim_test"
-        extra_files = [{"path": "support/a.txt", "content": "1", "tb": False}]
-        self.assertEqual(hls_eval._tcl_tb_extra_add_lines(work_dir, extra_files), [])
+    def test_kernel_extras_skip_host_c_sources(self) -> None:
+        extra_files = [
+            {"path": "support.c", "content": "// host\n", "tb": True},
+            {"path": "local_support.c", "content": "// host\n", "tb": True},
+            {"path": "support.h", "content": "// hdr\n", "tb": True},
+            {"path": "input.data", "content": "1\n", "tb": True},
+            {"path": "helper.cpp", "content": "// cpp\n", "tb": True},
+        ]
+        lines = hls_eval._tcl_kernel_extra_add_lines(extra_files)
+        self.assertEqual(
+            lines,
+            [
+                "add_files support.h",
+                "add_files input.data",
+            ],
+        )
+        tb_lines = hls_eval._tcl_tb_extra_add_lines("/tmp/ms", extra_files, relative=True)
+        self.assertIn("add_files -tb support.c", tb_lines)
+        self.assertIn("add_files -tb local_support.c", tb_lines)
+        self.assertIn("add_files -tb input.data", tb_lines)
 
     def test_forgebench_attention_extra_files_from_inputs(self) -> None:
         from c2hls import _load_benchmark_inputs

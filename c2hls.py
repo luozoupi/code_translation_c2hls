@@ -183,6 +183,157 @@ def _skill_curation_include_avoids() -> bool:
         "1", "true", "yes", "on",
     }
 
+
+def _rag2_enabled_for(stage: str) -> bool:
+    try:
+        from c2hls_rag2 import rag2_config_from_env, rag2_enabled_for_stage
+
+        return rag2_enabled_for_stage(stage, rag2_config_from_env())
+    except Exception:
+        return False
+
+
+def _rag2_docs_for_repair(llm_call, *, code: str, error: str) -> str:
+    try:
+        from c2hls_rag2 import rag2_config_from_env, retrieve_for_stage_rag2
+
+        cfg = rag2_config_from_env()
+        block = retrieve_for_stage_rag2(
+            cfg,
+            "repair",
+            code=code,
+            error=error,
+            llm_call=llm_call,
+        )
+        if block:
+            logging.info("RAG2 repair chars=%d", len(block))
+        return block
+    except Exception as exc:  # pragma: no cover
+        logging.warning("RAG2 repair failed: %s", exc)
+        return ""
+
+
+def _rag2_docs_for_latency(llm_call, *, code: str, latency_report: str, stage: str = "flashopt") -> str:
+    try:
+        from c2hls_rag2 import rag2_config_from_env, retrieve_for_stage_rag2
+
+        cfg = rag2_config_from_env()
+        block = retrieve_for_stage_rag2(
+            cfg,
+            stage,
+            code=code,
+            latency_report=latency_report,
+            llm_call=llm_call,
+        )
+        if block:
+            logging.info("RAG2 %s chars=%d", stage, len(block))
+        return block
+    except Exception as exc:  # pragma: no cover
+        logging.warning("RAG2 latency failed: %s", exc)
+        return ""
+
+
+def _rag_append(prompt: str, stage: str, query: str) -> str:
+    """Append/prepend retrieved docs when RAG/RAG2 is enabled for this stage."""
+    try:
+        if _rag2_enabled_for(stage):
+            from c2hls_rag2 import policy_for_stage, rag2_config_from_env, retrieve_rag2
+
+            cfg = rag2_config_from_env()
+            block = retrieve_rag2(
+                cfg,
+                policy=policy_for_stage(stage),
+                query=query,
+            )
+            if not block:
+                return prompt
+            logging.info("RAG2 inject stage=%s chars=%d", stage, len(block))
+            return _prepend_scrape(prompt, block)
+
+        from c2hls_rag import rag_config_from_env, retrieve_for_stage
+        cfg = rag_config_from_env()
+        if cfg.scrape_enabled:
+            return prompt
+        block = retrieve_for_stage(cfg, stage, query)
+    except Exception as exc:  # pragma: no cover
+        logging.warning("RAG retrieve failed (%s): %s", stage, exc)
+        return prompt
+    if not block:
+        return prompt
+    logging.info("RAG inject stage=%s chars=%d", stage, len(block))
+    return prompt.rstrip() + "\n\n" + block
+
+
+def _scrape_cache_dir() -> Path:
+    return Path(os.environ.get("C2HLS_TMP_ROOT", str(REPO_ROOT / "c2hls_tmp"))) / "rag_scrape_cache"
+
+
+def _prepend_scrape(prompt: str, scrape_block: str) -> str:
+    if not scrape_block:
+        return prompt
+    return scrape_block.rstrip() + "\n\n" + prompt.lstrip()
+
+
+def _scrape_enabled_for(stage: str) -> bool:
+    """True when scrape *or* RAG2 should use the prepend injection path."""
+    if _rag2_enabled_for(stage):
+        return True
+    from c2hls_rag import rag_config_from_env, should_inject
+    cfg = rag_config_from_env()
+    return bool(cfg.enabled and cfg.scrape_enabled and should_inject(cfg.mode, stage))
+
+
+def _scrape_docs_for_repair(llm_call, *, code: str, error: str) -> str:
+    if _rag2_enabled_for("repair"):
+        return _rag2_docs_for_repair(llm_call, code=code, error=error)
+    try:
+        from c2hls_rag import rag_config_from_env, should_inject
+        from c2hls_rag_scrape import prepare_scrape_block
+        cfg = rag_config_from_env()
+        if not (cfg.enabled and cfg.scrape_enabled and should_inject(cfg.mode, "repair")):
+            return ""
+        block, kws = prepare_scrape_block(
+            llm_call=llm_call,
+            analysis_kind="repair",
+            code=code,
+            errors=error,
+            corpus_paths=list(cfg.scrape_corpus_paths),
+            cache_dir=_scrape_cache_dir(),
+        )
+        if kws:
+            logging.info("RAG scrape repair keywords=%s chars=%d", kws, len(block))
+        return block
+    except Exception as exc:  # pragma: no cover
+        logging.warning("RAG scrape repair failed: %s", exc)
+        return ""
+
+
+def _scrape_docs_for_latency(llm_call, *, code: str, latency_report: str) -> str:
+    if _rag2_enabled_for("flashopt"):
+        return _rag2_docs_for_latency(
+            llm_call, code=code, latency_report=latency_report, stage="flashopt"
+        )
+    try:
+        from c2hls_rag import rag_config_from_env, should_inject
+        from c2hls_rag_scrape import prepare_scrape_block
+        cfg = rag_config_from_env()
+        if not (cfg.enabled and cfg.scrape_enabled and should_inject(cfg.mode, "flashopt")):
+            return ""
+        block, kws = prepare_scrape_block(
+            llm_call=llm_call,
+            analysis_kind="latency",
+            code=code,
+            latency_report=latency_report,
+            corpus_paths=list(cfg.scrape_corpus_paths),
+            cache_dir=_scrape_cache_dir(),
+        )
+        if kws:
+            logging.info("RAG scrape latency keywords=%s chars=%d", kws, len(block))
+        return block
+    except Exception as exc:  # pragma: no cover
+        logging.warning("RAG scrape latency failed: %s", exc)
+        return ""
+
 # Max seconds for the g++ compile-check used in Phase A and before each
 # Vitis synthesis attempt. Kept small since compile-check is quick.
 TIMEOUT_LIMIT = int(os.getenv("C2HLS_COMPILE_CHECK_TIMEOUT", "60"))
@@ -294,14 +445,86 @@ def _normalize_srad_halo_copy_offsets(code: str) -> tuple[str, list[str]]:
 
 
 def extract_cpp_code(text: str) -> Optional[str]:
-    """Extract C/C++ code from the last fenced block in an LLM response."""
+    """Extract C/C++ code from the last *complete* fenced block.
+
+    Incomplete / truncated fences (opening ```cpp without a closing ```) are
+    rejected — callers must continue generation until the fence closes.
+    Empty/whitespace-only bodies return None.
+    """
     if not text:
         return None
-    fence_pattern = re.compile(r"```(?:cpp|c\+\+|c|hls)?\s*(.*?)```", re.DOTALL)
+    fence_pattern = re.compile(
+        r"```(?:cpp|c\+\+|c|hls)?\s*(.*?)```",
+        re.DOTALL | re.IGNORECASE,
+    )
     matches = fence_pattern.findall(text)
-    if matches:
-        return matches[-1].strip()
-    return None
+    if not matches:
+        return None
+    code = matches[-1].strip()
+    return code or None
+
+
+def cpp_fence_is_truncated(text: str) -> bool:
+    """True when a code fence was opened and never closed (possibly after a prior closed fence)."""
+    if not text:
+        return False
+    closed_pat = re.compile(
+        r"```(?:cpp|c\+\+|c|hls)?\s*(.*?)```",
+        re.DOTALL | re.IGNORECASE,
+    )
+    closed = list(closed_pat.finditer(text))
+    open_pat = re.compile(r"```(?:cpp|c\+\+|c|hls)?[ \t]*\n?", re.IGNORECASE)
+    search_from = closed[-1].end() if closed else 0
+    return open_pat.search(text, search_from) is not None
+
+
+def stitch_cpp_continuation(previous: str, continuation: str) -> str:
+    """Append a continuation chunk into an unclosed ```cpp reply."""
+    prev = previous or ""
+    cont = continuation or ""
+    if not cont.strip():
+        return prev
+    # Strip only a leading re-opened fence; keep code indentation intact.
+    cont = re.sub(
+        r"^\s*```(?:cpp|c\+\+|c|hls)?[ \t]*\n?",
+        "",
+        cont,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    return prev + cont
+
+
+_CPP_FENCE_CONTINUE_PROMPT = """\
+Your previous reply truncated the ```cpp fence mid-kernel. That incomplete
+kernel is unusable.
+
+Continue the SAME ```cpp block exactly from the next character after where
+you stopped. Rules:
+- Do NOT restart the file from the top.
+- Do NOT re-open with ```cpp unless you have not opened one yet.
+- Keep emitting the remainder of the complete kernel.
+- When the full kernel is finished, close with a ``` line on its own.
+"""
+
+
+def _flash_max_completion_tokens(default: int) -> int:
+    raw = os.getenv("C2HLS_FLASH_MAX_TOKENS") or os.getenv("C2HLS_LLM_MAX_TOKENS")
+    if raw and raw.strip().isdigit():
+        return max(int(raw.strip()), default)
+    # AutoSA-scale kernels often need >8k completion tokens per chunk.
+    return max(int(default or 8192), 16384)
+
+
+def _cpp_continuation_limit(baseline_chars: int, max_tokens: int) -> int:
+    """How many continuation rounds to allow for a full-kernel emit."""
+    approx_tokens = max(1, int(baseline_chars / 3.5))
+    per = max(int(max_tokens or 8192), 1)
+    need = (approx_tokens + per - 1) // per + 2
+    env = os.getenv("C2HLS_CPP_CONTINUATIONS", "").strip()
+    if env.isdigit():
+        return max(1, int(env))
+    return min(max(need, 2), 16)
 
 
 def _normalize_extra_files(extra_files=None) -> List[Tuple[str, str]]:
@@ -317,7 +540,6 @@ def _normalize_extra_files(extra_files=None) -> List[Tuple[str, str]]:
         if rel_path:
             normalized.append((rel_path, content))
     return normalized
-
 
 def _vitis_hls_compile_include_paths() -> List[str]:
     """Include dirs for Phase A g++ checks (ap_fixed.h, hls_math.h, etc.)."""
@@ -440,6 +662,9 @@ def _normalize_signature_text(text: str) -> str:
     stripped = re.sub(r"//[^\n]*", " ", stripped)
     normalized = " ".join(stripped.strip().split())
     normalized = re.sub(r"\s*([(),\[\]])\s*", r"\1", normalized)
+    # Collapse whitespace around arithmetic ops in array extents
+    # so `N+1` and `N + 1` compare equal.
+    normalized = re.sub(r"\s*([+\-*/])\s*", r"\1", normalized)
     normalized = normalized.replace(",", ", ")
     normalized = re.sub(r"\s*\*\s*", "*", normalized)
     normalized = re.sub(r"\s*&\s*", "&", normalized)
@@ -1035,6 +1260,41 @@ def _format_attempt_history(turn_records: list, current_phase: str = "B",
     return "\n".join(lines) + "\n\n"
 
 
+def _void_function_names(text: str) -> set[str]:
+    """Top-level ``void`` function names (AutoSA module graph)."""
+    try:
+        from scripts.strip_autosa_hls import _extract_void_function_names
+
+        return set(_extract_void_function_names(text or ""))
+    except Exception:
+        return {
+            m.group(1)
+            for m in re.finditer(
+                r"^(?:template\s*<[^>]*>\s*)?(?:static\s+|inline\s+)*void\s+(\w+)\s*\(",
+                text or "",
+                re.MULTILINE,
+            )
+        }
+
+
+def _dedupe_plain_void_functions(text: str) -> tuple[str, dict]:
+    """Drop duplicate top-level void bodies (modules.cpp + kernel.cpp concat)."""
+    try:
+        from scripts.strip_autosa_hls import dedupe_top_level_void_functions
+
+        return dedupe_top_level_void_functions(text or "")
+    except Exception:
+        return text or "", {"kept": 0, "dropped": 0, "dropped_names": []}
+
+
+def _repair_preserves_seed_modules(seed_names: set[str], repaired: str) -> tuple[bool, list[str]]:
+    """Reject repairs that delete AutoSA callees while leaving wrappers."""
+    if not seed_names:
+        return True, []
+    missing = sorted(seed_names - _void_function_names(repaired))
+    return (not missing), missing
+
+
 def _build_repair_guidance(error: str) -> str:
     if not error:
         return "- Keep the wrapper minimal, syntactically valid, and consistent with the header and plain input."
@@ -1042,9 +1302,22 @@ def _build_repair_guidance(error: str) -> str:
     error_lower = error.lower()
     hints = []
     if "redefinition" in error_lower:
-        hints.append("- Remove duplicate structs, typedefs, constants, or prototypes that already come from the header.")
+        hints.append(
+            "- For duplicate *function* definitions: keep exactly one full body per "
+            "function name (prefer the first complete implementation). Do NOT delete "
+            "AutoSA module callees (e.g. `A_IO_L1_in`, `PE`) while leaving `*_wrapper` "
+            "shells — that breaks the module graph."
+        )
+        hints.append(
+            "- For structs/typedefs/constants/prototypes that already come from the "
+            "header: remove the duplicate declarations from the source, not the functions."
+        )
     if "undeclared identifier" in error_lower or "was not declared" in error_lower:
         hints.append("- Do not reference invented helper arrays/buffers unless you declare and initialize them first.")
+        hints.append(
+            "- If a called AutoSA module is missing, restore its full function body from "
+            "the previous code; do not leave only a wrapper."
+        )
     if "pragma hls" in error_lower and "function scope" in error_lower:
         hints.append("- Move every `#pragma HLS` inside a function body or loop body; none may appear at global scope.")
     if "no matching function" in error_lower or "too many arguments" in error_lower or "too few arguments" in error_lower:
@@ -2415,14 +2688,26 @@ class _AgentBase:
         )
 
     def _request_code_revision(self, prompt: str) -> Optional[str]:
-        """Append a user prompt to orch.messages, call this agent's LLM,
-        record both turns in history, and return the extracted code."""
+        """Append a user prompt to orch.messages, call this agent's LLM with
+        continuation until a complete closed ```cpp fence is obtained."""
         self.orch.messages.append({"role": "user", "content": prompt})
-        reply = self._call_llm(self.orch.messages)
-        self.orch.messages.append({"role": "assistant", "content": reply})
         self.orch._append_history("user", prompt)
-        self.orch._append_history("assistant", reply)
-        return extract_cpp_code(reply)
+        # Reuse orchestrator continuation logic but route calls through this agent.
+        # Temporarily bind orch._call_llm to this agent's model for the duration.
+        orch = self.orch
+        orig_call = orch._call_llm
+
+        def _agent_call(messages, max_tokens=None):
+            return self._call_llm(messages, max_tokens=max_tokens)
+
+        orch._call_llm = _agent_call  # type: ignore[method-assign]
+        try:
+            return orch._call_llm_for_complete_cpp(
+                orch.messages,
+                baseline_chars=len(getattr(orch, "hls_code", "") or ""),
+            )
+        finally:
+            orch._call_llm = orig_call  # type: ignore[method-assign]
 
 
 class TranslatorAgent(_AgentBase):
@@ -2685,6 +2970,19 @@ class SynthesisAgent(_AgentBase):
                     repair_guidance=self._compose_repair_guidance(err, report=None),
                     attempt_history=_format_attempt_history(orch.turn_results, "B"),
                 )
+                if _scrape_enabled_for("repair"):
+                    scrape = _scrape_docs_for_repair(
+                        lambda msgs: self._call_llm(msgs, max_tokens=400),
+                        code=orch.hls_code or "",
+                        error=err,
+                    )
+                    fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                else:
+                    fix_prompt = _rag_append(
+                        fix_prompt,
+                        "repair",
+                        f"{err[:2000]}\n{(orch.hls_code or '')[:4000]}",
+                    )
                 orch.messages.append({"role": "user", "content": fix_prompt})
                 reply = self._call_llm(orch.messages)
                 orch.messages.append({"role": "assistant", "content": reply})
@@ -2768,6 +3066,19 @@ class SynthesisAgent(_AgentBase):
                         benchmark_context=orch.benchmark_context,
                         attempt_history=_format_attempt_history(orch.turn_results, "B"),
                     )
+                    if _scrape_enabled_for("repair"):
+                        scrape = _scrape_docs_for_repair(
+                            lambda msgs: self._call_llm(msgs, max_tokens=400),
+                            code=orch.hls_code or "",
+                            error=gate_error,
+                        )
+                        fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                    else:
+                        fix_prompt = _rag_append(
+                            fix_prompt,
+                            "repair",
+                            f"{gate_error[:2000]}\n{(orch.hls_code or '')[:4000]}",
+                        )
                     orch.messages.append({"role": "user", "content": fix_prompt})
                     reply = self._call_llm(orch.messages)
                     orch.messages.append({"role": "assistant", "content": reply})
@@ -2813,6 +3124,19 @@ class SynthesisAgent(_AgentBase):
                     benchmark_context=orch.benchmark_context,
                     repair_guidance=guidance,
                     attempt_history=history_block,
+                )
+            if _scrape_enabled_for("repair"):
+                scrape = _scrape_docs_for_repair(
+                    lambda msgs: self._call_llm(msgs, max_tokens=400),
+                    code=orch.hls_code or "",
+                    error=result.get("error") or "",
+                )
+                fix_prompt = _prepend_scrape(fix_prompt, scrape)
+            else:
+                fix_prompt = _rag_append(
+                    fix_prompt,
+                    "repair",
+                    f"{(result.get('error') or '')[:2000]}\n{(orch.hls_code or '')[:4000]}",
                 )
             orch.messages.append({"role": "user", "content": fix_prompt})
             reply = self._call_llm(orch.messages)
@@ -2926,6 +3250,19 @@ class QualityRepairAgent(_AgentBase):
                 benchmark_context=orch.benchmark_context,
                 quality_guidance=quality_guidance,
             )
+            if _scrape_enabled_for("repair"):
+                scrape = _scrape_docs_for_repair(
+                    lambda msgs: self._call_llm(msgs, max_tokens=400),
+                    code=orch.hls_code or "",
+                    error=current_focus,
+                )
+                prompt = _prepend_scrape(prompt, scrape)
+            else:
+                prompt = _rag_append(
+                    prompt,
+                    "repair",
+                    f"{current_focus}\n{(orch.hls_code or '')[:4000]}",
+                )
             proposed_code = self._request_code_revision(prompt)
             attempt = {
                 "turn": turn,
@@ -3269,6 +3606,11 @@ class SkillCurationAgent(_AgentBase):
             catalog_text=catalog_text,
             code_excerpt=orch.hls_code or "",
         )
+        user_prompt = _rag_append(
+            user_prompt,
+            "flashopt",
+            f"{step_name}\n{(orch.hls_code or '')[:4000]}",
+        )
 
         raw_reply = ""
         used_fallback = False
@@ -3545,6 +3887,62 @@ class C2HLSOrchestrator:
                                          max_tokens=max_tokens,
                                          agent_name="orchestrator")
 
+    def _call_llm_for_complete_cpp(
+        self,
+        messages: list,
+        *,
+        max_tokens: int = None,
+        max_continuations: int = None,
+        baseline_chars: int = 0,
+    ) -> Optional[str]:
+        """Call LLM and continue until a complete closed ```cpp fence is obtained.
+
+        Truncated / unclosed fences are never accepted as final code — AutoSA-scale
+        kernels often exceed one completion budget, so we stitch continuations.
+        """
+        if max_tokens is None:
+            max_tokens = _flash_max_completion_tokens(self.max_completion_tokens)
+        if max_continuations is None:
+            max_continuations = _cpp_continuation_limit(
+                baseline_chars or len(getattr(self, "hls_code", "") or ""),
+                max_tokens,
+            )
+
+        reply = self._call_llm(messages, max_tokens=max_tokens)
+        messages.append({"role": "assistant", "content": reply})
+        self._append_history("assistant", reply)
+        assembled = reply or ""
+
+        for cont_i in range(max_continuations):
+            if not cpp_fence_is_truncated(assembled):
+                code = extract_cpp_code(assembled)
+                if code and cont_i:
+                    logging.info(
+                        "Assembled complete cpp fence after %d continuation(s)",
+                        cont_i,
+                    )
+                return code
+
+            logging.warning(
+                "Incomplete ```cpp fence (continuation %d/%d); requesting remainder",
+                cont_i + 1,
+                max_continuations,
+            )
+            messages.append({"role": "user", "content": _CPP_FENCE_CONTINUE_PROMPT})
+            self._append_history("user", _CPP_FENCE_CONTINUE_PROMPT)
+            cont = self._call_llm(messages, max_tokens=max_tokens)
+            messages.append({"role": "assistant", "content": cont})
+            self._append_history("assistant", cont)
+            assembled = stitch_cpp_continuation(assembled, cont)
+
+        if cpp_fence_is_truncated(assembled):
+            logging.error(
+                "cpp fence still truncated after %d continuation(s)",
+                max_continuations,
+            )
+            return None
+        return extract_cpp_code(assembled)
+
     @staticmethod
     def _usage_value(obj, name: str, default: int = 0) -> int:
         if obj is None:
@@ -3763,11 +4161,11 @@ class C2HLSOrchestrator:
 
     def _request_code_revision(self, prompt: str) -> Optional[str]:
         self.messages.append({"role": "user", "content": prompt})
-        reply = self._call_llm(self.messages)
-        self.messages.append({"role": "assistant", "content": reply})
         self._append_history("user", prompt)
-        self._append_history("assistant", reply)
-        return extract_cpp_code(reply)
+        return self._call_llm_for_complete_cpp(
+            self.messages,
+            baseline_chars=len(getattr(self, "hls_code", "") or ""),
+        )
 
     def _preflight_generated_hls_code(self, code: str, context: str) -> str:
         normalized, note = _align_generated_top_signature(
@@ -3845,15 +4243,27 @@ class C2HLSOrchestrator:
                 local_turn_records.append({"turn": turn, "phase": "B",
                                            "success": False, "error": err})
                 logging.warning("%s Compile error: %s", label, err[:200])
-                fixed = self._request_code_revision(
-                    c_compilation_fix.format(
-                        compile_error=err,
-                        hls_code=current_code,
-                        benchmark_context=self.benchmark_context,
-                        repair_guidance=_build_repair_guidance(err),
-                        attempt_history=_format_attempt_history(local_turn_records, "B"),
-                    )
+                fix_prompt = c_compilation_fix.format(
+                    compile_error=err,
+                    hls_code=current_code,
+                    benchmark_context=self.benchmark_context,
+                    repair_guidance=_build_repair_guidance(err),
+                    attempt_history=_format_attempt_history(local_turn_records, "B"),
                 )
+                if _scrape_enabled_for("repair"):
+                    scrape = _scrape_docs_for_repair(
+                        lambda msgs: self._call_llm(msgs, max_tokens=400),
+                        code=current_code or "",
+                        error=err,
+                    )
+                    fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                else:
+                    fix_prompt = _rag_append(
+                        fix_prompt,
+                        "repair",
+                        f"{err[:2000]}\n{(current_code or '')[:4000]}",
+                    )
+                fixed = self._request_code_revision(fix_prompt)
                 if fixed:
                     current_code = fixed
                 continue
@@ -3893,6 +4303,19 @@ class C2HLSOrchestrator:
                     benchmark_context=self.benchmark_context,
                     repair_guidance=_build_repair_guidance(result["error"]),
                     attempt_history=history_block,
+                )
+            if _scrape_enabled_for("repair"):
+                scrape = _scrape_docs_for_repair(
+                    lambda msgs: self._call_llm(msgs, max_tokens=400),
+                    code=current_code or "",
+                    error=result.get("error") or "",
+                )
+                fix_prompt = _prepend_scrape(fix_prompt, scrape)
+            else:
+                fix_prompt = _rag_append(
+                    fix_prompt,
+                    "repair",
+                    f"{(result.get('error') or '')[:2000]}\n{(current_code or '')[:4000]}",
                 )
             fixed = self._request_code_revision(fix_prompt)
             if fixed:
@@ -3987,6 +4410,56 @@ class C2HLSOrchestrator:
 
     def pipelined_phase_b_translate(self) -> dict:
         """Initial Phase B LLM translate (codegen worker)."""
+        from_gold = os.getenv("C2HLS_PHASEB_FROM_GOLD", "").strip().lower() in {
+            "1", "true", "yes", "on",
+        }
+        gold = (getattr(self, "_gold_hls_baseline_code", "") or "").strip()
+        if from_gold and gold:
+            self.phaseb_mode = _normalize_phaseb_mode(
+                os.getenv(PHASEB_MODE_ENV, ""),
+                multistep=True,
+            )
+            self.hls_code = gold
+            logging.info(
+                "[Phase B] Using gold HLS baseline as functional seed (%d bytes)",
+                len(gold),
+            )
+            return {"ok": True}
+
+        # When Phase A is skipped, plain.cpp already retains HLS-native types
+        # (AutoSA/MachSuite). Seed Phase B from that plain code — do not swap in gold.
+        plain = (getattr(self, "c_code", "") or "").strip()
+        if getattr(self, "skip_phase_a", False) and plain:
+            self.phaseb_mode = _normalize_phaseb_mode(
+                os.getenv(PHASEB_MODE_ENV, ""),
+                multistep=True,
+            )
+            plain, dedupe_report = _dedupe_plain_void_functions(plain)
+            dropped = int(dedupe_report.get("dropped") or 0)
+            if dropped:
+                logging.warning(
+                    "[Phase B] Deduped %d duplicate void function bodies in plain seed",
+                    dropped,
+                )
+                self._append_history(
+                    "system",
+                    f"[Phase B] Deduped {dropped} duplicate void functions in plain seed "
+                    f"(names={dedupe_report.get('dropped_names', [])[:12]}).",
+                )
+            self.hls_code = plain
+            self.c_code = plain
+            self._phase_b_seed_void_fns = _void_function_names(plain)
+            logging.info(
+                "[Phase B] Using plain.cpp as functional seed (%d bytes, %d void fns) [skip_phase_a]",
+                len(plain),
+                len(self._phase_b_seed_void_fns),
+            )
+            self._append_history(
+                "system",
+                "[Phase B] Seeded from plain.cpp (skip_phase_a; not gold).",
+            )
+            return {"ok": True}
+
         prev_context = getattr(self, "_phaseb_multistep_context", False)
         self._phaseb_multistep_context = True
         self.phaseb_mode = _normalize_phaseb_mode(
@@ -4054,14 +4527,48 @@ class C2HLSOrchestrator:
                     attempt_history=history_block,
                 )
 
+        if _scrape_enabled_for("repair"):
+            scrape = _scrape_docs_for_repair(
+                lambda msgs: self._call_llm(msgs, max_tokens=400),
+                code=orch.hls_code or "",
+                error=err,
+            )
+            fix_prompt = _prepend_scrape(fix_prompt, scrape)
+        else:
+            fix_prompt = _rag_append(
+                fix_prompt,
+                "repair",
+                f"{err[:2000]}\n{(orch.hls_code or '')[:4000]}",
+            )
+
         orch.messages.append({"role": "user", "content": fix_prompt})
-        reply = orch._call_llm(orch.messages)
-        orch.messages.append({"role": "assistant", "content": reply})
         orch._append_history("user", fix_prompt)
-        orch._append_history("assistant", reply)
-        fixed = extract_cpp_code(reply)
+        fixed = orch._call_llm_for_complete_cpp(
+            orch.messages,
+            baseline_chars=len(orch.hls_code or ""),
+        )
         if not fixed:
             return {"ok": False, "error": f"no code in Phase B repair response (turn {turn})"}
+        seed_names = set(getattr(orch, "_phase_b_seed_void_fns", None) or ())
+        if not seed_names and getattr(orch, "skip_phase_a", False):
+            seed_names = _void_function_names(getattr(orch, "c_code", "") or "")
+            orch._phase_b_seed_void_fns = seed_names
+        ok_modules, missing = _repair_preserves_seed_modules(seed_names, fixed)
+        if not ok_modules:
+            msg = (
+                "[Phase B] Rejected repair that dropped AutoSA modules "
+                f"(missing {len(missing)}: {missing[:12]}). Keeping previous code."
+            )
+            logging.warning(msg)
+            orch._append_history("system", msg)
+            # Keep orch.hls_code unchanged so we do not destroy the module graph.
+            ctx["phase_b_attempt"] = turn + 1
+            orch._pipelined_ctx = ctx
+            return {
+                "ok": True,
+                "rejected_integrity": True,
+                "missing_modules": missing,
+            }
         orch.hls_code = fixed
         ctx["phase_b_attempt"] = turn + 1
         orch._pipelined_ctx = ctx
@@ -4273,11 +4780,27 @@ class C2HLSOrchestrator:
                     attempt_history=history_block,
                 )
 
+        if _scrape_enabled_for("repair"):
+            scrape = _scrape_docs_for_repair(
+                lambda msgs: self._call_llm(msgs, max_tokens=400),
+                code=new_code or "",
+                error=err,
+            )
+            fix_prompt = _prepend_scrape(fix_prompt, scrape)
+        else:
+            fix_prompt = _rag_append(
+                fix_prompt,
+                "repair",
+                f"{err[:2000]}\n{(new_code or '')[:4000]}",
+            )
+
         self.messages.append({"role": "user", "content": fix_prompt})
-        reply = self._call_llm(self.messages)
-        self.messages.append({"role": "assistant", "content": reply})
-        self._append_history("assistant", reply)
-        fixed = extract_cpp_code(reply)
+        self._append_history("user", fix_prompt)
+        fixed = self._call_llm_for_complete_cpp(
+            self.messages,
+            max_tokens=_flash_max_completion_tokens(self.max_completion_tokens),
+            baseline_chars=len(new_code or ""),
+        )
         if not fixed:
             return {"ok": False, "error": "no code in flash repair response"}
         ctx["flash_pending_code"] = fixed
@@ -4524,6 +5047,20 @@ class C2HLSOrchestrator:
                     repair_guidance=guidance,
                     attempt_history=history_block,
                 )
+
+        if _scrape_enabled_for("repair"):
+            scrape = _scrape_docs_for_repair(
+                lambda msgs: self._call_llm(msgs, max_tokens=400),
+                code=new_code or "",
+                error=err,
+            )
+            fix_prompt = _prepend_scrape(fix_prompt, scrape)
+        else:
+            fix_prompt = _rag_append(
+                fix_prompt,
+                "repair",
+                f"{err[:2000]}\n{(new_code or '')[:4000]}",
+            )
 
         self.messages.append({"role": "user", "content": fix_prompt})
         reply = self._call_llm(self.messages)
@@ -5445,6 +5982,20 @@ class C2HLSOrchestrator:
         if extra_blocks:
             prompt = prompt + "\n\n" + "\n\n".join(extra_blocks)
 
+        if step_name == "flash" and _scrape_enabled_for("flashopt"):
+            scrape = _scrape_docs_for_latency(
+                lambda msgs: self._call_llm(msgs, max_tokens=400),
+                code=self.hls_code or "",
+                latency_report=report_str,
+            )
+            prompt = _prepend_scrape(prompt, scrape)
+        else:
+            prompt = _rag_append(
+                prompt,
+                "flashopt",
+                f"{step_name}\n{(self.hls_code or '')[:4000]}\n{report_str[:1500]}",
+            )
+
         system_instruction = (
             Instruction_c2hls_flash
             if step_name == "flash"
@@ -5455,14 +6006,19 @@ class C2HLSOrchestrator:
             {"role": "user", "content": prompt},
         ]
 
-        reply = self._call_llm(self.messages)
         self._append_history("user", f"[Step: {step_name}] {prompt}")
-        self._append_history("assistant", reply)
-        self.messages.append({"role": "assistant", "content": reply})
-
-        new_code = extract_cpp_code(reply)
+        max_tokens = (
+            _flash_max_completion_tokens(self.max_completion_tokens)
+            if step_name == "flash"
+            else self.max_completion_tokens
+        )
+        new_code = self._call_llm_for_complete_cpp(
+            self.messages,
+            max_tokens=max_tokens,
+            baseline_chars=len(self.hls_code or ""),
+        )
         if not new_code:
-            logging.error("[Step: %s] No code in LLM response", step_name)
+            logging.error("[Step: %s] No complete code in LLM response", step_name)
             return None
         return new_code
 
@@ -5533,6 +6089,19 @@ class C2HLSOrchestrator:
                     repair_guidance=self.synthesis._compose_repair_guidance(err, report=None),
                     attempt_history=_format_attempt_history(step_turn_records, "B"),
                 )
+                if _scrape_enabled_for("repair"):
+                    scrape = _scrape_docs_for_repair(
+                        lambda msgs: self._call_llm(msgs, max_tokens=400),
+                        code=new_code or "",
+                        error=err,
+                    )
+                    fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                else:
+                    fix_prompt = _rag_append(
+                        fix_prompt,
+                        "repair",
+                        f"{err[:2000]}\n{(new_code or '')[:4000]}",
+                    )
                 self.messages.append({"role": "user", "content": fix_prompt})
                 reply = self._call_llm(self.messages)
                 self.messages.append({"role": "assistant", "content": reply})
@@ -5645,6 +6214,19 @@ class C2HLSOrchestrator:
                             step_turn_records, "B",
                         ),
                     )
+                    if _scrape_enabled_for("repair"):
+                        scrape = _scrape_docs_for_repair(
+                            lambda msgs: self._call_llm(msgs, max_tokens=400),
+                            code=new_code or "",
+                            error=gate_error,
+                        )
+                        fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                    else:
+                        fix_prompt = _rag_append(
+                            fix_prompt,
+                            "repair",
+                            f"{gate_error[:2000]}\n{(new_code or '')[:4000]}",
+                        )
                     self.messages.append({"role": "user", "content": fix_prompt})
                     reply = self._call_llm(self.messages)
                     self.messages.append({"role": "assistant", "content": reply})
@@ -5736,6 +6318,19 @@ class C2HLSOrchestrator:
                     benchmark_context=self.benchmark_context,
                     repair_guidance=guidance,
                     attempt_history=history_block,
+                )
+            if _scrape_enabled_for("repair"):
+                scrape = _scrape_docs_for_repair(
+                    lambda msgs: self._call_llm(msgs, max_tokens=400),
+                    code=new_code or "",
+                    error=result.get("error") or "",
+                )
+                fix_prompt = _prepend_scrape(fix_prompt, scrape)
+            else:
+                fix_prompt = _rag_append(
+                    fix_prompt,
+                    "repair",
+                    f"{result['error'][:2000]}\n{(new_code or '')[:4000]}",
                 )
             self.messages.append({"role": "user", "content": fix_prompt})
             reply = self._call_llm(self.messages)
@@ -6606,6 +7201,17 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
 
     with open(bench_dir / "plain.cpp", "r") as f:
         c_code = f.read()
+    # AutoSA DSE plains were historically modules.cpp+kernel.cpp concat; drop
+    # duplicate void bodies at load time so skip_phase_a Phase B can compile.
+    if meta.get("skip_phase_a") or "autosa" in str(meta.get("corpus", "")).lower() \
+            or "autosa" in str(meta.get("benchmark", "")).lower():
+        c_code, _plain_dedupe = _dedupe_plain_void_functions(c_code)
+        if int(_plain_dedupe.get("dropped") or 0):
+            logging.warning(
+                "[load] Deduped %d duplicate void functions in %s/plain.cpp",
+                _plain_dedupe["dropped"],
+                bench_dir.name,
+            )
 
     header_code = ""
     header_path = bench_dir / header_name
@@ -6705,6 +7311,19 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
             continue
         extra_files.append({"path": rel_path, "content": header_path.read_text()})
         extra_file_paths.add(rel_path)
+
+    # MachSuite / harness-style benches load golden vectors by basename
+    # (input.data, check.data). Stage them as TB-only extras for Vitis csim.
+    for data_name in ("input.data", "check.data", "output.data"):
+        data_path = bench_dir / data_name
+        if not data_path.is_file() or data_name in extra_file_paths:
+            continue
+        extra_files.append({
+            "path": data_name,
+            "content": data_path.read_text(encoding="utf-8", errors="ignore"),
+            "tb": True,
+        })
+        extra_file_paths.add(data_name)
 
     # GT code is deliberately NOT passed here. _build_benchmark_context may
     # only look at plain C, the header, the testbench-visible signature, and
@@ -8399,6 +9018,21 @@ def _run_benchmark_multistep_body(
         except Exception as exc:
             logging.warning("[pragma_opt] flash chain skipped for %s: %s", bench_name, exc)
 
+        try:
+            from c2hls_paths import BENCHMARKS_DIR
+            from post_flash_latency_opt import maybe_chain_latency_opt
+
+            maybe_chain_latency_opt(
+                bench=bench_name,
+                bench_dir=BENCHMARKS_DIR / bench_name,
+                cell_dir=Path(output_dir),
+                orchestrator=orchestrator,
+                source_role="flash_final",
+                skip_existing=True,
+            )
+        except Exception as exc:
+            logging.warning("[latency_opt] flash chain skipped for %s: %s", bench_name, exc)
+
     return results
 
 
@@ -8514,7 +9148,80 @@ if __name__ == "__main__":
         action="store_true",
         help="Evaluate all attempts per candidate and select the best passing attempt.",
     )
+    parser.add_argument("--rag", action="store_true", help="Enable UG1399 documentation RAG (off by default). Default mode: flashopt.")
+    parser.add_argument("--rag2", action="store_true", help="Enable RAG2 dual-policy structured retrieval (incompatible with --scrape).")
+    parser.add_argument("--rag-mode", choices=["flashopt", "repair", "both", "everywhere"], default=None, help="RAG/RAG2 injection scope. Default: flashopt (--rag) or both (--rag2).")
+    parser.add_argument("--rag-corpus", type=str, default=None, help="RAG index directory (default: artifacts/rag/ug1399).")
+    parser.add_argument("--rag2-opt-corpus", type=str, default=None, help="RAG2 opt index directory (default: artifacts/rag/rag2_opt).")
+    parser.add_argument("--rag2-repair-corpus", type=str, default=None, help="RAG2 repair index directory (default: artifacts/rag/rag2_repair).")
+    parser.add_argument("--rag-top-k", type=int, default=None, help="Number of chunks to retrieve (default: 4).")
+    parser.add_argument(
+        "--scrape",
+        action="store_true",
+        help="With --rag: analysis→keyword PDF/doc scrape before action prompts (see scrape addendum).",
+    )
+    parser.add_argument(
+        "--scrape-corpus",
+        type=str,
+        default=None,
+        help="Colon/comma-separated PDF/HTML/TXT paths for --scrape.",
+    )
     args = parser.parse_args()
+    if args.rag2 and args.scrape:
+        parser.error("--rag2 is incompatible with --scrape")
+    if args.scrape and not args.rag:
+        parser.error("--scrape requires --rag")
+    if args.rag_mode and not (args.rag or args.rag2):
+        parser.error("--rag-mode requires --rag or --rag2")
+    if args.rag2:
+        os.environ["C2HLS_RAG2"] = "1"
+        os.environ["C2HLS_RAG_SCRAPE"] = "0"
+        if args.rag_mode:
+            os.environ["C2HLS_RAG_MODE"] = args.rag_mode
+        if args.rag_top_k is not None:
+            os.environ["C2HLS_RAG_TOP_K"] = str(args.rag_top_k)
+        if args.rag2_opt_corpus:
+            os.environ["C2HLS_RAG2_OPT_CORPUS"] = args.rag2_opt_corpus
+        if args.rag2_repair_corpus:
+            os.environ["C2HLS_RAG2_REPAIR_CORPUS"] = args.rag2_repair_corpus
+        from c2hls_rag import load_index
+        from c2hls_rag2 import rag2_config_from_env
+
+        rag2_cfg = rag2_config_from_env(
+            enabled=True,
+            mode=args.rag_mode,
+            opt_corpus_dir=args.rag2_opt_corpus,
+            repair_corpus_dir=args.rag2_repair_corpus,
+            top_k=args.rag_top_k,
+        )
+        load_index(rag2_cfg.opt_corpus_dir)
+        load_index(rag2_cfg.repair_corpus_dir)
+    if args.rag:
+        os.environ["C2HLS_RAG"] = "1"
+        if args.rag_mode:
+            os.environ["C2HLS_RAG_MODE"] = args.rag_mode
+        if args.rag_corpus:
+            os.environ["C2HLS_RAG_CORPUS"] = args.rag_corpus
+        if args.rag_top_k is not None:
+            os.environ["C2HLS_RAG_TOP_K"] = str(args.rag_top_k)
+        if args.scrape:
+            os.environ["C2HLS_RAG_SCRAPE"] = "1"
+            if args.scrape_corpus:
+                os.environ["C2HLS_RAG_SCRAPE_CORPUS"] = args.scrape_corpus
+        from c2hls_rag import get_index, rag_config_from_env
+
+        cfg = rag_config_from_env(
+            enabled=True,
+            mode=args.rag_mode,
+            corpus_dir=args.rag_corpus,
+            top_k=args.rag_top_k,
+            scrape_enabled=args.scrape if args.scrape else None,
+            scrape_corpus=args.scrape_corpus,
+        )
+        if args.scrape and not cfg.scrape_corpus_paths:
+            parser.error("--scrape requires --scrape-corpus with existing files")
+        if not args.scrape and not args.rag2:
+            get_index(cfg)
     if args.strategy:
         os.environ["C2HLS_STRATEGY"] = args.strategy
     if args.no_gt_aware_revert:

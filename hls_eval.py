@@ -46,6 +46,14 @@ logging.basicConfig(
 #   C2HLS_COSIM_TRACE_LEVEL
 #                         Vitis cosim trace level. Default "none" avoids
 #                         simulator waveform/debug setup for batch sweeps.
+#   C2HLS_COSIM_EXTRA_ARGS
+#                         Extra args appended to cosim_design (e.g.
+#                         "-disable_deadlock_detection").
+#   C2HLS_COSIM_XELAB_MT_OFF
+#                         When 1/true: run cosim_design -setup, inject
+#                         ``xelab -mt off`` into run_xsim.sh, then execute
+#                         sim.sh. Mitigates XSIM 43-3316 SIGSEGV on large
+#                         elaborations (absolute-path xelab ignores PATH wrappers).
 #   C2HLS_COSIM_COMPACT_LOGS
 #                         When enabled (default), replace oversized Vitis/XSim
 #                         work-dir logs (hls_run_tcl.log, xsim.log) with a
@@ -92,6 +100,14 @@ DEFAULT_PART = os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e")
 DEFAULT_CLOCK_NS = float(os.getenv("C2HLS_CLOCK_NS", "3.33"))
 DEFAULT_FLOW_TARGET = os.getenv("C2HLS_FLOW_TARGET", "vitis")
 DEFAULT_COSIM_TRACE_LEVEL = os.getenv("C2HLS_COSIM_TRACE_LEVEL", "none").strip()
+DEFAULT_COSIM_EXTRA_ARGS = os.getenv("C2HLS_COSIM_EXTRA_ARGS", "").strip()
+
+
+def _cosim_xelab_mt_off_enabled() -> bool:
+    raw = os.getenv("C2HLS_COSIM_XELAB_MT_OFF", "0").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
 def _synth_timeout() -> int:
     return int(os.getenv("C2HLS_SYNTH_TIMEOUT", "1200"))
 
@@ -173,10 +189,15 @@ def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
     # If VITIS_SETTINGS is None it means _resolve_vitis_settings() found
     # vitis-run already on PATH (no source needed). Skip the `source` line
     # rather than prepending a missing file path.
+    # Unlimited stack: large HLS TBs / xelab can SIGSEGV under default stack.
+    ulimit_prefix = "ulimit -s unlimited 2>/dev/null || true; "
     if VITIS_SETTINGS:
-        full_cmd = f"{temp_exports} && source {shlex.quote(VITIS_SETTINGS)} && {temp_exports} && {cmd}"
+        full_cmd = (
+            f"{temp_exports} && source {shlex.quote(VITIS_SETTINGS)} && "
+            f"{temp_exports} && {ulimit_prefix}{cmd}"
+        )
     else:
-        full_cmd = f"{temp_exports} && {cmd}"
+        full_cmd = f"{temp_exports} && {ulimit_prefix}{cmd}"
     proc = subprocess.Popen(
         ["bash", "-lc", full_cmd],
         stdout=subprocess.PIPE,
@@ -423,14 +444,20 @@ def _tcl_kernel_extra_add_lines(
     *,
     skip_relpaths: set[str] | None = None,
 ) -> list[str]:
-    """Return ``add_files`` lines for support data / auxiliary headers (non-cpp)."""
+    """Return ``add_files`` lines for support data / auxiliary headers (non-source).
+
+    Host/testbench C/C++ helpers (``.c``/``.cpp``/…) must not be registered as
+    design sources — they belong on ``add_files -tb`` only. Including them as
+    kernel files causes csim link failures (duplicate / host-only symbols).
+    """
     skip = skip_relpaths or set()
     lines: list[str] = []
     seen: set[str] = set()
+    _KERNEL_SKIP_SUFFIXES = (".c", ".cc", ".cpp", ".cxx", ".C")
     for rel_path, _content, _tb in _normalize_extra_files(extra_files):
         if rel_path in skip or rel_path in seen:
             continue
-        if rel_path.endswith(".cpp"):
+        if rel_path.endswith(_KERNEL_SKIP_SUFFIXES):
             continue
         seen.add(rel_path)
         lines.append(f"add_files {rel_path}")
@@ -848,6 +875,138 @@ exit
     }
 
 
+def _patch_run_xsim_xelab_mt_off(work_dir: str) -> list[str]:
+    """Inject ``-mt off`` into generated run_xsim.sh xelab lines. Returns patched paths."""
+    patched: list[str] = []
+    root = Path(work_dir)
+    for sh_path in root.rglob("run_xsim.sh"):
+        try:
+            text = sh_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if "xelab" not in text or re.search(r"\bxelab\b.*\s-mt\b", text):
+            continue
+        new_text, n = re.subn(r"(\bxelab)(\s)", r"\1 -mt off\2", text, count=1)
+        if n:
+            sh_path.write_text(new_text, encoding="utf-8")
+            patched.append(str(sh_path))
+    return patched
+
+
+def _patch_cosim_sim_hardening(work_dir: str) -> dict[str, int]:
+    """Post-setup hardening for headless / large-design cosim.
+
+    Fixes observed on kernel_syrk:
+      - ``zip error: Nothing to do! (process.zip)`` when ``df_record_move``
+        zips an empty ``glob -nocomplain`` after xsim aborts early.
+      - xsim ``Simulator command interrupted`` right after ``run all`` on
+        huge monitor FSMs — strip ``-autoloadwcfg``, force unlimited stack
+        inside ``run_xsim.sh``, and wrap ``df_record_move`` in ``catch``.
+    """
+    stats = {
+        "run_xsim_stack": 0,
+        "dataflow_zip_guard": 0,
+        "run_sim_catch_df": 0,
+        "xsim_script_no_wcfg": 0,
+    }
+    root = Path(work_dir)
+
+    for sh_path in root.rglob("run_xsim.sh"):
+        try:
+            text = sh_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        changed = False
+        if "ulimit -s unlimited" not in text:
+            text = "#!/bin/sh\nulimit -s unlimited 2>/dev/null || true\n" + text.lstrip("\n")
+            changed = True
+            stats["run_xsim_stack"] += 1
+        # After xelab, strip -autoloadwcfg from generated xsim_script.tcl (wave
+        # autoload has crashed xsimk on large designs under batch cosim).
+        strip_cmd = (
+            "for _xs in xsim.dir/*/xsim_script.tcl; do "
+            "[ -f \"$_xs\" ] && sed -i 's/ -autoloadwcfg//g' \"$_xs\"; "
+            "done"
+        )
+        if strip_cmd not in text and re.search(r"\bxelab\b", text):
+            lines = text.splitlines(keepends=True)
+            out = []
+            inserted = False
+            for line in lines:
+                out.append(line)
+                if (not inserted) and re.search(r"\bxelab\b", line) and "xsim" not in line:
+                    out.append(strip_cmd + "\n")
+                    inserted = True
+            if inserted:
+                text = "".join(out)
+                changed = True
+                stats["xsim_script_no_wcfg"] += 1
+        if changed:
+            sh_path.write_text(text, encoding="utf-8")
+
+    for api_path in root.rglob("dataflow_monitor_API.tcl"):
+        try:
+            text = api_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if "set proc_files [glob -nocomplain status*.csv" in text:
+            continue
+        if "exec zip process.zip -m {*}[glob -nocomplain status*.csv" not in text:
+            continue
+        old_block = (
+            "    exec zip process.zip -m {*}[glob -nocomplain status*.csv module_status*.csv]\n"
+            "    df_move_file_type \"process.zip\" $process_record_directory\n"
+            "    exec zip loop.zip -m {*}[glob -nocomplain *_loop_status*.csv]\n"
+            "    df_move_file_type \"loop.zip\" $loop_record_directory\n"
+        )
+        new_block = (
+            "    # Guard empty globs: plain zip with no inputs exits non-zero\n"
+            "    # (\"Nothing to do!\") and aborts cosim after an early xsim death.\n"
+            "    set proc_files [glob -nocomplain status*.csv module_status*.csv]\n"
+            "    if {[llength $proc_files] > 0} {\n"
+            "        exec zip process.zip -m {*}$proc_files\n"
+            "        df_move_file_type \"process.zip\" $process_record_directory\n"
+            "    }\n"
+            "    set loop_files [glob -nocomplain *_loop_status*.csv]\n"
+            "    if {[llength $loop_files] > 0} {\n"
+            "        exec zip loop.zip -m {*}$loop_files\n"
+            "        df_move_file_type \"loop.zip\" $loop_record_directory\n"
+            "    }\n"
+        )
+        if old_block not in text:
+            continue
+        api_path.write_text(text.replace(old_block, new_block, 1), encoding="utf-8")
+        stats["dataflow_zip_guard"] += 1
+
+    for sim_tcl in root.rglob("run_sim.tcl"):
+        try:
+            text = sim_tcl.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if "catch {df_record_move}" in text:
+            continue
+        # Only wrap the standalone call site (not definitions).
+        new_text, n = re.subn(
+            r"(?m)^(\s*)df_record_move\s*$",
+            r"\1catch {df_record_move}",
+            text,
+            count=1,
+        )
+        if n:
+            sim_tcl.write_text(new_text, encoding="utf-8")
+            stats["run_sim_catch_df"] += 1
+
+    return stats
+
+def _find_cosim_sim_sh(work_dir: str, proj_name: str = "hls_proj") -> Path | None:
+    """Prefer verilog sim.sh under the active solution; fall back to any sim.sh."""
+    preferred = Path(work_dir) / proj_name / "sol1" / "sim" / "verilog" / "sim.sh"
+    if preferred.is_file():
+        return preferred
+    matches = sorted(Path(work_dir).rglob("sim.sh"))
+    return matches[0] if matches else None
+
+
 def run_cosim(
     hls_code: str,
     testbench_code: str,
@@ -879,6 +1038,7 @@ def run_cosim(
     tb_rel = "testbench.cpp" if tb_file else ""
     hdr_rel = header_name if hdr_file else ""
     skip_relpaths = {p for p in (hdr_rel, src_rel, tb_rel) if p}
+    xelab_mt_off = _cosim_xelab_mt_off_enabled()
     tcl_content = f"""open_project {proj_name}
 set_top {top_function}
 add_files {src_rel}
@@ -888,8 +1048,15 @@ add_files {src_rel}
     for line in _tcl_kernel_extra_add_lines(extra_files, skip_relpaths=skip_relpaths):
         tcl_content += f"{line}\n"
     cosim_cmd = "cosim_design"
-    if DEFAULT_COSIM_TRACE_LEVEL:
-        cosim_cmd += f" -trace_level {DEFAULT_COSIM_TRACE_LEVEL}"
+    trace_level = os.getenv("C2HLS_COSIM_TRACE_LEVEL", DEFAULT_COSIM_TRACE_LEVEL).strip()
+    if trace_level:
+        cosim_cmd += f" -trace_level {trace_level}"
+    extra_args = os.getenv("C2HLS_COSIM_EXTRA_ARGS", DEFAULT_COSIM_EXTRA_ARGS).strip()
+    if extra_args:
+        cosim_cmd += f" {extra_args}"
+    if xelab_mt_off:
+        # Setup-only so we can patch absolute-path xelab before elaboration.
+        cosim_cmd += " -setup"
 
     if tb_rel:
         tcl_content += f"add_files -tb {tb_rel}\n"
@@ -923,6 +1090,34 @@ exit
             "work_dir": work_dir,
         }
 
+    if xelab_mt_off:
+        patched = _patch_run_xsim_xelab_mt_off(work_dir)
+        harden = _patch_cosim_sim_hardening(work_dir)
+        sim_sh = _find_cosim_sim_sh(work_dir, proj_name)
+        if sim_sh is None:
+            log += "\nERROR: C2HLS_COSIM_XELAB_MT_OFF set but sim.sh not found after cosim -setup\n"
+        else:
+            log += (
+                f"\nINFO: C2HLS_COSIM_XELAB_MT_OFF patched run_xsim.sh "
+                f"count={len(patched)} harden={harden}; running {sim_sh}\n"
+            )
+            # Headless: avoid GUI-path quirks on compute nodes.
+            sim_cmd = (
+                f"cd {shlex.quote(str(sim_sh.parent))} && "
+                f"unset DISPLAY WAYLAND_DISPLAY || true; "
+                f"sh {shlex.quote(sim_sh.name)}"
+            )
+            sim_log, sim_timed_out = _run_vitis_cmd(sim_cmd, COSIM_TIMEOUT)
+            log += sim_log or ""
+            if sim_timed_out:
+                return {
+                    "success": False,
+                    "passed": False,
+                    "error": f"Cosim sim.sh timed out after {COSIM_TIMEOUT}s",
+                    "log": log,
+                    "work_dir": work_dir,
+                }
+
     log_lower = log.lower()
     passed = (
         "cosim done with 0 errors" in log_lower
@@ -933,6 +1128,7 @@ exit
         ("ERROR" in log and "0 errors" not in log_lower)
         or "simulation failed" in log_lower
         or "segmentation violation" in log_lower
+        or "sigsegv" in log_lower
         or "child killed" in log_lower
         or "undefined symbol" in log_lower
         or "ld.lld" in log_lower

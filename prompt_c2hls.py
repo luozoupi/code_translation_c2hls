@@ -346,7 +346,11 @@ category of mistake your last attempt made and (b) the smallest specific change 
 to fix it. Then provide corrected code in a ```cpp code fence.
 Do NOT duplicate declarations from the header file; include the header and remove redundant structs/prototypes/macros from the source.
 Do NOT invent new undeclared buffers or helper arrays; either declare and initialize them properly or use the existing arrays/signatures from the input.
-Preserve the exact testbench-visible top function signature and `extern "C"` linkage expected by the benchmark/testbench."""
+Preserve the exact testbench-visible top function signature and `extern "C"` linkage expected by the benchmark/testbench.
+If the error is a function redefinition (same `void` name twice): keep exactly one full body
+per name. Never delete AutoSA module callees (`A_IO_L1_in`, `PE`, drain/IO modules, …) while
+leaving `*_wrapper` shells — the full module graph must remain callable from `kernel0`.
+Keep every `hls::stream<…>` local declaration that `kernel0` uses."""
 
 # Synthesis report comparison prompt
 synthesis_comparison = """Compare the synthesis reports of the generated HLS code vs the ground truth.
@@ -423,7 +427,9 @@ Key optimization techniques you may combine when they fit:
 Rules:
 - Preserve algorithm correctness and the single `extern "C"` testbench-visible top.
 - Label every `for` loop with a descriptive C loop label before the `for`.
-- Always provide complete code in a ```cpp code fence."""
+- Always provide the COMPLETE kernel in a ```cpp fence that is opened AND closed.
+  Prefer surgical pragma/bundle edits on the existing structure. Truncated
+  partial kernels are unusable; if cut off, continue from where you stopped."""
 
 # Step-specific optimization prompts
 # Each takes {current_code}, {header_code}, and optionally {synth_report}
@@ -797,7 +803,16 @@ Current HLS code:
 {current_code}
 ```
 
-Provide the complete optimized code in one ```cpp ...``` fence.
+OUTPUT FORMAT (mandatory):
+- Return the COMPLETE optimized kernel in exactly one fenced block — every
+  module/function from the baseline must still be present unless you have a
+  correct, synthesizable replacement. Truncated / partial kernels are rejected.
+- Start the fence with ```cpp on its own line and end with a closing ``` on
+  its own line.
+- Prefer surgical edits (pragmas, bundles, II, modest unroll, local buffers)
+  on the existing structure over inventing a shorter incomplete rewrite.
+- If the kernel is large, still emit the full file; the harness will ask you
+  to continue if the reply is cut off mid-fence. Do not summarize or omit code.
 """
 
 

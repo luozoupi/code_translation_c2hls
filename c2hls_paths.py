@@ -26,6 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 
 BENCHMARKS_DIR = REPO_ROOT / "benchmarks"
 BENCHMARKS_COSIM_DIR = REPO_ROOT / "benchmarks_cosim"
+BENCHMARKS_AUTOSA_DSE_DIR = REPO_ROOT / "benchmarks_autosa_dse"
 BENCHMARKS_EXTERNAL_DIR = REPO_ROOT / "benchmarks_external"
 EXTERNAL_DATASETS_DIR = REPO_ROOT / "external_datasets"
 SKILLS_PACKAGE_DIR = REPO_ROOT / "hls_full_optimization_skills_schema_1_1_package"

@@ -7,7 +7,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 CAMPAIGN_ROOT="${BATCH_PARALLEL_CAMPAIGN_ROOT:?set BATCH_PARALLEL_CAMPAIGN_ROOT}"
-export PC2_SESSION_ID="${PC2_SESSION_ID:-$(basename "${CAMPAIGN_ROOT}")}"
+# Always key the session/endpoint to this campaign root — do not inherit a
+# stale PC2_SESSION_ID from a prior campaign in the same shell.
+export PC2_SESSION_ID="$(basename "${CAMPAIGN_ROOT}")"
 _pc2_configure_session_paths
 export PC2_ENDPOINT_FILE="${CAMPAIGN_ROOT}/llm_endpoint.json"
 export PC2_WATCH_LOG="${CAMPAIGN_ROOT}/flow/coordinator.log"

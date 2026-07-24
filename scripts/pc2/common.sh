@@ -149,7 +149,10 @@ PY
 pc2_cancel_batch_parallel_named_jobs() {
   local prefix="${1:?job prefix required}"
   local name
-  for name in "${prefix}-synth" "${prefix}-cosim" "${prefix}-gpu"; do
+  for name in \
+    "${prefix}-synth" "${prefix}-cosim" "${prefix}-gpu" \
+    "${prefix}-watch" "${prefix}-drain" "${prefix}-coord" "${prefix}-post"
+  do
     while IFS= read -r job_id; do
       [[ -n "${job_id}" ]] || continue
       pc2_cancel_job "${job_id}"

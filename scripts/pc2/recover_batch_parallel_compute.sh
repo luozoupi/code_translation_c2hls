@@ -3,7 +3,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export PC2_FORCE_WALLTIME="${PC2_BATCH_PARALLEL_WALLTIME:-13:00:00}"
+# Same precedence as start_batch_parallel_campaign.sh: explicit BATCH_PARALLEL,
+# else preserve caller FORCE, else 13h default.
+if [[ -n "${PC2_BATCH_PARALLEL_WALLTIME:-}" ]]; then
+  export PC2_FORCE_WALLTIME="${PC2_BATCH_PARALLEL_WALLTIME}"
+elif [[ -z "${PC2_FORCE_WALLTIME:-}" ]]; then
+  export PC2_FORCE_WALLTIME="13:00:00"
+fi
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/common.sh"
 cd "${C2HLS_ROOT}"
@@ -37,13 +43,18 @@ from pathlib import Path
 from batch_parallel_queue import BatchParallelQueue
 
 queue = BatchParallelQueue(Path("${CAMPAIGN_ROOT}") / "queue.db")
+from batch_parallel_config import load_config
+cfg = load_config()
+stale_s = float(getattr(cfg, "stale_claim_s", 1800) or 1800)
+stale = queue.requeue_stale_claimed(max_age_s=stale_s)
 requeued = queue.requeue_orphaned_claimed()
 cleared = queue.clear_node_slot_assignments()
 pending_cosim = queue.pending_count(kind="cosim")
+print(f"stale_requeued={len(stale)}")
 print(f"requeued_jobs={len(requeued)}")
 print(f"cleared_node_slots={cleared}")
 print(f"pending_cosim={pending_cosim}")
-for jid in requeued:
+for jid in sorted(set(stale) | set(requeued)):
     print(f"  requeued job_id={jid}")
 PY
 

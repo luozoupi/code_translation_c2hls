@@ -8,6 +8,7 @@ import logging
 import os
 import socket
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -29,10 +30,51 @@ from batch_parallel_queue import BatchParallelQueue
 from c2hls_paths import configure_site
 
 
+def _load_endpoint_env(endpoint_file: Path) -> None:
+    import json
+
+    if not endpoint_file.is_file():
+        return
+    try:
+        payload = json.loads(endpoint_file.read_text(encoding="utf-8"))
+        url = payload.get("url")
+        if url:
+            os.environ["OPENAI_BASE_URL"] = str(url)
+        model = payload.get("model")
+        if model and not (os.getenv("C2HLS_MODEL") or "").strip():
+            os.environ["C2HLS_MODEL"] = str(model)
+    except Exception:
+        pass
+
+
+def _heartbeat_while(
+    queue: BatchParallelQueue,
+    *,
+    variant: str,
+    role: str,
+    node_index: int,
+    worker_slot: int,
+    stop: threading.Event,
+    interval_s: float = 30.0,
+) -> None:
+    while not stop.wait(interval_s):
+        try:
+            queue.heartbeat_node_slot(
+                variant=variant,
+                role=role,
+                node_index=node_index,
+                worker_slot=worker_slot,
+            )
+        except Exception:
+            logging.exception("heartbeat failed for %s n%s s%s", role, node_index, worker_slot)
+
+
 def worker_loop(args: argparse.Namespace) -> int:
     configure_site("pc2")
     campaign_root = Path(args.campaign_root)
     paths = campaign_paths(campaign_root)
+    # Latency-opt (and any LLM calls on synth nodes) need the campaign endpoint.
+    _load_endpoint_env(paths["endpoint"])
     cfg = load_config()
     campaign = load_campaign(campaign_root)
     configure_campaign_env(campaign, args.variant)
@@ -44,7 +86,9 @@ def worker_loop(args: argparse.Namespace) -> int:
     bench_map = resolve_bench_map(campaign, cfg, benches_order)
     queue = BatchParallelQueue(paths["queue_db"])
     flow = BatchParallelFlow(campaign_root)
-    kind = "synth" if args.role == "synth" else "cosim"
+    combined_hls = bool(int(os.getenv("C2HLS_COMBINED_HLS", "0") or "0")) or bool(
+        (campaign.get("config") or {}).get("combined_hls_nodes")
+    )
     worker_id = f"{args.role}-{args.variant}-n{args.node_index}-s{args.worker_slot}"
     seed_kwargs = seed_kwargs_for_campaign(campaign, cfg)
 
@@ -66,14 +110,24 @@ def worker_loop(args: argparse.Namespace) -> int:
             max_inflight=cfg.max_inflight_benches,
             seed_kwargs=seed_kwargs,
         )
-        job = queue.claim(
-            kind=kind,
-            variant=args.variant,
-            role=args.role,
-            node_index=args.node_index,
-            worker_slot=args.worker_slot,
-            worker_id=worker_id,
-        )
+        if args.role == "synth" and combined_hls:
+            job = queue.claim(
+                kinds=("synth", "cosim"),
+                variant=args.variant,
+                role=args.role,
+                node_index=args.node_index,
+                worker_slot=args.worker_slot,
+                worker_id=worker_id,
+            )
+        else:
+            job = queue.claim(
+                kind="synth" if args.role == "synth" else "cosim",
+                variant=args.variant,
+                role=args.role,
+                node_index=args.node_index,
+                worker_slot=args.worker_slot,
+                worker_id=worker_id,
+            )
         if job is None:
             queue.heartbeat_node_slot(
                 variant=args.variant,
@@ -85,6 +139,10 @@ def worker_loop(args: argparse.Namespace) -> int:
             time.sleep(cfg.poll_sec)
             continue
 
+        from c2hls_temp import set_temp_bench
+
+        kind = job.kind
+        set_temp_bench(job.bench)
         event = f"{kind}_start"
         flow.emit(
             event,
@@ -97,20 +155,25 @@ def worker_loop(args: argparse.Namespace) -> int:
             worker_slot=args.worker_slot,
             pending_codegen=queue.pending_codegen(),
         )
-        if kind == "cosim":
-            flow.emit(
-                "cosim_start",
-                scope="variant",
-                variant=args.variant,
-                bench=job.bench,
-                phase=job.phase,
-                role=args.role,
-                node_index=args.node_index,
-                worker_slot=args.worker_slot,
-            )
 
         cell = cell_dir_for_job(campaign_root, campaign, job, model_id)
         cell.mkdir(parents=True, exist_ok=True)
+        stop_hb = threading.Event()
+        hb_thread = threading.Thread(
+            target=_heartbeat_while,
+            kwargs={
+                "queue": queue,
+                "variant": args.variant,
+                "role": args.role,
+                "node_index": args.node_index,
+                "worker_slot": args.worker_slot,
+                "stop": stop_hb,
+                "interval_s": min(60.0, max(15.0, float(cfg.poll_sec) * 10.0)),
+            },
+            name=f"hb-{worker_id}",
+            daemon=True,
+        )
+        hb_thread.start()
         try:
             run_batch_parallel_job(
                 job=job,
@@ -140,6 +203,15 @@ def worker_loop(args: argparse.Namespace) -> int:
                 variant=args.variant,
                 bench=job.bench,
                 error=str(exc),
+                role=args.role,
+                node_index=args.node_index,
+                worker_slot=args.worker_slot,
+            )
+        finally:
+            stop_hb.set()
+            hb_thread.join(timeout=2.0)
+            queue.heartbeat_node_slot(
+                variant=args.variant,
                 role=args.role,
                 node_index=args.node_index,
                 worker_slot=args.worker_slot,

@@ -87,6 +87,10 @@ submit_node() {
 for i in $(seq 0 $((SYNTH_NODES - 1))); do
   submit_node synth "${i}" "${SYNTH_WPN}"
 done
-for i in $(seq 0 $((COSIM_NODES - 1))); do
-  submit_node cosim "${i}" "${COSIM_WPN}"
-done
+if [[ "${COSIM_NODES}" -gt 0 ]]; then
+  for i in $(seq 0 $((COSIM_NODES - 1))); do
+    submit_node cosim "${i}" "${COSIM_WPN}"
+  done
+else
+  echo "cosim: 0 nodes (skipping cosim submit; combined-HLS or cosim disabled)"
+fi

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -94,6 +95,58 @@ class TierABenchSessionTests(unittest.TestCase):
         self.assertEqual(followups[0]["phase"], "flash")
         kinds = [spec["kind"] for spec in followups]
         self.assertNotIn("cosim", kinds)
+
+    def test_finalize_failure_promotes_ground_truth_report(self) -> None:
+        """Failure path must keep gold bookkeeping in sync with reference_validation."""
+        import tempfile
+
+        session = self._session()
+        with tempfile.TemporaryDirectory() as tmp:
+            session.cell_dir = Path(tmp)
+            session.orchestrator = None
+            session.reference_validation = {
+                "benchmark_ready": True,
+                "invalid_reason": "",
+                "synthesis": {"status": "passed"},
+                "report": {
+                    "latency_cycles": 1234,
+                    "bram": 10,
+                    "dsp": 2,
+                    "ff": 100,
+                    "lut": 200,
+                    "uram": 0,
+                },
+            }
+
+            def _fake_sanitize(results, reference_validation):
+                out = dict(results)
+                out["reference_validation"] = reference_validation
+                out["ground_truth_report"] = dict(reference_validation.get("report") or {})
+                out["ground_truth_status"] = (
+                    "valid" if reference_validation.get("benchmark_ready") else "invalid"
+                )
+                out["baseline_status"] = (
+                    reference_validation.get("synthesis", {}) or {}
+                ).get("status", "failed")
+                return out
+
+            with patch(
+                "tier_a_batch_parallel_bench._sanitize_saved_result_record",
+                side_effect=_fake_sanitize,
+            ):
+                session._finalize_failure("opt failed")
+
+            result_path = session.cell_dir / f"{session.bench}_multistep_results.json"
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+            self.assertFalse(payload["success"])
+            self.assertEqual(payload["ground_truth_report"]["latency_cycles"], 1234)
+            self.assertEqual(payload["ground_truth_report"]["lut"], 200)
+            self.assertEqual(payload["ground_truth_status"], "valid")
+            self.assertEqual(payload["baseline_status"], "passed")
+            self.assertEqual(
+                payload["ground_truth_report"],
+                payload["reference_validation"]["report"],
+            )
 
 
 if __name__ == "__main__":

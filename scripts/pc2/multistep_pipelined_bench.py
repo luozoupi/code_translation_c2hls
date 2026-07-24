@@ -88,12 +88,18 @@ class MultistepPipelinedBenchSession:
         )
         meta = self.inputs["meta"]
         orch.testbench_code = self.inputs.get("testbench_code", "")
+        # Match standalone c2hls.py / flash_pipelined_bench: honor package metadata.
+        orch.skip_phase_a = bool(meta.get("skip_phase_a"))
         orch.configure_benchmark(
             extra_files=self.inputs.get("extra_files", []),
             translated_hls_top=meta.get("translated_hls_top", "workload"),
             reference_hls_top=meta.get("hls_top", "workload"),
-            part=meta.get("part", os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e")),
-            clock_ns=meta.get("clock_ns", 4.0),
+            part=meta.get("part")
+            or meta.get("target_part")
+            or os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e"),
+            clock_ns=meta.get("clock_ns")
+            or meta.get("target_clock_ns")
+            or 4.0,
             supports_cosim=bool(meta.get("supports_cosim")),
             cosim_depths=meta.get("cosim_depths", {}),
             benchmark_name=self.bench,
@@ -410,6 +416,10 @@ class MultistepPipelinedBenchSession:
             "steps": list((getattr(orch, "_pipelined_ctx", {}) or {}).get("step_results") or []),
             "pipelined": True,
         }
+        ref = getattr(self, "reference_validation", None)
+        if isinstance(ref, dict) and ref:
+            results["reference_validation"] = ref
+            results = _sanitize_saved_result_record(results, ref)
         result_json = self.cell_dir / f"{self.bench}_multistep_results.json"
         result_json.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
 

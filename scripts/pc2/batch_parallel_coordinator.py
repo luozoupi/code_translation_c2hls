@@ -128,6 +128,7 @@ def main() -> int:
         campaign = load_campaign(campaign_root)
         active_variants = campaign.get("active_variants") or [cfg.pilot_variant]
         gpu_mode = str(campaign.get("gpu_mode") or "up")
+        external_llm = bool(campaign.get("external_llm"))
 
         flow.write_status({
             "gpu_mode": gpu_mode,
@@ -142,25 +143,51 @@ def main() -> int:
         })
         flow.write_node_map(queue.snapshot_node_map())
 
+        stale_s = float(
+            (campaign.get("config") or {}).get("stale_claim_s")
+            or cfg.stale_claim_s
+            or 1800.0
+        )
+        stale = queue.requeue_stale_claimed(max_age_s=stale_s)
+        if stale:
+            logging.info(
+                "stale-claim sweeper requeued %d job(s) (max_age_s=%.0f): %s",
+                len(stale),
+                stale_s,
+                stale,
+            )
+            flow.emit(
+                "stale_claims_requeued",
+                scope="campaign",
+                count=len(stale),
+                job_ids=stale,
+                max_age_s=stale_s,
+            )
+
         if queue.campaign_complete(active_variants):
             campaign["campaign_status"] = "completing"
             save_campaign(campaign_root, campaign)
             if queue.pending_codegen() > 0 or queue.claimed_codegen() > 0:
-                reason = "tail_flush"
-                campaign["gpu_mode"] = "pending_unpark"
-                _clear_park_pending(campaign)
-                save_campaign(campaign_root, campaign)
-                job_id = _submit_gpu(campaign_root)
-                campaign["gpu_job_id"] = job_id
-                save_campaign(campaign_root, campaign)
-                flow.emit("gpu_unpark_request", scope="gpu", reason=reason)
-                while queue.pending_codegen() > 0 or queue.claimed_codegen() > 0:
-                    time.sleep(cfg.poll_sec)
-            if _job_active(campaign.get("gpu_job_id")):
+                if external_llm:
+                    flow.emit("codegen_tail_wait", scope="gpu", reason="external_llm_always_on")
+                    while queue.pending_codegen() > 0 or queue.claimed_codegen() > 0:
+                        time.sleep(cfg.poll_sec)
+                else:
+                    reason = "tail_flush"
+                    campaign["gpu_mode"] = "pending_unpark"
+                    _clear_park_pending(campaign)
+                    save_campaign(campaign_root, campaign)
+                    job_id = _submit_gpu(campaign_root)
+                    campaign["gpu_job_id"] = job_id
+                    save_campaign(campaign_root, campaign)
+                    flow.emit("gpu_unpark_request", scope="gpu", reason=reason)
+                    while queue.pending_codegen() > 0 or queue.claimed_codegen() > 0:
+                        time.sleep(cfg.poll_sec)
+            if not external_llm and _job_active(campaign.get("gpu_job_id")):
                 _scancel(campaign.get("gpu_job_id"), campaign=campaign, endpoint_file=paths["endpoint"])
             campaign = load_campaign(campaign_root)
             campaign["campaign_status"] = "complete"
-            campaign["gpu_mode"] = "parked"
+            campaign["gpu_mode"] = "up" if external_llm else "parked"
             campaign["completed_at"] = datetime.now(timezone.utc).isoformat()
             _clear_park_pending(campaign)
             save_campaign(campaign_root, campaign)
@@ -170,7 +197,7 @@ def main() -> int:
             paths["complete_marker"].write_text(campaign["completed_at"] + "\n", encoding="utf-8")
             return 0
 
-        unpark_reason = should_unpark(queue, cfg, campaign)
+        unpark_reason = None if external_llm else should_unpark(queue, cfg, campaign)
         if unpark_reason:
             flow.emit("batch_unpark_trigger", scope="gpu", reason=unpark_reason, pending=queue.pending_codegen())
             campaign["gpu_mode"] = "pending_unpark"
@@ -201,7 +228,7 @@ def main() -> int:
                 save_campaign(campaign_root, campaign)
                 flow.emit("gpu_up", scope="gpu", reason="pending_unpark_recovery")
 
-        if gpu_parking_enabled(campaign, cfg):
+        if not external_llm and gpu_parking_enabled(campaign, cfg):
             if gpu_must_stay_up(queue, campaign_root, campaign) and campaign.get("park_pending_at"):
                 _clear_park_pending(campaign)
                 save_campaign(campaign_root, campaign)

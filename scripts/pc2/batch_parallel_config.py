@@ -42,6 +42,8 @@ class BatchParallelConfig:
     gpu_batch_threshold: int = 5
     gpu_batch_flush_s: int = 3600
     gpu_policy: str = "batch_park"  # batch_park | always_on
+    # If true, synth-role workers also claim cosim jobs (cosim_nodes_per_variant=0).
+    combined_hls_nodes: bool = False
     park_threshold_s: float = 7200.0
     long_cosim_park_s: float = 3600.0
     park_grace_s: float = 1800.0
@@ -49,6 +51,10 @@ class BatchParallelConfig:
     long_cosim_profile_min_s: float = 3600.0
     cosim_profile_csv: str = ""
     cosim_timeout_s: int = 43200
+    # Requeue claimed jobs whose worker heartbeat is older than this (seconds).
+    stale_claim_s: float = 1800.0
+    # Hard ceiling on repair attempt index (0-based). Cosim failures also increment.
+    max_repair_attempt: int = 7
     bench_order: str = "short_first"
     bench_seeding: str = "short_first_waves"
     max_inflight_benches: int = 3
@@ -106,6 +112,7 @@ class BatchParallelConfig:
             "gpu_batch_threshold": self.gpu_batch_threshold,
             "gpu_batch_flush_s": self.gpu_batch_flush_s,
             "gpu_policy": self.gpu_policy,
+            "combined_hls_nodes": self.combined_hls_nodes,
             "park_threshold_s": self.park_threshold_s,
             "long_cosim_park_s": self.long_cosim_park_s,
             "park_grace_s": self.park_grace_s,
@@ -113,6 +120,8 @@ class BatchParallelConfig:
             "long_cosim_profile_min_s": self.long_cosim_profile_min_s,
             "cosim_profile_csv": self.cosim_profile_csv,
             "cosim_timeout_s": self.cosim_timeout_s,
+            "stale_claim_s": self.stale_claim_s,
+            "max_repair_attempt": self.max_repair_attempt,
             "bench_order": self.bench_order,
             "bench_seeding": self.bench_seeding,
             "max_inflight_benches": self.max_inflight_benches,
@@ -132,6 +141,15 @@ class BatchParallelConfig:
 
 
 def benches_for_config(cfg: BatchParallelConfig) -> list[str]:
+    raw = os.getenv("C2HLS_AUTOSA_DSE_FLASH_BENCHES", "").strip()
+    if raw:
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    raw = os.getenv("C2HLS_AUTOSA_FLASH_BENCHES", "").strip()
+    if raw:
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    raw = os.getenv("C2HLS_TIER_B_GOLD_BENCHES", "").strip()
+    if raw:
+        return [item.strip() for item in raw.split(",") if item.strip()]
     raw = os.getenv("C2HLS_TIER_A_FLASH_BENCHES", "").strip()
     if raw:
         return [item.strip() for item in raw.split(",") if item.strip()]
@@ -139,7 +157,22 @@ def benches_for_config(cfg: BatchParallelConfig) -> list[str]:
 
 
 def seed_kwargs_for_workflow(workflow: str) -> dict[str, str]:
-    if workflow == "tier_a_flash":
+    if workflow in (
+        "chathls_multistep",
+        "tier_a_multistep",
+        "tier_b_multistep",
+    ):
+        # Default queue seed is codegen/phase_b/translate — correct for multistep.
+        return {}
+    if workflow in (
+        "tier_a_flash",
+        "autosa_flash",
+        "autosa_dse_flash",
+        "tier_b_gold",
+        "tier_b_flash",
+        "chathls_flash",
+        "c2hlsc_flash",
+    ):
         return {
             "initial_kind": "synth",
             "initial_phase": "reference",
@@ -184,11 +217,19 @@ def load_config(toml_path: Path | None = None) -> BatchParallelConfig:
         cfg.model = str(pilot["model"])
     if pilot.get("turns"):
         cfg.turns = int(pilot["turns"])
-    env_model = os.getenv("C2HLS_MODEL", "").strip()
-    if env_model:
-        cfg.model = env_model
+    ext_model = os.getenv("BATCH_PARALLEL_EXTERNAL_MODEL", "").strip()
+    if ext_model:
+        cfg.model = ext_model
+    else:
+        env_model = os.getenv("C2HLS_MODEL", "").strip()
+        if env_model:
+            cfg.model = env_model
     if os.getenv("C2HLS_TURNS", "").strip():
         cfg.turns = int(os.getenv("C2HLS_TURNS", "4"))
+    if os.getenv("C2HLS_MAX_REPAIR_ATTEMPT", "").strip():
+        cfg.max_repair_attempt = int(os.getenv("C2HLS_MAX_REPAIR_ATTEMPT", "7"))
+    if os.getenv("C2HLS_STALE_CLAIM_S", "").strip():
+        cfg.stale_claim_s = float(os.getenv("C2HLS_STALE_CLAIM_S", "1800"))
     env_prefix = os.getenv("PC2_BATCH_JOB_PREFIX", "").strip()
     if env_prefix:
         cfg.job_prefix = env_prefix
@@ -233,6 +274,8 @@ def gpu_policy_from_campaign(campaign: dict[str, Any], cfg: BatchParallelConfig 
 
 
 def gpu_parking_enabled(campaign: dict[str, Any], cfg: BatchParallelConfig | None = None) -> bool:
+    if campaign.get("external_llm"):
+        return False
     return gpu_policy_from_campaign(campaign, cfg) != "always_on"
 
 
@@ -309,6 +352,7 @@ def init_campaign_json(
         "active_variants": variants,
         "compute_jobs": [],
         "compute_state": "waiting_for_gpu",
+        "no_gpu": False,
     }
     save_campaign(campaign_root, doc)
     return doc

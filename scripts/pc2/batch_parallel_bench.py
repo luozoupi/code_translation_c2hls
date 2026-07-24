@@ -39,7 +39,14 @@ class BatchParallelBenchSession(FlashPipelinedBenchSession):
 
     raise ValueError(f"unknown job kind {job.kind}")
 
+  def _max_repair_attempt(self) -> int:
+    raw = os.getenv("C2HLS_MAX_REPAIR_ATTEMPT", "").strip()
+    if raw:
+      return int(raw)
+    return max(int(getattr(self, "turns", 4) or 4), 7)
+
   def _apply_followups(self, followups: list[dict[str, Any]], queue: BatchParallelQueue) -> None:
+    max_attempt = self._max_repair_attempt()
     for spec in followups:
       phase = spec.get("phase")
       if phase == "finalize":
@@ -50,12 +57,28 @@ class BatchParallelBenchSession(FlashPipelinedBenchSession):
         self._finalize_failure(spec.get("error", "failed"))
         queue.set_bench_status(self.variant_key, self.bench, "failed")
         continue
+      attempt = int(spec.get("attempt") or 0)
+      if attempt > max_attempt:
+        err = (
+          spec.get("error")
+          or f"repair attempt {attempt} exceeds max_repair_attempt={max_attempt}"
+        )
+        logging.warning(
+          "bench %s refusing enqueue kind=%s attempt=%s (%s)",
+          self.bench,
+          spec.get("kind"),
+          attempt,
+          err,
+        )
+        self._finalize_failure(err)
+        queue.set_bench_status(self.variant_key, self.bench, "failed")
+        continue
       queue.enqueue(
         variant=self.variant_key,
         bench=self.bench,
         kind=spec["kind"],
         phase=spec["phase"],
-        attempt=int(spec.get("attempt") or 0),
+        attempt=attempt,
         stage=spec.get("stage") or "",
         meta=dict(spec.get("meta") or {}),
       )
@@ -369,15 +392,27 @@ class BatchParallelBenchSession(FlashPipelinedBenchSession):
       orch._pipelined_ctx = ctx
       return [{"phase": "finalize", "kind": "finalize", "attempt": job.attempt, "stage": "done"}]
 
+    next_attempt = int(job.attempt) + 1
+    cosim_err = cosim.get("error") or "cosim failed"
+    if next_attempt > self._max_repair_attempt():
+      return [{
+        "phase": "failed",
+        "kind": "finalize",
+        "attempt": job.attempt,
+        "stage": "done",
+        "error": (
+          f"cosim repair exhausted at attempt {job.attempt}: {cosim_err}"
+        ),
+      }]
     return [{
       "kind": "codegen",
       "phase": job.phase,
-      "attempt": job.attempt,
+      "attempt": next_attempt,
       "stage": "repair",
       "meta": {
         "repair": {
           "kind": "cosim",
-          "error": cosim.get("error") or "cosim failed",
+          "error": cosim_err,
           "attempt": job.attempt,
         }
       },

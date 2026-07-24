@@ -36,7 +36,7 @@ fi
 job_id="$(
   sbatch --parsable \
     --chdir="${C2HLS_ROOT}" \
-    --export=ALL,PC2_SESSION_ID="${PC2_SESSION_ID:-}" \
+    --export=ALL,PC2_SESSION_ID="${PC2_SESSION_ID:-}",PC2_ENDPOINT_FILE="${PC2_ENDPOINT_FILE}" \
     --job-name="c2hls-vitis-${PC2_SESSION_ID:-default}" \
     --output="${PC2_SESSION_DIR}/slurm-compute-%j.out" \
     --error="${PC2_SESSION_DIR}/slurm-compute-%j.err" \

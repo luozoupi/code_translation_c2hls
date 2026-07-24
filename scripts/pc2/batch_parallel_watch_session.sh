@@ -71,6 +71,39 @@ for v in doc.get("active_variants") or []:
 PY
 }
 
+_campaign_no_gpu() {
+  _campaign_py <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1]) / "campaign.json"
+doc = json.loads(p.read_text()) if p.is_file() else {}
+print("1" if doc.get("no_gpu") else "0")
+PY
+}
+
+_campaign_external_llm() {
+  _campaign_py <<'PY'
+import json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+p = root / "campaign.json"
+doc = json.loads(p.read_text()) if p.is_file() else {}
+if doc.get("external_llm"):
+    print("1")
+    raise SystemExit(0)
+ep = root / "llm_endpoint.json"
+if ep.is_file():
+    try:
+        epdoc = json.loads(ep.read_text())
+    except Exception:
+        epdoc = {}
+    if epdoc.get("external_llm"):
+        print("1")
+        raise SystemExit(0)
+print("0")
+PY
+}
+
 _compute_job_ids() {
   _campaign_py <<'PY'
 import json, sys
@@ -226,6 +259,13 @@ PY
 }
 
 _check_gpu() {
+  if [[ "$(_campaign_no_gpu)" == "1" ]]; then
+    return 0
+  fi
+  if [[ "$(_campaign_external_llm)" == "1" ]]; then
+    # External LLM endpoint is always "up" — no gpu_h100 job to watch/resubmit.
+    return 0
+  fi
   local gpu_mode job_id
   gpu_mode="$(_read_gpu_mode)"
   job_id="$(_read_gpu_job_id)"
@@ -281,11 +321,45 @@ PY
   fi
 }
 
+_requeue_stale_before_resubmit() {
+  local py="${C2HLS_PYTHON:-${C2HLS_ROOT}/.venv/bin/python3}"
+  [[ -x "${py}" ]] || py=python3
+  "${py}" - <<PY
+import sys
+from pathlib import Path
+sys.path.insert(0, "${C2HLS_ROOT}/scripts/pc2")
+from batch_parallel_config import load_config
+from batch_parallel_queue import BatchParallelQueue
+cfg = load_config()
+queue = BatchParallelQueue(Path("${CAMPAIGN_ROOT}") / "queue.db")
+stale_s = float(getattr(cfg, "stale_claim_s", 1800) or 1800)
+ids = queue.requeue_stale_claimed(max_age_s=stale_s)
+orphans = queue.requeue_orphaned_claimed()
+cleared = queue.clear_node_slot_assignments()
+print(f"stale_requeued={len(ids)} orphan_requeued={len(orphans)} cleared_slots={cleared}")
+PY
+}
+
 _check_compute() {
   local gpu_mode gpu_id comp_state variant
   gpu_mode="$(_read_gpu_mode)"
   gpu_id="$(_read_gpu_job_id)"
   comp_state="$(_read_compute_state)"
+
+  if [[ "$(_campaign_no_gpu)" == "1" ]]; then
+    if [[ "${comp_state}" == "waiting_for_gpu" ]]; then
+      pc2_log "watch: no_gpu campaign; submitting compute nodes"
+      while IFS= read -r variant; do
+        [[ -n "${variant}" ]] || continue
+        BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}" BATCH_PARALLEL_VARIANT="${variant}" \
+          "${SCRIPT_DIR}/start_batch_parallel_variant.sh"
+      done < <(_read_active_variants)
+      _set_compute_state submitted
+    elif _any_compute_running; then
+      _set_compute_state running
+    fi
+    return 0
+  fi
 
   # Intentional park/unpark/complete: never cancel compute here.
   if [[ "${gpu_mode}" == "parked" || "${gpu_mode}" == "pending_unpark" || "${gpu_mode}" == "completing" ]]; then
@@ -300,22 +374,47 @@ _check_compute() {
       _set_compute_state running
       return 0
     fi
+    # external_llm / no local GPU job: pending compute is expected; do not cancel.
+    if [[ "$(_campaign_external_llm)" == "1" ]]; then
+      if _any_compute_active; then
+        return 0
+      fi
+      if [[ "$(_compute_work_pending)" -gt 0 ]]; then
+        pc2_log "watch: external_llm compute gone with pending work; requeue+resubmit"
+        _requeue_stale_before_resubmit || true
+        _reset_compute_wait
+      fi
+      return 0
+    fi
     # Recover from eager submit: queued compute before GPU ever ran.
     if _all_compute_pending_only && ! pc2_job_is_running "${gpu_id}"; then
       pc2_log "watch: cancelling orphan queued compute (gpu not running yet)"
       _cancel_compute_jobs
       _reset_compute_wait
     elif [[ "$(_compute_work_pending)" -gt 0 ]] && pc2_job_is_running "${gpu_id}"; then
-      pc2_log "watch: compute finished with pending synth/cosim; resubmitting nodes"
+      pc2_log "watch: compute finished with pending synth/cosim; requeue+resubmit"
+      _requeue_stale_before_resubmit || true
       _reset_compute_wait
     fi
     return 0
   fi
 
-  # waiting_for_gpu — submit once GPU is RUNNING (or borrowed endpoint is healthy).
+  # waiting_for_gpu — submit once GPU is RUNNING (or borrowed/external endpoint is healthy).
   if [[ "${comp_state}" == "waiting_for_gpu" && "${gpu_mode}" == "up" ]]; then
     if _adopt_unregistered_compute; then
       pc2_log "watch: adopted already-running compute jobs (eager submit recovery)"
+      return 0
+    fi
+    if [[ "$(_campaign_external_llm)" == "1" ]]; then
+      if pc2_llm_ready; then
+        pc2_log "watch: external_llm endpoint healthy; submitting compute nodes"
+        while IFS= read -r variant; do
+          [[ -n "${variant}" ]] || continue
+          BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}" BATCH_PARALLEL_VARIANT="${variant}" \
+            "${SCRIPT_DIR}/start_batch_parallel_variant.sh"
+        done < <(_read_active_variants)
+        _set_compute_state submitted
+      fi
       return 0
     fi
     if pc2_session_is_borrowed_gpu && pc2_llm_ready; then

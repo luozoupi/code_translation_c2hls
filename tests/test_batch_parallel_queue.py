@@ -72,6 +72,49 @@ class BatchParallelQueueTests(unittest.TestCase):
         )
         self.assertEqual(self.queue.pending_codegen(), 2)
 
+    def test_claim_kinds_prefers_first_matching_kind(self) -> None:
+        variant = "aav_n"
+        self.queue.seed_bench(variant, "b1")
+        self.queue.seed_bench(variant, "b2")
+        # cosim enqueued first (older created_at) but synth should still win
+        # because it comes first in the requested `kinds` preference order.
+        self.queue.enqueue(
+            variant=variant, bench="b1", kind="cosim", phase="flash",
+            attempt=0, stage="cosim",
+        )
+        self.queue.enqueue(
+            variant=variant, bench="b2", kind="synth", phase="flash",
+            attempt=0, stage="synth",
+        )
+        job = self.queue.claim(kinds=("synth", "cosim"), variant=variant)
+        self.assertIsNotNone(job)
+        self.assertEqual(job.kind, "synth")
+        self.assertEqual(job.bench, "b2")
+
+        # Complete the synth job and free its bench lock, then the next claim
+        # with the same kind preference should fall back to the cosim job.
+        self.queue.complete(job.id)
+        job2 = self.queue.claim(kinds=("synth", "cosim"), variant=variant)
+        self.assertIsNotNone(job2)
+        self.assertEqual(job2.kind, "cosim")
+        self.assertEqual(job2.bench, "b1")
+
+    def test_claim_kind_still_works(self) -> None:
+        variant = "aav_n"
+        self.queue.seed_bench(variant, "b1")
+        self.queue.enqueue(
+            variant=variant, bench="b1", kind="synth", phase="flash",
+            attempt=0, stage="synth",
+        )
+        job = self.queue.claim(kind="synth", variant=variant)
+        self.assertIsNotNone(job)
+        self.assertEqual(job.kind, "synth")
+        self.assertEqual(job.bench, "b1")
+
+    def test_claim_requires_kind_or_kinds(self) -> None:
+        with self.assertRaises(ValueError):
+            self.queue.claim(variant="aav_n")
+
     def test_maybe_seed_deferred_bench(self) -> None:
         variant = "aav_n"
         benches = ["jacobi-1d", "gesummv", "correlation", "fdtd-2d"]

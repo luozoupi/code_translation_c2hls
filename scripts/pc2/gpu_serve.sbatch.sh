@@ -11,10 +11,19 @@ _REPO_ROOT="${C2HLS_ROOT:-${SLURM_SUBMIT_DIR:?missing SLURM_SUBMIT_DIR}}"
 SCRIPT_DIR="${_REPO_ROOT}/scripts/pc2"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/common.sh"
+# Remount onto the campaign only for true batch-parallel GPU jobs.
+# Session-based starts (post_flash_*, etc.) often inherit BATCH_PARALLEL_CAMPAIGN_ROOT
+# from the parent shell via sbatch --export=ALL; remapping would write the endpoint
+# under the campaign while watch/compute still look in the session dir.
 if [[ -n "${BATCH_PARALLEL_CAMPAIGN_ROOT:-}" ]]; then
-  export PC2_SESSION_DIR="${BATCH_PARALLEL_CAMPAIGN_ROOT}"
-  export PC2_ENDPOINT_FILE="${BATCH_PARALLEL_CAMPAIGN_ROOT}/llm_endpoint.json"
-  export PC2_WATCH_LOG="${BATCH_PARALLEL_CAMPAIGN_ROOT}/flow/watch.log"
+  _campaign_base="$(basename "${BATCH_PARALLEL_CAMPAIGN_ROOT}")"
+  if [[ -z "${PC2_SESSION_ID:-}" || "${PC2_SESSION_ID}" == "${_campaign_base}" ]]; then
+    export PC2_SESSION_DIR="${BATCH_PARALLEL_CAMPAIGN_ROOT}"
+    export PC2_ENDPOINT_FILE="${BATCH_PARALLEL_CAMPAIGN_ROOT}/llm_endpoint.json"
+    export PC2_WATCH_LOG="${BATCH_PARALLEL_CAMPAIGN_ROOT}/flow/watch.log"
+  else
+    pc2_log "keeping session endpoint path (PC2_SESSION_ID=${PC2_SESSION_ID}; ignoring inherited BATCH_PARALLEL_CAMPAIGN_ROOT for paths)"
+  fi
 fi
 cd "${C2HLS_ROOT}"
 mkdir -p "${PC2_SESSION_DIR}"

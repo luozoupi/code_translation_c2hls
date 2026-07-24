@@ -102,6 +102,8 @@ def evaluate_park_request(
     """
     import time
 
+    if campaign.get("external_llm"):
+        return None
     if str(getattr(cfg, "gpu_policy", "batch_park") or "batch_park") == "always_on":
         return None
     if str((campaign.get("config") or {}).get("gpu_policy") or "") == "always_on":
@@ -191,6 +193,8 @@ def should_unpark(
     """Return unpark reason when parked GPU should come back, else None."""
     import time
 
+    if campaign.get("external_llm"):
+        return None
     if str(getattr(cfg, "gpu_policy", "batch_park") or "batch_park") == "always_on":
         return None
     if str((campaign.get("config") or {}).get("gpu_policy") or "") == "always_on":

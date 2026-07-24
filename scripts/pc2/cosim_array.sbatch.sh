@@ -11,6 +11,10 @@ set -euo pipefail
 
 _REPO_ROOT="${C2HLS_ROOT:-${SLURM_SUBMIT_DIR:?missing SLURM_SUBMIT_DIR}}"
 _SCRIPT_DIR="${_REPO_ROOT}/scripts/pc2"
+# Prefer project venv (Python 3.11+) when present — login python3 may be 3.9.
+if [[ -z "${C2HLS_PYTHON:-}" && -x "${_REPO_ROOT}/.venv/bin/python" ]]; then
+  export C2HLS_PYTHON="${_REPO_ROOT}/.venv/bin/python"
+fi
 # shellcheck disable=SC1091
 source "${_SCRIPT_DIR}/common.sh"
 cd "${C2HLS_ROOT}"
@@ -19,6 +23,8 @@ mkdir -p artifacts/pc2/flash_cosim/slurm c2hls_tmp
 export C2HLS_SITE=pc2
 export C2HLS_RUN_COSIM=1
 export C2HLS_COSIM_TIMEOUT="${C2HLS_COSIM_TIMEOUT:-7200}"
+# Large xelab/TB elaborations can SIGSEGV under the default stack limit.
+ulimit -s unlimited 2>/dev/null || true
 # shellcheck disable=SC1091
 source "${C2HLS_ROOT}/scripts/setup_emu_env.sh"
 

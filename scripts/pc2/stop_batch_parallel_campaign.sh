@@ -47,6 +47,13 @@ if doc.get("gpu_job_id") and not doc.get("gpu_borrowed"):
 for row in doc.get("compute_jobs") or []:
     if row.get("slurm_job_id"):
         ids.append(str(row["slurm_job_id"]))
+helpers = doc.get("helper_jobs") or {}
+if isinstance(helpers, dict):
+    for jid in helpers.values():
+        if jid:
+            ids.append(str(jid))
+if doc.get("post_watcher_job_id"):
+    ids.append(str(doc["post_watcher_job_id"]))
 print(" ".join(ids))
 PY
 ); do

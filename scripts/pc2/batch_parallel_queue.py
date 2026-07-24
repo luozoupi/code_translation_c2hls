@@ -323,13 +323,17 @@ class BatchParallelQueue:
     def claim(
         self,
         *,
-        kind: str,
+        kind: str | None = None,
+        kinds: tuple[str, ...] | None = None,
         variant: str | None = None,
         role: str | None = None,
         node_index: int | None = None,
         worker_slot: int | None = None,
         worker_id: str | None = None,
     ) -> BatchParallelJob | None:
+        kind_list = list(kinds) if kinds else ([kind] if kind else [])
+        if not kind_list or not all(kind_list):
+            raise ValueError("claim() requires either kind or kinds")
         wid = worker_id or f"worker-{uuid.uuid4().hex[:8]}"
         now = time.time()
         with self._conn() as conn:
@@ -344,11 +348,16 @@ class BatchParallelQueue:
                 if slot and slot["active_job_id"]:
                     return None
 
-            params: list[Any] = [kind]
+            kind_placeholders = ",".join("?" for _ in kind_list)
+            kind_order_cases = " ".join(
+                f"WHEN ? THEN {i}" for i in range(len(kind_list))
+            )
+            params: list[Any] = list(kind_list)
             variant_clause = ""
             if variant:
                 variant_clause = "AND j.variant=?"
                 params.append(variant)
+            params.extend(kind_list)
 
             row = conn.execute(
                 f"""
@@ -356,10 +365,10 @@ class BatchParallelQueue:
                 FROM jobs j
                 LEFT JOIN bench_lock bl ON bl.variant=j.variant AND bl.bench=j.bench
                 WHERE j.status='pending'
-                  AND j.kind=?
+                  AND j.kind IN ({kind_placeholders})
                   {variant_clause}
                   AND (bl.active_job_id IS NULL OR bl.active_job_id=0)
-                ORDER BY j.created_at ASC, j.id ASC
+                ORDER BY CASE j.kind {kind_order_cases} END ASC, j.created_at ASC, j.id ASC
                 LIMIT 1
                 """,
                 tuple(params),
@@ -453,6 +462,115 @@ class BatchParallelQueue:
             if self.requeue(int(row["id"])):
                 requeued.append(int(row["id"]))
         return requeued
+
+    def requeue_stale_claimed(
+        self,
+        *,
+        max_age_s: float,
+        kinds: tuple[str, ...] = ("cosim", "synth", "codegen"),
+        now: float | None = None,
+    ) -> list[int]:
+        """Requeue claimed jobs whose worker heartbeat (or claim age) exceeded max_age_s.
+
+        Prefer node_slots.last_heartbeat for the assigned slot. If the slot has no
+        heartbeat row, fall back to jobs.claimed_at.
+        """
+        ts = time.time() if now is None else float(now)
+        cutoff = ts - float(max_age_s)
+        placeholders = ",".join("?" for _ in kinds)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT j.id, j.claimed_at, j.assigned_role, j.assigned_node, j.assigned_slot,
+                       j.variant, ns.last_heartbeat
+                FROM jobs j
+                LEFT JOIN node_slots ns
+                  ON ns.variant = j.variant
+                 AND ns.role = j.assigned_role
+                 AND ns.node_index = j.assigned_node
+                 AND ns.worker_slot = j.assigned_slot
+                WHERE j.kind IN ({placeholders}) AND j.status='claimed'
+                ORDER BY j.id
+                """,
+                kinds,
+            ).fetchall()
+        requeued: list[int] = []
+        for row in rows:
+            heartbeat = row["last_heartbeat"]
+            claimed_at = row["claimed_at"]
+            age_anchor = heartbeat if heartbeat is not None else claimed_at
+            if age_anchor is None:
+                continue
+            if float(age_anchor) > cutoff:
+                continue
+            if self.requeue(int(row["id"])):
+                requeued.append(int(row["id"]))
+        return requeued
+
+    def fail_benches(self, benches: list[str], *, error: str, variant: str | None = None) -> list[int]:
+        """Mark pending/claimed jobs for benches as failed and unlock the bench."""
+        failed: list[int] = []
+        now = time.time()
+        with self._conn() as conn:
+            for bench in benches:
+                params: list[Any] = [bench]
+                variant_clause = ""
+                if variant:
+                    variant_clause = "AND variant=?"
+                    params.append(variant)
+                rows = conn.execute(
+                    f"""
+                    SELECT id, variant FROM jobs
+                    WHERE bench=? {variant_clause}
+                      AND status IN ('pending', 'claimed')
+                    ORDER BY id
+                    """,
+                    tuple(params),
+                ).fetchall()
+                for row in rows:
+                    job_id = int(row["id"])
+                    conn.execute(
+                        """
+                        UPDATE jobs
+                        SET status='failed', finished_at=?, error=?,
+                            worker_id=NULL, claimed_at=NULL,
+                            assigned_role=NULL, assigned_node=NULL, assigned_slot=NULL
+                        WHERE id=? AND status IN ('pending', 'claimed')
+                        """,
+                        (now, error, job_id),
+                    )
+                    conn.execute(
+                        """
+                        UPDATE bench_lock
+                        SET active_job_id=NULL, bench_status='failed'
+                        WHERE variant=? AND bench=?
+                        """,
+                        (row["variant"], bench),
+                    )
+                    failed.append(job_id)
+                if not rows:
+                    # Ensure lock shows failed even if no open jobs (e.g. gemm_blocked).
+                    if variant:
+                        conn.execute(
+                            """
+                            INSERT INTO bench_lock(variant, bench, active_job_id, bench_status)
+                            VALUES (?, ?, NULL, 'failed')
+                            ON CONFLICT(variant, bench) DO UPDATE SET
+                                active_job_id=NULL,
+                                bench_status='failed'
+                            """,
+                            (variant, bench),
+                        )
+                    else:
+                        conn.execute(
+                            """
+                            UPDATE bench_lock
+                            SET active_job_id=NULL, bench_status='failed'
+                            WHERE bench=?
+                            """,
+                            (bench,),
+                        )
+        return failed
 
     def clear_node_slot_assignments(self, *, role: str | None = None) -> int:
         with self._conn() as conn:
@@ -570,6 +688,17 @@ class BatchParallelQueue:
                           AND j.kind = 'codegen' AND j.status = 'done'
                       )
                     )
+                    OR (
+                      EXISTS (
+                        SELECT 1 FROM jobs j
+                        WHERE j.bench = b.bench AND j.phase = 'phase_b'
+                          AND j.kind = 'synth' AND j.status = 'done'
+                      )
+                      AND NOT EXISTS (
+                        SELECT 1 FROM jobs j
+                        WHERE j.bench = b.bench AND j.phase = 'flash'
+                      )
+                    )
                   )
                 """
             ).fetchone()
@@ -627,7 +756,9 @@ class BatchParallelQueue:
         for variant in active_variants:
             if not self.all_benches_terminal(variant):
                 return False
-        return self.pending_count_global() == 0 and self.claimed_count_global() == 0
+        if self.pending_count_global() > 0 or self.claimed_count_global() > 0:
+            return False
+        return self.codegen_demand_count() == 0
 
     def snapshot_node_map(self) -> dict[str, Any]:
         with self._conn() as conn:

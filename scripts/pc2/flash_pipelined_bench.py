@@ -84,17 +84,25 @@ class FlashPipelinedBenchSession:
         )
         meta = self.inputs["meta"]
         orch.testbench_code = self.inputs.get("testbench_code", "")
+        # Match standalone c2hls.py: AutoSA/MachSuite packages set this when
+        # plain.cpp retains HLS-native types and must not go through Phase A g++.
+        orch.skip_phase_a = bool(meta.get("skip_phase_a"))
         orch.configure_benchmark(
             extra_files=self.inputs.get("extra_files", []),
             translated_hls_top=meta.get("translated_hls_top", "workload"),
             reference_hls_top=meta.get("hls_top", "workload"),
-            part=meta.get("part", os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e")),
-            clock_ns=meta.get("clock_ns", 4.0),
+            part=meta.get("part")
+            or meta.get("target_part")
+            or os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e"),
+            clock_ns=meta.get("clock_ns")
+            or meta.get("target_clock_ns")
+            or 4.0,
             supports_cosim=bool(meta.get("supports_cosim")),
             cosim_depths=meta.get("cosim_depths", {}),
             benchmark_name=self.bench,
             benchmark_context=self.inputs.get("benchmark_context", ""),
         )
+        orch._gold_hls_baseline_code = (self.inputs.get("gold_hls_source_code") or "").strip()
         force_skill_prompts = os.getenv("C2HLS_FORCE_SKILL_PROMPTS", "").strip().lower() in {
             "1", "true", "yes", "on",
         }
@@ -314,6 +322,40 @@ class FlashPipelinedBenchSession:
         result_json = self.cell_dir / f"{self.bench}_multistep_results.json"
         result_json.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
 
+        # Match c2hls.py flash-final success: optional pragma_opt then latency_opt.
+        if results.get("success"):
+            try:
+                from post_flash_pragma_opt import maybe_chain_pragma_opt
+
+                maybe_chain_pragma_opt(
+                    bench=self.bench,
+                    bench_dir=self.bench_dir,
+                    cell_dir=self.cell_dir,
+                    orchestrator=orch,
+                    source_role="flash_final",
+                    skip_existing=True,
+                )
+            except Exception as exc:
+                logging.warning(
+                    "[pragma_opt] flash chain skipped for %s: %s", self.bench, exc
+                )
+
+            try:
+                from post_flash_latency_opt import maybe_chain_latency_opt
+
+                maybe_chain_latency_opt(
+                    bench=self.bench,
+                    bench_dir=self.bench_dir,
+                    cell_dir=self.cell_dir,
+                    orchestrator=orch,
+                    source_role="flash_final",
+                    skip_existing=True,
+                )
+            except Exception as exc:
+                logging.warning(
+                    "[latency_opt] flash chain skipped for %s: %s", self.bench, exc
+                )
+
     def _finalize_failure(self, error: str) -> None:
         orch = self.orchestrator
         results = {
@@ -325,6 +367,10 @@ class FlashPipelinedBenchSession:
             "steps": [],
             "pipelined": True,
         }
+        ref = getattr(self, "reference_validation", None)
+        if isinstance(ref, dict) and ref:
+            results["reference_validation"] = ref
+            results = _sanitize_saved_result_record(results, ref)
         result_json = self.cell_dir / f"{self.bench}_multistep_results.json"
         result_json.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
 

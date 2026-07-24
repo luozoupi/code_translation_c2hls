@@ -1,6 +1,18 @@
 {
-  "saved_at": "2026-07-01T07:00:58+0200",
+  "saved_at": "2026-07-22T10:28:44+0000",
   "schema": "1.1",
+  "derived_from": "skills_ii_target_miss_solutions_added(90skills).json",
+  "derived_from_sha256_note": "copy of skills_ii_target_miss_solutions_added(90skills).json with GEMM flatten/k-partition fixes; original file untouched",
+  "change_summary": [
+    "Added hls-gemm-static-nest-flatten-and-k-partition (require flatten + k-dim partition for static GEMM)",
+    "Added hls-avoid-outer-sequential-gemm-after-inner-pipeline (reject outer trip=M Pipelined=no)",
+    "Added hls-avoid-pipeline-innermost-only-goal-on-gemm (II=1 alone is not success)",
+    "Narrowed complete-partition avoids to allow k-dim banking for flatten",
+    "Updated chained-gemm / hot-loop / partition-select / full-staging / multi-phase skills and templates",
+    "Added hls-avoid-serial-fp-acc-under-full-k-unroll (reject full k UNROLL + serial FP sum when Final II ≫ 1)",
+    "Patched GEMM flatten / hot-loop / unroll / outer-seq avoids to require low Final II and parallel reduction structure"
+  ],
+  "skill_count": 99,
   "skills": [
     {
       "applicable_fpgas": [
@@ -262,7 +274,7 @@
       "guards": [
         "do not add PIPELINE blindly without checking achieved II",
         "do not use dependence inter false on a real loop-carried dependence",
-        "do not pipeline an outer loop if it causes unintended full unrolling or resource explosion",
+        "do not pipeline an outer loop if it causes unintended full unrolling or resource explosion; for static GEMM (i,j) nests prefer LOOP_FLATTEN with k unrolled instead of leaving outer i sequential",
         "do not ignore memory-port conflicts after pipelining",
         "do not claim success if the report still shows the same II bottleneck"
       ],
@@ -309,10 +321,11 @@
       ],
       "confidence": "high",
       "guards": [
-        "do not unroll memory-bound loops before fixing bandwidth or locality",
+        "do not unroll memory-bound AXI load loops expecting high unroll to help — widen/burst or stage first",
         "do not unroll across true loop-carried dependencies",
         "for floating-point reductions, confirm tolerance permits reassociation",
-        "do not complete-partition large arrays blindly"
+        "do not complete-partition huge arrays that exceed BRAM/URAM budget",
+        "do not emit UNROLL factor=2 as a default 'safe' choice on small static loops"
       ],
       "id": "prompt-unroll",
       "kind": "compound_transformation",
@@ -323,14 +336,15 @@
       "pattern": "a loop has independent iterations or a safely transformable reduction, and latency is dominated by arithmetic throughput rather than global-memory bandwidth",
       "required_steps": [
         "identify independent loop iterations or a safely transformable reduction",
-        "choose a conservative unroll factor",
-        "partition or bank local arrays to match the unroll factor",
-        "avoid increasing parallelism beyond available memory bandwidth",
-        "check DSP/LUT/FF/BRAM growth",
+        "if the trip count is a small compile-time constant (typical PolyBench/ChatHLS mini: <=64, often 30-42), use complete `#pragma HLS UNROLL` — do NOT default to factor=2 or factor=4",
+        "only use partial `#pragma HLS UNROLL factor=N` when complete unroll would clearly exceed device budget or the trip count is large/variable",
+        "partition or bank local arrays to MATCH the unroll (complete partition for complete unroll; cyclic factor=N for partial) — never mismatch (e.g. partition factor=4 with unroll factor=2)",
+        "avoid increasing parallelism beyond available on-chip memory ports / AXI bandwidth for load loops",
+        "check DSP/LUT/FF/BRAM growth vs device util <=100%",
         "validate csim/cosim and compare achieved latency"
       ],
       "sec_pass": 1,
-      "strategy": "apply partial or complete unrolling only after confirming independence or safe reduction structure; match array partitioning/banking to the unroll factor and verify resource growth",
+      "strategy": "For small static nests (atax/bicg/mvt/gesummv-sized), prefer complete unroll of the independent inner dimension with matching complete/cyclic partition. Reserve partial/conservative factors for large trip counts or proven resource pressure. Match array partitioning to the unroll factor exactly.",
       "tags": [
         "prompt-derived",
         "unroll",
@@ -339,7 +353,7 @@
         "compute-bound",
         "kernel-independent"
       ],
-      "template": "LOOP: for (int i = 0; i < N; i += UNROLL_FACTOR) {\n#pragma HLS PIPELINE II=1\n    LANE: for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {\n#pragma HLS UNROLL\n        int idx = i + lane;\n        if (idx < N) out[idx] = f(in[idx]);\n    }\n}"
+      "template": "// Preferred for small static N (e.g. N<=64):\n#pragma HLS ARRAY_PARTITION variable=local_A complete dim=2\ncompute: for (int i = 0; i < M; ++i) {\n#pragma HLS PIPELINE II=1\n  for (int j = 0; j < N; ++j) {\n#pragma HLS UNROLL\n    ... local_A[i][j] ...\n  }\n}\n// Only if resources explode, fall back to partial with MATCHING partition:\n// #pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=UF dim=2\n// #pragma HLS UNROLL factor=UF\n"
     },
     {
       "applicable_fpgas": [],
@@ -1220,8 +1234,10 @@
       "guards": [
         "do not treat requested II as achieved II",
         "do not suppress true dependencies",
-        "do not pipeline an outer loop if it causes unintended full unrolling or resource explosion",
-        "do not ignore the reported scheduling bottleneck"
+        "do not pipeline an outer loop if it causes unintended full unrolling or resource explosion — instead flatten a perfect (i,j) nest with PIPELINE on the nest and fully unroll k, or rewrite as a single ij loop",
+        "do not ignore the reported scheduling bottleneck",
+        "do not celebrate inner II=1 while csynth still shows an unpipelined outer compute_* with trip=M",
+        "do not celebrate flatten+k-unroll when Final II remains huge from a serial FP accumulator"
       ],
       "id": "hls-pipeline-hot-loop-achieve-ii",
       "kind": "compound_transformation",
@@ -1232,26 +1248,32 @@
       "pattern": "a frequently executed loop is scheduled sequentially or has high interval, and the loop can be made pipeline-eligible without violating true dependencies",
       "required_steps": [
         "identify the hottest loop from trip count and latency contribution",
-        "choose the innermost feasible loop that preserves correctness and exposes useful work",
-        "add PIPELINE with a realistic target II",
-        "check achieved II in the synthesis report",
-        "if II is blocked by local memory ports, partition or bank local arrays",
+        "for static-bound GEMM/matmul nests on locals, target the (i,j) output nest as one flattened pipeline — not only the innermost j",
+        "add PIPELINE with a realistic target II; add LOOP_FLATTEN on the perfect nest or collapse to one ij loop",
+        "fully unroll the reduction k (or unroll with matching partition) inside that pipeline",
+        "partition A/B (and temps) on the k access dimension so ports allow II=1 after flatten",
+        "check achieved II AND that the report has one pipelined region over ~M*N trips (reject outer i with Pipelined=no, II=-)",
+        "if II is blocked by local memory ports, partition or bank local arrays on the parallel dim",
         "if II is blocked by AXI/global memory, stage data into local buffers",
         "if II is blocked by false dependencies, add dependence pragmas only when proven safe",
         "if II is blocked by true recurrence, restructure legally or accept the best legal II",
-        "validate csim/cosim and inspect scheduling warnings"
+        "validate csim/cosim and inspect scheduling warnings",
+        "for GEMM FP reductions: if Final II ≫ 1 after flatten+full k UNROLL with serial sum, apply hls-avoid-serial-fp-acc-under-full-k-unroll"
       ],
       "sec_pass": 0,
-      "strategy": "pipeline the selected hot loop, then resolve dependencies, memory-port conflicts, global-memory access, and loop-body structure so the achieved II improves rather than only adding a pragma",
+      "strategy": "pipeline the selected hot loop so achieved II improves, then ensure nested static-bound output loops are flattened so total latency is not M times a thin inner pipeline. Achieved II=1 on an inner j loop is not success if outer i remains Pipelined=no with trip=M.",
       "tags": [
         "hls",
         "pipeline",
         "ii",
         "hot-loop",
         "compound",
-        "kernel-independent"
+        "kernel-independent",
+        "gemm",
+        "flatten",
+        "loop-flatten"
       ],
-      "template": "HOT_LOOP: for (int i = 0; i < N; ++i) {\n#pragma HLS PIPELINE II=1\n    ...\n}\n// Then inspect achieved II and resolve the actual bottleneck."
+      "template": "// GOOD: flattened static GEMM nest on locals\n#pragma HLS ARRAY_PARTITION variable=A_local complete dim=2\n#pragma HLS ARRAY_PARTITION variable=B_local complete dim=1\ncompute: for (int i = 0; i < M; ++i) {\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    T sum = 0;\n    for (int k = 0; k < K; ++k) {\n#pragma HLS UNROLL\n      sum += A_local[i][k] * B_local[k][j];\n    }\n    C_local[i][j] = sum;\n  }\n}\n// FAIL if csynth still shows compute outer: trip=M, II=-, Pipelined=no"
     },
     {
       "applicable_fpgas": [],
@@ -1267,7 +1289,8 @@
         "do not pipeline before checking true loop-carried dependencies",
         "do not leave local buffers unpartitioned if port conflicts block II",
         "do not assume tiling alone improves compute latency",
-        "preserve boundary, tail, and numerical behavior"
+        "preserve boundary, tail, and numerical behavior",
+        "keep an outer tile loop sequential only when it is a true tile iterator over partial working sets; do not treat full-workspace GEMM outer i as a tile loop — flatten it"
       ],
       "id": "hls-pipeline-local-compute-after-tiling",
       "kind": "compound_transformation",
@@ -1285,7 +1308,7 @@
         "check achieved II and resource growth"
       ],
       "sec_pass": 0,
-      "strategy": "pipeline the compute loop over the local tile and restructure local buffers, dependencies, and small inner loops so the pipeline can be fed from local memory",
+      "strategy": "pipeline the compute loop over the local tile and restructure local buffers, dependencies, and small inner loops so the pipeline can be fed from local memory. If the 'tile' is the full problem (full-workspace staging), flatten the (i,j) nest instead of leaving outer i sequential.",
       "tags": [
         "hls",
         "pipeline",
@@ -1351,7 +1374,9 @@
       "guards": [
         "do not unroll large loops blindly",
         "do not unroll across true dependencies",
-        "for reductions, use a valid partial-sum or tree structure"
+        "for reductions, use a valid partial-sum or tree structure",
+        "after unrolling k under PIPELINE on j, verify outer i is absorbed by flatten; if not, add LOOP_FLATTEN / ij rewrite and k-dim partition",
+        "for FP reductions under outer PIPELINE, do not complete-unroll k with a single serial accumulator; use tree/partials or pipeline-on-k (hls-avoid-serial-fp-acc-under-full-k-unroll)"
       ],
       "id": "hls-pipeline-unroll-small-inner-loops",
       "kind": "supporting_transformation",
@@ -1365,10 +1390,12 @@
         "prove inner iterations are independent or reducible",
         "unroll inner loops conservatively or completely if small",
         "partition local arrays used by the unrolled body",
-        "check resource growth and achieved II"
+        "check resource growth and achieved II",
+        "for GEMM-like nests, confirm csynth does not retain an unpipelined outer i with trip=M",
+        "after unrolling a FP reduction, verify achieved Final II; if II ≫ 1, rewrite reduction or pipeline-on-k"
       ],
       "sec_pass": 0,
-      "strategy": "unroll small independent inner loops inside the pipelined loop, then partition local buffers so the expanded loop body can be scheduled efficiently",
+      "strategy": "unroll small independent inner loops inside the pipelined loop, partition local buffers for the expanded body, and for static (i,j,k) GEMM nests ensure the (i,j) parent nest is flattened so unrolling k does not leave outer i sequential.",
       "tags": [
         "hls",
         "pipeline",
@@ -1377,7 +1404,7 @@
         "compute-restructure",
         "kernel-independent"
       ],
-      "template": "OUTER: for (int i = 0; i < N; ++i) {\n#pragma HLS PIPELINE II=1\n    INNER: for (int j = 0; j < SMALL_BOUND; ++j) {\n#pragma HLS UNROLL\n        ...\n    }\n}"
+      "template": "// GEMM: pipeline+flatten (i,j); fully unroll k with matching partition\nfor (int i = 0; i < M; ++i) {\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    T sum = 0;\n    for (int k = 0; k < K; ++k) {\n#pragma HLS UNROLL\n      sum += A[i][k] * B[k][j];\n    }\n    C[i][j] = sum;\n  }\n}\n// Non-GEMM small inner under a truly outer pipeline:\nOUTER: for (int i = 0; i < N; ++i) {\n#pragma HLS PIPELINE II=1\n    INNER: for (int j = 0; j < SMALL_BOUND; ++j) {\n#pragma HLS UNROLL\n        ...\n    }\n}"
     },
     {
       "applicable_fpgas": [],
@@ -1640,9 +1667,10 @@
       "confidence": "high",
       "guards": [
         "do not unroll across true loop-carried dependencies",
-        "do not unroll memory-bound loops before fixing bandwidth",
+        "do not unroll memory-bound AXI copy loops before fixing burst/widen/staging",
         "do not use complete unroll on large variable-trip loops",
-        "watch DSP/LUT/FF growth"
+        "watch DSP/LUT/FF growth and keep device util <=100%",
+        "forbid mismatched partition vs unroll factors"
       ],
       "id": "hls-unroll-independent-loop",
       "kind": "compound_transformation",
@@ -1653,14 +1681,15 @@
       "pattern": "a hot loop has independent iterations and performance is limited by arithmetic throughput or per-iteration compute latency rather than global-memory bandwidth",
       "required_steps": [
         "prove loop iterations are independent",
-        "choose a conservative unroll factor",
+        "if trip count is a small compile-time constant (<=64), choose complete `#pragma HLS UNROLL`",
+        "if trip count is large or resources are tight, choose the largest factor in {8,16,32,...} that fits budget — not factor=2 by default",
         "pipeline the surrounding loop when appropriate",
-        "partition or bank arrays accessed by the unrolled lanes",
+        "partition or bank arrays accessed by the unrolled lanes to match the unroll exactly",
         "check resource growth and achieved latency",
         "validate correctness"
       ],
       "sec_pass": 0,
-      "strategy": "partially or completely unroll the independent loop, expose multiple operations per cycle, and ensure memory/local buffers can feed the added parallelism",
+      "strategy": "Completely unroll small static independent loops; for larger loops use a bandwidth/resource-matched factor. Never default to UNROLL factor=2 on Mini/ChatHLS-sized kernels.",
       "tags": [
         "hls",
         "unroll",
@@ -1668,7 +1697,7 @@
         "compute-bound",
         "kernel-independent"
       ],
-      "template": "LOOP: for (int i = 0; i < N; i += UNROLL_FACTOR) {\n#pragma HLS PIPELINE II=1\n    LANE: for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {\n#pragma HLS UNROLL\n        int idx = i + lane;\n        if (idx < N) out[idx] = f(in[idx]);\n    }\n}"
+      "template": "// Small static N: complete unroll\nfor (int j = 0; j < N; ++j) {\n#pragma HLS UNROLL\n  ...\n}\n// Large N under budget pressure: partial with matching partition\nfor (int j = 0; j < N; j += UF) {\n#pragma HLS PIPELINE II=1\n  for (int lane = 0; lane < UF; ++lane) {\n#pragma HLS UNROLL\n    int idx = j + lane; if (idx < N) ...;\n  }\n}\n"
     },
     {
       "applicable_fpgas": [],
@@ -1847,9 +1876,10 @@
       ],
       "confidence": "avoid",
       "guards": [
-        "do not maximize unroll factor blindly",
+        "do not maximize unroll factor blindly on large arrays",
         "compare latency improvement against resource growth",
-        "consider smaller factors like 2, 4, or 8 before complete unroll"
+        "when backing off from complete unroll on LARGE trip counts, try 32/16/8 before 4/2",
+        "on small static PolyBench/ChatHLS mini dims (N<=64), do NOT treat factor=2 as the preferred safe default — prefer complete unroll unless synth util >100%"
       ],
       "id": "hls-avoid-unroll-resource-explosion",
       "kind": "avoid_rule",
@@ -1865,7 +1895,7 @@
         "validate with synthesis and correctness feedback"
       ],
       "sec_pass": 0,
-      "strategy": "reduce the unroll factor, use partial unroll, share resources, or improve memory locality before further parallelization",
+      "strategy": "If complete unroll overflows the device, reduce factor stepwise (32→16→8→4) while keeping partition matched; use factor=2 only as a last resort. For small static dims, complete unroll is usually legal on U280 — do not preemptively cripple parallelism.",
       "tags": [
         "hls",
         "avoid",
@@ -2290,9 +2320,11 @@
       ],
       "confidence": "high",
       "guards": [
-        "do not complete-partition large arrays unnecessarily",
+        "do not complete-partition an entire large buffer when only one dimension is accessed in parallel — partition that dimension",
+        "do not refuse complete/cyclic on the reduction (k) dimension of a static-bound GEMM when k is fully unrolled under PIPELINE II=1; that banking is required for nest flatten",
         "do not partition dimensions not accessed in parallel",
-        "avoid partitioning when the bottleneck is off-chip memory bandwidth"
+        "avoid partitioning when the bottleneck is off-chip memory bandwidth",
+        "if complete on the parallel dim blows FF/BRAM, fall back to cyclic factor matched to unroll and keep flatten"
       ],
       "id": "hls-partition-select-complete-cyclic-block",
       "kind": "supporting_transformation",
@@ -2303,21 +2335,24 @@
       "pattern": "a local array needs more read/write ports for pipelined or unrolled access, but the correct partition style depends on access pattern and array size",
       "required_steps": [
         "identify the parallel access pattern",
-        "identify the accessed array dimension",
-        "choose complete/cyclic/block partition based on size and indexing",
+        "identify the accessed array dimension (for GEMM C[i][j]+=A[i][k]*B[k][j], that is dim k of A and B)",
+        "choose complete/cyclic/block based on size and indexing; for fully unrolled k, prefer complete on k if budget allows else cyclic matched to unroll",
         "match factor to unroll factor or port demand",
-        "check II and resource usage"
+        "check II, nest flatten (outer trip must not remain sequential), and resource usage"
       ],
       "sec_pass": 0,
-      "strategy": "choose complete partition for small arrays or dimensions fully accessed in parallel, cyclic partition for regular interleaved lane accesses, and block partition for contiguous per-worker regions",
+      "strategy": "choose complete partition for small arrays or for a parallel access dimension that must supply many ports in one cycle (including GEMM reduction dim k when fully unrolled), cyclic partition for regular interleaved lane accesses, and block partition for contiguous per-worker regions. Prefer cyclic/block when factor << size; allow complete on the parallel dim when size is modest (about <=64-128) OR when II=1 flatten of a static GEMM nest requires it.",
       "tags": [
         "hls",
         "array-partition",
         "banking",
         "supporting",
-        "kernel-independent"
+        "kernel-independent",
+        "gemm",
+        "flatten",
+        "k-partition"
       ],
-      "template": "// Complete: small fully parallel dimension\n#pragma HLS ARRAY_PARTITION variable=small_buf complete dim=1\n\n// Cyclic: lane-indexed interleaved access\n#pragma HLS ARRAY_PARTITION variable=buf cyclic factor=UNROLL_FACTOR dim=1\n\n// Block: each worker owns a contiguous block\n#pragma HLS ARRAY_PARTITION variable=buf block factor=PE dim=1"
+      "template": "// GEMM on locals: bank the reduction dimension so (i,j) can flatten with II=1\n#pragma HLS ARRAY_PARTITION variable=A_local complete dim=2  // k\n#pragma HLS ARRAY_PARTITION variable=B_local complete dim=1  // k\n// or: cyclic factor=UNROLL_K on those dims if complete is too heavy\n\n// Complete: small fully parallel dimension\n#pragma HLS ARRAY_PARTITION variable=small_buf complete dim=1\n\n// Cyclic: lane-indexed interleaved access\n#pragma HLS ARRAY_PARTITION variable=buf cyclic factor=UNROLL_FACTOR dim=1\n\n// Block: each worker owns a contiguous block\n#pragma HLS ARRAY_PARTITION variable=buf block factor=PE dim=1"
     },
     {
       "applicable_fpgas": [],
@@ -2563,8 +2598,9 @@
       ],
       "confidence": "high",
       "guards": [
-        "do not complete-partition large buffers blindly",
-        "complete partition turns storage into registers/FFs and can explode LUT/FF/routing cost",
+        "do not complete-partition an entire large buffer blindly — partition the parallel dimension",
+        "for static GEMM with fully unrolled k, complete or cyclic on dim k is appropriate even if k is tens (e.g. 50-80), subject to FF/BRAM budget",
+        "complete partition turns storage into registers/FFs and can explode LUT/FF/routing cost if over-applied",
         "partition the dimension that is accessed in parallel, not an arbitrary dimension",
         "this fixes local memory ports, not off-chip AXI bandwidth"
       ],
@@ -3076,8 +3112,8 @@
       ],
       "confidence": "avoid",
       "guards": [
-        "complete partition is effective for small arrays and small lane dimensions, not arbitrary large storage",
-        "large complete partition can destroy timing even if II improves in scheduling",
+        "complete partition of a whole large Nd array can destroy timing — prefer partitioning one parallel dim",
+        "complete/cyclic on a compile-time k dimension of size ~<=128 for a flattened GEMM is in-scope and often required",
         "do not use resource-heavy partitioning to mask an off-chip bandwidth bottleneck"
       ],
       "id": "ii-avoid-complete-partition-large-buffer-ff-explosion",
@@ -3086,7 +3122,7 @@
       "mean_advantage": 0.0,
       "occurrences": 0,
       "origin": "project_ii_target_miss_discussion",
-      "pattern": "a proposed fix completely partitions a large local buffer or large multidimensional tile into registers only because there is a memory dependency or port conflict",
+      "pattern": "a proposed fix completely partitions an entire large local buffer or large multidimensional tile into registers only because there is a memory dependency or port conflict, without targeting the actual parallel access dimension",
       "required_steps": [
         "detect whether complete partition is being applied to a large array or large tile",
         "estimate FF/LUT/routing growth from full partitioning",
@@ -3095,7 +3131,7 @@
         "validate whether the alternative resolves II without resource explosion"
       ],
       "sec_pass": 0,
-      "strategy": "do not use complete partition as the default for large buffers; instead choose cyclic/block banking, line buffers, smaller tiles, per-lane small buffers, or algorithmic privatization targeted to the actual access pattern",
+      "strategy": "do not use complete partition of an entire large buffer as the default; instead partition the parallel access dimension (complete if that dim is modest or required for GEMM flatten; else cyclic/block), or use line buffers / smaller tiles / per-lane small buffers. This avoid-rule does NOT forbid complete/cyclic on GEMM reduction dim k when needed for II=1 flatten.",
       "tags": [
         "hls",
         "avoid",
@@ -3222,17 +3258,18 @@
         "sum element counts times sizeof for each array needed during compute",
         "compare against conservative BRAM budget for the target FPGA",
         "if it fits, allocate local arrays matching problem dimensions and use bulk load, compute, and store",
-        "choose tiling only when full staging exceeds on-chip budget or reuse analysis proves larger tiles are better"
+        "choose tiling only when full staging exceeds on-chip budget or reuse analysis proves larger tiles are better",
+        "after full staging, apply hls-gemm-static-nest-flatten-and-k-partition (or equivalent) to every static GEMM nest"
       ],
       "sec_pass": 0,
-      "strategy": "load the full working set into local arrays once, run all compute on local memory, store once; do not default to nested small-tile loops that repeatedly reload the same global data",
+      "strategy": "load the full working set into local arrays once, run all compute on local memory, store once; do not default to nested small-tile loops that repeatedly reload the same global data. After staging, GEMM/matmul compute nests must still be flattened with k-dim partition — staging alone does not fix outer-i sequential latency.",
       "tags": [
         "full-staging",
         "local-buffer",
         "anti-micro-tile",
         "kernel-independent"
       ],
-      "template": "double local_A[M][K], local_B[K][N], local_C[M][N];\nload_arrays: for (int i = 0; i < M; i++)\n  for (int j = 0; j < K; j++) {\n#pragma HLS PIPELINE II=1\n    local_A[i][j] = A[i][j];\n  }\n// repeat for B and C, then compute entirely on local_* before one store pass"
+      "template": "double local_A[M][K], local_B[K][N], local_C[M][N];\n#pragma HLS ARRAY_PARTITION variable=local_A complete dim=2\n#pragma HLS ARRAY_PARTITION variable=local_B complete dim=1\nload_arrays: for (int i = 0; i < M; i++)\n  for (int j = 0; j < K; j++) {\n#pragma HLS PIPELINE II=1\n    local_A[i][j] = A[i][j];\n  }\n// repeat for B (and C if needed), then flattened local compute, then one store pass"
     },
     {
       "applicable_fpgas": [],
@@ -3357,7 +3394,8 @@
       "confidence": "avoid",
       "guards": [
         "complete partition on tile buffers larger than the parallel access width is a red flag",
-        "triple-nested tile loops with tiny tiles often increase control overhead without improving reuse"
+        "triple-nested tile loops with tiny tiles often increase control overhead without improving reuse",
+        "this avoid-rule targets micro-tiling with complete partition of tile buffers — not k-dim banking of a full-workspace GEMM"
       ],
       "id": "hls-avoid-micro-tile-complete-partition-nest",
       "kind": "avoid_rule",
@@ -3494,7 +3532,8 @@
         "run later phases using only local intermediates",
         "partition or bank local buffers to match inner-loop unroll factor",
         "store only final outputs that are not consumed again",
-        "pipeline load, each local phase, and final store"
+        "pipeline load, each local phase, and final store",
+        "for matrix-multiply phases, flatten (i,j) and partition on k; do not leave sibling phases with mismatched flatten"
       ],
       "sec_pass": 0,
       "strategy": "keep every intermediate result that is consumed by a later phase in on-chip local memory; chain phases locally and defer global writes until the value is no longer needed",
@@ -3536,10 +3575,11 @@
         "rewrite each phase to use only local buffers with pipelined loops",
         "apply hls-chain-intermediate-results-locally when later phases consume earlier outputs",
         "store only final results that must be visible off-chip",
-        "add array_partition on local arrays accessed in parallel inner loops"
+        "add array_partition on local arrays accessed in parallel inner loops",
+        "for each GEMM-like phase, require flatten of (i,j) and k-dim partition; fail the design if any phase keeps outer i sequential"
       ],
       "sec_pass": 0,
-      "strategy": "for multi-phase kernels, bulk-load shared inputs to locals, execute every phase as pipelined local-memory compute, and bulk-store final outputs once; never emit a reference-style multi-loop port on global memory",
+      "strategy": "for multi-phase kernels, bulk-load shared inputs to locals, execute every phase as pipelined local-memory compute with flattened static nests where applicable, and bulk-store final outputs once; never emit a reference-style multi-loop port on global memory.",
       "tags": [
         "multi-phase",
         "local-staging",
@@ -3547,7 +3587,7 @@
         "m_axi",
         "kernel-independent"
       ],
-      "template": "load all shared arrays to locals;\nphase1: for (...) { #pragma HLS PIPELINE II=1 ... local only ... }\nphase2: for (...) { #pragma HLS PIPELINE II=1 ... local only ... }\nstore final outputs once;"
+      "template": "load all shared arrays to locals;\nphase1: for (i) for (j) { #pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN ... local only, k UNROLL ... }\nphase2: same flatten pattern on locals;\nstore final outputs once;"
     },
     {
       "applicable_fpgas": [],
@@ -3681,7 +3721,9 @@
       "confidence": "high",
       "guards": [
         "apply even when the temporary array is also an m_axi output port",
-        "preserve the external ABI by storing the local temporary once after all consuming phases complete"
+        "preserve the external ABI by storing the local temporary once after all consuming phases complete",
+        "reject a phase whose csynth loop table shows compute_* outer trip=M, II=-, Pipelined=no while an inner j claims II=1",
+        "if one GEMM phase flattened and a sibling did not, copy the successful partition+flatten pattern onto the slow phase"
       ],
       "id": "hls-chained-gemm-local-temporary",
       "kind": "compound_transformation",
@@ -3693,21 +3735,26 @@
       "required_steps": [
         "identify the temporary array produced by phase 1 and consumed by phase 2",
         "allocate a local buffer for the temporary with the same compile-time dimensions",
-        "run phase 1 into the local temporary with pipelined loops",
-        "run phase 2 reading only the local temporary",
-        "store the temporary to its global port only once if the ABI requires it",
-        "partition local arrays to match inner-loop unroll factor"
+        "partition A/B/tmp/C locals on the k (reduction) access dimension — required when k is fully unrolled",
+        "run each GEMM phase with PIPELINE II=1 on (i,j), UNROLL on k, and LOOP_FLATTEN (or a single ij loop)",
+        "verify each phase reports one flattened pipeline over ~M*N trips, not sequential outer i",
+        "if phase2 flattened and phase1 did not, mirror phase2's partition+flatten onto phase1",
+        "store the temporary to its global port only once if the ABI requires it"
       ],
       "sec_pass": 0,
-      "strategy": "never chain GEMM phases through global memory; keep the temporary in a local buffer across phases and pipeline both multiplies on-chip",
+      "strategy": "never chain GEMM phases through global memory; keep the temporary in a local buffer across phases and pipeline both multiplies on-chip. For each GEMM phase with static bounds: partition locals on the reduction (k) dimension, PIPELINE II=1 the (i,j) nest with k fully unrolled, and require nest flatten so outer i is not left sequential.",
       "tags": [
         "chained-gemm",
         "temporary-buffer",
         "2mm",
         "local-staging",
-        "kernel-independent"
+        "kernel-independent",
+        "flatten",
+        "loop-flatten",
+        "k-partition",
+        "3mm"
       ],
-      "template": "double local_tmp[M][N], local_D[M][P];\n// phase1: local_tmp = alpha * A * B on locals\n// phase2: local_D = beta * D + local_tmp * C on locals\n// store local_D and optional local_tmp once"
+      "template": "double local_tmp[M][N], local_A[M][K], local_B[K][N], local_C[N][P], local_D[M][P];\n#pragma HLS ARRAY_PARTITION variable=local_A complete dim=2\n#pragma HLS ARRAY_PARTITION variable=local_B complete dim=1\n#pragma HLS ARRAY_PARTITION variable=local_tmp complete dim=2\n// phase1: local_tmp = alpha * A * B\ncompute_tmp: for (int i = 0; i < M; ++i) {\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    double sum = 0.0;\n    for (int k = 0; k < K; ++k) {\n#pragma HLS UNROLL\n      sum += alpha * local_A[i][k] * local_B[k][j];\n    }\n    local_tmp[i][j] = sum;\n  }\n}\n// phase2: same flatten+partition pattern on local_D = beta*D + tmp*C\n// store local_D (and optional local_tmp) once"
     },
     {
       "applicable_fpgas": [],
@@ -3826,6 +3873,412 @@
         "kernel-independent"
       ],
       "template": ""
+    },
+    {
+      "id": "hls-gemm-static-nest-flatten-and-k-partition",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "u280_chathls_vs_c2hls_2mm_3mm_20260721",
+      "pattern": "static-bound GEMM/matmul-like OR triangular syrk/syr2k/symm nests on local buffers (C[i][j] += ... over k, or C[i][j] += A[j][k]*B[i][k]+... with if (j<=i)) where PIPELINE II=1 is placed only on an inner j (L4) under sequential outer i (L1) and/or sequential k (L3), so csynth shows L1 trip=M Pipelined=no and latency ≈ M*(K*N+Depth) instead of one flattened (i,j) pipeline",
+      "strategy": "Partition locals on the reduction dim k; PIPELINE II=1 the (i,j) nest with k fully unrolled; LOOP_FLATTEN (or single ij loop). For syrk/syr2k: keep FIXED j<N bounds with if (j<=i) guards (never for (j=0;j<=i)); optionally separate beta-scale pass, then one update pass that reduces over k inside each (i,j) iteration. Reject L1 sequential + only L4 II=1. Success also requires achieved Final II near 1 (or best legal). Full k UNROLL with a serial FP accumulator is insufficient if II stays huge — use partial/tree sums or enough FP operators, else pipeline-on-k (hls-avoid-serial-fp-acc-under-full-k-unroll).",
+      "required_steps": [
+        "confirm M,N,K (or N,M for syr2k) are compile-time constants and compute is on local arrays",
+        "ARRAY_PARTITION A/B (and C as needed) on the k-accessed dimension — complete if budget allows",
+        "rewrite triangular loops to fixed bound + if (j<=i) / if (j<i) guards — never variable trip j<=i as loop bound",
+        "prefer two phases for syr2k/syrk: (1) scale C*=beta on triangle with PIPELINE+FLATTEN; (2) update with (i,j) PIPELINE+FLATTEN and k fully UNROLL",
+        "place PIPELINE II=1 on the (i,j) nest with fully unrolled k; add LOOP_FLATTEN or collapse to ij",
+        "success check: csynth must NOT show L1/compute_outer trip=M Pipelined=no next to only an L4 II=1; prefer one flattened trip ≈ M*N",
+        "re-check device Utilization (%) ≤ 100; if complete on k overshoots, use cyclic factor matched to unroll",
+        "after flatten+k-unroll, check Final II; if II ≫ 1 from serial FP acc / shared dmul/dadd, apply hls-avoid-serial-fp-acc-under-full-k-unroll"
+      ],
+      "guards": [
+        "do not apply this flatten mandate to true outer tile loops over partial tiles — only full-workspace or within-tile (i,j) nests with static bounds",
+        "preserve numerical semantics of reductions",
+        "resource legality: BRAM/DSP/FF/LUT/URAM device util ≤ 100%",
+        "full k UNROLL requires a parallel reduction structure or enough FP units — a single serial float/double accumulator alone is not success if Final II ≫ 1"
+      ],
+      "bottleneck_kinds": [
+        "latency_high",
+        "interval_exceeds_latency",
+        "ii_target_miss",
+        "nested_loop",
+        "port_conflict",
+        "non_pipelined_hot_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "2mm",
+        "3mm",
+        "array-partition",
+        "chathls-ready",
+        "flash-positive",
+        "flatten",
+        "gemm",
+        "hls",
+        "loop-flatten",
+        "matmul",
+        "symm",
+        "syr2k",
+        "syrk",
+        "triangular"
+      ],
+      "template": "// Rectangular GEMM\n#pragma HLS ARRAY_PARTITION variable=A_local complete dim=2\n#pragma HLS ARRAY_PARTITION variable=B_local complete dim=1\ncompute: for (int i = 0; i < M; ++i) {\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    T sum = 0;\n    for (int k = 0; k < K; ++k) {\n#pragma HLS UNROLL\n      sum += A_local[i][k] * B_local[k][j];\n    }\n    C_local[i][j] = sum;\n  }\n}\n// syr2k/syrk triangle (fixed bounds + guard; k unrolled)\n#pragma HLS ARRAY_PARTITION variable=A_local complete dim=2\n#pragma HLS ARRAY_PARTITION variable=B_local complete dim=2\nscale: for (int i = 0; i < N; ++i)\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    if (j <= i) C_local[i][j] *= beta;\n  }\nupdate: for (int i = 0; i < N; ++i)\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    if (j <= i) {\n      double sum = 0;\n      for (int k = 0; k < M; ++k) {\n#pragma HLS UNROLL\n        sum += A_local[j][k]*B_local[i][k] + B_local[j][k]*A_local[i][k];\n      }\n      C_local[i][j] += alpha * sum;\n    }\n  }\n"
+    },
+    {
+      "id": "hls-avoid-outer-sequential-gemm-after-inner-pipeline",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "u280_chathls_vs_c2hls_2mm_3mm_20260721",
+      "pattern": "csynth shows L1 / compute_outer / scale outer with Trip=M, II='-', Pipelined=no while a nested L4 / j pipeline reports II=1 — including syr2k/syrk form L1{ L2; L3{ L4 PIPELINE } } where per-i cost ≈ L2 + K*N and total ≈ M*(L2+K*N)",
+      "strategy": "Treat as a latency bug. Do not stop after L4 II=1. Apply hls-gemm-static-nest-flatten-and-k-partition or hls-syr2k-triangle-flatten-k-unroll: fixed j bounds + if guards, (i,j) PIPELINE+FLATTEN, k UNROLL, matching ARRAY_PARTITION. Re-synth until L1 is no longer an unpipelined trip=M loop dominating latency. After flatten+k-unroll, if Final II ≫ 1 from a serial FP accumulator, continue with hls-avoid-serial-fp-acc-under-full-k-unroll — do not stop.",
+      "required_steps": [
+        "detect outer L1/compute with Pipelined=no and II=- next to an II=1 inner j/L4 pipeline",
+        "do not accept the design as optimized",
+        "for syr2k/syrk also reject for (j=0;j<=i) variable bounds — rewrite to j<N + if (j<=i)",
+        "route to hls-syr2k-triangle-flatten-k-unroll / hls-gemm-static-nest-flatten-and-k-partition",
+        "re-synth and confirm outer sequential L1 is gone or no longer dominates (flattened (i,j) trip)",
+        "if flattened region still has Final II ≫ 1 from serial FP reduction, route to hls-avoid-serial-fp-acc-under-full-k-unroll"
+      ],
+      "guards": [
+        "applies to static-bound full-workspace or within-tile GEMM nests, not irreducible true dependencies"
+      ],
+      "bottleneck_kinds": [
+        "latency_high",
+        "nested_loop",
+        "interval_exceeds_latency"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "2mm",
+        "3mm",
+        "avoid",
+        "flash-mandatory",
+        "flatten",
+        "gemm",
+        "outer-seq",
+        "symm",
+        "syr2k",
+        "syrk"
+      ],
+      "template": "// BAD (reject): L1 sequential, only L4 pipelined\nL1: for (int i = 0; i < N; ++i) {              // trip=N, Pipelined=no\n  L2: for (int j = 0; j < N; ++j) if (j<=i) C[i][j]*=beta;\n  L3: for (int k = 0; k < M; ++k)\n    L4: for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n      if (j<=i) C[i][j] += ...;\n    }\n}\n// GOOD: see hls-syr2k-triangle-flatten-k-unroll\n"
+    },
+    {
+      "id": "hls-avoid-pipeline-innermost-only-goal-on-gemm",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "u280_chathls_vs_c2hls_2mm_3mm_20260721",
+      "pattern": "optimization stops because the innermost feasible loop achieved II=1, while total module latency is still dominated by a sequential outer trip over rows/columns of a static GEMM",
+      "strategy": "II on one loop is not the objective — total cycles are. For static GEMM and syr2k/syrk nests, require flatten of the (i,j) nest (with k unrolled) and validate against top latency / L1 table, not only Final II=1 on L4/j. Use hls-syr2k-triangle-flatten-k-unroll for triangular updates Total cycles require both flatten and low achieved II on the flattened region (reject serial-FP-acc II blowups via hls-avoid-serial-fp-acc-under-full-k-unroll).",
+      "required_steps": [
+        "after any PIPELINE success on an inner loop, read the parent loop table",
+        "if parent is unpipelined with large trip count, continue with flatten+partition repairs",
+        "compare sibling phases and fix any phase that did not flatten"
+      ],
+      "guards": [
+        "still prefer innermost pipeline for non-flattenable or true-recurrence cases"
+      ],
+      "bottleneck_kinds": [
+        "latency_high",
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "flash-mandatory",
+        "gemm",
+        "metrics",
+        "pipeline",
+        "syr2k",
+        "syrk"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "latency_high",
+        "ii_target_met_but_latency_high",
+        "compute_bound",
+        "arithmetic_throughput_limited",
+        "non_pipelined_hot_loop"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "applies when inner trip count is a known small constant (typical atax/bicg/mvt/gesummv: 30-42)",
+        "still respect true dependences and AXI load bandwidth limits",
+        "if complete unroll + matching partition exceeds 100% DSP/FF/LUT/BRAM, then reduce factor"
+      ],
+      "id": "hls-avoid-tiny-partial-unroll-on-small-static",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "kernel uses `#pragma HLS UNROLL factor=2` (or similarly tiny factor) on a small compile-time-constant inner loop (e.g. atax/bicg N~38-42) while local arrays are only partially partitioned, leaving most parallelism on the table and high total latency",
+      "required_steps": [
+        "detect tiny partial unroll on small static trip count",
+        "replace with `#pragma HLS UNROLL` (complete) on that inner loop",
+        "set ARRAY_PARTITION to match (prefer complete on the unrolled dimension)",
+        "keep AXI load loops II=1/burst-oriented; do not expect unroll alone to fix gmem",
+        "re-synth and confirm util <=100% and lower latency"
+      ],
+      "sec_pass": 0,
+      "strategy": "Treat UNROLL factor=2 on Mini/ChatHLS-sized static loops as a defect. Use complete unroll + matching partition for on-chip compute; only partial-unroll if util overflows.",
+      "tags": [
+        "hls",
+        "avoid",
+        "unroll",
+        "polybench-mini",
+        "atax",
+        "bicg",
+        "chathls-ready",
+        "kernel-independent"
+      ],
+      "template": "// BAD (atax/bicg-sized):\n#pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=4 dim=2\nfor (int j = 0; j < n; ++j) { #pragma HLS UNROLL factor=2 ... }\n// GOOD:\n#pragma HLS ARRAY_PARTITION variable=local_A complete dim=2\nfor (int j = 0; j < n; ++j) { #pragma HLS UNROLL ... }\n"
+    },
+    {
+      "id": "avoid-loop-tripcount-flatten-variable-bounds",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "variable-trip-count loops (triangular, tile_size, k<i, k<j, j=i+1..N) fixed only with LOOP_TRIPCOUNT or LOOP_FLATTEN without rewriting to static bounds",
+      "strategy": "LOOP_TRIPCOUNT is for reporting/estimation only — it does not make a loop statically bounded, fully unrollable, or dependency-free. Do not rely on LOOP_FLATTEN or LOOP_TRIPCOUNT to legalize pipeline on variable-bound nests.",
+      "required_steps": [
+        "identify loops whose bound depends on an outer induction variable or runtime tile_size",
+        "do not add LOOP_TRIPCOUNT as a substitute for static bounds",
+        "rewrite to fixed-bound loops with if guards using N or TILE_SIZE constants",
+        "re-validate pipeline legality on the rewritten nest"
+      ],
+      "guards": [
+        "preserve original semantics with if (idx < bound) guards",
+        "use header macro constants for fixed bounds"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "loop-tripcount",
+        "loop-flatten",
+        "flash-mandatory",
+        "variable-bounds",
+        "merged-from-flash-no-RMW",
+        "gemm_flatten_v1"
+      ],
+      "template": "// BAD: variable bound, tripcount pragma only\nfor (int k = 0; k < j; k++) {\n#pragma HLS LOOP_TRIPCOUNT min=1 max=N\n#pragma HLS PIPELINE II=1\n    ...\n}\n// GOOD: fixed bound + guard\nfor (int k = 0; k < TILE_SIZE; k++) {\n#pragma HLS PIPELINE II=1\n    if (k < j) { ... }\n}"
+    },
+    {
+      "id": "hls-rewrite-variable-trip-fixed-bound-guard",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "triangular or variable-bound loops such as for (k=0; k<i), for (k=0; k<j), for (j=i+1; j<N), or for (i=0; i<tile_size) blocking II=1 pipeline",
+      "strategy": "Rewrite to fixed compile-time bounds (N, TILE_SIZE from header macros) and preserve semantics with if guards on the induction variable.",
+      "required_steps": [
+        "replace runtime or outer-dependent bounds with fixed TILE_SIZE or N",
+        "wrap body in if (idx < original_bound) to skip out-of-range iterations",
+        "apply PIPELINE II=1 only on the fixed-bound inner loop after rewrite",
+        "keep tile_size as a scalar for guard comparisons, not as the loop bound when pipelining"
+      ],
+      "guards": [
+        "do not change numerical results — guards must match original iteration set",
+        "prefer TILE_SIZE macro over function parameter for synthesizable bounds"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "variable-bounds",
+        "pipeline",
+        "flash-mandatory",
+        "merged-from-flash-no-RMW",
+        "gemm_flatten_v1"
+      ],
+      "template": "// BEFORE: for (int k = 0; k < j; k++)\n// AFTER:\nfor (int k = 0; k < TILE_SIZE; k++) {\n#pragma HLS PIPELINE II=1\n    if (k < j) {\n        ...\n    }\n}"
+    },
+    {
+      "id": "hls-fixed-tile-bound-not-runtime-tile-size",
+      "kind": "supporting_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "pipelined load_tile, compute_tile, or store_tile loops use for (i = 0; i < tile_size; i++) where tile_size is runtime-computed for the final partial tile",
+      "strategy": "Loop bound must be compile-time TILE_SIZE from header macros; use if (tile_i + i < N) guards for partial final tile. Runtime tile_size as loop bound blocks II=1 pipeline, UNROLL, and LOOP_FLATTEN (HLS 200-936/960).",
+      "required_steps": [
+        "replace for (i = 0; i < tile_size; i++) with for (i = 0; i < TILE_SIZE; i++)",
+        "guard loads, stores, and compute with if (tile_i + i < N) or if (i < tile_size) only inside body — not as loop bound",
+        "keep tile_size scalar for guard comparisons when needed, not as pipelined loop trip count",
+        "re-apply PIPELINE II=1 on inner fixed-bound loops after rewrite",
+        "validate csynth no longer warns cannot unroll/flatten due to variable tile_size bound"
+      ],
+      "guards": [
+        "TILE_SIZE macro must match tiling pragma and local buffer allocation",
+        "preserve semantics for partial tail tile — skipped iterations must not change results",
+        "complements hls-rewrite-variable-trip-fixed-bound-guard for triangular inner bounds"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "tiling",
+        "variable-bounds",
+        "flash-mandatory",
+        "merged-from-flash-no-RMW",
+        "gemm_flatten_v1"
+      ],
+      "template": "// BAD: runtime tile_size as pipelined loop bound\nint tile_size = (tile_i + TILE_SIZE > N) ? (N - tile_i) : TILE_SIZE;\nfor (int i = 0; i < tile_size; i++) {\n#pragma HLS PIPELINE II=1\n    local_A[i][j] = A[tile_i + i][j];\n}\n\n// GOOD: fixed TILE_SIZE bound + guard\nfor (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n    if (tile_i + i < N) {\n        local_A[i][j] = A[tile_i + i][j];\n    }\n}"
+    },
+    {
+      "id": "hls-syr2k-triangle-flatten-k-unroll",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "u280_chathls_vs_c2hls_syr2k_20260722",
+      "pattern": "syr2k/syrk/symm-style nest on locals: L1 over i sequential; optional L2 beta scale; L3 over k; L4 over j with PIPELINE II=1 and if (j<=i) — csynth L1 trip=N Pipelined=no, iteration latency ≈ L2 + L3_L4 (e.g. ~4934), total ≈ N*that (e.g. ~394k for N=80)",
+      "strategy": "Do not pipeline only L4 under sequential L1/L3. Use FIXED j<N (and i<N, k<M) bounds with if (j<=i) guards. Separate beta scale (PIPELINE+LOOP_FLATTEN on (i,j)). Then one update pass: PIPELINE+LOOP_FLATTEN on (i,j), fully UNROLL k, ARRAY_PARTITION A/B on k dim so each (i,j) iteration does the full reduction in one II. Optional fuse: C = beta*C + alpha*sum in one pass. Never use for (j=0; j<=i; ++j) as the loop bound.",
+      "required_steps": [
+        "stage A,B,C into locals if not already (load/store keep PIPELINE II=1, fixed bounds)",
+        "ARRAY_PARTITION local_A and local_B complete (or cyclic) on the k dimension (dim=2 for [N][M])",
+        "rewrite any j<=i / k<i loop bounds to fixed N/M + if guards",
+        "phase scale: for i, for j < N { PIPELINE II=1; LOOP_FLATTEN; if (j<=i) C[i][j]*=beta; }",
+        "phase update: for i, for j < N { PIPELINE II=1; LOOP_FLATTEN; if (j<=i) { sum=0; for k UNROLL sum+=...; C[i][j]+=alpha*sum; } }",
+        "success: top latency much below N*(M*N); L1 must not remain Pipelined=no with iter latency ≈ M*N",
+        "keep BRAM/DSP/FF/LUT/URAM device util ≤ 100%"
+      ],
+      "guards": [
+        "preserve lower/upper triangular semantics (only touch j<=i or as specified)",
+        "do not use variable trip counts for the triangle",
+        "if complete partition on k overflows, use cyclic factor and partial unroll of k, but still flatten (i,j)",
+        "resource legality ≤ 100% device"
+      ],
+      "bottleneck_kinds": [
+        "latency_high",
+        "non_pipelined_hot_loop",
+        "nested_loop",
+        "interval_exceeds_latency",
+        "ii_target_met_but_latency_high",
+        "port_conflict"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "hls",
+        "syr2k",
+        "syrk",
+        "symm",
+        "triangular",
+        "flatten",
+        "unroll",
+        "array-partition",
+        "flash-positive",
+        "chathls-ready",
+        "gemm_flatten_v1"
+      ],
+      "template": "#pragma HLS ARRAY_PARTITION variable=local_A complete dim=2\n#pragma HLS ARRAY_PARTITION variable=local_B complete dim=2\n// optional: partition local_C cyclic/complete on dim=2 if needed for II\nscale: for (int i = 0; i < N; ++i) {\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    if (j <= i) local_C[i][j] *= beta;\n  }\n}\nupdate: for (int i = 0; i < N; ++i) {\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    if (j <= i) {\n      double sum = 0.0;\n      for (int k = 0; k < M; ++k) {\n#pragma HLS UNROLL\n        sum += local_A[j][k] * local_B[i][k] + local_B[j][k] * local_A[i][k];\n      }\n      local_C[i][j] += alpha * sum;\n    }\n  }\n}\n",
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "last_used_at": null,
+      "sec_pass": 0
+    },
+    {
+      "id": "hls-avoid-serial-fp-acc-under-full-k-unroll",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "u280_chathls_kernel_2mm_ii250_20260722",
+      "pattern": "static-bound GEMM/matmul (or 2mm/3mm phase) on locals with PIPELINE on (i,j) (often + LOOP_FLATTEN) and full UNROLL on reduction k, but csynth Final II remains huge (tens–hundreds) because a single float/double accumulator carries a true FP dependence and/or dmul/dadd are resource-shared down to ~1 instance — so latency ≈ trip×II stays catastrophic despite 'k fully unrolled'",
+      "strategy": "Do not treat full k UNROLL or outer flatten as success when achieved II ≫ 1. Rewrite the reduction with lane/partial sums or a tree (hls-unroll-reduction-partial-sums / ii-reduction-lane-partial-tree), allocate enough FP operators for the chosen parallelism, or fall back to pipeline-on-k with modest outer/j unroll (ChatHLS-style). Re-synth until Final II is near the legal target.",
+      "required_steps": [
+        "detect full k UNROLL under (i,j) pipeline with serial sum += a*b (float/double)",
+        "read csynth Final II, accumulator dependence, and dmul/dadd binding/sharing",
+        "if Final II ≫ 1 from FP reduction or resource limit, reject the design as optimized",
+        "route to partial-sum/tree reduction + matching resources, or pipeline-on-k fallback",
+        "re-synth and confirm Final II improved; do not stop at flatten-only success"
+      ],
+      "guards": [
+        "still prefer flatten of sequential outer i when that is the bug (hls-avoid-outer-sequential-gemm-after-inner-pipeline)",
+        "preserve numerical tolerance expectations when reassociating FP reductions",
+        "device util ≤ 100% after allocating more operators / wider trees"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "latency_high",
+        "pipeline_body_latency",
+        "resource_limited",
+        "compute_bound"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "gemm",
+        "2mm",
+        "3mm",
+        "fp-reduction",
+        "unroll",
+        "ii",
+        "flash-mandatory",
+        "chathls-ready",
+        "gemm_flatten_v1"
+      ],
+      "template": "// BAD: full k UNROLL with serial FP accumulator under (i,j) PIPELINE\nfor (int i = 0; i < M; ++i)\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    double sum = 0.0;\n    for (int k = 0; k < K; ++k) {\n#pragma HLS UNROLL\n      sum += A[i][k] * B[k][j];  // carried dep → Final II ≫ 1 if 1×dadd\n    }\n    C[i][j] = sum;\n  }\n// GOOD: partial/tree reduction (or pipeline-on-k if resources cannot parallelize)\n",
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "last_used_at": null,
+      "sec_pass": 0
     }
-  ]
+  ],
+  "metadata": {
+    "merged_variable_bound_from": "flash_no_RMW_m_axi_skill_entries.json",
+    "merged_variable_bound_ids": [
+      "avoid-loop-tripcount-flatten-variable-bounds",
+      "hls-fixed-tile-bound-not-runtime-tile-size",
+      "hls-rewrite-variable-trip-fixed-bound-guard"
+    ],
+    "updated_at": "2026-07-22T03:22:07.634488+00:00",
+    "syr2k_triangle_fix": "hls-syr2k-triangle-flatten-k-unroll + extended gemm flatten avoids"
+  }
 }

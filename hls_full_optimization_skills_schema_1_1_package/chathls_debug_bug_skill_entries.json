@@ -1,0 +1,391 @@
+{
+  "schema": "1.1",
+  "description": "ChatHLS bug_database.pdf \u2192 debug/repair skill overlay. Source: test-chathls/ChatHLS-ACL-26/src/knowledge_repo/bug_database.pdf. Load via C2HLS_FLASH_SKILL_ENTRIES_JSON or merge into packaged skills for debug/repair stages.",
+  "source_pdf": "ChatHLS-ACL-26/src/knowledge_repo/bug_database.pdf",
+  "skills": [
+    {
+      "id": "chathls-debug-catalog-router",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "chathls_debug_bug_database",
+      "pattern": "Vitis HLS csim/csynth/cosim failure or suspicious latency/II after pragma changes; classify against ChatHLS bug_database error types APT, DFP, DID, FND, MLP, OOB, RAMB, SMA",
+      "strategy": "Route the failure to exactly one ChatHLS debug catalog class before editing: APT=array_partition type; DID=partition dim; FND=partition factor not divisible; DFP=dataflow process/buffer legality; MLP=missing/misplaced pipeline; OOB=out-of-bounds index; RAMB=random access vs burst/m_axi; SMA=scalar vs memory/array interface mismatch. Apply only that class's fix; do not conflate APT/DID/FND.",
+      "required_steps": [
+        "collect the HLS error/warning IDs and the nearby pragma/array/loop",
+        "map to one catalog code (APT|DFP|DID|FND|MLP|OOB|RAMB|SMA)",
+        "open the matching chathls-debug-* skill and apply its required_steps",
+        "verify with csim then csynth (cosim when enabled)",
+        "if still failing, re-classify rather than stacking unrelated pragmas"
+      ],
+      "guards": [
+        "prefer one root-cause class per repair round",
+        "APT vs DID vs FND are distinct \u2014 do not change type/dim/factor together without evidence"
+      ],
+      "bottleneck_kinds": [
+        "hls_bug",
+        "synthesis_failure",
+        "pragma_misuse"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "debug",
+        "router",
+        "chathls-catalog"
+      ],
+      "template": "CLASSIFY \u2192 pick one of APT|DFP|DID|FND|MLP|OOB|RAMB|SMA \u2192 apply matching skill \u2192 revalidate"
+    },
+    {
+      "id": "chathls-debug-apt",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_debug_bug_database",
+      "pattern": "ChatHLS catalog error APT (APT). Related: #pragma,Array,Memory,Index,Pointers. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "APT = wrong array_partition type= (complete|block|cyclic). ONLY change the partition type to match the access pattern. Do not change dim (that is DID) or factor (that is FND). Complete \u2192 element registers (good for small windows / pointer-cast index access). Block \u2192 contiguous chunks in separate memories. Cyclic \u2192 round-robin banks for unrolled consecutive accesses. Example: pool_window accessed via pointer casting needs complete, not cyclic.",
+      "required_steps": [
+        "confirm #pragma HLS array_partition is present and the failure is about type, not dim/factor",
+        "inspect how the array is indexed (sequential, blocked, unrolled consecutive, pointer cast)",
+        "set type=complete|block|cyclic to match that pattern",
+        "leave dim= and factor= unchanged unless DID/FND evidence appears",
+        "re-run csim/csynth"
+      ],
+      "guards": [
+        "only apply APT fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "do not confuse APT (partition type) with DID (dimension) or FND (factor not divisible)",
+        "catalog note: TheArray PartitionType(APT)errorisaspecificerrorthatoccursinHighLevelSynthesis(HLS) code when using the #pragma HLS array_partition directive with an inappropriate partition type. This error is tied directly to the selec"
+      ],
+      "bottleneck_kinds": [
+        "hls_bug",
+        "synthesis_failure",
+        "functional_mismatch",
+        "memory_port",
+        "pragma_misuse"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "debug",
+        "hls-bug",
+        "repair",
+        "apt",
+        "chathls-catalog"
+      ],
+      "template": "// BUG: cyclic banks break pointer-cast / sequential index mapping\n#pragma HLS ARRAY_PARTITION variable=pool_window cyclic factor=2\n// FIX: match access pattern\n#pragma HLS ARRAY_PARTITION variable=pool_window complete"
+    },
+    {
+      "id": "chathls-debug-dfp",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_debug_bug_database",
+      "pattern": "ChatHLS catalog error DFP (DFP). Related: #pragma,dataflow,structure,function,pipeline. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "DFP = illegal DATAFLOW process/buffer structure: multi-writer or multi-reader locals, non-canonical region body, or tasks that break single-producer/single-consumer. Fix by fusing producers/consumers, ping-pong distinct buffers, streams, or moving RMW ports outside the DATAFLOW region.",
+      "required_steps": [
+        "identify whether the failure matches error type DFP: DFP",
+        "inspect related constructs: #pragma,dataflow,structure,function,pipeline",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply DFP fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: DFP (Data Flow Pragma) error refers to incorrect placement of #pragma HLS dataflow. Unlike"
+      ],
+      "bottleneck_kinds": [
+        "hls_bug",
+        "synthesis_failure",
+        "functional_mismatch",
+        "memory_port",
+        "pragma_misuse"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "debug",
+        "hls-bug",
+        "repair",
+        "dfp",
+        "chathls-catalog"
+      ],
+      "template": "// BAD: local_X written by load and compute (multi-writer)\n// GOOD: load \u2192 local_in; compute reads local_in writes local_out; store reads local_out"
+    },
+    {
+      "id": "chathls-debug-did",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_debug_bug_database",
+      "pattern": "ChatHLS catalog error DID (DID). Related: #pragma. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "DID = incorrect array_partition dim=. Choose the dimension that is actually traversed in parallel (usually the innermost accessed index for matrix rows/cols). Do not change type (APT) or factor (FND) unless those errors are also present.",
+      "required_steps": [
+        "identify whether the failure matches error type DID: DID",
+        "inspect related constructs: #pragma",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply DID fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "do not confuse DID (dimension) with APT (type) or FND (factor)",
+        "catalog note: The Dim Incorrect Dimension (DID) error happens to a `#pragma HLS array_partition` that partitionsanvariableoranarraythatusefaultdimension`dim=`forsplit.Thisvalueshouldbean integer ranging from 0 to <N> for an array that"
+      ],
+      "bottleneck_kinds": [
+        "hls_bug",
+        "synthesis_failure",
+        "functional_mismatch",
+        "memory_port",
+        "pragma_misuse"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "debug",
+        "hls-bug",
+        "repair",
+        "did",
+        "chathls-catalog"
+      ],
+      "template": "// BUG: partitioning the wrong dimension for column-parallel access\n#pragma HLS ARRAY_PARTITION variable=A cyclic factor=8 dim=1\n// FIX: partition the dimension used by the parallel index\n#pragma HLS ARRAY_PARTITION variable=A cyclic factor=8 dim=2"
+    },
+    {
+      "id": "chathls-debug-fnd",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_debug_bug_database",
+      "pattern": "ChatHLS catalog error FND (FND). Related: #pragma. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "FND = array_partition factor does not divide the array size on that dim (or conflicts with unroll factor). Adjust factor to a divisor of the dimension size and keep it consistent with UNROLL factor when ports must match.",
+      "required_steps": [
+        "identify whether the failure matches error type FND: FND",
+        "inspect related constructs: #pragma",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply FND fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "do not confuse FND (factor divisibility) with APT (type) or DID (dimension)",
+        "catalog note: The Factor Not Divisible (FND) error happens to fault partition factor onthe target array (usually not in complete partitioning style) with '#pragma HLS array_partition' that leads to wrong data access or/and partition l"
+      ],
+      "bottleneck_kinds": [
+        "hls_bug",
+        "synthesis_failure",
+        "functional_mismatch",
+        "memory_port",
+        "pragma_misuse"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "debug",
+        "hls-bug",
+        "repair",
+        "fnd",
+        "chathls-catalog"
+      ],
+      "template": "// BUG: factor 5 does not divide size 16\n#pragma HLS ARRAY_PARTITION variable=A cyclic factor=5 dim=2\n// FIX: use a divisor of the dimension (e.g. 2/4/8)\n#pragma HLS ARRAY_PARTITION variable=A cyclic factor=4 dim=2"
+    },
+    {
+      "id": "chathls-debug-mlp",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_debug_bug_database",
+      "pattern": "ChatHLS catalog error MLP (MLP). Related: #pragma,pipeline,loop,unroll,nestedloops,dataflow. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "MLP = missing or misplaced PIPELINE. Pipeline the innermost legal loop (no remaining non-fully-unrolled child). Do not pipeline a parent that still contains a loop body.",
+      "required_steps": [
+        "identify whether the failure matches error type MLP: MLP",
+        "inspect related constructs: #pragma,pipeline,loop,unroll,nestedloops,dataflow",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply MLP fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: MLP error means (Multi-Layer Nested Loop with Pipeline pragma). The `#pragma HLS PIPELINE` directive is used to enablepipelining in loops or functions, allowing new iterationsto start before the previous ones have comple"
+      ],
+      "bottleneck_kinds": [
+        "hls_bug",
+        "synthesis_failure",
+        "functional_mismatch",
+        "memory_port",
+        "pragma_misuse"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "debug",
+        "hls-bug",
+        "repair",
+        "mlp",
+        "chathls-catalog"
+      ],
+      "template": "// BAD\nfor (i) { #pragma HLS PIPELINE II=1\n  for (j) { ... } }\n// GOOD\nfor (i) {\n  for (j) { #pragma HLS PIPELINE II=1\n    ... } }"
+    },
+    {
+      "id": "chathls-debug-oob",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_debug_bug_database",
+      "pattern": "ChatHLS catalog error OOB (OOB). Related: MemoryAccess,ArrayAcces,Index,Loops. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "OOB = out-of-bounds array index from wrong trip counts, off-by-one bounds, or partition/unroll induced addressing. Clamp/fix loop bounds and indexing; do not \u201cfix\u201d with unrelated partitions.",
+      "required_steps": [
+        "identify whether the failure matches error type OOB: OOB",
+        "inspect related constructs: MemoryAccess,ArrayAcces,Index,Loops",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply OOB fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: OOB means out-of-bound error. For HLS-C programming, such error may not be obvious due to C/C++codingstyle doesnothavestrictionsonthesizeandwidth.TheC cimulationmaypassthe testbench, even the code is successfully synthes"
+      ],
+      "bottleneck_kinds": [
+        "hls_bug",
+        "synthesis_failure",
+        "functional_mismatch",
+        "memory_port",
+        "pragma_misuse"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "debug",
+        "hls-bug",
+        "repair",
+        "oob",
+        "chathls-catalog"
+      ],
+      "template": "// Ensure 0 <= idx < DIM for every access; match loop trip counts to array extents."
+    },
+    {
+      "id": "chathls-debug-ramb",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_debug_bug_database",
+      "pattern": "ChatHLS catalog error RAMB (RAMB(RandomAccessMemorywithBurstmode)). Related: #pragma,AXI,burstmode,memory. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "RAMB = treating random/strided memory access as if burst-friendly m_axi. Stage into local buffers with sequential fill, or restructure access; do not expect efficient bursts on gather/scatter patterns.",
+      "required_steps": [
+        "identify whether the failure matches error type RAMB: RAMB(RandomAccessMemorywithBurstmode)",
+        "inspect related constructs: #pragma,AXI,burstmode,memory",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply RAMB fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: The AXI4 master interface (m_axi) in Vitis HLS allows for burst-type data transfers, which can significantly improve memory access efficiency. To enable burst transfers, the '#pragma HLS INTERFACEm_axi'directiveisused.Bu"
+      ],
+      "bottleneck_kinds": [
+        "hls_bug",
+        "synthesis_failure",
+        "functional_mismatch",
+        "memory_port",
+        "pragma_misuse"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "debug",
+        "hls-bug",
+        "repair",
+        "ramb",
+        "chathls-catalog"
+      ],
+      "template": "// Load contiguous tile into local[] with PIPELINE II=1, then random-access the local buffer."
+    },
+    {
+      "id": "chathls-debug-sma",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_debug_bug_database",
+      "pattern": "ChatHLS catalog error SMA (SMA(ScalartoMemoryArray)). Related: #pragma,AXI,array,memory. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "SMA = scalar vs memory/array interface mismatch (passing scalars where arrays/m_axi expected or vice versa). Align function signatures, INTERFACE pragmas, and call sites; keep AXI bundles consistent.",
+      "required_steps": [
+        "identify whether the failure matches error type SMA: SMA(ScalartoMemoryArray)",
+        "inspect related constructs: #pragma,AXI,array,memory",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply SMA fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: The`#pragma HLS INTERFACE`isusedtospecifythehardwareinterfaceforfunctionarguments and global variables. For scalar values, the default interface is typically ap_none for inputs and ap_vld for outputs in the Vivado IP flo"
+      ],
+      "bottleneck_kinds": [
+        "hls_bug",
+        "synthesis_failure",
+        "functional_mismatch",
+        "memory_port",
+        "pragma_misuse"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "debug",
+        "hls-bug",
+        "repair",
+        "sma",
+        "chathls-catalog"
+      ],
+      "template": "// Match top ports: arrays \u2192 m_axi/s_axilite as required; scalars \u2192 s_axilite only."
+    }
+  ]
+}

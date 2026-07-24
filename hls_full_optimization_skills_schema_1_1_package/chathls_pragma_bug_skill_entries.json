@@ -1,0 +1,337 @@
+{
+  "schema": "1.1",
+  "description": "ChatHLS pragma_bug_database.pdf \u2192 pragma/compile bug skill overlay. Source: test-chathls/ChatHLS-ACL-26/src/knowledge_repo/pragma_bug_database.pdf. Use for compile/csynth pragma placement and include/type failures.",
+  "source_pdf": "ChatHLS-ACL-26/src/knowledge_repo/pragma_bug_database.pdf",
+  "skills": [
+    {
+      "id": "chathls-pragma-bug-catalog-router",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "chathls_pragma_bug_database",
+      "pattern": "Compile/csynth failures from missing headers, undeclared identifiers, ignored pragmas, loop-label/pragma placement, or PIPELINE/UNROLL conflicts (ChatHLS pragma_bug_database)",
+      "strategy": "Route to one pragma-bug class: HFM=missing #include; UUI=undeclared identifier; TMB=type mismatch; UNP=unknown/ignored HLS pragma; MLL=misplaced loop label; URM=misplaced UNROLL; PUC=PIPELINE&UNROLL conflict. Fix the structural issue first (includes/types/labels) before adding more optimization pragmas.",
+      "required_steps": [
+        "read the first hard ERROR lines (207-xxxx / undeclared / unknown type / ignored pragma)",
+        "map to HFM|UUI|TMB|UNP|MLL|URM|PUC",
+        "apply the matching chathls-pragma-* skill with minimal diff",
+        "recompile / csim / csynth to confirm"
+      ],
+      "guards": [
+        "do not add optimization pragmas to paper over missing includes or bad types",
+        "PIPELINE on a parent with a remaining child loop is usually PUC/URM \u2014 fix placement, not II alone"
+      ],
+      "bottleneck_kinds": [
+        "compile_error",
+        "pragma_misuse",
+        "undeclared_identifier"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "pragma-bug",
+        "router",
+        "chathls-catalog"
+      ],
+      "template": "CLASSIFY \u2192 HFM|UUI|TMB|UNP|MLL|URM|PUC \u2192 apply matching skill \u2192 revalidate"
+    },
+    {
+      "id": "chathls-pragma-hfm",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_pragma_bug_database",
+      "pattern": "ChatHLS catalog error HFM (HFM(Head File Missing)). Related: see catalog. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "HFM = missing header (#include). Add the required include for custom types (e.g. ap_fixed / project kernel.h / mobilenet.h) at the top of the kernel translation unit. Do not invent typedefs that diverge from the benchmark header.",
+      "required_steps": [
+        "identify whether the failure matches error type HFM: HFM(Head File Missing)",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply HFM fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: The error type \"HFM\" (Head File Missing) occurs when a necessary header file is not included in the code, leading to undeclared identifiers and unknown type names. This typically happens with custom data types or functio"
+      ],
+      "bottleneck_kinds": [
+        "compile_error",
+        "pragma_misuse",
+        "synthesis_failure",
+        "undeclared_identifier"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "pragma-bug",
+        "compile",
+        "repair",
+        "hls-pragma",
+        "hfm",
+        "chathls-catalog"
+      ],
+      "template": "#include \"kernel.h\"\n// or\n#include \"ap_fixed.h\"\ntypedef ap_fixed<32,16> t_ap_fixed;"
+    },
+    {
+      "id": "chathls-pragma-mll",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_pragma_bug_database",
+      "pattern": "ChatHLS catalog error MLL (MLL(Misplaced Loop Label)). Related: see catalog. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "MLL = misplaced loop label relative to pragmas. Put labels on the intended loop and place PIPELINE/UNROLL immediately inside that loop body (or on the labeled loop per tool rules).",
+      "required_steps": [
+        "identify whether the failure matches error type MLL: MLL(Misplaced Loop Label)",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply MLL fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: The \"Misplaced Loop Label\" (MLL) error occurs when labels or pragmas are incorrectly positioned relative to loop structures in high-level synthesis (HLS) code. In HLS, pragmas are used to provide the compiler with additi"
+      ],
+      "bottleneck_kinds": [
+        "compile_error",
+        "pragma_misuse",
+        "synthesis_failure",
+        "undeclared_identifier"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "pragma-bug",
+        "compile",
+        "repair",
+        "hls-pragma",
+        "mll",
+        "chathls-catalog"
+      ],
+      "template": "L1: for (...) {\n#pragma HLS PIPELINE II=1\n  ...\n}"
+    },
+    {
+      "id": "chathls-pragma-puc",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_pragma_bug_database",
+      "pattern": "ChatHLS catalog error PUC (PUC(PIPELINE& UNROLL conflict)). Related: see catalog. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "PUC = PIPELINE and UNROLL conflict (e.g. pipeline parent while child still loops, or incompatible unroll/pipeline combo). Pipeline only innermost legal loop; fully unroll children if parent must be pipelined.",
+      "required_steps": [
+        "identify whether the failure matches error type PUC: PUC(PIPELINE& UNROLL conflict)",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply PUC fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: In HLS (High-Level Synthesis), the PUC (PIPELINE & UNROLL Conflict) error occurs when both"
+      ],
+      "bottleneck_kinds": [
+        "compile_error",
+        "pragma_misuse",
+        "synthesis_failure",
+        "undeclared_identifier"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "pragma-bug",
+        "compile",
+        "repair",
+        "hls-pragma",
+        "puc",
+        "chathls-catalog"
+      ],
+      "template": "// Prefer: UNROLL innermost fully, or PIPELINE innermost only \u2014 not both conflicting on parent/child."
+    },
+    {
+      "id": "chathls-pragma-tmb",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_pragma_bug_database",
+      "pattern": "ChatHLS catalog error TMB (TMB(Type Mismatch Bug)). Related: see catalog. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "TMB = type mismatch between arguments, returns, or ap_fixed/int conversions. Cast explicitly or unify typedefs; keep HLS-friendly fixed types consistent across caller/callee.",
+      "required_steps": [
+        "identify whether the failure matches error type TMB: TMB(Type Mismatch Bug)",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply TMB fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: The TMB (Type Mismatch Bug) error occurs in High-Level Synthesis (HLS) when there are operations involving incompatible data types, leading to ambiguity or errors during synthesis. This typically happens when arithmetic "
+      ],
+      "bottleneck_kinds": [
+        "compile_error",
+        "pragma_misuse",
+        "synthesis_failure",
+        "undeclared_identifier"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "pragma-bug",
+        "compile",
+        "repair",
+        "hls-pragma",
+        "tmb",
+        "chathls-catalog"
+      ],
+      "template": "// Use consistent t_ap_fixed (or cast) at call boundaries; avoid mixing float/double/ap_fixed silently."
+    },
+    {
+      "id": "chathls-pragma-unp",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_pragma_bug_database",
+      "pattern": "ChatHLS catalog error UNP (UNP(Unkown HLS Pragma ignored)). Related: see catalog. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "UNP = unknown/ignored HLS pragma (typo, wrong spelling, unsupported form). Correct to a documented Vitis HLS pragma spelling and placement.",
+      "required_steps": [
+        "identify whether the failure matches error type UNP: UNP(Unkown HLS Pragma ignored)",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply UNP fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: The \"Unknown HLS Pragma Ignored\" (UNP) error occurs when an HLS pragma is used incorrectly or in an unsupported format, causing the compiler to ignore it. This can lead to performance degradation or unmet design constrai"
+      ],
+      "bottleneck_kinds": [
+        "compile_error",
+        "pragma_misuse",
+        "synthesis_failure",
+        "undeclared_identifier"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "pragma-bug",
+        "compile",
+        "repair",
+        "hls-pragma",
+        "unp",
+        "chathls-catalog"
+      ],
+      "template": "// BAD: #pragma HLS pipelne  / ARRAY_PARTITON\n// GOOD: #pragma HLS PIPELINE II=1 / ARRAY_PARTITION"
+    },
+    {
+      "id": "chathls-pragma-urm",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_pragma_bug_database",
+      "pattern": "ChatHLS catalog error URM (URM(UNROOL Misplace)). Related: see catalog. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "URM = UNROLL misplaced (on wrong loop or outside loop). Place UNROLL on the loop whose iterations should be parallelized; usually the innermost independent loop, matching partition factors.",
+      "required_steps": [
+        "identify whether the failure matches error type URM: URM(UNROOL Misplace)",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply URM fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: The URM (UNROLL Misplace) error occurs when the #pragma HLS unroll directive is improperly applied in High-Level Synthesis (HLS) code. This error typically arises when the unroll pragma is applied to constructs other tha"
+      ],
+      "bottleneck_kinds": [
+        "compile_error",
+        "pragma_misuse",
+        "synthesis_failure",
+        "undeclared_identifier"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "pragma-bug",
+        "compile",
+        "repair",
+        "hls-pragma",
+        "urm",
+        "chathls-catalog"
+      ],
+      "template": "for (int k = 0; k < N; ++k) {\n#pragma HLS UNROLL factor=4\n  ...\n}"
+    },
+    {
+      "id": "chathls-pragma-uui",
+      "kind": "repair_rule",
+      "confidence": "high",
+      "origin": "chathls_pragma_bug_database",
+      "pattern": "ChatHLS catalog error UUI (UUI(Use of Undeclared Identifier)). Related: see catalog. Trigger when synthesis/csim/cosim logs or code review match this class.",
+      "strategy": "UUI = undeclared identifier. Include the defining header, or declare/typedef the symbol before use. Distinct from HFM only when the include exists but the name is still wrong/typoed.",
+      "required_steps": [
+        "identify whether the failure matches error type UUI: UUI(Use of Undeclared Identifier)",
+        "compare the failing pragma/code pattern against the known bug and correct examples",
+        "apply the minimal fix for this error type only \u2014 do not mix with sibling error classes",
+        "re-run csim/csynth (and cosim when required) to confirm the class is cleared"
+      ],
+      "guards": [
+        "only apply UUI fixes when this error class is actually present",
+        "do not insert unrelated pragmas just because this error type exists in the catalog",
+        "keep functional semantics identical unless the catalog example requires a structural rewrite",
+        "catalog note: The \"Use of Undeclared Identifier\" (UUI) error occurs when a variable or identifier is referenced in the code without being properly declared in the current or accessible scope. This can happen due to missing declaration"
+      ],
+      "bottleneck_kinds": [
+        "compile_error",
+        "pragma_misuse",
+        "synthesis_failure",
+        "undeclared_identifier"
+      ],
+      "applicable_versions": [
+        "2023.2",
+        "2022.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "pragma-bug",
+        "compile",
+        "repair",
+        "hls-pragma",
+        "uui",
+        "chathls-catalog"
+      ],
+      "template": "// ERROR: unknown type name t_ap_fixed \u2192 include header that defines it, or add the typedef."
+    }
+  ]
+}

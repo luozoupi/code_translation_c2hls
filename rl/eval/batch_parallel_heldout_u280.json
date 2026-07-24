@@ -1,0 +1,31 @@
+{
+  "job_prefix": "bphdout",
+  "combined_hls_nodes": true,
+  "synth_nodes_per_variant": 3,
+  "synth_workers_per_node": 1,
+  "cosim_nodes_per_variant": 0,
+  "cosim_workers_per_node": 0,
+  "worker_cpus": 8,
+  "worker_mem_gb": 32,
+  "gpu_policy": "always_on",
+  "cosim_timeout_s": 7200,
+  "bench_order": "listed",
+  "bench_seeding": "listed",
+  "max_inflight_benches": 3,
+  "poll_sec": 2.0,
+  "coordinator_poll_sec": 15.0,
+  "pilot": {
+    "variant": "tier_b_aav_n",
+    "workflow": "tier_b_flash",
+    "corpus": "tier_B_ready",
+    "benches": [
+      "machsuite_viterbi",
+      "machsuite_nw",
+      "machsuite_spmv_crs"
+    ],
+    "failure_policy": "ignore",
+    "model": "REPLACE_ME",
+    "turns": 4
+  },
+  "notes": "Held-out A/B: only tier_B_ready MachSuite twins (val/test). HLSFactory names are not in tier_B_ready."
+}

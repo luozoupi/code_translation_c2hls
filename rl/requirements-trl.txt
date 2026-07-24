@@ -1,0 +1,17 @@
+# Offline SFT → DPO training stack (separate from vLLM serve envs).
+# Install into a dedicated venv on a GPU node after loading CUDA + Python modules.
+torch
+transformers>=4.51.0
+accelerate>=1.0.0
+datasets>=3.0.0
+peft>=0.14.0
+trl>=0.19.0
+bitsandbytes>=0.45.0
+sentencepiece
+protobuf
+einops
+# Devstral / Mistral chat templates
+mistral_common>=1.8.6
+# Optional: faster downloads
+hf_transfer
+huggingface_hub

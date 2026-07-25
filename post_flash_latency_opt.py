@@ -383,6 +383,8 @@ Given a latency analysis pack and the current kernel, produce a **concise struct
 - Prefer pipeline/II fixes before large unroll/partition when utilization is high.
 - Respect the device budget constraint.
 - No full kernel rewrites in the plan — only actionable edits.
+- When suggesting INTERFACE edits: keep each `#pragma HLS` on one line (no `\\` continuations);
+  never use `data_width=` on INTERFACE (use `max_widen_bitwidth=` for m_axi widening).
 """
 
 _PLAN_USER = """## Latency analysis pack
@@ -411,6 +413,9 @@ Apply the given latency optimization plan to the kernel exactly.
 
 ## Rules
 - Preserve the exact top-level `extern "C"` signature, parameter list, array shapes, and all existing `#pragma HLS INTERFACE` lines.
+- Keep every `#pragma HLS ...` on a **single line** (never use `\\` line continuations).
+- Never introduce `data_width=` on `#pragma HLS INTERFACE` (invalid in Vitis HLS). Use
+  `max_widen_bitwidth=` when requesting a wider m_axi bus.
 - Follow the plan — do not re-diagnose from scratch or make unrelated changes.
 - Label loops you touch with descriptive names.
 - Stay within the device budget; avoid large unroll/partition when the plan warns of resource pressure.

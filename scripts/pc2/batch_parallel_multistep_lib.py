@@ -97,6 +97,8 @@ def _apply_multistep_common_env() -> None:
     # Intermediate synth jobs force RUN_COSIM=0 via configure_synth_env.
     os.environ.setdefault("C2HLS_COSIM_REQUIRED", "0")
     os.environ.setdefault("C2HLS_REFERENCE_COSIM", "0")
+    # Mitigate xelab SIGSEGV on PC2 compute nodes (see hls_eval C2HLS_COSIM_XELAB_MT_OFF).
+    os.environ.setdefault("C2HLS_COSIM_XELAB_MT_OFF", "1")
     os.environ.setdefault("C2HLS_MULTISTEP_OPT_STEPS", ",".join(DEFAULT_OPT_STEPS))
 
 

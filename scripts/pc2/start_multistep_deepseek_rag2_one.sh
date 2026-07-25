@@ -15,6 +15,10 @@ CORPUS=""
 STAMP="${BATCH_PARALLEL_STAMP:-$(date -u +%Y%m%d_%H%M%S)}"
 DRY_RUN=0
 ENDPOINT_URL_ARG=""
+PILOT=0
+# Prefer explicit --model; else DEEPSEEK_PROXY_MODEL; else deepseek-v4-flash.
+# Do not inherit a stale C2HLS_MODEL=deepseek-chat from the login shell.
+MODEL="${DEEPSEEK_PROXY_MODEL:-deepseek-v4-flash}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -22,6 +26,8 @@ while [[ $# -gt 0 ]]; do
     --stamp) shift; STAMP="$1"; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --endpoint-url) shift; ENDPOINT_URL_ARG="$1"; shift ;;
+    --pilot) PILOT=1; shift ;;
+    --model) shift; MODEL="$1"; shift ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -33,6 +39,10 @@ case "${CORPUS}" in
     exit 2
     ;;
 esac
+
+export C2HLS_MODEL="${MODEL}"
+export DEEPSEEK_PROXY_MODEL="${MODEL}"
+export BATCH_PARALLEL_EXTERNAL_MODEL="${MODEL}"
 
 SKILLS_JSON="${C2HLS_ROOT}/hls_full_optimization_skills_schema_1_1_package/skills_ii_target_miss_solutions_added(90skills)_gemm_flatten_v1.json"
 if [[ ! -f "${SKILLS_JSON}" ]]; then
@@ -59,27 +69,43 @@ case "${CORPUS}" in
       "${C2HLS_PYTHON:-python3}" "${C2HLS_ROOT}/scripts/prepare_chathls_ready.py" \
         --output-root "${READY_ROOT}"
     fi
-    export BATCH_PARALLEL_CONFIG="${SCRIPT_DIR}/batch_parallel_chathls_multistep_deepseek_u280.json"
+    if [[ "${PILOT}" -eq 1 ]]; then
+      export BATCH_PARALLEL_CONFIG="${SCRIPT_DIR}/batch_parallel_chathls_multistep_pilot_u280.json"
+      export BATCH_PARALLEL_ARTIFACT_PREFIX="batch_parallel_chathls_ms_pilot_v4f_lat"
+      export PC2_BATCH_JOB_PREFIX="bpchmsp"
+    else
+      export BATCH_PARALLEL_CONFIG="${SCRIPT_DIR}/batch_parallel_chathls_multistep_deepseek_u280.json"
+      export BATCH_PARALLEL_ARTIFACT_PREFIX="batch_parallel_chathls_ms_ds_rag2_lat"
+      export PC2_BATCH_JOB_PREFIX="bpchms"
+    fi
     export BATCH_PARALLEL_VARIANT="chathls_ms_aav_n"
-    export BATCH_PARALLEL_ARTIFACT_PREFIX="batch_parallel_chathls_ms_ds_rag2_lat"
-    export PC2_BATCH_JOB_PREFIX="bpchms"
     ;;
   tier_a)
-    export BATCH_PARALLEL_CONFIG="${SCRIPT_DIR}/batch_parallel_tier_a_multistep_deepseek_u280.json"
+    if [[ "${PILOT}" -eq 1 ]]; then
+      export BATCH_PARALLEL_CONFIG="${SCRIPT_DIR}/batch_parallel_tier_a_multistep_pilot_u280.json"
+      export BATCH_PARALLEL_ARTIFACT_PREFIX="batch_parallel_tier_a_ms_pilot_v4f_lat"
+      export PC2_BATCH_JOB_PREFIX="bptamsp"
+    else
+      export BATCH_PARALLEL_CONFIG="${SCRIPT_DIR}/batch_parallel_tier_a_multistep_deepseek_u280.json"
+      export BATCH_PARALLEL_ARTIFACT_PREFIX="batch_parallel_tier_a_ms_ds_rag2_lat"
+      export PC2_BATCH_JOB_PREFIX="bptams"
+    fi
     export BATCH_PARALLEL_VARIANT="tier_a_ms_aav_n"
-    export BATCH_PARALLEL_ARTIFACT_PREFIX="batch_parallel_tier_a_ms_ds_rag2_lat"
-    export PC2_BATCH_JOB_PREFIX="bptams"
     ;;
   tier_b)
-    export BATCH_PARALLEL_CONFIG="${SCRIPT_DIR}/batch_parallel_tier_b_multistep_deepseek_u280.json"
+    if [[ "${PILOT}" -eq 1 ]]; then
+      export BATCH_PARALLEL_CONFIG="${SCRIPT_DIR}/batch_parallel_tier_b_multistep_pilot_u280.json"
+      export BATCH_PARALLEL_ARTIFACT_PREFIX="batch_parallel_tier_b_ms_pilot_v4f_lat"
+      export PC2_BATCH_JOB_PREFIX="bptbmsp"
+    else
+      export BATCH_PARALLEL_CONFIG="${SCRIPT_DIR}/batch_parallel_tier_b_multistep_deepseek_u280.json"
+      export BATCH_PARALLEL_ARTIFACT_PREFIX="batch_parallel_tier_b_ms_ds_rag2_lat"
+      export PC2_BATCH_JOB_PREFIX="bptbms"
+    fi
     export BATCH_PARALLEL_VARIANT="tier_b_ms_aav_n"
-    export BATCH_PARALLEL_ARTIFACT_PREFIX="batch_parallel_tier_b_ms_ds_rag2_lat"
-    export PC2_BATCH_JOB_PREFIX="bptbms"
     ;;
 esac
 
-export C2HLS_MODEL=deepseek-chat
-export BATCH_PARALLEL_EXTERNAL_MODEL=deepseek-chat
 export C2HLS_COMBINED_HLS=1
 export C2HLS_PART=xcu280-fsvh2892-2L-e
 export C2HLS_CLOCK_NS=3.33
@@ -91,6 +117,8 @@ export C2HLS_MULTISTEP_OPT_STEPS="${C2HLS_MULTISTEP_OPT_STEPS:-tiling,pipeline,u
 export C2HLS_RUN_COSIM=0
 export C2HLS_REFERENCE_COSIM=0
 export C2HLS_COSIM_REQUIRED="${C2HLS_COSIM_REQUIRED:-0}"
+# Mitigate XSIM xelab SIGSEGV on HPC (cosim -setup + xelab -mt off).
+export C2HLS_COSIM_XELAB_MT_OFF="${C2HLS_COSIM_XELAB_MT_OFF:-1}"
 export C2HLS_CSIM_TIMEOUT="${C2HLS_CSIM_TIMEOUT:-600}"
 export C2HLS_SYNTH_TIMEOUT="${C2HLS_SYNTH_TIMEOUT:-7200}"
 export C2HLS_COSIM_TIMEOUT="${C2HLS_COSIM_TIMEOUT:-604800}"

@@ -21,6 +21,11 @@ When the kernel uses Xilinx fixed-point types (`ap_fixed`, `ap_uint`, `ap_int`),
 appropriate Vitis HLS headers (for example `#include <ap_fixed.h>`, `#include <ap_int.h>`).
 Phase A compile checks use g++ with Vitis HLS include paths available.
 
+Pragma formatting (MANDATORY):
+- Keep every `#pragma HLS ...` on a **single line**. Never use `\\` line continuations.
+- Never use `data_width=` on `#pragma HLS INTERFACE` (invalid in Vitis HLS). To request a wider
+  m_axi bus use `max_widen_bitwidth=` (e.g. `max_widen_bitwidth=512`) when appropriate.
+
 Always provide complete code in a ```cpp code fence."""
 
 # Zero-shot: short expert system instruction (no pragma list / fence coaching).
@@ -41,7 +46,10 @@ _TOP_FUNCTION_REQUIREMENT = """1. Use the **exact** testbench-visible top functi
    Put every `#pragma HLS INTERFACE` pragma on that single top only.
    Never rename the top away from metadata and never add a second `extern "C"` wrapper (no `kernel_*` + `workload` pair)."""
 
-_TOP_INTERFACE_REQUIREMENT = """2. Add HLS INTERFACE pragmas to that metadata top function:"""
+_TOP_INTERFACE_REQUIREMENT = """2. Add HLS INTERFACE pragmas to that metadata top function:
+   - Keep every `#pragma HLS ...` on a **single line** (never use `\\` line continuations).
+   - Never use `data_width=` on `#pragma HLS INTERFACE` (invalid in Vitis HLS). Use
+     `max_widen_bitwidth=` when requesting a wider m_axi bus."""
 
 _TOP_CHECKLIST = """- Match the exact metadata top function name, argument order, and `extern "C"` linkage from the benchmark guidance.
 - Single `extern "C"` top only: no duplicate wrappers, forwarding shells, or extra top-level exports."""
@@ -406,9 +414,24 @@ Key optimization techniques (in typical order):
 4. **Double buffering**: Use two sets of buffers and alternate between them to overlap load and compute.
 5. **Coalescing**: Use wide memory bus (ap_uint<512>) with burst transfers for higher memory throughput.
 
+## m_axi bundle assignment (MANDATORY in multistep)
+- Every top-level **pointer** port needs its own memory bundle: `bundle=gmem0`,
+  `bundle=gmem1`, `bundle=gmem2`, … assigned in **kernel argument order**.
+- **Never** put multiple pointer ports on `bundle=gmem` or reuse the same `gmemN`
+  for two different ports.
+- Keep all `s_axilite` ports on `bundle=control` (unchanged from baseline).
+- When splitting bundles, preserve legal adapter settings (`latency`, burst lengths,
+  outstanding counts) — ports sharing one bundle must match; distinct bundles may
+  each carry the same adapter values copied from the baseline.
+- **Pre-output INTERFACE check:** count top-level `m_axi` pointer ports; each must
+  have a unique `bundle=gmemN`. Fix any shared `bundle=gmem` before returning code.
+
 Rules:
 - Preserve the algorithm's correctness at each step.
 - Keep the single `extern "C"` testbench-visible top function with proper INTERFACE pragmas.
+- Keep every `#pragma HLS ...` on a **single line** (never use `\\` line continuations).
+- Never use `data_width=` on `#pragma HLS INTERFACE` (invalid in Vitis HLS). Use
+  `max_widen_bitwidth=` when requesting a wider m_axi bus.
 - Each step should build on the previous code, adding ONE optimization technique.
 - Label every `for` loop with a descriptive C loop label before the `for`
   (e.g. `load_row: for (...) { ... }`) so synthesis reports name loops clearly.
@@ -452,7 +475,8 @@ Tiling means:
 - Process data in tiles/chunks of a reasonable size (e.g., 256 elements)
 - The compute phase should operate on local buffers instead of directly on AXI memory
 
-Keep all existing INTERFACE pragmas on the single testbench-visible top function.
+Keep the single testbench-visible top function. For every `m_axi` pointer port use a
+**distinct** `bundle=gmem0`, `gmem1`, … (never shared `bundle=gmem`).
 
 Current synthesis report:
 {synth_report}
@@ -478,6 +502,7 @@ Pipeline means:
 - Add `#pragma HLS LOOP_TRIPCOUNT min=N max=N` for variable-bound loops
 
 Do NOT change the algorithmic structure. Only add pipeline/partition/dependence pragmas.
+Keep distinct `bundle=gmem0/gmem1/…` on each `m_axi` pointer port (never shared `gmem`).
 
 Current synthesis report:
 {synth_report}
@@ -503,6 +528,7 @@ Unroll means:
 - Focus on the dimension/feature loops that can benefit from data parallelism
 
 Do NOT change the algorithmic structure. Only add unroll pragmas and adjust array partitioning.
+Keep distinct `bundle=gmem0/gmem1/…` on each `m_axi` pointer port (never shared `gmem`).
 
 Current synthesis report:
 {synth_report}
@@ -529,6 +555,7 @@ Double buffering means:
 
 The load() and compute() functions should accept a flag parameter to select buffers.
 Keep all existing pipeline/partition pragmas.
+Keep distinct `bundle=gmem0/gmem1/…` on each `m_axi` pointer port (never shared `gmem`).
 
 CORRECTNESS REQUIREMENTS — double buffering must NOT change observable output:
 1. The total number of compute steps and their input/output mapping must be identical to
@@ -592,6 +619,7 @@ CORRECTNESS REQUIREMENTS — coalescing changes the memory access schedule, NOT 
    the prompt explicitly permits wide ABI for this benchmark variant.
 
 Keep all existing double-buffering, pipeline, and unroll optimizations.
+Keep distinct `bundle=gmem0/gmem1/…` on each `m_axi` pointer port (never shared `gmem`).
 
 Current synthesis report:
 {synth_report}

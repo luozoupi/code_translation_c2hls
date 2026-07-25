@@ -2,6 +2,8 @@
 HLS evaluation utilities: run Vitis HLS synthesis and parse reports.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import csv
@@ -54,10 +56,14 @@ logging.basicConfig(
 #                         Extra args appended to cosim_design (e.g.
 #                         "-disable_deadlock_detection").
 #   C2HLS_COSIM_XELAB_MT_OFF
-#                         When 1/true: run cosim_design -setup, inject
+#                         Default ON (1). Run cosim_design -setup, inject
 #                         ``xelab -mt off`` into run_xsim.sh, then execute
 #                         sim.sh. Mitigates XSIM 43-3316 SIGSEGV on large
 #                         elaborations (absolute-path xelab ignores PATH wrappers).
+#                         Set to 0/false to disable.
+#                         Note: -setup leaves *_cosim.rpt / lat.rpt stale; cycle
+#                         parsing falls back to sim/**/*.result.lat.rb, and pass
+#                         may be inferred from measured cycles + clean xsim.
 #   C2HLS_COSIM_COMPACT_LOGS
 #                         When enabled (default), replace oversized Vitis/XSim
 #                         work-dir logs (hls_run_tcl.log, xsim.log) with a
@@ -108,7 +114,7 @@ DEFAULT_COSIM_EXTRA_ARGS = os.getenv("C2HLS_COSIM_EXTRA_ARGS", "").strip()
 
 
 def _cosim_xelab_mt_off_enabled() -> bool:
-    raw = os.getenv("C2HLS_COSIM_XELAB_MT_OFF", "0").strip().lower()
+    raw = os.getenv("C2HLS_COSIM_XELAB_MT_OFF", "1").strip().lower()
     return raw in {"1", "true", "yes", "on"}
 
 
@@ -124,17 +130,32 @@ VITIS_USER_HOME_ENV = "C2HLS_VITIS_USER_HOME"
 
 
 def _vitis_jobs() -> int:
-    """Parallel HLS/csynth/cosim jobs (config_compile -jobs / -XsimJobs)."""
-    for key in ("C2HLS_VITIS_JOBS", "SLURM_CPUS_PER_TASK"):
-        raw = os.getenv(key, "").strip()
-        if not raw:
-            continue
+    """Parallel HLS/csynth/cosim jobs (config_compile -jobs / -XsimJobs).
+
+    Prefer explicit ``C2HLS_VITIS_JOBS``. Do **not** auto-use
+    ``SLURM_CPUS_PER_TASK`` unless ``C2HLS_VITIS_JOBS_FROM_SLURM=1`` — PC2
+    Vitis HLS 2023.2 rejects ``config_compile -jobs``.
+    """
+    raw = os.getenv("C2HLS_VITIS_JOBS", "").strip()
+    if raw:
         try:
             jobs = int(raw)
         except ValueError:
-            continue
+            jobs = 0
         if jobs > 0:
             return jobs
+    from_slurm = os.getenv("C2HLS_VITIS_JOBS_FROM_SLURM", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    if from_slurm:
+        raw = os.getenv("SLURM_CPUS_PER_TASK", "").strip()
+        if raw:
+            try:
+                jobs = int(raw)
+            except ValueError:
+                jobs = 0
+            if jobs > 0:
+                return jobs
     return 1
 
 
@@ -1169,6 +1190,9 @@ exit
                 }
 
     log_lower = log.lower()
+    # Prefer official lat.rpt; MT_OFF (-setup) often leaves it missing/stale and
+    # only writes sim/**/*.result.lat.rb after external sim.sh.
+    kernel_runtime_cycles = _parse_lat_rpt_cycles(work_dir, proj_name)
     passed = (
         "cosim done with 0 errors" in log_lower
         or "cosim_design finished successfully" in log_lower
@@ -1182,14 +1206,25 @@ exit
         or "child killed" in log_lower
         or "undefined symbol" in log_lower
         or "ld.lld" in log_lower
+        or "mismatch" in log_lower
     )
+    # Full cosim_design rewrites reports + emits PASS. The MT_OFF path runs
+    # sim.sh outside HLS, so those strings may never appear even when RTL
+    # finished and cycles landed in *.result.lat.rb.
+    if (
+        not passed
+        and xelab_mt_off
+        and kernel_runtime_cycles is not None
+        and not has_error
+        and (
+            "exiting xsim" in log_lower
+            or "$finish" in log
+            or "rtl simulation : 1 / 1" in log_lower
+        )
+    ):
+        passed = True
     success = passed and not has_error
 
-    # Vitis writes the cycle count to sim/report/verilog/lat.rpt. We pull
-    # $TOTAL_EXECUTE_TIME from there per the JSONL schema's rtl_sim contract;
-    # without this the cosim result is just pass/fail and downstream tools
-    # have no way to compare RTL-level performance.
-    kernel_runtime_cycles = _parse_lat_rpt_cycles(work_dir, proj_name)
     kernel_clock_freq_mhz = 1000.0 / clock_ns if clock_ns else None
     kernel_runtime_us = None
     if kernel_runtime_cycles is not None and kernel_clock_freq_mhz:
@@ -1715,35 +1750,58 @@ def run_hw_emu_via_nova(
     }
 
 
-def _parse_lat_rpt_cycles(work_dir: str, proj_name: str = "hls_proj") -> "int | None":
-    """Pull $TOTAL_EXECUTE_TIME from a Vitis cosim lat.rpt.
+def _parse_total_execute_time_cycles(text: str) -> "int | None":
+    """Parse ``$TOTAL_EXECUTE_TIME = "N"`` from a Vitis latency report body."""
+    m = re.search(r'\$TOTAL_EXECUTE_TIME\s*=\s*"([^"]+)"', text)
+    if not m:
+        return None
+    try:
+        return round(float(m.group(1)))
+    except ValueError:
+        return None
 
-    Vitis writes lat.rpt at sim/report/verilog/lat.rpt under the solution
-    directory; on some flows it ends up under .../verilog/ or .../vhdl/.
-    We search the work_dir tree for any lat.rpt and return the cycle count
-    from the first one that parses cleanly. Returns None if not found.
+
+def _parse_lat_rpt_cycles(work_dir: str, proj_name: str = "hls_proj") -> "int | None":
+    """Pull measured cosim cycles from Vitis latency reports.
+
+    Preference order (first clean parse wins):
+      1. ``**/lat.rpt`` — written by a full ``cosim_design`` into
+         ``sim/report/verilog/`` (or nearby).
+      2. ``**/*.result.lat.rb`` — written by xsim when ``cosim_design -setup``
+         + external ``sim.sh`` (MT_OFF path) never refreshes ``lat.rpt``.
+
+    Returns None if neither source is present/parseable.
     """
     if not work_dir:
         return None
     root = os.path.join(work_dir, proj_name) if proj_name else work_dir
     if not os.path.isdir(root):
         root = work_dir
-    pattern = re.compile(r'\$TOTAL_EXECUTE_TIME\s*=\s*"([^"]+)"')
+
+    lat_rb_candidates: list[str] = []
     for cur, _dirs, files in os.walk(root):
-        if "lat.rpt" not in files:
-            continue
+        if "lat.rpt" in files:
+            try:
+                with open(
+                    os.path.join(cur, "lat.rpt"), "r", encoding="utf-8", errors="ignore"
+                ) as f:
+                    cycles = _parse_total_execute_time_cycles(f.read())
+            except OSError:
+                cycles = None
+            if cycles is not None:
+                return cycles
+        for name in files:
+            if name.endswith(".result.lat.rb"):
+                lat_rb_candidates.append(os.path.join(cur, name))
+
+    for path in sorted(lat_rb_candidates):
         try:
-            with open(os.path.join(cur, "lat.rpt"), "r", encoding="utf-8", errors="ignore") as f:
-                text = f.read()
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                cycles = _parse_total_execute_time_cycles(f.read())
         except OSError:
             continue
-        m = pattern.search(text)
-        if not m:
-            continue
-        try:
-            return round(float(m.group(1)))
-        except ValueError:
-            continue
+        if cycles is not None:
+            return cycles
     return None
 
 

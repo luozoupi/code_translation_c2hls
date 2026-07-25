@@ -32,9 +32,14 @@ class HlsEvalCosimTclTests(unittest.TestCase):
 
     def test_vitis_jobs_from_slurm_cpus(self) -> None:
         prev_jobs = os.environ.pop("C2HLS_VITIS_JOBS", None)
+        prev_from = os.environ.pop("C2HLS_VITIS_JOBS_FROM_SLURM", None)
         prev_slurm = os.environ.get("SLURM_CPUS_PER_TASK")
         try:
             os.environ["SLURM_CPUS_PER_TASK"] = "16"
+            # Opt-in required: PC2 Vitis 2023.2 rejects config_compile -jobs.
+            self.assertEqual(_vitis_jobs(), 1)
+            self.assertEqual(_config_compile_jobs_tcl(), "")
+            os.environ["C2HLS_VITIS_JOBS_FROM_SLURM"] = "1"
             self.assertEqual(_vitis_jobs(), 16)
             self.assertEqual(_config_compile_jobs_tcl(), "config_compile -jobs 16\n")
             self.assertEqual(
@@ -46,6 +51,10 @@ class HlsEvalCosimTclTests(unittest.TestCase):
                 os.environ.pop("C2HLS_VITIS_JOBS", None)
             else:
                 os.environ["C2HLS_VITIS_JOBS"] = prev_jobs
+            if prev_from is None:
+                os.environ.pop("C2HLS_VITIS_JOBS_FROM_SLURM", None)
+            else:
+                os.environ["C2HLS_VITIS_JOBS_FROM_SLURM"] = prev_from
             if prev_slurm is None:
                 os.environ.pop("SLURM_CPUS_PER_TASK", None)
             else:

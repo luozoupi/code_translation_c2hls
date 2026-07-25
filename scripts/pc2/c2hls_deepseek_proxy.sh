@@ -76,17 +76,19 @@ fi
 
 # start_deepseek_queue_proxy.sh writes deepseek_endpoint.json (ChatHLS shape);
 # c2hls's external_llm campaigns read llm_endpoint.json, so translate here.
-python3 - "${CAMPAIGN_DIR}" <<'PY'
+MODEL="${DEEPSEEK_PROXY_MODEL:-${C2HLS_MODEL:-deepseek-v4-flash}}"
+python3 - "${CAMPAIGN_DIR}" "${MODEL}" <<'PY'
 import json
 import sys
 import time
 from pathlib import Path
 
 root = Path(sys.argv[1])
+model = sys.argv[2]
 ds = json.loads((root / "deepseek_endpoint.json").read_text())
 endpoint = {
     "url": ds["url"],
-    "model": "deepseek-chat",
+    "model": ds.get("model") or model,
     "job_id": None,
     "borrowed": True,
     "external_llm": True,

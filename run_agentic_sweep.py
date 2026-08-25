@@ -24,7 +24,13 @@ Use environment filters:
   C2HLS_SWEEP_STRATEGY=flash
   C2HLS_SWEEP_SKILL_MODES=off,on
   C2HLS_SWEEP_COSIM_REQUIRED=0
+  C2HLS_SWEEP_QOR_DESIGN_SWEEP=1
+  C2HLS_SWEEP_QOR_MAX_KNOBS=4
+  C2HLS_SWEEP_QOR_MAX_CANDIDATES=8
+  C2HLS_SWEEP_QOR_INTERACTIONS=1
+  C2HLS_SWEEP_SYNTHESIS_EVAL_BUDGET=13  # optional explicit combined cap
   C2HLS_SWEEP_TMP_ROOT=/mnt/data/luo00466/tmp
+  C2HLS_SWEEP_RESULTS_ROOT=/mnt/data2/luo00466/c2hls_rl/results_sweeps
 """
 
 from __future__ import annotations
@@ -53,7 +59,10 @@ from reference_isolation import audit_history_file
 
 STAMP = os.getenv("C2HLS_SWEEP_STAMP") or datetime.now().strftime("%Y%m%d_%H%M%S")
 BENCHMARKS_DIR = Path(os.getenv("C2HLS_SWEEP_BENCHMARKS_DIR", str(REPO / "benchmarks")))
-OUT_ROOT = REPO / "results_sweeps" / f"agentic_no_streamcluster_{STAMP}"
+RESULTS_BASE = Path(
+    os.getenv("C2HLS_SWEEP_RESULTS_ROOT", str(REPO / "results_sweeps"))
+).expanduser()
+OUT_ROOT = RESULTS_BASE / f"agentic_no_streamcluster_{STAMP}"
 OUT_JSONL = REPO / "artifacts" / f"agentic_no_streamcluster_{STAMP}.jsonl"
 SUMMARY_JSON = REPO / "artifacts" / f"agentic_no_streamcluster_{STAMP}.summary.json"
 SUMMARY_MD = REPO / "artifacts" / f"agentic_no_streamcluster_{STAMP}.md"
@@ -137,6 +146,38 @@ def _set_default_env() -> None:
     os.environ.setdefault("C2HLS_CANDIDATES_PER_STEP", os.getenv("C2HLS_SWEEP_CANDIDATES_PER_STEP", "5"))
     os.environ.setdefault("C2HLS_ATTEMPTS_PER_CANDIDATE", os.getenv("C2HLS_SWEEP_ATTEMPTS_PER_CANDIDATE", "5"))
     os.environ.setdefault("C2HLS_EXHAUSTIVE_CANDIDATE_ATTEMPTS", os.getenv("C2HLS_SWEEP_EXHAUSTIVE_CANDIDATE_ATTEMPTS", "1"))
+    os.environ.setdefault(
+        "C2HLS_QOR_DESIGN_SWEEP",
+        os.getenv("C2HLS_SWEEP_QOR_DESIGN_SWEEP", "0"),
+    )
+    os.environ.setdefault(
+        "C2HLS_QOR_SWEEP_MAX_KNOBS",
+        os.getenv("C2HLS_SWEEP_QOR_MAX_KNOBS", "4"),
+    )
+    os.environ.setdefault(
+        "C2HLS_QOR_SWEEP_MAX_CANDIDATES",
+        os.getenv("C2HLS_SWEEP_QOR_MAX_CANDIDATES", "8"),
+    )
+    os.environ.setdefault(
+        "C2HLS_QOR_SWEEP_VALUES",
+        os.getenv("C2HLS_SWEEP_QOR_VALUES", "1,2,4,8,16"),
+    )
+    os.environ.setdefault(
+        "C2HLS_QOR_SWEEP_II_VALUES",
+        os.getenv("C2HLS_SWEEP_QOR_II_VALUES", "1,2,4,8"),
+    )
+    os.environ.setdefault(
+        "C2HLS_QOR_SWEEP_TILE_VALUES",
+        os.getenv("C2HLS_SWEEP_QOR_TILE_VALUES", "4,8,16,32,64"),
+    )
+    os.environ.setdefault(
+        "C2HLS_QOR_SWEEP_INTERACTIONS",
+        os.getenv("C2HLS_SWEEP_QOR_INTERACTIONS", "0"),
+    )
+    os.environ.setdefault(
+        "C2HLS_QOR_SWEEP_MAX_INTERACTIONS",
+        os.getenv("C2HLS_SWEEP_QOR_MAX_INTERACTIONS", "2"),
+    )
     os.environ.setdefault("C2HLS_REFERENCE_VALIDATE_MODE", os.getenv("C2HLS_SWEEP_REFERENCE_VALIDATE_MODE", "trusted_external"))
     os.environ.setdefault(
         "C2HLS_REFERENCE_CACHE_DIR",
@@ -165,6 +206,75 @@ def _set_default_env() -> None:
         # therefore disabled for reference-isolated sweeps.
         os.environ["C2HLS_FEEDBACK_LLM"] = "0"
     os.environ["C2HLS_HW_EMU_FINAL"] = os.getenv("C2HLS_SWEEP_HW_EMU", os.getenv("C2HLS_HW_EMU_FINAL", "0"))
+
+
+def _apply_post_profile_cosim_policy(profile: dict[str, Any]) -> None:
+    """Honor an explicit CSIM/CSYNTH-only sweep after profile defaults.
+
+    The paper profile normally requests selected-candidate and baseline COSIM
+    even though ``C2HLS_COSIM_REQUIRED`` is false.  A sweep that explicitly
+    excludes COSIM needs to disable every one of those independent entry
+    points after the profile has been applied.
+    """
+
+    if _env_enabled("C2HLS_SWEEP_REFERENCE_AUDIT_ADVISORY"):
+        os.environ["C2HLS_REFERENCE_BLIND_FAIL_ON_LEAK"] = "0"
+        profile.setdefault("post_profile_overrides", {})[
+            "reference_isolation_audit"
+        ] = "advisory"
+    if not _env_enabled("C2HLS_SWEEP_DISABLE_ALL_COSIM"):
+        return
+    overrides = {
+        "C2HLS_SWEEP_COSIM_REQUIRED": "0",
+        "C2HLS_COSIM_REQUIRED": "0",
+        "C2HLS_COSIM_SELECTED_ONLY": "0",
+        "C2HLS_FORCE_SELECTED_COSIM": "0",
+        "C2HLS_REFERENCE_COSIM": "0",
+        "C2HLS_REFERENCE_COSIM_SELECTED_ONLY": "0",
+        "C2HLS_REFERENCE_COSIM_BASELINE": "0",
+        "C2HLS_REFERENCE_CACHE_REQUIRE_COSIM": "0",
+    }
+    os.environ.update(overrides)
+    profile["post_profile_overrides"] = {
+        **profile.get("post_profile_overrides", {}),
+        "csim_csynth_only": dict(overrides),
+    }
+
+
+def _apply_post_profile_qor_budget(profile: dict[str, Any]) -> None:
+    """Reserve bounded synthesis capacity for the additive QoR experiment."""
+
+    if not _env_enabled("C2HLS_QOR_DESIGN_SWEEP"):
+        return
+    explicit_total = os.getenv("C2HLS_SWEEP_SYNTHESIS_EVAL_BUDGET", "").strip()
+    try:
+        if explicit_total:
+            total_budget = int(explicit_total)
+            source = "C2HLS_SWEEP_SYNTHESIS_EVAL_BUDGET"
+        else:
+            base_budget = int(
+                os.getenv("C2HLS_SYNTHESIS_EVAL_BUDGET", "5") or "5"
+            )
+            design_budget = int(
+                os.getenv("C2HLS_QOR_SWEEP_MAX_CANDIDATES", "8") or "8"
+            )
+            total_budget = base_budget + design_budget
+            source = "base_candidate_budget_plus_qor_candidate_budget"
+    except ValueError as exc:
+        raise ValueError("QoR synthesis budgets must be positive integers") from exc
+    if total_budget <= 0:
+        raise ValueError("QoR total synthesis budget must be positive")
+    os.environ["C2HLS_SYNTHESIS_EVAL_BUDGET"] = str(total_budget)
+    profile["post_profile_overrides"] = {
+        **profile.get("post_profile_overrides", {}),
+        "qor_synthesis_budget": {
+            "effective_total": total_budget,
+            "source": source,
+            "qor_max_candidates": os.getenv(
+                "C2HLS_QOR_SWEEP_MAX_CANDIDATES", "8"
+            ),
+        },
+    }
 
 
 def _discover_benches() -> list[tuple[str, Path]]:
@@ -225,20 +335,41 @@ def _selected_models() -> list[tuple[str, str]]:
     return selected or [("haiku", MODELS["haiku"])]
 
 
-def _selected_skill_modes() -> list[tuple[str, bool | None]]:
+def _selected_skill_modes() -> list[tuple[str, str | None]]:
     raw = os.getenv("C2HLS_SWEEP_SKILL_MODES", "").strip()
     if not raw:
         raw = os.getenv("C2HLS_SWEEP_SKILLS", "").strip()
     if not raw:
         return [("default", None)]
-    items = ["off", "on"] if raw.lower() == "both" else _split_csv(raw)
-    out: list[tuple[str, bool | None]] = []
+    if raw.lower() == "all":
+        items = [
+            "skillless",
+            "matched",
+            "smart_best_fit",
+            "smart_exhaustive",
+            "all_positive",
+        ]
+    else:
+        items = ["skillless", "matched"] if raw.lower() == "both" else _split_csv(raw)
+    out: list[tuple[str, str | None]] = []
     for item in items:
         low = item.lower()
         if low in {"on", "skill_on", "skills_on", "1", "true", "yes"}:
-            out.append(("skill_on", True))
+            out.append(("matched", "matched"))
         elif low in {"off", "skill_off", "skills_off", "0", "false", "no"}:
-            out.append(("skill_off", False))
+            out.append(("skillless", "skillless"))
+        elif low in {"skillless", "no_skills", "no-skills", "none"}:
+            out.append(("skillless", "skillless"))
+        elif low in {"matched", "selective", "curated"}:
+            out.append(("matched", "matched"))
+        elif low in {"smart_best_fit", "smart-best-fit", "best_fit", "best-fit"}:
+            out.append(("smart_best_fit", "smart_best_fit"))
+        elif low in {"smart_exhaustive", "smart-exhaustive", "exhaustive"}:
+            out.append(("smart_exhaustive", "smart_exhaustive"))
+        elif low in {
+            "all_positive", "all-positive", "positive_all", "positive-all",
+        }:
+            out.append(("all_positive", "all_positive"))
         elif low in {"default", "auto"}:
             out.append(("default", None))
         else:
@@ -302,6 +433,11 @@ def _candidate_telemetry_contract(result: dict[str, Any]) -> dict[str, Any]:
     candidate_events = (
         synthesis.get("events") if isinstance(synthesis.get("events"), list) else []
     )
+    qor_events = (
+        synthesis.get("qor_design_events")
+        if isinstance(synthesis.get("qor_design_events"), list)
+        else []
+    )
     required_fields = {
         "candidate_evaluation_index",
         "cumulative_tokens",
@@ -336,6 +472,14 @@ def _candidate_telemetry_contract(result: dict[str, Any]) -> dict[str, Any]:
     selection_count = result.get("selected_winner_cosim_count")
     implementation_count = result.get("post_route_implementation_count")
     synthesis_count = synthesis.get("count")
+    llm_synthesis_count = result.get(
+        "llm_candidate_synthesis_evaluation_count",
+        synthesis.get("llm_candidate_synthesis_count", synthesis_count),
+    )
+    qor_synthesis_count = result.get(
+        "qor_synthesis_evaluation_count",
+        synthesis.get("qor_design_synthesis_count", 0),
+    )
     total_synthesis_calls = result.get("total_synthesis_calls")
     total_tool_calls = result.get("total_tool_calls")
     expected_total = (
@@ -356,6 +500,13 @@ def _candidate_telemetry_contract(result: dict[str, Any]) -> dict[str, Any]:
         and isinstance(synthesis_count, int)
         and not isinstance(synthesis_count, bool)
         and synthesis_count >= 0
+        and isinstance(llm_synthesis_count, int)
+        and not isinstance(llm_synthesis_count, bool)
+        and llm_synthesis_count >= 0
+        and isinstance(qor_synthesis_count, int)
+        and not isinstance(qor_synthesis_count, bool)
+        and qor_synthesis_count >= 0
+        and synthesis_count == llm_synthesis_count + qor_synthesis_count
         and isinstance(total_synthesis_calls, int)
         and not isinstance(total_synthesis_calls, bool)
         and isinstance(total_tool_calls, int)
@@ -363,12 +514,27 @@ def _candidate_telemetry_contract(result: dict[str, Any]) -> dict[str, Any]:
         and total_synthesis_calls == expected_total
         and total_tool_calls == expected_total
     )
+    qor_attribution_complete = (
+        qor_synthesis_count
+        == sum(
+            1
+            for event in qor_events
+            if isinstance(event, dict) and event.get("synthesis_ran") is True
+        )
+        and all(
+            isinstance(event, dict)
+            and event.get("qor_evaluation_index") == index
+            and event.get("producer_kind") == "deterministic_qor_sweep"
+            for index, event in enumerate(qor_events)
+        )
+    )
     complete = bool(
         synthesis.get("complete_candidate_event_stream") is True
         and joins_complete
         and usage.get("candidate_requests") == len(candidate_events)
         and usage.get("calls") == len(llm_events)
         and synthesis_attribution_complete
+        and qor_attribution_complete
         and (
             result.get("selected_winner_cosim_count") == 0
             or (
@@ -379,12 +545,15 @@ def _candidate_telemetry_contract(result: dict[str, Any]) -> dict[str, Any]:
         )
     )
     return {
-        "schema_version": "c2hls.agentic-candidate-telemetry.v1",
+        "schema_version": "c2hls.agentic-candidate-telemetry.v2",
         "complete": complete,
         "candidate_event_count": len(candidate_events),
         "llm_event_count": len(llm_events),
         "joins_complete": joins_complete,
         "synthesis_attribution_complete": synthesis_attribution_complete,
+        "qor_event_count": len(qor_events),
+        "qor_synthesis_count": qor_synthesis_count,
+        "qor_attribution_complete": qor_attribution_complete,
     }
 
 
@@ -439,6 +608,11 @@ def _summarize(data: dict[str, Any]) -> dict[str, Any]:
             "total_synthesis_calls": data.get("total_synthesis_calls"),
             "total_tool_calls": data.get("total_tool_calls"),
         },
+        "quality_repair": data.get("quality_repair"),
+        "qor_design_sweep": (
+            data.get("qor_design_sweep")
+            or (data.get("quality_repair") or {}).get("design_sweep")
+        ),
         "step_cycles": [
             {
                 "step": step.get("step_name"),
@@ -520,10 +694,21 @@ def _write_reports(
                 "C2HLS_SWEEP_CSIM_TIMEOUT",
                 "C2HLS_SWEEP_COSIM_TIMEOUT",
                 "C2HLS_SWEEP_COSIM_REQUIRED",
+                "C2HLS_SWEEP_DISABLE_ALL_COSIM",
+                "C2HLS_SWEEP_REFERENCE_AUDIT_ADVISORY",
                 "C2HLS_SWEEP_COSIM_TRACE_LEVEL",
                 "C2HLS_SWEEP_CANDIDATES_PER_STEP",
                 "C2HLS_SWEEP_ATTEMPTS_PER_CANDIDATE",
                 "C2HLS_SWEEP_EXHAUSTIVE_CANDIDATE_ATTEMPTS",
+                "C2HLS_SWEEP_SYNTHESIS_EVAL_BUDGET",
+                "C2HLS_SWEEP_QOR_DESIGN_SWEEP",
+                "C2HLS_SWEEP_QOR_MAX_KNOBS",
+                "C2HLS_SWEEP_QOR_MAX_CANDIDATES",
+                "C2HLS_SWEEP_QOR_VALUES",
+                "C2HLS_SWEEP_QOR_II_VALUES",
+                "C2HLS_SWEEP_QOR_TILE_VALUES",
+                "C2HLS_SWEEP_QOR_INTERACTIONS",
+                "C2HLS_SWEEP_QOR_MAX_INTERACTIONS",
                 "C2HLS_SWEEP_GT_PREPOP",
                 "C2HLS_SWEEP_BASELINE_ALIGN",
                 "C2HLS_SWEEP_REFERENCE_VALIDATE_MODE",
@@ -537,9 +722,12 @@ def _write_reports(
                 "C2HLS_SKILL_MODE",
                 "C2HLS_SKILL_PROMPT_MODE",
                 "C2HLS_SKILL_PROMPT_SCOPE",
+                "C2HLS_SKILL_LIBRARY_PATH",
                 "C2HLS_SKILL_LIBRARY_PERSIST",
                 "C2HLS_SKILL_LIBRARY_FROZEN",
                 "C2HLS_SKILL_UPDATE_STATS",
+                "C2HLS_SKILL_ROUTER_MAX_SKILLS",
+                "C2HLS_SKILL_ROUTER_MIN_SCORE",
                 "C2HLS_SYNTH_TIMEOUT",
                 "C2HLS_CSIM_TIMEOUT",
                 "C2HLS_COSIM_TIMEOUT",
@@ -557,8 +745,19 @@ def _write_reports(
                 "C2HLS_LLM_TEMPERATURE",
                 "C2HLS_LLM_TOP_P",
                 "C2HLS_LLM_SEED",
+                "C2HLS_DEEPSEEK_THINKING",
+                "C2HLS_DEEPSEEK_REASONING_EFFORT",
+                "C2HLS_XAI_REASONING_EFFORT",
                 "C2HLS_MODEL_REVISION",
                 "C2HLS_SYNTHESIS_EVAL_BUDGET",
+                "C2HLS_QOR_DESIGN_SWEEP",
+                "C2HLS_QOR_SWEEP_MAX_KNOBS",
+                "C2HLS_QOR_SWEEP_MAX_CANDIDATES",
+                "C2HLS_QOR_SWEEP_VALUES",
+                "C2HLS_QOR_SWEEP_II_VALUES",
+                "C2HLS_QOR_SWEEP_TILE_VALUES",
+                "C2HLS_QOR_SWEEP_INTERACTIONS",
+                "C2HLS_QOR_SWEEP_MAX_INTERACTIONS",
                 "C2HLS_REFERENCE_CACHE_DIR",
                 "C2HLS_REFERENCE_CACHE_REQUIRE_COSIM",
                 "C2HLS_SWEEP_RESUME",
@@ -617,6 +816,8 @@ def _write_reports(
 def main() -> int:
     _set_default_env()
     profile = apply_evaluation_profile()
+    _apply_post_profile_cosim_policy(profile)
+    _apply_post_profile_qor_budget(profile)
     from c2hls import run_benchmark_multistep
 
     benches = _discover_benches()
@@ -635,10 +836,20 @@ def main() -> int:
     )
 
     for label, model_id in models:
-        for skill_label, skill_enabled in skill_modes:
-            if skill_enabled is not None:
+        for skill_label, skill_scope in skill_modes:
+            if skill_scope is not None:
                 os.environ["C2HLS_SKILL_MODE"] = skill_label
-                os.environ["C2HLS_FORCE_SKILL_PROMPTS"] = "1" if skill_enabled else "0"
+                os.environ["C2HLS_FORCE_SKILL_PROMPTS"] = "1"
+                os.environ["C2HLS_SKILL_PROMPT_SCOPE"] = skill_scope
+                os.environ["C2HLS_SKILL_PROMPT_MODE"] = (
+                    "action_only"
+                    if skill_scope in {
+                        "smart_best_fit",
+                        "smart_exhaustive",
+                        "all_positive",
+                    }
+                    else "default"
+                )
             else:
                 os.environ.setdefault("C2HLS_SKILL_MODE", "default")
             run_label = label if skill_label == "default" else f"{label}_{skill_label}"
@@ -707,7 +918,7 @@ def main() -> int:
                             "run": {
                                 "model": model_id,
                                 "skill_mode": skill_label,
-                                "skill_prompts": bool(skill_enabled),
+                                "skill_prompts": skill_scope is not None,
                             },
                         }
                         result_json.write_text(json.dumps(result, indent=2) + "\n")
@@ -722,6 +933,7 @@ def main() -> int:
                             history_path,
                             benchmark_dir=bench_dir,
                             reference_data=(result or {}).get("reference_validation"),
+                            controller_data=result,
                         )
                     else:
                         reference_audit = {

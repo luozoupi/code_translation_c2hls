@@ -15,6 +15,7 @@ import copy
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 import subprocess
@@ -49,6 +50,18 @@ from hls_eval import (
     run_csim,
     run_hls_synthesis,
     run_native_testbench,
+)
+from qor_design_space import (
+    STEP_PREFERRED_KINDS,
+    build_interaction_candidates,
+    build_ofat_candidates,
+    code_sha256 as qor_code_sha256,
+    discover_qor_knobs,
+    extract_qor_metrics,
+    pareto_candidate_ids,
+    selection_rank as qor_selection_rank,
+    summarize_knob_trends,
+    winner_explanation,
 )
 
 load_dotenv()
@@ -92,6 +105,14 @@ DEFAULT_MODEL_ID = os.getenv("C2HLS_MODEL", "nvidia/OpenCodeReasoning-Nemotron-1
 # minimum score improvement (lower = better) required to accept a candidate.
 DEFAULT_QUALITY_REPAIR_TURNS = int(os.getenv("C2HLS_QUALITY_REPAIR_TURNS", "2"))
 QUALITY_SCORE_EPSILON = float(os.getenv("C2HLS_QUALITY_SCORE_EPSILON", "0.25"))
+QOR_DESIGN_SWEEP_ENV = "C2HLS_QOR_DESIGN_SWEEP"
+QOR_SWEEP_MAX_KNOBS_ENV = "C2HLS_QOR_SWEEP_MAX_KNOBS"
+QOR_SWEEP_MAX_CANDIDATES_ENV = "C2HLS_QOR_SWEEP_MAX_CANDIDATES"
+QOR_SWEEP_VALUES_ENV = "C2HLS_QOR_SWEEP_VALUES"
+QOR_SWEEP_II_VALUES_ENV = "C2HLS_QOR_SWEEP_II_VALUES"
+QOR_SWEEP_TILE_VALUES_ENV = "C2HLS_QOR_SWEEP_TILE_VALUES"
+QOR_SWEEP_INTERACTIONS_ENV = "C2HLS_QOR_SWEEP_INTERACTIONS"
+QOR_SWEEP_MAX_INTERACTIONS_ENV = "C2HLS_QOR_SWEEP_MAX_INTERACTIONS"
 PHASEB_MODE_ENV = "C2HLS_PHASEB_MODE"
 DEFAULT_PHASEB_MODE_SINGLE = "optimized"
 DEFAULT_PHASEB_MODE_MULTISTEP = "functional"
@@ -113,7 +134,17 @@ CORRECTNESS_BEFORE_SYNTH_ENV = "C2HLS_CORRECTNESS_BEFORE_SYNTH"
 FEASIBILITY_SELECTION_ENV = "C2HLS_FEASIBILITY_SELECTION"
 LLM_TEMPERATURE_ENV = "C2HLS_LLM_TEMPERATURE"
 LLM_TOP_P_ENV = "C2HLS_LLM_TOP_P"
+MAX_COMPLETION_TOKENS_ENV = "C2HLS_MAX_COMPLETION_TOKENS"
 LLM_SEED_ENV = "C2HLS_LLM_SEED"
+DEEPSEEK_THINKING_ENV = "C2HLS_DEEPSEEK_THINKING"
+DEEPSEEK_REASONING_EFFORT_ENV = "C2HLS_DEEPSEEK_REASONING_EFFORT"
+XAI_REASONING_EFFORT_ENV = "C2HLS_XAI_REASONING_EFFORT"
+PHASE_B_SEED_MANIFEST_ENV = "C2HLS_PHASE_B_SEED_MANIFEST"
+SKILL_EXPLICIT_IDS_ENV = "C2HLS_SKILL_EXPLICIT_IDS"
+SKILL_USAGE_DECLARATION_ENV = "C2HLS_SKILL_USAGE_DECLARATION"
+SKILL_EXHAUSTIVE_MAX_CANDIDATES_ENV = (
+    "C2HLS_SKILL_EXHAUSTIVE_MAX_CANDIDATES"
+)
 
 # Multistep regression guard: a step is rejected if its latency_ns or its
 # resource usage grew by this ratio vs the previous step. Defaults to 1.10
@@ -309,6 +340,51 @@ def _binary_status(passed: bool) -> str:
 
 def _env_flag(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _positive_env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a positive integer") from exc
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
+
+
+def _positive_env_int_list(name: str, default: str) -> tuple[int, ...]:
+    raw = os.getenv(name, default).strip()
+    try:
+        values = tuple(sorted({int(item.strip()) for item in raw.split(",") if item.strip()}))
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a comma-separated list of positive integers") from exc
+    if not values or any(value <= 0 for value in values):
+        raise ValueError(f"{name} must contain positive integers")
+    return values
+
+
+def _qor_design_sweep_enabled() -> bool:
+    return _env_flag(QOR_DESIGN_SWEEP_ENV)
+
+
+def _completion_token_limit(configured: Optional[int] = None) -> int:
+    raw = (
+        configured
+        if configured is not None
+        else os.getenv(MAX_COMPLETION_TOKENS_ENV, "8192")
+    )
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{MAX_COMPLETION_TOKENS_ENV} must be a positive integer"
+        ) from exc
+    if value <= 0:
+        raise ValueError(
+            f"{MAX_COMPLETION_TOKENS_ENV} must be a positive integer"
+        )
+    return value
 
 
 def _reference_blind_enabled() -> bool:
@@ -737,6 +813,7 @@ def _run_synth_csim_cosim(
     golden_output_text: str = "",
     golden_output_specs: Optional[dict] = None,
     log_prefix: str = "",
+    correctness_first_override: Optional[bool] = None,
 ) -> dict:
     """Synthesize HLS code, then optionally run csim and cosim.
 
@@ -749,7 +826,11 @@ def _run_synth_csim_cosim(
     csim/cosim are _summarize_test_result dicts (or None when skipped).
     """
     csim_summary = None
-    correctness_first = _env_flag(CORRECTNESS_BEFORE_SYNTH_ENV)
+    correctness_first = (
+        _env_flag(CORRECTNESS_BEFORE_SYNTH_ENV)
+        if correctness_first_override is None
+        else bool(correctness_first_override)
+    )
     if correctness_first and testbench_code and run_csim_check:
         if log_prefix:
             logging.info("%s Running correctness gate before synthesis (csim)...", log_prefix)
@@ -940,6 +1021,14 @@ def _llm_timeout_seconds(default: float = 600.0) -> float:
 def _is_hosted_openai_model(model_name: str) -> bool:
     model = (model_name or "").lower()
     return model.startswith(("gpt-", "o1", "o3", "o4", "codex-"))
+
+
+def _is_deepseek_model(model_name: str) -> bool:
+    return (model_name or "").lower().startswith("deepseek-")
+
+
+def _is_xai_model(model_name: str) -> bool:
+    return (model_name or "").lower().startswith("grok-")
 
 
 def _extract_struct_names(header_code: str) -> List[str]:
@@ -3352,24 +3441,21 @@ class SynthesisAgent(_AgentBase):
 
 
 class QualityRepairAgent(_AgentBase):
-    """Iterative LLM-driven candidate generation + accept/reject loop to
-    close the gen-vs-GT gap on rubric-tracked metrics."""
+    """LLM repair plus an optional deterministic QoR design-space search."""
     AGENT_NAME = "quality_repair"
     MODEL_ENV = QUALITY_REPAIR_MODEL_ENV
 
-    def run(self, ground_truth_report: dict,
-            initial_comparison: Optional[dict] = None) -> dict:
+    @staticmethod
+    def design_sweep_enabled() -> bool:
+        return _qor_design_sweep_enabled()
+
+    def _run_llm_repair(
+        self,
+        ground_truth_report: dict,
+        initial_comparison: Optional[dict],
+    ) -> dict:
         orch = self.orch
         summary = {"attempted": False, "applied": False, "attempts": []}
-        orch.quality_repair_result = summary
-
-        if (orch.quality_repair_turns <= 0
-                or not ground_truth_report
-                or not orch.synth_report
-                or not orch.hls_code):
-            summary["reason"] = "Quality repair disabled or missing reports"
-            return summary
-
         current_comparison = initial_comparison or compare_reports(
             orch.synth_report, ground_truth_report,
         )
@@ -3491,6 +3577,408 @@ class QualityRepairAgent(_AgentBase):
 
         summary["final_score"] = current_score
         summary["final_comparison"] = current_comparison
+        return summary
+
+    @staticmethod
+    def _qor_candidate_record(
+        payload: dict,
+        evaluation: dict,
+        *,
+        fixed_knob_values: dict[str, Any],
+    ) -> dict:
+        report = evaluation.get("report") or {}
+        feasibility = evaluation.get("feasibility") or {}
+        event = evaluation.get("event") or {}
+        selection_score = C2HLSOrchestrator._best_so_far_score(report)
+        changed_knobs = list(payload.get("changed_knobs") or [])
+        changed_ids = {
+            item.get("knob_id") for item in changed_knobs if item.get("knob_id")
+        }
+        effective_values = dict(fixed_knob_values)
+        for item in changed_knobs:
+            if item.get("knob_id"):
+                effective_values[item["knob_id"]] = item.get("to")
+        return {
+            "candidate_id": payload["candidate_id"],
+            "stage": payload.get("stage"),
+            "code_sha256": payload.get("code_sha256"),
+            "source_diff_sha256": payload.get("source_diff_sha256"),
+            "changed_knobs": changed_knobs,
+            "fixed_knob_values": {
+                knob_id: value
+                for knob_id, value in fixed_knob_values.items()
+                if knob_id not in changed_ids
+            },
+            "effective_knob_values": effective_values,
+            "status": (
+                "feasible"
+                if feasibility.get("feasible") is True
+                else event.get("failure_class") or "failed"
+            ),
+            "success": evaluation.get("success") is True,
+            "feasible": feasibility.get("feasible") is True,
+            "feasibility": dict(feasibility),
+            "csim": _sanitize_test_summary(evaluation.get("csim")),
+            "metrics": extract_qor_metrics(report),
+            "report_sha256": C2HLSOrchestrator._candidate_report_sha256(report),
+            "selection_score": (
+                selection_score if math.isfinite(selection_score) else None
+            ),
+            "error": str(evaluation.get("error") or ""),
+            "qor_evaluation_index": event.get("qor_evaluation_index"),
+        }
+
+    def run_design_sweep(self) -> dict:
+        """Run a frozen-parent, reference-blind local design experiment."""
+
+        orch = self.orch
+        summary: dict[str, Any] = {
+            "schema_version": "c2hls.qor-design-sweep.v1",
+            "enabled": self.design_sweep_enabled(),
+            "attempted": False,
+            "applied": False,
+            "reference_blind": True,
+            "objective": "minimum feasible latency_cycles_worst",
+            "cosim_policy": "not_run_during_design_sweep",
+            "candidates": [],
+        }
+        if not summary["enabled"]:
+            summary["reason"] = f"{QOR_DESIGN_SWEEP_ENV}=0"
+            return summary
+        if not orch.hls_code or not orch.synth_report:
+            summary["reason"] = "missing parent code or CSynth report"
+            return summary
+        if not orch.testbench_code:
+            summary["reason"] = "missing CSim testbench; refusing QoR mutation"
+            return summary
+        if not (
+            isinstance(orch.generated_csim, dict)
+            and orch.generated_csim.get("passed") is True
+        ):
+            summary["reason"] = "frozen parent lacks passing CSim evidence"
+            return summary
+
+        max_knobs = _positive_env_int(QOR_SWEEP_MAX_KNOBS_ENV, 4)
+        max_candidates = _positive_env_int(QOR_SWEEP_MAX_CANDIDATES_ENV, 8)
+        factor_values = _positive_env_int_list(
+            QOR_SWEEP_VALUES_ENV, "1,2,4,8,16"
+        )
+        ii_values = _positive_env_int_list(
+            QOR_SWEEP_II_VALUES_ENV, "1,2,4,8"
+        )
+        tile_values = _positive_env_int_list(
+            QOR_SWEEP_TILE_VALUES_ENV, "4,8,16,32,64"
+        )
+        interactions_enabled = _env_flag(QOR_SWEEP_INTERACTIONS_ENV)
+        max_interactions = (
+            min(
+                _positive_env_int(QOR_SWEEP_MAX_INTERACTIONS_ENV, 2),
+                max(0, max_candidates - 2),
+            )
+            if interactions_enabled
+            else 0
+        )
+        ofat_budget = max_candidates - max_interactions
+        parent_code = orch.hls_code
+        parent_hash = qor_code_sha256(parent_code)
+        parent_origin = dict(getattr(orch, "qor_parent_origin", {}) or {})
+        origin_step = str(parent_origin.get("step_name") or "").strip().lower()
+        origin_step = origin_step.replace("double_buffer", "doublebuffer")
+        preferred_kinds = STEP_PREFERRED_KINDS.get(origin_step, ())
+        knobs = discover_qor_knobs(
+            parent_code,
+            factor_values=factor_values,
+            ii_values=ii_values,
+            tile_values=tile_values,
+            stream_depth_values=factor_values,
+            max_knobs=max_knobs,
+            preferred_kinds=preferred_kinds,
+        )
+        fixed_values = {
+            knob.knob_id: (
+                knob.current_value
+                if knob.current_value is not None
+                else knob.current_label
+            )
+            for knob in knobs
+        }
+        parent_feasibility = _paper_candidate_feasibility(
+            orch.synth_report,
+            csim=orch.generated_csim,
+            correctness_required=bool(orch.testbench_code),
+            part=orch.part,
+            clock_ns=orch.clock_ns,
+        )
+        parent_score = orch._best_so_far_score(orch.synth_report)
+        parent_record = {
+            "candidate_id": "frozen_parent",
+            "stage": "parent",
+            "code_sha256": parent_hash,
+            "source_diff_sha256": None,
+            "changed_knobs": [],
+            "fixed_knob_values": fixed_values,
+            "effective_knob_values": fixed_values,
+            "status": "feasible" if parent_feasibility.get("feasible") else "infeasible",
+            "success": True,
+            "feasible": parent_feasibility.get("feasible") is True,
+            "feasibility": parent_feasibility,
+            "csim": _sanitize_test_summary(orch.generated_csim),
+            "metrics": extract_qor_metrics(orch.synth_report),
+            "report_sha256": orch._candidate_report_sha256(orch.synth_report),
+            "selection_score": parent_score if math.isfinite(parent_score) else None,
+            "error": "",
+            "qor_evaluation_index": None,
+        }
+        summary.update({
+            "attempted": True,
+            "parent_code_sha256": parent_hash,
+            "parent_report_sha256": parent_record["report_sha256"],
+            "parent_origin": parent_origin,
+            "toolchain": {
+                "vitis_version": getattr(orch, "vitis_version", ""),
+                "part": orch.part,
+                "clock_ns": orch.clock_ns,
+            },
+            "configuration": {
+                "max_knobs": max_knobs,
+                "max_candidates": max_candidates,
+                "factor_values": list(factor_values),
+                "ii_values": list(ii_values),
+                "tile_values": list(tile_values),
+                "interactions": interactions_enabled,
+                "max_interactions": max_interactions,
+                "preferred_knob_kinds": list(preferred_kinds),
+            },
+            "discovered_knobs": [knob.public() for knob in knobs],
+            "parent": parent_record,
+        })
+        if not knobs:
+            parent_record["pareto_frontier"] = parent_record["feasible"]
+            summary["reason"] = "no safely parameterized QoR knobs discovered"
+            summary.update({
+                "candidate_count": 0,
+                "feasible_candidate_count": 0,
+                "budget_exhausted": False,
+                "parent_integrity_checks": 0,
+                "parent_integrity_passed": True,
+                "pareto_candidate_ids": (
+                    ["frozen_parent"] if parent_record["feasible"] else []
+                ),
+                "knob_trends": [],
+                "winner_candidate_id": "frozen_parent",
+                "winner_code_sha256": parent_hash,
+                "winner_metrics": parent_record["metrics"],
+                "winner_explanation": winner_explanation(
+                    parent_record, parent_record,
+                ),
+                "fixed_parent_code_sha256_after_evaluation": parent_hash,
+            })
+            return summary
+
+        candidate_payloads = build_ofat_candidates(
+            parent_code,
+            knobs,
+            max_candidates=ofat_budget,
+        )
+        records: list[dict[str, Any]] = []
+        evaluated: dict[str, dict[str, Any]] = {}
+        codes = {"frozen_parent": parent_code}
+        parent_integrity_checks = 0
+        budget_exhausted = False
+
+        def evaluate_payload(payload: dict) -> Optional[dict]:
+            nonlocal parent_integrity_checks, budget_exhausted
+            parent_integrity_checks += 1
+            if qor_code_sha256(orch.hls_code) != parent_hash:
+                raise RuntimeError(
+                    "QoR frozen-parent hash changed during candidate evaluation"
+                )
+            compact_metadata = {
+                key: value for key, value in payload.items() if key != "code"
+            }
+            evaluation = orch._evaluate_qor_candidate(
+                payload["code"],
+                f"[QoR DOE: {payload['candidate_id']}]",
+                compact_metadata,
+            )
+            record = self._qor_candidate_record(
+                payload,
+                evaluation,
+                fixed_knob_values=fixed_values,
+            )
+            records.append(record)
+            evaluated[payload["candidate_id"]] = evaluation
+            codes[payload["candidate_id"]] = payload["code"]
+            if evaluation.get("budget_exhausted"):
+                budget_exhausted = True
+            return record
+
+        for payload in candidate_payloads:
+            evaluate_payload(payload)
+            if budget_exhausted:
+                break
+
+        preferred_values: dict[str, int] = {}
+        parent_rank = qor_selection_rank(parent_record)
+        for knob in knobs:
+            options = [
+                record
+                for record in records
+                if record.get("feasible") is True
+                and len(record.get("changed_knobs") or []) == 1
+                and record["changed_knobs"][0].get("knob_id") == knob.knob_id
+            ]
+            if not options:
+                continue
+            best = min(options, key=qor_selection_rank)
+            if qor_selection_rank(best) < parent_rank:
+                preferred_values[knob.knob_id] = int(best["changed_knobs"][0]["to"])
+
+        remaining = max(0, max_candidates - len(records))
+        if interactions_enabled and not budget_exhausted and remaining > 0:
+            interaction_payloads = build_interaction_candidates(
+                parent_code,
+                knobs,
+                preferred_values,
+                max_candidates=min(max_interactions, remaining),
+            )
+            for payload in interaction_payloads:
+                evaluate_payload(payload)
+                if budget_exhausted:
+                    break
+
+        if qor_code_sha256(orch.hls_code) != parent_hash:
+            raise RuntimeError("QoR frozen-parent hash changed before selection")
+        all_records = [parent_record, *records]
+        frontier_ids = pareto_candidate_ids(all_records)
+        for record in all_records:
+            record["pareto_frontier"] = record["candidate_id"] in frontier_ids
+        eligible = [
+            record for record in all_records
+            if record.get("feasible") is True
+            and record.get("pareto_frontier") is True
+        ]
+        winner = min(
+            eligible,
+            key=qor_selection_rank,
+            default=parent_record,
+        )
+        should_promote = (
+            winner["candidate_id"] != "frozen_parent"
+            and (
+                parent_record.get("feasible") is not True
+                or qor_selection_rank(winner) < parent_rank
+            )
+        )
+        if should_promote:
+            selected = evaluated[winner["candidate_id"]]
+            orch.hls_code = codes[winner["candidate_id"]]
+            orch.synth_report = selected["report"]
+            orch.generated_csim = selected.get("csim")
+            orch.generated_cosim = None
+            summary["applied"] = True
+        else:
+            winner = parent_record
+
+        summary.update({
+            "candidates": records,
+            "candidate_count": len(records),
+            "feasible_candidate_count": sum(
+                1 for record in records if record.get("feasible") is True
+            ),
+            "budget_exhausted": budget_exhausted,
+            "parent_integrity_checks": parent_integrity_checks,
+            "parent_integrity_passed": True,
+            "pareto_candidate_ids": frontier_ids,
+            "knob_trends": summarize_knob_trends(
+                records,
+                knobs,
+                parent=parent_record,
+            ),
+            "winner_candidate_id": winner["candidate_id"],
+            "winner_code_sha256": winner["code_sha256"],
+            "winner_metrics": winner["metrics"],
+            "winner_explanation": winner_explanation(parent_record, winner),
+            "fixed_parent_code_sha256_after_evaluation": qor_code_sha256(
+                parent_code
+            ),
+        })
+        return summary
+
+    def run(
+        self,
+        ground_truth_report: dict,
+        initial_comparison: Optional[dict] = None,
+    ) -> dict:
+        orch = self.orch
+        summary: dict[str, Any] = {
+            "schema_version": "c2hls.quality-repair.v2",
+            "attempted": False,
+            "applied": False,
+            "attempts": [],
+            "design_sweep": {
+                "enabled": self.design_sweep_enabled(),
+                "attempted": False,
+            },
+        }
+        orch.quality_repair_result = summary
+        if not orch.synth_report or not orch.hls_code:
+            summary["reason"] = "Quality repair missing code or synthesis report"
+            return summary
+
+        if orch.quality_repair_turns > 0 and ground_truth_report:
+            llm_summary = self._run_llm_repair(
+                ground_truth_report,
+                initial_comparison,
+            )
+        else:
+            llm_summary = {
+                "attempted": False,
+                "applied": False,
+                "attempts": [],
+                "reason": (
+                    "LLM repair requires controller-visible comparison evidence"
+                    if not ground_truth_report
+                    else "LLM quality repair disabled"
+                ),
+            }
+        summary["llm_repair"] = llm_summary
+        summary["attempts"] = list(llm_summary.get("attempts") or [])
+        summary["attempted"] = llm_summary.get("attempted") is True
+        summary["applied"] = llm_summary.get("applied") is True
+        for key in (
+            "initial_score",
+            "initial_comparison",
+            "final_score",
+            "final_comparison",
+        ):
+            if key in llm_summary:
+                summary[key] = llm_summary[key]
+
+        if self.design_sweep_enabled():
+            design_summary = self.run_design_sweep()
+            summary["design_sweep"] = design_summary
+            summary["attempted"] = (
+                summary["attempted"] or design_summary.get("attempted") is True
+            )
+            summary["applied"] = (
+                summary["applied"] or design_summary.get("applied") is True
+            )
+        if not summary["attempted"]:
+            summary["reason"] = (
+                llm_summary.get("reason")
+                or summary["design_sweep"].get("reason")
+                or "Quality repair disabled"
+            )
+        summary["final_score"] = _quality_score(
+            orch.benchmark_name,
+            orch.synth_report,
+            (
+                compare_reports(orch.synth_report, ground_truth_report)
+                if ground_truth_report
+                else {}
+            ),
+        )
         orch.quality_repair_result = summary
         return summary
 
@@ -3715,9 +4203,9 @@ class C2HLSOrchestrator:
     unchanged.
     """
 
-    def __init__(self, max_completion_tokens=8192, gpt_model=DEFAULT_MODEL_ID,
+    def __init__(self, max_completion_tokens=None, gpt_model=DEFAULT_MODEL_ID,
                  turns_limitation=3, idx=0, quality_repair_turns=DEFAULT_QUALITY_REPAIR_TURNS):
-        self.max_completion_tokens = max_completion_tokens
+        self.max_completion_tokens = _completion_token_limit(max_completion_tokens)
         self.gpt_model = gpt_model
         self.turns_limitation = turns_limitation
         self.idx = idx
@@ -3725,6 +4213,8 @@ class C2HLSOrchestrator:
 
         self.use_anthropic = gpt_model.lower().startswith("claude")
         self.use_hosted_openai = _is_hosted_openai_model(gpt_model)
+        self.use_deepseek = _is_deepseek_model(gpt_model)
+        self.use_xai = _is_xai_model(gpt_model)
         if self.use_anthropic:
             assert HAS_ANTHROPIC, "anthropic package required for Claude models: pip install anthropic"
             api_key = _load_anthropic_api_key()
@@ -3759,6 +4249,7 @@ class C2HLSOrchestrator:
         self.header_name = "kernel.h"
         self.phaseb_mode = os.getenv(PHASEB_MODE_ENV, "").strip().lower()
         self.phase_b_fast_candidate = None
+        self.frozen_phase_b: dict = {}
         self.hls_code = None
         self.synth_report = None
         self.testbench_code = ""
@@ -3783,6 +4274,7 @@ class C2HLSOrchestrator:
             "attempted": False,
             "applied": False,
             "attempts": [],
+            "design_sweep": {"enabled": _qor_design_sweep_enabled(), "attempted": False},
         }
 
         # ---- Phase 2 wiring (Pillars 3 / 5 / 6 / 7 / 9) ----
@@ -3826,6 +4318,8 @@ class C2HLSOrchestrator:
         )
         self.synthesis_eval_count = 0
         self.synthesis_eval_events: list[dict] = []
+        self.qor_synthesis_eval_count = 0
+        self.qor_synthesis_eval_events: list[dict] = []
         try:
             parsed_budget = int(os.getenv(SYNTHESIS_EVAL_BUDGET_ENV, "0") or "0")
         except (TypeError, ValueError):
@@ -3859,6 +4353,7 @@ class C2HLSOrchestrator:
         # Agent baseline report stored so per-step prompts can diff their
         # per-loop bottlenecks against it (Pillar 1 scope comparison).
         self._baseline_report: dict = {}
+        self._skill_candidate_route_plan: dict[str, Any] = {}
 
         # Phase-specific agents. They share state with this orchestrator and
         # call _call_llm_with_model() for routing. Each picks up its own
@@ -4351,13 +4846,17 @@ class C2HLSOrchestrator:
     def _client_for_model(self, model: str):
         """Get or create the right backend client for a given model id.
 
-        Returns a tuple (kind, client) where kind is "anthropic" or
-        "openai". The orchestrator's default-model client is reused; non-
+        Returns a tuple (kind, client) where kind identifies the provider.
+        The orchestrator's default-model client is reused; non-
         default models populate self._extra_clients on first use.
         """
         if model == self.gpt_model:
             if self.use_anthropic:
                 return ("anthropic", self.anthropic_client)
+            if self.use_deepseek:
+                return ("deepseek", self.client)
+            if self.use_xai:
+                return ("xai", self.client)
             return ("openai", self.client)
         cached = self._extra_clients.get(model)
         if cached is not None:
@@ -4389,7 +4888,14 @@ class C2HLSOrchestrator:
                 api_key = os.getenv("OPENAI_API_KEY", "EMPTY")
                 base_url = os.getenv("OPENAI_BASE_URL",
                                      "http://127.0.0.1:8000/v1")
-            entry = ("openai", OpenAI(
+            provider = (
+                "deepseek"
+                if _is_deepseek_model(model)
+                else "xai"
+                if _is_xai_model(model)
+                else "openai"
+            )
+            entry = (provider, OpenAI(
                 base_url=base_url,
                 api_key=api_key,
                 timeout=_llm_timeout_seconds(),
@@ -4448,13 +4954,26 @@ class C2HLSOrchestrator:
                 "system": system_text.strip() if system_text else "",
                 "messages": conv_messages,
             }
-            for key in ("temperature", "top_p"):
-                if configured_decoding[key] is not None:
-                    anthropic_kwargs[key] = configured_decoding[key]
+            omitted_decoding = None
+            if configured_decoding["temperature"] is not None:
+                anthropic_kwargs["temperature"] = configured_decoding[
+                    "temperature"
+                ]
+                if configured_decoding["top_p"] is not None:
+                    # Sonnet 4.6 rejects requests containing both controls.
+                    # Prefer temperature and record the provider-constrained
+                    # omission rather than silently claiming top_p was sent.
+                    omitted_decoding = "top_p"
+            elif configured_decoding["top_p"] is not None:
+                anthropic_kwargs["top_p"] = configured_decoding["top_p"]
             effective_decoding = {
-                **configured_decoding,
+                "temperature": anthropic_kwargs.get("temperature"),
+                "top_p": anthropic_kwargs.get("top_p"),
                 "seed": None,
                 "seed_supported": False,
+                "requested_temperature": configured_decoding["temperature"],
+                "requested_top_p": configured_decoding["top_p"],
+                "mutually_exclusive_omission": omitted_decoding,
             }
             response = client.messages.create(
                 **anthropic_kwargs,
@@ -4476,20 +4995,81 @@ class C2HLSOrchestrator:
             kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
-        for key in ("temperature", "top_p", "seed"):
-            if configured_decoding[key] is not None:
-                kwargs[key] = configured_decoding[key]
+        effective_decoding = {
+            **configured_decoding,
+            "seed_supported": True,
+        }
+        if kind == "deepseek":
+            # DeepSeek's OpenAI-compatible API does not expose seed control
+            # and recommends setting temperature or top_p, not both.
+            omitted_decoding = None
+            if configured_decoding["temperature"] is not None:
+                kwargs["temperature"] = configured_decoding["temperature"]
+                if configured_decoding["top_p"] is not None:
+                    omitted_decoding = "top_p"
+            elif configured_decoding["top_p"] is not None:
+                kwargs["top_p"] = configured_decoding["top_p"]
+            thinking = os.getenv(DEEPSEEK_THINKING_ENV, "enabled").strip().lower()
+            if thinking not in {"enabled", "disabled"}:
+                raise ValueError(
+                    f"{DEEPSEEK_THINKING_ENV} must be enabled or disabled"
+                )
+            reasoning_effort = os.getenv(
+                DEEPSEEK_REASONING_EFFORT_ENV, "high"
+            ).strip().lower()
+            if reasoning_effort not in {"low", "high", "max"}:
+                raise ValueError(
+                    f"{DEEPSEEK_REASONING_EFFORT_ENV} must be low, high, or max"
+                )
+            kwargs["extra_body"] = {
+                "thinking": {"type": thinking},
+                "reasoning_effort": reasoning_effort,
+            }
+            effective_decoding = {
+                "temperature": kwargs.get("temperature"),
+                "top_p": kwargs.get("top_p"),
+                "seed": None,
+                "seed_supported": False,
+                "requested_temperature": configured_decoding["temperature"],
+                "requested_top_p": configured_decoding["top_p"],
+                "requested_seed": configured_decoding["seed"],
+                "mutually_exclusive_omission": omitted_decoding,
+                "thinking": thinking,
+                "reasoning_effort": reasoning_effort,
+            }
+        elif kind == "xai":
+            for key in ("temperature", "top_p", "seed"):
+                if configured_decoding[key] is not None:
+                    kwargs[key] = configured_decoding[key]
+            reasoning_effort = os.getenv(
+                XAI_REASONING_EFFORT_ENV, "low"
+            ).strip().lower()
+            if reasoning_effort not in {"low", "medium", "high"}:
+                raise ValueError(
+                    f"{XAI_REASONING_EFFORT_ENV} must be low, medium, or high"
+                )
+            kwargs["reasoning_effort"] = reasoning_effort
+            effective_decoding = {
+                **configured_decoding,
+                "seed_supported": True,
+                "reasoning": "required",
+                "reasoning_effort": reasoning_effort,
+            }
+        else:
+            for key in ("temperature", "top_p", "seed"):
+                if configured_decoding[key] is not None:
+                    kwargs[key] = configured_decoding[key]
         if "qwen" in model.lower():
             kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
         response = client.chat.completions.create(**kwargs)
         self._record_llm_usage(
-            provider="openai",
+            provider=kind,
             model=model,
             agent_name=agent_name,
             usage=getattr(response, "usage", None),
             messages=messages,
             max_tokens=max_tokens,
-            decoding={**configured_decoding, "seed_supported": True},
+            decoding=effective_decoding,
             candidate_evaluation_index=call_index,
         )
         return response.choices[0].message.content
@@ -4538,13 +5118,25 @@ class C2HLSOrchestrator:
             self._append_history("system", f"[{context}] ABI preflight: {note}")
         return normalized
 
-    def _synth_and_test(self, code: str, log_prefix: str = "") -> dict:
+    def _selection_synthesis_evaluation_count(self) -> int:
+        return int(getattr(self, "synthesis_eval_count", 0)) + int(
+            getattr(self, "qor_synthesis_eval_count", 0)
+        )
+
+    def _synth_and_test(
+        self,
+        code: str,
+        log_prefix: str = "",
+        *,
+        correctness_first_override: Optional[bool] = None,
+        allow_cosim: bool = True,
+    ) -> dict:
         """Synthesize `code` with the orchestrator's current config and run
         csim/cosim if a testbench is available. Returns the same shape as
         _run_synth_csim_cosim: {synth, csim, cosim}."""
         if (
             self.synthesis_eval_budget is not None
-            and self.synthesis_eval_count >= self.synthesis_eval_budget
+            and self._selection_synthesis_evaluation_count() >= self.synthesis_eval_budget
         ):
             candidate_index = self._pending_candidate_evaluation_index()
             if candidate_index is not None:
@@ -4561,7 +5153,8 @@ class C2HLSOrchestrator:
                     "report": {},
                     "error": (
                         "synthesis_evaluation_budget_exhausted: "
-                        f"used {self.synthesis_eval_count}/{self.synthesis_eval_budget}"
+                        f"used {self._selection_synthesis_evaluation_count()}/"
+                        f"{self.synthesis_eval_budget}"
                     ),
                     "budget_exhausted": True,
                 },
@@ -4583,6 +5176,8 @@ class C2HLSOrchestrator:
             testbench_code=self.testbench_code,
             run_csim_check=bool(self.testbench_code),
             run_cosim_check=bool(
+                allow_cosim
+                and
                 self.testbench_code
                 and self.supports_cosim
                 and _cosim_required_for_correctness()
@@ -4595,6 +5190,7 @@ class C2HLSOrchestrator:
             golden_output_text=self.independent_golden_output,
             golden_output_specs=self.independent_golden_specs,
             log_prefix=log_prefix,
+            correctness_first_override=correctness_first_override,
         )
         synth = outcome.get("synth", {})
         synthesis_ran = synth.get("ran") is not False and not synth.get("skipped")
@@ -4636,13 +5232,231 @@ class C2HLSOrchestrator:
         )
         return outcome
 
+    def _evaluate_qor_candidate(
+        self,
+        code: str,
+        label: str,
+        candidate_metadata: Optional[dict] = None,
+    ) -> dict:
+        """Evaluate one deterministic QoR variant without an LLM repair.
+
+        QoR variants have a separate event stream because the paper candidate
+        contract joins each legacy event to one LLM response.  The synthesis
+        still contributes to the global selection-synthesis budget and tool
+        count.  CSim is forced ahead of CSynth and COSIM is never run here.
+        """
+
+        if not hasattr(self, "qor_synthesis_eval_events"):
+            self.qor_synthesis_eval_events = []
+        if not hasattr(self, "qor_synthesis_eval_count"):
+            self.qor_synthesis_eval_count = 0
+        event = {
+            "schema_version": "c2hls.qor-evaluation.v1",
+            "qor_evaluation_index": len(self.qor_synthesis_eval_events),
+            "label": label,
+            "producer_kind": "deterministic_qor_sweep",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "code_sha256": hashlib.sha256((code or "").encode("utf-8")).hexdigest(),
+            "cumulative_synthesis_evaluations": (
+                self._selection_synthesis_evaluation_count()
+            ),
+            "correctness_status": "not_run",
+            "synthesis_status": "not_run",
+            "synthesis_ran": False,
+            "resource_fit": None,
+            "timing_met": None,
+            "synthesized_latency_cycles": None,
+            "latency_source": "none",
+            "report_sha256": None,
+            "failure_class": "other",
+            "failure_detail": "QoR candidate evaluation has not completed",
+            "selected_for_executed_cosim": False,
+            "cumulative_elapsed_seconds": self._candidate_elapsed_seconds(),
+            "success": False,
+            "metadata": dict(candidate_metadata or {}),
+        }
+        self.qor_synthesis_eval_events.append(event)
+
+        ok, compile_error = compile_check_cpp(
+            code,
+            self.header_code,
+            self.header_name,
+            extra_files=self.extra_files,
+        )
+        if not ok:
+            event.update({
+                "synthesis_status": "not_run",
+                "failure_class": "compile_or_interface_failure",
+                "failure_detail": compile_error,
+                "error": compile_error,
+                "cumulative_elapsed_seconds": self._candidate_elapsed_seconds(),
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            })
+            return {
+                "success": False,
+                "code": code,
+                "report": {},
+                "csim": None,
+                "cosim": None,
+                "feasibility": {},
+                "error": compile_error,
+                "event": event,
+            }
+
+        if (
+            self.synthesis_eval_budget is not None
+            and self._selection_synthesis_evaluation_count() >= self.synthesis_eval_budget
+        ):
+            error = (
+                "synthesis_evaluation_budget_exhausted: used "
+                f"{self._selection_synthesis_evaluation_count()}/"
+                f"{self.synthesis_eval_budget}"
+            )
+            event.update({
+                "failure_class": "candidate_budget_exhausted",
+                "failure_detail": error,
+                "error": error,
+                "cumulative_elapsed_seconds": self._candidate_elapsed_seconds(),
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            })
+            return {
+                "success": False,
+                "code": code,
+                "report": {},
+                "csim": None,
+                "cosim": None,
+                "feasibility": {},
+                "error": error,
+                "budget_exhausted": True,
+                "event": event,
+            }
+
+        synthesis_index = self._selection_synthesis_evaluation_count()
+        outcome = _run_synth_csim_cosim(
+            code,
+            header_code=self.header_code,
+            header_name=self.header_name,
+            top_function=self.translated_hls_top,
+            part=self.part,
+            clock_ns=self.clock_ns,
+            extra_files=self.extra_files,
+            testbench_code=self.testbench_code,
+            run_csim_check=bool(self.testbench_code),
+            run_cosim_check=False,
+            cosim_depths=self.cosim_depths,
+            cosim_reference_cycle_info={},
+            golden_output_text=self.independent_golden_output,
+            golden_output_specs=self.independent_golden_specs,
+            log_prefix=label,
+            correctness_first_override=True,
+        )
+        synth = outcome.get("synth") if isinstance(outcome.get("synth"), dict) else {}
+        synthesis_ran = synth.get("ran") is not False and not synth.get("skipped")
+        if synthesis_ran:
+            self.qor_synthesis_eval_count += 1
+        report = synth.get("report") if synth.get("success") else {}
+        csim = outcome.get("csim")
+        correctness_status = self._candidate_test_status(csim)
+        csim_error = str(
+            (csim or {}).get("error") if isinstance(csim, dict) else ""
+        )
+        csim_timed_out = bool(
+            correctness_status == "timeout"
+            or (isinstance(csim, dict) and csim.get("timed_out"))
+            or "timed out" in csim_error.lower()
+        )
+        synthesis_status = self._candidate_synthesis_status(
+            synth, synthesis_ran=synthesis_ran,
+        )
+        feasibility = _paper_candidate_feasibility(
+            report,
+            csim=csim,
+            correctness_required=bool(self.testbench_code),
+            part=self.part,
+            clock_ns=self.clock_ns,
+        )
+        latency_cycles = self._candidate_report_latency_cycles(report)
+        failure_class = None
+        if correctness_status != "passed" and self.testbench_code:
+            failure_class = (
+                "csim_timeout"
+                if csim_timed_out
+                else "wrong_output"
+                if correctness_status == "failed"
+                else "tool_failure"
+            )
+        elif synthesis_status == "timeout":
+            failure_class = "synthesis_timeout"
+        elif synthesis_status == "tool_failure":
+            failure_class = "tool_failure"
+        elif synthesis_status != "passed":
+            failure_class = "compile_or_interface_failure"
+        elif feasibility.get("resource_fit") is not True:
+            failure_class = "infeasible_resources"
+        elif feasibility.get("timing_met") is not True:
+            failure_class = "timing_failure"
+        elif latency_cycles is None:
+            failure_class = "missing_latency"
+        failure_detail = str(synth.get("error") or csim_error or "")
+        timed_out = csim_timed_out or synthesis_status == "timeout"
+        event.update({
+            "synthesis_index": synthesis_index if synthesis_ran else None,
+            "synthesis_ran": synthesis_ran,
+            "cumulative_synthesis_evaluations": (
+                self._selection_synthesis_evaluation_count()
+            ),
+            "cumulative_elapsed_seconds": self._candidate_elapsed_seconds(),
+            "correctness_status": correctness_status,
+            "synthesis_status": synthesis_status,
+            "correctness_gate_passed": correctness_status == "passed",
+            "success": bool(synth.get("success")),
+            "timed_out": timed_out,
+            "tool_failure": failure_class == "tool_failure",
+            "status": (
+                "feasible"
+                if feasibility.get("feasible") is True
+                else "timeout"
+                if timed_out
+                else failure_class or "failed"
+            ),
+            "resource_fit": feasibility.get("resource_fit"),
+            "timing_met": feasibility.get("timing_met"),
+            "synthesized_latency_cycles": latency_cycles,
+            "latency_source": (
+                "csynth_latency_cycles_worst"
+                if report.get("latency_cycles_worst") is not None
+                else "csynth_latency_cycles"
+                if report.get("latency_cycles") is not None
+                else "none"
+            ),
+            "report_sha256": self._candidate_report_sha256(report),
+            "failure_class": failure_class,
+            "failure_detail": failure_detail,
+            "error": failure_detail,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+        })
+        return {
+            "success": bool(synth.get("success")),
+            "code": code,
+            "report": report,
+            "csim": csim,
+            "cosim": None,
+            "feasibility": feasibility,
+            "error": failure_detail,
+            "event": event,
+        }
+
     def _synthesis_evaluation_summary(self) -> dict:
         llm_events = getattr(self, "llm_usage_events", []) or []
         candidate_events = getattr(self, "synthesis_eval_events", []) or []
-        complete = bool(candidate_events) and (
-            len(candidate_events)
-            == getattr(self, "llm_candidate_request_count", len(llm_events))
-            == len(llm_events)
+        candidate_requests = getattr(
+            self, "llm_candidate_request_count", len(llm_events)
+        )
+        complete = (
+            not candidate_events and not llm_events and candidate_requests == 0
+        ) or (
+            bool(candidate_events)
+            and len(candidate_events) == candidate_requests == len(llm_events)
             and all(
                 event.get("_llm_joined") is True
                 and event.get("_telemetry_finalized") is True
@@ -4655,12 +5469,17 @@ class C2HLSOrchestrator:
             )
         )
         return {
-            "schema_version": "c2hls.synthesis-evaluations.v1",
-            "count": self.synthesis_eval_count,
+            "schema_version": "c2hls.synthesis-evaluations.v2",
+            "count": self._selection_synthesis_evaluation_count(),
+            "llm_candidate_synthesis_count": self.synthesis_eval_count,
+            "qor_design_synthesis_count": int(
+                getattr(self, "qor_synthesis_eval_count", 0)
+            ),
             "budget": self.synthesis_eval_budget,
             "budget_exhausted": bool(
                 self.synthesis_eval_budget is not None
-                and self.synthesis_eval_count >= self.synthesis_eval_budget
+                and self._selection_synthesis_evaluation_count()
+                >= self.synthesis_eval_budget
             ),
             "events": [
                 {
@@ -4670,8 +5489,11 @@ class C2HLSOrchestrator:
                 }
                 for event in candidate_events
             ],
-            "candidate_evaluations": len(self.synthesis_eval_events),
+            "candidate_evaluations": len(candidate_events),
             "complete_candidate_event_stream": complete,
+            "qor_design_events": list(
+                getattr(self, "qor_synthesis_eval_events", []) or []
+            ),
         }
 
     def _run_selected_winner_cosim(self) -> Optional[dict]:
@@ -4687,9 +5509,14 @@ class C2HLSOrchestrator:
         self.selected_code_sha256 = selected_hash
         for event in getattr(self, "synthesis_eval_events", []) or []:
             event["selected_for_executed_cosim"] = False
+        for event in getattr(self, "qor_synthesis_eval_events", []) or []:
+            event["selected_for_executed_cosim"] = False
         matching = [
             event
-            for event in (getattr(self, "synthesis_eval_events", []) or [])
+            for event in (
+                (getattr(self, "synthesis_eval_events", []) or [])
+                + (getattr(self, "qor_synthesis_eval_events", []) or [])
+            )
             if event.get("code_sha256") == selected_hash
             and event.get("correctness_status") == "passed"
             and event.get("synthesis_status") == "passed"
@@ -4704,7 +5531,8 @@ class C2HLSOrchestrator:
                 matching,
                 key=lambda event: (
                     event["synthesized_latency_cycles"],
-                    event["candidate_evaluation_index"],
+                    event.get("candidate_evaluation_index", float("inf")),
+                    event.get("qor_evaluation_index", float("inf")),
                 ),
             )["selected_for_executed_cosim"] = True
         self.selected_winner_cosim_count = (
@@ -4728,7 +5556,7 @@ class C2HLSOrchestrator:
         return self.generated_cosim
 
     def _total_synthesis_calls(self) -> int:
-        return int(getattr(self, "synthesis_eval_count", 0)) + int(
+        return self._selection_synthesis_evaluation_count() + int(
             getattr(self, "selected_winner_cosim_count", 0)
         ) + int(
             getattr(self, "post_route_implementation_count", 0)
@@ -4737,8 +5565,12 @@ class C2HLSOrchestrator:
     def _tool_call_attribution(self) -> dict:
         total = self._total_synthesis_calls()
         return {
-            "synthesis_evaluation_count": int(
+            "synthesis_evaluation_count": self._selection_synthesis_evaluation_count(),
+            "llm_candidate_synthesis_evaluation_count": int(
                 getattr(self, "synthesis_eval_count", 0)
+            ),
+            "qor_synthesis_evaluation_count": int(
+                getattr(self, "qor_synthesis_eval_count", 0)
             ),
             "selected_winner_cosim_count": int(
                 getattr(self, "selected_winner_cosim_count", 0)
@@ -4874,6 +5706,43 @@ class C2HLSOrchestrator:
             return self.synthesis.synthesize_with_repair()
         finally:
             self._phaseb_multistep_context = prev_context
+
+    def _run_phase_b_or_frozen_seed(self, *, multistep: bool) -> bool:
+        """Use a hash-checked Phase-B seed when the experiment requests one."""
+
+        manifest_path = os.getenv(PHASE_B_SEED_MANIFEST_ENV, "").strip()
+        if not manifest_path:
+            self.frozen_phase_b = {}
+            return self.run_phase_b(multistep=multistep)
+
+        from phase_b_manifest import load_phase_b_seed
+
+        seed = load_phase_b_seed(
+            manifest_path,
+            benchmark=self.benchmark_name,
+            input_c=self.c_code or "",
+            header_code=self.header_code or "",
+            expected_part=self.part,
+            expected_clock_ns=self.clock_ns,
+            expected_vitis_version=(
+                self.vitis_version
+                or os.getenv("C2HLS_VITIS_VERSION", "")
+            ),
+            expected_flow_target=os.getenv("C2HLS_FLOW_TARGET", "vitis"),
+        )
+        self.hls_code = seed["code"]
+        self.synth_report = seed["csynth_report"]
+        self.generated_csim = seed["csim"]
+        self.generated_cosim = None
+        self.phaseb_mode = "frozen_seed_v1"
+        self.frozen_phase_b = seed["provenance"]
+        self._append_history(
+            "system",
+            "[Phase B] Loaded frozen seed "
+            f"{self.frozen_phase_b['code_sha256']} with passing CSim and "
+            "hash-checked CSynth report; no model or Vitis call was made.",
+        )
+        return True
 
     def _baseline_alignment_loop(
         self,
@@ -5324,6 +6193,70 @@ class C2HLSOrchestrator:
         latency/resource score is returned to the existing regression guard.
         """
         count = _step_candidate_count(step_name)
+        candidate_routes: list[dict] = []
+        from smart_skill_router import normalize_skill_scope
+
+        skill_scope = normalize_skill_scope(
+            os.getenv("C2HLS_SKILL_PROMPT_SCOPE", "")
+        )
+        if (
+            skill_scope == "smart_exhaustive_v2"
+            and self.skill_library is not None
+            and self.synth_report is not None
+        ):
+            from smart_skill_router import route_smart_skills
+
+            try:
+                max_candidates = int(
+                    os.getenv(SKILL_EXHAUSTIVE_MAX_CANDIDATES_ENV, "5") or "5"
+                )
+            except (TypeError, ValueError):
+                max_candidates = 5
+            max_candidates = max(1, min(max_candidates, 5))
+            if self.synthesis_eval_budget is not None:
+                max_candidates = min(
+                    max_candidates,
+                    max(
+                        1,
+                        self.synthesis_eval_budget
+                        - self.synthesis_eval_count,
+                    ),
+                )
+            if self.llm_candidate_budget is not None:
+                max_candidates = min(
+                    max_candidates,
+                    max(
+                        1,
+                        self.llm_candidate_budget
+                        - self.llm_candidate_request_count,
+                    ),
+                )
+            routed = route_smart_skills(
+                self.skill_library,
+                scope=skill_scope,
+                step_name=step_name,
+                current_code=self.hls_code,
+                synth_report=self.synth_report,
+                vitis_version=self.vitis_version,
+                fpga=self.part,
+                requested_skill_id=skill_id,
+                max_skills=max_candidates,
+            )
+            candidate_routes = [
+                {
+                    "skill_ids": [skill.id],
+                    "router_audit": routed.audit,
+                    "route_rank": index,
+                }
+                for index, skill in enumerate(routed.selected)
+            ]
+            if not candidate_routes:
+                candidate_routes = [{
+                    "skill_ids": [],
+                    "router_audit": routed.audit,
+                    "route_rank": None,
+                }]
+            count = len(candidate_routes)
         exhaustive = _exhaustive_candidate_attempts_enabled()
         attempt_count = _candidate_attempt_count(self.turns_limitation) if exhaustive else 1
         if count <= 1:
@@ -5335,6 +6268,9 @@ class C2HLSOrchestrator:
                 skill_id=skill_id,
                 candidate_index=0,
                 candidate_count=1,
+                candidate_route=(
+                    candidate_routes[0] if candidate_routes else None
+                ),
             )
 
         attempts: list = []
@@ -5347,6 +6283,10 @@ class C2HLSOrchestrator:
                 skill_id=skill_id,
                 candidate_index=candidate_index,
                 candidate_count=count,
+                candidate_route=(
+                    candidate_routes[candidate_index]
+                    if candidate_routes else None
+                ),
             )
             attempt["candidate_index"] = candidate_index
             attempt["candidate_count"] = count
@@ -5372,6 +6312,14 @@ class C2HLSOrchestrator:
             "synthesis_successful_candidates": len(synthesized_successes),
             "feasible_candidates": len(successes),
             "successful_candidates": len(successes),
+            "skill_route_policy": (
+                "separate_skill_directed_candidates"
+                if candidate_routes else "shared_prompt_candidate_search"
+            ),
+            "candidate_skill_ids": [
+                list(route.get("skill_ids") or [])
+                for route in candidate_routes
+            ],
             "candidate_stats": _metric_stats_from_reports(
                 [a.get("report") for a in successes if a.get("report")]
             ),
@@ -5427,7 +6375,8 @@ class C2HLSOrchestrator:
                                           gt_header_code: str = None,
                                           skill_id: Optional[str] = None,
                                           candidate_index: int = 0,
-                                          candidate_count: int = 1) -> dict:
+                                          candidate_count: int = 1,
+                                          candidate_route: Optional[dict] = None) -> dict:
         """One optimization-step pass: LLM → synth + repair loop. Returns a
         step_result dict with success / code / report / vs_previous / vs_ground_truth.
 
@@ -5471,24 +6420,83 @@ class C2HLSOrchestrator:
         )
         extra_blocks = []
         skill_prompt_mode = os.getenv("C2HLS_SKILL_PROMPT_MODE", "").strip().lower()
-        skill_prompt_scope = os.getenv("C2HLS_SKILL_PROMPT_SCOPE", "").strip().lower()
+        raw_skill_prompt_scope = os.getenv(
+            "C2HLS_SKILL_PROMPT_SCOPE", ""
+        ).strip().lower()
+        from smart_skill_router import (
+            normalize_skill_scope,
+            render_empty_skill_source,
+        )
+        skill_prompt_scope = normalize_skill_scope(raw_skill_prompt_scope)
+        skillless_prompt = skill_prompt_scope == "skillless"
+        smart_skill_prompt = skill_prompt_scope in {
+            "smart_best_fit",
+            "smart_exhaustive",
+            "smart_best_fit_v2",
+            "smart_exhaustive_v2",
+        }
+        smart_v2_skill_prompt = skill_prompt_scope in {
+            "smart_best_fit_v2",
+            "smart_exhaustive_v2",
+        }
         all_positive_skill_prompt = skill_prompt_scope in {
             "all_positive",
             "all-positive",
             "positive_all",
             "positive-all",
+            "all_positive_preconditions",
+            "all-positive-preconditions",
         }
-        render_skill_prompt_mode = "action_only" if all_positive_skill_prompt else (skill_prompt_mode or None)
-        action_only_skill_prompt = all_positive_skill_prompt or skill_prompt_mode in {
+        positive_preconditions_prompt = skill_prompt_scope in {
+            "all_positive_preconditions",
+            "all-positive-preconditions",
+        }
+        explicit_skill_ids = [
+            value.strip()
+            for value in os.getenv(SKILL_EXPLICIT_IDS_ENV, "").split(",")
+            if value.strip()
+        ]
+        explicit_ranked_prompt = bool(explicit_skill_ids)
+        render_skill_prompt_mode = (
+            skill_prompt_mode
+            or (
+                "positive_with_preconditions"
+                if positive_preconditions_prompt or smart_v2_skill_prompt
+                else "action_only"
+                if all_positive_skill_prompt or smart_skill_prompt
+                else ""
+            )
+            or None
+        )
+        action_only_skill_prompt = (
+            (render_skill_prompt_mode or "") in {
             "action_only",
             "action-only",
             "positive",
             "positive_only",
             "positive-only",
-        }
+            }
+        )
+        positive_only_skill_prompt = (
+            all_positive_skill_prompt
+            or smart_skill_prompt
+            or explicit_ranked_prompt
+            or (render_skill_prompt_mode or "") in {
+                "positive_with_preconditions",
+                "positive-with-preconditions",
+                "positive_preconditions",
+                "positive-preconditions",
+            }
+        )
         skill_prompt_injection_enabled = _skill_prompt_injection_enabled()
         skill_prompt_meta = {
-            "enabled": self.skill_library is not None and skill_prompt_injection_enabled,
+            "enabled": (
+                skillless_prompt
+                or (
+                    self.skill_library is not None
+                    and skill_prompt_injection_enabled
+                )
+            ),
             "requested_skill_id": skill_id,
             "prompt_mode": render_skill_prompt_mode or "default",
             "prompt_scope": skill_prompt_scope or "matched",
@@ -5498,9 +6506,24 @@ class C2HLSOrchestrator:
             "matched_skill_count": 0,
             "avoid_skill_ids": [],
             "injected_skill_ids": [],
+            "catalog_skill_ids": [],
+            "catalog_skill_count": 0,
+            "routed_skill_ids": [],
+            "routed_skill_count": 0,
+            "rendered_skill_ids": [],
+            "rendered_skill_count": 0,
+            "rendered_prompt_characters": 0,
+            "declared_applied_skill_ids": [],
+            "declared_applied_skill_count": 0,
+            "verified_applied_skill_ids": [],
+            "verified_applied_skill_count": 0,
+            "synthesized_candidate_skill_ids": [],
+            "synthesized_candidate_skill_count": 0,
             "injected": False,
             "reason": (
-                "skill_library_not_loaded"
+                "explicit_empty_skill_list"
+                if skillless_prompt
+                else "skill_library_not_loaded"
                 if self.skill_library is None
                 else "disabled_by_env"
                 if not skill_prompt_injection_enabled
@@ -5562,28 +6585,123 @@ class C2HLSOrchestrator:
         # prompt so the LLM sees the proven recipe — not just the bare step
         # name. Dynamic routing may still load the library while an explicit
         # C2HLS_FORCE_SKILL_PROMPTS=0 keeps prompt injection disabled.
-        if (
+        if skillless_prompt:
+            extra_blocks.append(
+                render_empty_skill_source(
+                    "skillless",
+                    reason="explicit_empty_skill_list",
+                )
+            )
+            skill_prompt_meta.update(
+                {
+                    "source": "skillless",
+                    "library_skill_count": 0,
+                    "matched_skill_count": 0,
+                    "injected_skill_count": 0,
+                    "catalog_skill_count": 0,
+                    "routed_skill_count": 0,
+                    "rendered_skill_count": 0,
+                    "avoid_skills_suppressed": True,
+                    "reason": "explicit_empty_skill_list",
+                }
+            )
+        elif (
             skill_prompt_injection_enabled
             and self.skill_library is not None
             and self.synth_report is not None
         ):
             try:
-                from skill_library import TIER_AVOID, render_skill_set_for_prompt
+                from skill_library import (
+                    TIER_AVOID,
+                    render_skill_set_for_prompt,
+                    select_skills_for_prompt,
+                )
                 matching = []
                 avoid_matching = []
                 context_matching = []
                 top_bottleneck_kind = None
+                positive_catalog = [
+                    sk
+                    for sk in self.skill_library.all()
+                    if getattr(sk, "confidence", "") != TIER_AVOID
+                ]
+                skill_prompt_meta["catalog_skill_ids"] = [
+                    getattr(sk, "id", "") for sk in positive_catalog
+                ]
+                skill_prompt_meta["catalog_skill_count"] = len(
+                    positive_catalog
+                )
                 feedback = (self.synth_report or {}).get("feedback") or {}
                 bns = feedback.get("bottlenecks") or []
                 if bns:
                     top_bottleneck_kind = bns[0].get("kind")
-                if all_positive_skill_prompt:
+                if explicit_ranked_prompt:
                     matching = [
-                        sk for sk in self.skill_library.all()
-                        if getattr(sk, "confidence", "") != TIER_AVOID
+                        self.skill_library.get(skill_id)
+                        for skill_id in explicit_skill_ids
                     ]
+                    matching = [
+                        sk
+                        for sk in matching
+                        if sk is not None
+                        and getattr(sk, "confidence", "") != TIER_AVOID
+                    ]
+                    skill_prompt_meta["reason"] = (
+                        "explicit_ranked_positive_ids"
+                    )
+                    skill_prompt_meta["avoid_skills_suppressed"] = True
+                    skill_prompt_meta["requested_explicit_skill_ids"] = list(
+                        explicit_skill_ids
+                    )
+                elif all_positive_skill_prompt:
+                    matching = list(positive_catalog)
                     skill_prompt_meta["reason"] = "all_positive_requested"
                     skill_prompt_meta["avoid_skills_suppressed"] = True
+                elif smart_skill_prompt:
+                    if candidate_route is not None:
+                        matching = [
+                            self.skill_library.get(route_skill_id)
+                            for route_skill_id in (
+                                candidate_route.get("skill_ids") or []
+                            )
+                        ]
+                        matching = [
+                            routed_skill
+                            for routed_skill in matching
+                            if routed_skill is not None
+                        ]
+                        skill_prompt_meta["router_audit"] = {
+                            **dict(
+                                candidate_route.get("router_audit") or {}
+                            ),
+                            "candidate_route_rank": candidate_route.get(
+                                "route_rank"
+                            ),
+                            "candidate_route_skill_ids": [
+                                getattr(routed_skill, "id", "")
+                                for routed_skill in matching
+                            ],
+                        }
+                    else:
+                        from smart_skill_router import route_smart_skills
+
+                        routed = route_smart_skills(
+                            self.skill_library,
+                            scope=skill_prompt_scope,
+                            step_name=step_name,
+                            current_code=self.hls_code,
+                            synth_report=self.synth_report,
+                            vitis_version=self.vitis_version,
+                            fpga=self.part,
+                            requested_skill_id=skill_id,
+                        )
+                        matching = routed.selected
+                        skill_prompt_meta["router_audit"] = routed.audit
+                    skill_prompt_meta["avoid_skills_suppressed"] = True
+                    skill_prompt_meta["reason"] = (
+                        "smart_router_matched"
+                        if matching else "smart_router_no_fit"
+                    )
                 else:
                     selected_skill = self.skill_library.get(skill_id) if skill_id else None
                     if selected_skill:
@@ -5620,8 +6738,15 @@ class C2HLSOrchestrator:
                     skill_prompt_meta["context_guardrail_filtered_generic_skills"] = True
                 skill_prompt_meta["matched_skill_ids"] = [getattr(sk, "id", "") for sk in matching]
                 skill_prompt_meta["matched_skill_count"] = len(matching)
+                skill_prompt_meta["routed_skill_ids"] = [
+                    getattr(sk, "id", "") for sk in matching
+                ]
+                skill_prompt_meta["routed_skill_count"] = len(matching)
                 if matching:
-                    if top_bottleneck_kind and not action_only_skill_prompt:
+                    if (
+                        top_bottleneck_kind
+                        and not positive_only_skill_prompt
+                    ):
                         avoid_matching = [
                             sk for sk in self.skill_library.query(
                                 bottleneck_kind=top_bottleneck_kind,
@@ -5631,32 +6756,67 @@ class C2HLSOrchestrator:
                             )
                             if getattr(sk, "confidence", "") == "avoid"
                         ][:2]
-                    elif top_bottleneck_kind and action_only_skill_prompt:
+                    elif top_bottleneck_kind and positive_only_skill_prompt:
                         skill_prompt_meta["avoid_skills_suppressed"] = True
-                    skill_prompt_meta["avoid_skill_ids"] = [getattr(sk, "id", "") for sk in avoid_matching]
-                    prompt_skills = list(matching) + avoid_matching if all_positive_skill_prompt else list(matching)[:3] + avoid_matching
-                    skill_block = render_skill_set_for_prompt(
+                    prompt_skills = (
+                        list(matching)
+                        if all_positive_skill_prompt or explicit_ranked_prompt
+                        else list(matching)[:3] + avoid_matching
+                    )
+                    render_limit = (
+                        len(prompt_skills)
+                        if all_positive_skill_prompt or explicit_ranked_prompt
+                        else 4
+                    )
+                    rendered_skills = select_skills_for_prompt(
                         prompt_skills,
-                        max_skills=len(prompt_skills) if all_positive_skill_prompt else 4,
+                        max_skills=render_limit,
+                    )
+                    rendered_ids = [
+                        getattr(sk, "id", "") for sk in rendered_skills
+                    ]
+                    rendered_avoid_ids = [
+                        getattr(sk, "id", "")
+                        for sk in rendered_skills
+                        if getattr(sk, "confidence", "") == TIER_AVOID
+                    ]
+                    skill_prompt_meta["avoid_skill_ids"] = rendered_avoid_ids
+                    skill_block = render_skill_set_for_prompt(
+                        rendered_skills,
+                        max_skills=len(rendered_skills),
                         prompt_mode=render_skill_prompt_mode,
                     )
                     if skill_block and "No matching skills" not in skill_block:
                         skill_prompt_meta["injected"] = True
-                        skill_prompt_meta["injected_skill_ids"] = [
-                            getattr(sk, "id", "") for sk in prompt_skills
-                        ]
+                        # Legacy fields remain available, but now describe the
+                        # exact model-visible slice instead of the pre-truncate
+                        # request list.
+                        skill_prompt_meta["injected_skill_ids"] = rendered_ids
+                        skill_prompt_meta["injected_skill_count"] = len(
+                            rendered_ids
+                        )
+                        skill_prompt_meta["rendered_skill_ids"] = rendered_ids
+                        skill_prompt_meta["rendered_skill_count"] = len(
+                            rendered_ids
+                        )
+                        skill_prompt_meta["rendered_prompt_characters"] = len(
+                            skill_block
+                        )
+                        skill_prompt_meta["source"] = skill_prompt_scope
                         skill_prompt_meta["reason"] = "injected"
                         prompt_shape = (
                             "pattern → strategy → required steps → template/example"
                             if action_only_skill_prompt else
+                            "pattern → positive applicability preconditions → "
+                            "strategy → required steps → template/example"
+                            if positive_only_skill_prompt else
                             "pattern → strategy → required steps → guardrails → template/example"
                         )
                         if all_positive_skill_prompt:
                             extra_blocks.append(
                                 f"ALL POSITIVE SKILLS from library ({prompt_shape}). "
                                 "Use the applicable positive recipes as a menu for this "
-                                f"`{step_name}` rewrite; no avoid-tier skills or guard "
-                                "sections are included:\n\n" + skill_block
+                                f"`{step_name}` rewrite:\n\n" + skill_block
                             )
                         else:
                             extra_blocks.append(
@@ -5665,11 +6825,32 @@ class C2HLSOrchestrator:
                                 f"addresses the bottleneck/route '{top_bottleneck_kind or skill_id}' "
                                 f"on the `{step_name}` step:\n\n" + skill_block
                             )
+                elif smart_skill_prompt:
+                    extra_blocks.append(
+                        render_empty_skill_source(
+                            skill_prompt_scope,
+                            reason="no_catalog_skill_met_fit_threshold",
+                        )
+                    )
+                    skill_prompt_meta["source"] = skill_prompt_scope
+                    skill_prompt_meta["injected_skill_count"] = 0
+                    skill_prompt_meta["rendered_skill_count"] = 0
             except Exception as exc:  # pragma: no cover - skill injection best-effort
                 skill_prompt_meta["reason"] = "skill_injection_error"
                 skill_prompt_meta["error"] = str(exc)
                 logging.warning("Phase 5b skill-template injection failed: %s", exc)
 
+        if (
+            _env_flag(SKILL_USAGE_DECLARATION_ENV)
+            and skill_prompt_meta["rendered_skill_ids"]
+        ):
+            from skill_usage import usage_declaration_instruction
+
+            extra_blocks.append(
+                usage_declaration_instruction(
+                    skill_prompt_meta["rendered_skill_ids"]
+                )
+            )
         if additional_guidance:
             extra_blocks.append(additional_guidance)
         if extra_blocks:
@@ -5685,6 +6866,22 @@ class C2HLSOrchestrator:
         self._append_history("assistant", reply)
         self.messages.append({"role": "assistant", "content": reply})
 
+        from skill_usage import (
+            parse_skill_usage_declaration,
+            verify_declared_skill_usage,
+        )
+
+        skill_prompt_meta.update(
+            parse_skill_usage_declaration(
+                reply,
+                rendered_skill_ids=skill_prompt_meta["rendered_skill_ids"],
+            )
+        )
+        pending_event = self._pending_candidate_evaluation_index()
+        if pending_event is not None:
+            self.synthesis_eval_events[pending_event]["skill_prompt"] = dict(
+                skill_prompt_meta
+            )
         new_code = extract_cpp_code(reply)
         if not new_code:
             self._finalize_candidate_evaluation(
@@ -5709,6 +6906,16 @@ class C2HLSOrchestrator:
             logging.info("[Step: %s] Synthesis attempt %d", step_name, turn)
             new_code = self._preflight_generated_hls_code(
                 new_code, f"Step {step_name} attempt {turn}",
+            )
+            skill_prompt_meta.update(
+                verify_declared_skill_usage(
+                    parent_code=self.hls_code or "",
+                    candidate_code=new_code,
+                    declared_skill_ids=skill_prompt_meta[
+                        "declared_applied_skill_ids"
+                    ],
+                    library=self.skill_library,
+                )
             )
 
             guardrail_issues = _lint_in_place_stencil_guardrails(self.hls_code, new_code)
@@ -5788,6 +6995,7 @@ class C2HLSOrchestrator:
                     "success": False,
                     "stage": "compile_check",
                     "error": err,
+                    "skill_prompt": dict(skill_prompt_meta),
                 })
                 step_turn_records.append({"turn": turn, "phase": "B",
                                           "success": False, "error": err})
@@ -5814,6 +7022,20 @@ class C2HLSOrchestrator:
                     )
                 continue
 
+            skill_prompt_meta["synthesized_candidate_skill_ids"] = list(
+                skill_prompt_meta["rendered_skill_ids"]
+            )
+            skill_prompt_meta["synthesized_candidate_skill_count"] = len(
+                skill_prompt_meta["synthesized_candidate_skill_ids"]
+            )
+            skill_prompt_meta["synthesized_candidate_code_sha256"] = (
+                hashlib.sha256(new_code.encode("utf-8")).hexdigest()
+            )
+            pending_event = self._pending_candidate_evaluation_index()
+            if pending_event is not None:
+                self.synthesis_eval_events[pending_event]["skill_prompt"] = dict(
+                    skill_prompt_meta
+                )
             outcome = self._synth_and_test(new_code, log_prefix=f"[Step: {step_name}]")
             result = outcome["synth"]
 
@@ -5827,6 +7049,7 @@ class C2HLSOrchestrator:
                     "attempt_results": [
                         _compact_attempt_record(entry) for entry in attempt_results
                     ],
+                    "skill_prompt": dict(skill_prompt_meta),
                 }
 
             if result.get("skip_reason") == "csim_correctness_gate_failed":
@@ -5844,6 +7067,7 @@ class C2HLSOrchestrator:
                     "stage": "csim",
                     "csim": gate_summary,
                     "error": f"csim_failed: {gate_error[:300]}",
+                    "skill_prompt": dict(skill_prompt_meta),
                 })
                 step_turn_records.append({
                     "turn": turn,
@@ -5887,7 +7111,7 @@ class C2HLSOrchestrator:
                     "step_name": step_name,
                     "report": result["report"],
                     "code": new_code,
-                    "skill_prompt": skill_prompt_meta,
+                    "skill_prompt": dict(skill_prompt_meta),
                 }
                 if step_name == "coalescing" or "max_widen_bitwidth" in (new_code or ""):
                     step_result["coalescing_diagnostics"] = _coalescing_diagnostics(
@@ -5990,6 +7214,7 @@ class C2HLSOrchestrator:
                         "csim": csim_summary,
                         "cosim": cosim_summary,
                         "error": f"{gate_name}_failed: {gate_error[:300]}",
+                        "skill_prompt": dict(skill_prompt_meta),
                     })
                     step_turn_records.append({
                         "turn": turn, "phase": "B",
@@ -6123,6 +7348,7 @@ class C2HLSOrchestrator:
                         "success": False,
                         "stage": "llm_improvement",
                         "error": "No code in improvement response",
+                        "skill_prompt": dict(skill_prompt_meta),
                     })
                     break
                 step_turn_records.append({
@@ -6142,6 +7368,7 @@ class C2HLSOrchestrator:
                 "stage": "synthesis",
                 "report": result.get("report"),
                 "error": result["error"],
+                "skill_prompt": dict(skill_prompt_meta),
             })
             step_turn_records.append({"turn": turn, "phase": "B",
                                       "success": False, "error": result["error"]})
@@ -6459,6 +7686,31 @@ class C2HLSOrchestrator:
 
     def _prepare_skill_library_for_run(self) -> None:
         """Resolve skill control before any model or compiler call."""
+        skill_scope = os.getenv(
+            "C2HLS_SKILL_PROMPT_SCOPE", ""
+        ).strip().lower()
+        skill_mode = os.getenv("C2HLS_SKILL_MODE", "").strip().lower()
+        if skill_scope in {
+            "skillless", "no_skills", "no-skills", "none",
+        } or skill_mode in {
+            "skillless", "no_skills", "no-skills",
+        }:
+            self.skill_library = None
+            self.skill_library_provenance = {
+                "loaded": False,
+                "control_enabled": True,
+                "source_mode": "skillless",
+                "reason": "explicit_empty_skill_list",
+                "store": {
+                    "schema": "1.1",
+                    "sha256": None,
+                    "skill_count": 0,
+                },
+                "frozen": True,
+                "persistence_enabled": False,
+                "online_updates_enabled": False,
+            }
+            return
         force_skill_prompts = os.getenv(
             "C2HLS_FORCE_SKILL_PROMPTS", ""
         ).strip().lower() in {"1", "true", "yes", "on"}
@@ -6547,7 +7799,7 @@ class C2HLSOrchestrator:
         if not self.run_phase_a(c_code, header_code, header_name):
             return False, {"phase": "A", "error": "C code validation failed"}
 
-        if not self.run_phase_b(multistep=True):
+        if not self._run_phase_b_or_frozen_seed(multistep=True):
             return False, {
                 "phase": "B",
                 "error": "Baseline HLS synthesis/correctness failed",
@@ -6557,6 +7809,7 @@ class C2HLSOrchestrator:
                 "baseline_csim": self.generated_csim,
                 "baseline_cosim": self.generated_cosim,
                 "preflight_patches": self.preflight_patches,
+                "frozen_phase_b": self.frozen_phase_b,
             }
 
         # Phase 8 (opt-in via C2HLS_PHASE8_BASELINE_ALIGN=1): if our Phase B
@@ -6915,7 +8168,55 @@ class C2HLSOrchestrator:
         # resource-sum tiebreak). If the best is the current state, this
         # is a no-op. If a mid-trajectory state was better, snap back to
         # it and overwrite final_report / hls_code with that snapshot.
+        selected_snapshot = (
+            min(
+                best_so_far_history,
+                key=lambda item: item.get("score") or float("inf"),
+            )
+            if best_so_far_history
+            else None
+        )
+        self.qor_parent_origin = (
+            {
+                "step_name": selected_snapshot.get("step_name"),
+                "step_index": selected_snapshot.get("step_index"),
+                "source": selected_snapshot.get("source"),
+            }
+            if selected_snapshot
+            else {}
+        )
         promotion = self._promote_best_so_far(best_so_far_history)
+
+        design_sweep_enabled = _qor_design_sweep_enabled()
+        quality_repair = {
+            "schema_version": "c2hls.quality-repair.v2",
+            "attempted": False,
+            "applied": False,
+            "attempts": [],
+            "design_sweep": {
+                "enabled": design_sweep_enabled,
+                "attempted": False,
+            },
+        }
+        if design_sweep_enabled:
+            quality_agent = getattr(self, "quality_repair", None)
+            if quality_agent is None:
+                quality_agent = QualityRepairAgent(self)
+                self.quality_repair = quality_agent
+            design_sweep = quality_agent.run_design_sweep()
+            quality_repair.update({
+                "attempted": design_sweep.get("attempted") is True,
+                "applied": design_sweep.get("applied") is True,
+                "design_sweep": design_sweep,
+            })
+            self.quality_repair_result = quality_repair
+            if design_sweep.get("applied"):
+                self._record_best_so_far(
+                    best_so_far_history,
+                    step_index=len(step_results),
+                    step_name="qor_design_sweep",
+                    source="qor_design_sweep",
+                )
 
         candidate_feasibility = _paper_candidate_feasibility(
             self.synth_report,
@@ -6973,11 +8274,14 @@ class C2HLSOrchestrator:
             ),
             "baseline_alignment": baseline_alignment,
             "phase_b_mode": self.phaseb_mode,
+            "frozen_phase_b": self.frozen_phase_b,
             "preflight_patches": self.preflight_patches,
             "phase_b_fast_candidate": (
                 {k: v for k, v in (self.phase_b_fast_candidate or {}).items() if k != "code"}
                 if self.phase_b_fast_candidate else None
             ),
+            "quality_repair": quality_repair,
+            "qor_design_sweep": quality_repair.get("design_sweep"),
             "skill_library_provenance": self.skill_library_provenance,
             "llm_usage": self._llm_usage_summary(),
             "synthesis_evaluations": self._synthesis_evaluation_summary(),
@@ -7076,7 +8380,7 @@ class C2HLSOrchestrator:
         if not self.run_phase_a(c_code, header_code, header_name):
             return False, {"phase": "A", "error": "C code validation failed"}
 
-        if not self.run_phase_b(multistep=False):
+        if not self._run_phase_b_or_frozen_seed(multistep=False):
             return False, {
                 "phase": "B",
                 "error": "HLS synthesis/correctness failed",
@@ -7084,6 +8388,7 @@ class C2HLSOrchestrator:
                 "csim": self.generated_csim,
                 "cosim": self.generated_cosim,
                 "preflight_patches": self.preflight_patches,
+                "frozen_phase_b": self.frozen_phase_b,
             }
 
         comparison = {}
@@ -7100,6 +8405,8 @@ class C2HLSOrchestrator:
             )
             if quality_repair.get("applied"):
                 comparison = self.run_phase_c(ground_truth_report)
+        elif self.quality_repair.design_sweep_enabled():
+            quality_repair = self.run_quality_repair({}, None)
 
         candidate_feasibility = _paper_candidate_feasibility(
             self.synth_report,
@@ -7125,8 +8432,10 @@ class C2HLSOrchestrator:
             "csim": self.generated_csim,
             "cosim": self.generated_cosim,
             "quality_repair": quality_repair,
+            "qor_design_sweep": quality_repair.get("design_sweep"),
             "turn_history": self.turn_results,
             "preflight_patches": self.preflight_patches,
+            "frozen_phase_b": self.frozen_phase_b,
             "llm_usage": self._llm_usage_summary(),
             "synthesis_evaluations": self._synthesis_evaluation_summary(),
             **self._tool_call_attribution(),
@@ -7154,6 +8463,54 @@ class C2HLSOrchestrator:
                 else "not_run"
             ),
         }
+
+
+_REFERENCE_MATERIAL_INPUT_KEYS = (
+    "ground_truth_code",
+    "gold_hls_source_code",
+    "gt_variants",
+    "gt_variant_headers",
+)
+
+
+def _scrub_reference_material_for_controller(inputs: dict) -> dict:
+    """Erase loaded expert source before any controller generation call.
+
+    Reference validation and offline reporting deliberately share the process
+    with generation today.  The controller API already passes empty GT inputs
+    in reference-blind mode; mutating the loaded input bundle adds a harder
+    object-level boundary so a later call-site change cannot accidentally
+    forward expert code that remains resident in ``inputs``.
+    """
+
+    if not _reference_blind_enabled():
+        return {
+            "schema_version": "c2hls.reference-material-boundary.v1",
+            "enabled": False,
+            "scrubbed": False,
+            "reason": "reference_blind_disabled",
+        }
+
+    loaded: dict[str, int | bool] = {}
+    for key in _REFERENCE_MATERIAL_INPUT_KEYS:
+        value = inputs.get(key)
+        if isinstance(value, dict):
+            loaded[key] = len(value)
+            inputs[key] = {}
+        elif isinstance(value, str):
+            loaded[key] = bool(value)
+            inputs[key] = ""
+        else:
+            loaded[key] = bool(value)
+            inputs[key] = None
+    return {
+        "schema_version": "c2hls.reference-material-boundary.v1",
+        "enabled": True,
+        "scrubbed": True,
+        "scrubbed_keys": list(_REFERENCE_MATERIAL_INPUT_KEYS),
+        "pre_scrub_presence": loaded,
+        "private_metadata_forwarded_to_controller": False,
+    }
 
 
 def _load_benchmark_inputs(bench_dir: str) -> dict:
@@ -7309,6 +8666,15 @@ _HLSFACTORY_SHAPE_REGISTRY = (
 )
 
 
+def _hlsfactory_shape_registry_path() -> Path:
+    override = os.getenv("C2HLS_HLSFACTORY_SHAPE_REGISTRY", "").strip()
+    return (
+        Path(override).expanduser().resolve()
+        if override
+        else _HLSFACTORY_SHAPE_REGISTRY
+    )
+
+
 def _authoritative_hlsfactory_output_specs(
     meta: dict, testbench_code: str
 ) -> tuple[dict, dict, dict]:
@@ -7322,7 +8688,8 @@ def _authoritative_hlsfactory_output_specs(
     """
 
     try:
-        registry_bytes = _HLSFACTORY_SHAPE_REGISTRY.read_bytes()
+        registry_path = _hlsfactory_shape_registry_path()
+        registry_bytes = registry_path.read_bytes()
         registry = json.loads(registry_bytes)
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"HLSFactory shape registry unavailable: {exc}") from exc
@@ -7398,10 +8765,14 @@ def _authoritative_hlsfactory_output_specs(
                     f"benchmark golden_output_specs kind conflicts for {benchmark}:{name}"
                 )
 
-    return comparison_specs, declarations, {
-        "path": _HLSFACTORY_SHAPE_REGISTRY.relative_to(
+    try:
+        registry_label = registry_path.relative_to(
             Path(__file__).resolve().parent
-        ).as_posix(),
+        ).as_posix()
+    except ValueError:
+        registry_label = str(registry_path)
+    return comparison_specs, declarations, {
+        "path": registry_label,
         "sha256": hashlib.sha256(registry_bytes).hexdigest(),
         "testbench_sha256": actual_testbench_sha,
     }
@@ -9472,6 +10843,24 @@ def _build_run_attribution(orchestrator, meta: dict) -> dict:
         "ground_truth_control_enabled": _ground_truth_control_enabled(),
         "cosim_selected_only": _cosim_selected_only(),
         "feasibility_selection": _feasibility_selection_enabled(),
+        "qor_design_sweep": {
+            "schema_version": "c2hls.qor-design-configuration.v1",
+            "enabled": _qor_design_sweep_enabled(),
+            "max_knobs": os.getenv(QOR_SWEEP_MAX_KNOBS_ENV, "4"),
+            "max_candidates": os.getenv(QOR_SWEEP_MAX_CANDIDATES_ENV, "8"),
+            "factor_values": os.getenv(QOR_SWEEP_VALUES_ENV, "1,2,4,8,16"),
+            "ii_values": os.getenv(QOR_SWEEP_II_VALUES_ENV, "1,2,4,8"),
+            "tile_values": os.getenv(
+                QOR_SWEEP_TILE_VALUES_ENV, "4,8,16,32,64"
+            ),
+            "interactions": _env_flag(QOR_SWEEP_INTERACTIONS_ENV),
+            "max_interactions": os.getenv(
+                QOR_SWEEP_MAX_INTERACTIONS_ENV, "2"
+            ),
+            "correctness_policy": "csim_before_csynth",
+            "cosim_policy": "disabled_during_design_sweep",
+            "reference_blind": True,
+        },
         "decoding": {
             "configured": configured_decoding,
             "effective": {
@@ -9986,6 +11375,8 @@ def run_benchmark(bench_dir: str, output_dir: str = None,
             json.dump(results, f, indent=2, default=str)
         return results
 
+    reference_material_boundary = _scrub_reference_material_for_controller(inputs)
+
     orchestrator.cosim_reference_cycle_info = (
         _reference_cycle_info(reference_validation)
         if _ground_truth_control_enabled() else {}
@@ -10033,6 +11424,7 @@ def run_benchmark(bench_dir: str, output_dir: str = None,
         )
     results["independent_golden"] = independent_golden.get("provenance", {})
     results["cosim_reference_cycle_info"] = orchestrator.cosim_reference_cycle_info
+    results["reference_material_boundary"] = reference_material_boundary
 
     with open(os.path.join(output_dir, f"{bench_name}_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=str)
@@ -10136,6 +11528,8 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
             "total_elapsed_seconds": preflight_elapsed,
         }
 
+    reference_material_boundary = _scrub_reference_material_for_controller(inputs)
+
     orchestrator.cosim_reference_cycle_info = (
         _reference_cycle_info(reference_validation)
         if _ground_truth_control_enabled() else {}
@@ -10225,6 +11619,7 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
             reference_validation.get("report", {}),
         )
     results["independent_golden"] = independent_golden.get("provenance", {})
+    results["reference_material_boundary"] = reference_material_boundary
     results["preflight_elapsed_seconds"] = preflight_elapsed
     results["search_elapsed_seconds"] = search_elapsed
     results["post_route_elapsed_seconds"] = post_route_elapsed
@@ -10312,6 +11707,55 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL_ID, help="LLM model ID")
     parser.add_argument("--turns", type=int, default=3, help="Max fix attempts per phase")
     parser.add_argument("--quality-repair-turns", type=int, default=DEFAULT_QUALITY_REPAIR_TURNS, help="Max post-synthesis quality repair attempts")
+    parser.add_argument(
+        "--qor-design-sweep",
+        action="store_true",
+        help=(
+            "After normal candidate selection, run a reference-blind, "
+            "CSim/CSynth-only local sweep over discovered HLS design knobs."
+        ),
+    )
+    parser.add_argument(
+        "--qor-sweep-max-knobs",
+        type=int,
+        default=None,
+        help="Maximum numeric HLS design knobs considered by the QoR sweep.",
+    )
+    parser.add_argument(
+        "--qor-sweep-max-candidates",
+        type=int,
+        default=None,
+        help="Maximum OFAT plus interaction candidates evaluated by the QoR sweep.",
+    )
+    parser.add_argument(
+        "--qor-sweep-values",
+        type=str,
+        default=None,
+        help="Comma-separated unroll/partition/resource factors, for example 1,2,4,8,16.",
+    )
+    parser.add_argument(
+        "--qor-sweep-ii-values",
+        type=str,
+        default=None,
+        help="Comma-separated target pipeline II values, for example 1,2,4,8.",
+    )
+    parser.add_argument(
+        "--qor-sweep-tile-values",
+        type=str,
+        default=None,
+        help="Comma-separated named TILE/BLOCK constant values.",
+    )
+    parser.add_argument(
+        "--qor-sweep-interactions",
+        action="store_true",
+        help="Use remaining QoR budget to combine individually improving knob values.",
+    )
+    parser.add_argument(
+        "--qor-sweep-max-interactions",
+        type=int,
+        default=None,
+        help="Maximum pairwise candidates after the one-factor-at-a-time stage.",
+    )
     parser.add_argument("--all", action="store_true", help="Run all benchmarks")
     parser.add_argument("--multistep", action="store_true", help="Run multi-step incremental optimization instead of single-shot")
     parser.add_argument(
@@ -10378,6 +11822,26 @@ if __name__ == "__main__":
         os.environ[CANDIDATE_ATTEMPTS_ENV] = str(args.attempts_per_candidate)
     if args.exhaustive_candidate_attempts:
         os.environ[EXHAUSTIVE_CANDIDATE_ATTEMPTS_ENV] = "1"
+    if args.qor_design_sweep:
+        os.environ[QOR_DESIGN_SWEEP_ENV] = "1"
+    if args.qor_sweep_max_knobs is not None:
+        os.environ[QOR_SWEEP_MAX_KNOBS_ENV] = str(args.qor_sweep_max_knobs)
+    if args.qor_sweep_max_candidates is not None:
+        os.environ[QOR_SWEEP_MAX_CANDIDATES_ENV] = str(
+            args.qor_sweep_max_candidates
+        )
+    if args.qor_sweep_values is not None:
+        os.environ[QOR_SWEEP_VALUES_ENV] = args.qor_sweep_values
+    if args.qor_sweep_ii_values is not None:
+        os.environ[QOR_SWEEP_II_VALUES_ENV] = args.qor_sweep_ii_values
+    if args.qor_sweep_tile_values is not None:
+        os.environ[QOR_SWEEP_TILE_VALUES_ENV] = args.qor_sweep_tile_values
+    if args.qor_sweep_interactions:
+        os.environ[QOR_SWEEP_INTERACTIONS_ENV] = "1"
+    if args.qor_sweep_max_interactions is not None:
+        os.environ[QOR_SWEEP_MAX_INTERACTIONS_ENV] = str(
+            args.qor_sweep_max_interactions
+        )
 
     steps = args.steps.split(",") if args.steps else None
 

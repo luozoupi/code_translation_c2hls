@@ -112,6 +112,10 @@ methods are documented in
 The relationship to the public `c2hls_enhanced_l` branch and the reason it was
 reviewed rather than merged wholesale are recorded in
 [`docs/hpca2027_architecture_source_review.md`](docs/hpca2027_architecture_source_review.md).
+The history-to-corpus, completion-only QLoRA, adapter-serving, per-agent
+assignment, and held-out Vitis evaluation procedure is documented in
+[`docs/offline_sft_workflow.md`](docs/offline_sft_workflow.md), including the
+completed Qwen runs and the prepared-only Gemma status.
 The 28 HLSFactory development kernels and their hash-bound public-testbench
 output shapes are pinned in `configs/hlsfactory_development_suite.json` and
 `configs/hlsfactory_output_shapes.json`; a missing entry, changed testbench,
@@ -1032,6 +1036,27 @@ artifacts/                            # Markdown + comparison reports
 | `C2HLS_QUALITY_REPAIR_TURNS` | `2` | Max candidate attempts in quality-repair loop |
 | `C2HLS_SYNTH_REVERT_THRESHOLD` | `0` | Revert-on-streak: N consecutive same-class errors trigger revert (0 = disabled) |
 | `C2HLS_VERIFY_RUNS` | `1` | When > 1, repeat csynth N times and average (stability measurement) |
+
+### Reference-blind QoR design sweep
+
+The optional QoR stage extends `QualityRepairAgent` with controlled local
+experiments after normal candidate selection. It freezes the current best
+kernel, discovers explicit numeric HLS controls, evaluates one-factor-at-a-time
+variants with CSim before CSynth, and promotes only the lowest-latency feasible
+candidate. Reference cycles are never inputs to generation or selection. See
+[`docs/qor_design_sweep.md`](docs/qor_design_sweep.md) for the data contract and
+launch examples.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `C2HLS_QOR_DESIGN_SWEEP` | `0` | Enable the post-selection frozen-parent QoR experiment |
+| `C2HLS_QOR_SWEEP_MAX_KNOBS` | `4` | Maximum typed source knobs considered, selected across knob classes |
+| `C2HLS_QOR_SWEEP_MAX_CANDIDATES` | `8` | Maximum OFAT plus optional interaction candidates |
+| `C2HLS_QOR_SWEEP_VALUES` | `1,2,4,8,16` | Unroll, partition, stream-depth, allocation, and related factors |
+| `C2HLS_QOR_SWEEP_II_VALUES` | `1,2,4,8` | Pipeline-II design points |
+| `C2HLS_QOR_SWEEP_TILE_VALUES` | `4,8,16,32,64` | Values for explicit `TILE*` and `BLOCK*` constants |
+| `C2HLS_QOR_SWEEP_INTERACTIONS` | `0` | Test bounded pairs of independently improving values |
+| `C2HLS_QOR_SWEEP_MAX_INTERACTIONS` | `2` | Pairwise-candidate cap within the total QoR candidate cap |
 
 ### hw_emu
 

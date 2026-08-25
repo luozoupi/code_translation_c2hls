@@ -1,0 +1,538 @@
+{
+  "benchmarks": {
+    "hlsfactory_2mm": {
+      "outputs": {
+        "D": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            40,
+            80
+          ],
+          "shape": [
+            40,
+            80
+          ]
+        }
+      },
+      "testbench_sha256": "ad9c7599e2b507427338b1a29f6fb6543734eb413b09c1935e55c966f524145e"
+    },
+    "hlsfactory_3mm": {
+      "outputs": {
+        "G": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            40,
+            70
+          ],
+          "shape": [
+            40,
+            70
+          ]
+        }
+      },
+      "testbench_sha256": "e4840fa9b6009fc6536722ca6a8f670effc038d2d57a637e7a2e9ef7d88b5fbe"
+    },
+    "hlsfactory_atax": {
+      "outputs": {
+        "y": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            124
+          ],
+          "shape": [
+            124
+          ]
+        }
+      },
+      "testbench_sha256": "66803681c4e786cf71944650d58ffbddacd7b311772a707007142025098ecddd"
+    },
+    "hlsfactory_bicg": {
+      "outputs": {
+        "q": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            124
+          ],
+          "shape": [
+            124
+          ]
+        },
+        "s": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            116
+          ],
+          "shape": [
+            116
+          ]
+        }
+      },
+      "testbench_sha256": "8f1ab0cb80eaa66a3c7f68e042d7d644bff5c1859cdc2fec98fe9533f6d10ea3"
+    },
+    "hlsfactory_cholesky": {
+      "outputs": {
+        "A": {
+          "kind": "float",
+          "layout": "lower_triangle_inclusive_row_major",
+          "logical_shape": [
+            120,
+            120
+          ],
+          "shape": [
+            7260
+          ]
+        }
+      },
+      "testbench_sha256": "96d800c3a10237e7f30e50340e947841d15769c41e11df748ddea144f5b2ec16"
+    },
+    "hlsfactory_correlation": {
+      "outputs": {
+        "corr": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            80,
+            80
+          ],
+          "shape": [
+            80,
+            80
+          ]
+        }
+      },
+      "testbench_sha256": "ddcfbcdccff2e24739a172145f62e1a0c99c4c5ff09d0249e5c00c9dd65b837f"
+    },
+    "hlsfactory_covariance": {
+      "outputs": {
+        "cov": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            80,
+            80
+          ],
+          "shape": [
+            80,
+            80
+          ]
+        }
+      },
+      "testbench_sha256": "998fe686444965e4f091f8fe023edbd5656f3c0e06b8cf93f390a0d5c05c5d96"
+    },
+    "hlsfactory_doitgen": {
+      "outputs": {
+        "A": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            25,
+            20,
+            30
+          ],
+          "shape": [
+            25,
+            20,
+            30
+          ]
+        }
+      },
+      "testbench_sha256": "4387f6ab1dffa0ddef4167a6b7f532e53b59f3c48601cb69538d5a1777c5879e"
+    },
+    "hlsfactory_durbin": {
+      "outputs": {
+        "y": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            120
+          ],
+          "shape": [
+            120
+          ]
+        }
+      },
+      "testbench_sha256": "d60bd75bea77fac1f55299accf47ec754c490a38636a64d331a2c2c085f6c629"
+    },
+    "hlsfactory_fdtd-2d": {
+      "outputs": {
+        "ex": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            60,
+            80
+          ],
+          "shape": [
+            60,
+            80
+          ]
+        },
+        "ey": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            60,
+            80
+          ],
+          "shape": [
+            60,
+            80
+          ]
+        },
+        "hz": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            60,
+            80
+          ],
+          "shape": [
+            60,
+            80
+          ]
+        }
+      },
+      "testbench_sha256": "79cfd634093bdb50ed0e2098aed29c2c553a00a14f16cb6a24f5e8031dbcaeff"
+    },
+    "hlsfactory_floyd-warshall": {
+      "outputs": {
+        "path": {
+          "kind": "integer",
+          "layout": "dense",
+          "logical_shape": [
+            180,
+            180
+          ],
+          "shape": [
+            180,
+            180
+          ]
+        }
+      },
+      "testbench_sha256": "49732960dc70aa18eccee287a0dc5dbcf4a059b67e40ce4251631f035f0b87de"
+    },
+    "hlsfactory_gemm": {
+      "outputs": {
+        "C": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            60,
+            70
+          ],
+          "shape": [
+            60,
+            70
+          ]
+        }
+      },
+      "testbench_sha256": "9349c618700b47869f02e56e8a63924b4bf4e5be77688e5cbcaca5f8e9f84ca4"
+    },
+    "hlsfactory_gemver": {
+      "outputs": {
+        "w": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            120
+          ],
+          "shape": [
+            120
+          ]
+        }
+      },
+      "testbench_sha256": "5662bc498051633d5dd9e908f7a36fa14af3a3a4cb225e2779cb033d5ba0ed5b"
+    },
+    "hlsfactory_gesummv": {
+      "outputs": {
+        "y": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            90
+          ],
+          "shape": [
+            90
+          ]
+        }
+      },
+      "testbench_sha256": "ab5911e5ec5438422cf7604265def368f0adfde5116ff4324c63b6bde20a7dab"
+    },
+    "hlsfactory_gramschmidt": {
+      "outputs": {
+        "Q": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            60,
+            80
+          ],
+          "shape": [
+            60,
+            80
+          ]
+        },
+        "R": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            80,
+            80
+          ],
+          "shape": [
+            80,
+            80
+          ]
+        }
+      },
+      "testbench_sha256": "7f33b121f41da32f22b3e2415dfda0f7d199c2b2117016715310a1f2d7bd8ee5"
+    },
+    "hlsfactory_heat-3d": {
+      "outputs": {
+        "A": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            20,
+            20,
+            20
+          ],
+          "shape": [
+            20,
+            20,
+            20
+          ]
+        }
+      },
+      "testbench_sha256": "0c548b26b9b5e31b5c1bf166e7f605f7cbb63792149e75d9b99af11a0c3d33de"
+    },
+    "hlsfactory_jacobi-1d": {
+      "outputs": {
+        "A": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            120
+          ],
+          "shape": [
+            120
+          ]
+        }
+      },
+      "testbench_sha256": "e5cadffbfff53eb7bdef9835f42b04881894c0bd3ac5dc6bbf6281a3b8c83d31"
+    },
+    "hlsfactory_jacobi-2d": {
+      "outputs": {
+        "A": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            90,
+            90
+          ],
+          "shape": [
+            90,
+            90
+          ]
+        }
+      },
+      "testbench_sha256": "4e53fb60ae6e36f962cc40f0a42bb361776247e55cc1afaa73fbf626b408d320"
+    },
+    "hlsfactory_lu": {
+      "outputs": {
+        "A": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            120,
+            120
+          ],
+          "shape": [
+            120,
+            120
+          ]
+        }
+      },
+      "testbench_sha256": "fa52d871fd6fa625cbd88e37149f6123a8f5e4de75ce0913a5bc53e1eaa16256"
+    },
+    "hlsfactory_ludcmp": {
+      "outputs": {
+        "x": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            120
+          ],
+          "shape": [
+            120
+          ]
+        }
+      },
+      "testbench_sha256": "303a49d5d3927e631f3610a651a804035a5bd341da22278c08c7c8ba2bfc8b1a"
+    },
+    "hlsfactory_mvt": {
+      "outputs": {
+        "x1": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            120
+          ],
+          "shape": [
+            120
+          ]
+        },
+        "x2": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            120
+          ],
+          "shape": [
+            120
+          ]
+        }
+      },
+      "testbench_sha256": "6ae39964e7965a272ac4fc5b53381676dd238d6388182bb67fe106af7cc79beb"
+    },
+    "hlsfactory_nussinov": {
+      "outputs": {
+        "table": {
+          "kind": "integer",
+          "layout": "upper_triangle_inclusive_row_major",
+          "logical_shape": [
+            180,
+            180
+          ],
+          "shape": [
+            16290
+          ]
+        }
+      },
+      "testbench_sha256": "c6cf5e64adf6673a0d720d59112caf8c2dd4ffcc9efabcdee8ef7d4ca1756fc8"
+    },
+    "hlsfactory_seidel-2d": {
+      "outputs": {
+        "A": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            120,
+            120
+          ],
+          "shape": [
+            120,
+            120
+          ]
+        }
+      },
+      "testbench_sha256": "cc7a7810fda824e88c7697be85e3d9ca52a68b9cd15aa8935f3d7a6811446733"
+    },
+    "hlsfactory_symm": {
+      "outputs": {
+        "C": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            60,
+            80
+          ],
+          "shape": [
+            60,
+            80
+          ]
+        }
+      },
+      "testbench_sha256": "9e4b3619cce530d4a125d32e9de01db1b9808a14439ad6372d17b7475891f30b"
+    },
+    "hlsfactory_syr2k": {
+      "outputs": {
+        "C": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            80,
+            80
+          ],
+          "shape": [
+            80,
+            80
+          ]
+        }
+      },
+      "testbench_sha256": "5235adfbf12f7a0bc61e17ad4dfb8f30513de1dc49ae03af007d4e8c25ab52da"
+    },
+    "hlsfactory_syrk": {
+      "outputs": {
+        "C": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            80,
+            80
+          ],
+          "shape": [
+            80,
+            80
+          ]
+        }
+      },
+      "testbench_sha256": "8f6df1552c4dedb2c3626de0723d98c1c8b900e3f5ff33b06571682f2900fff2"
+    },
+    "hlsfactory_trisolv": {
+      "outputs": {
+        "x": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            120
+          ],
+          "shape": [
+            120
+          ]
+        }
+      },
+      "testbench_sha256": "946b36a64a933cff45999ea68d693a89970f426177a45e37d5b22c30b8f13119"
+    },
+    "hlsfactory_trmm": {
+      "outputs": {
+        "B": {
+          "kind": "float",
+          "layout": "dense",
+          "logical_shape": [
+            60,
+            80
+          ],
+          "shape": [
+            60,
+            80
+          ]
+        }
+      },
+      "testbench_sha256": "18096d8df70426e97782aa1c53d07b1e10993fc2fda136d00c26a0e7a67fd77d"
+    }
+  },
+  "policy": {
+    "default_float_atol": 1e-06,
+    "default_float_rtol": 1e-05,
+    "missing_benchmark": "reject",
+    "missing_or_extra_output": "reject",
+    "source": "public testbench print_array bounds",
+    "testbench_hash_required": true
+  },
+  "provenance": {
+    "audit_method": "g++ -E -P byte equality for plain.cpp, hls_baseline.cpp, and testbench.cpp",
+    "canonical_registry": "/home/luo00466/code_translation-c2hls-hpca2027/configs/hlsfactory_output_shapes.json",
+    "canonical_registry_sha256": "a07b9afe233aa5cd640c34783140d2dc63f5dd98ef946b627cfaf480aab54215",
+    "generated_at": "2026-07-29T22:27:41.865485+00:00",
+    "source_ref": "fc27133f434451f273e84c97de700f101a03eb1f",
+    "variant_root": "/home/luo00466/code_translation-c2hls-enhanced-fc27133/benchmarks"
+  },
+  "schema_version": "c2hls.hlsfactory-output-shapes.v1",
+  "suite": "HLSFactory enhanced branch fc27133f434451f273e84c97de700f101a03eb1f"
+}

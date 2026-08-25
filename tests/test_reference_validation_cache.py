@@ -18,6 +18,18 @@ import export_schema_jsonl as schema_export  # noqa: E402
 
 
 class ReferenceValidationCacheTests(unittest.TestCase):
+    @staticmethod
+    def _stable_unavailable_probe() -> dict:
+        return {
+            "ran": False,
+            "returncode": None,
+            "version": None,
+            "executable": None,
+            "executable_sha256": None,
+            "output_sha256": None,
+            "error": "not probed in non-paper cache test",
+        }
+
     def _inputs(self, root: Path) -> dict:
         bench_dir = root / "hlsfactory_cache_test"
         bench_dir.mkdir()
@@ -85,11 +97,16 @@ class ReferenceValidationCacheTests(unittest.TestCase):
                 c2hls.REFERENCE_CACHE_DIR_ENV: str(root / "cache"),
                 c2hls.REFERENCE_CACHE_REQUIRE_COSIM_ENV: "0",
                 "C2HLS_REFERENCE_VALIDATE_MODE": "trusted_external",
+                "C2HLS_REFERENCE_BLIND": "0",
                 "C2HLS_VITIS_VERSION": "2023.2",
                 "C2HLS_FLOW_TARGET": "vitis",
             }
             with (
                 patch.dict(os.environ, env, clear=False),
+                patch(
+                    "evaluation_repro._probe_vitis_version",
+                    return_value=self._stable_unavailable_probe(),
+                ),
                 patch.object(
                     c2hls,
                     "_validate_gold_reference_uncached",
@@ -196,12 +213,19 @@ class ReferenceValidationCacheTests(unittest.TestCase):
             base_env = {
                 c2hls.REFERENCE_CACHE_DIR_ENV: str(root / "cache"),
                 "C2HLS_REFERENCE_VALIDATE_MODE": "trusted_external",
+                "C2HLS_REFERENCE_BLIND": "0",
                 "C2HLS_VITIS_VERSION": "2023.2",
                 "C2HLS_FLOW_TARGET": "vitis",
             }
-            with patch.dict(os.environ, dict(base_env, **{
-                c2hls.REFERENCE_CACHE_REQUIRE_COSIM_ENV: "0",
-            }), clear=False):
+            with (
+                patch.dict(os.environ, dict(base_env, **{
+                    c2hls.REFERENCE_CACHE_REQUIRE_COSIM_ENV: "0",
+                }), clear=False),
+                patch(
+                    "evaluation_repro._probe_vitis_version",
+                    return_value=self._stable_unavailable_probe(),
+                ),
+            ):
                 cache_path = c2hls._write_reference_validation_cache(inputs, validation)
                 self.assertIsNotNone(cache_path)
                 cached = c2hls.validate_gold_reference(inputs)
@@ -212,6 +236,10 @@ class ReferenceValidationCacheTests(unittest.TestCase):
                 patch.dict(os.environ, dict(base_env, **{
                     c2hls.REFERENCE_CACHE_REQUIRE_COSIM_ENV: "1",
                 }), clear=False),
+                patch(
+                    "evaluation_repro._probe_vitis_version",
+                    return_value=self._stable_unavailable_probe(),
+                ),
                 patch.object(
                     c2hls,
                     "_validate_gold_reference_uncached",

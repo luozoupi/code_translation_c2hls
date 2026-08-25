@@ -143,6 +143,39 @@ def test_changed_testbench_or_unregistered_kernel_fails_closed() -> None:
     assert "no authoritative HLSFactory shape entry" in missing["error"]
 
 
+def test_explicit_shape_registry_override_remains_hash_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    benchmark = "hlsfactory_2mm"
+    testbench = (
+        EXTERNAL / benchmark / "testbench.cpp"
+    ).read_text(encoding="utf-8") + "\n// audited variant\n"
+    registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
+    registry["benchmarks"][benchmark]["testbench_sha256"] = hashlib.sha256(
+        testbench.encode("utf-8")
+    ).hexdigest()
+    override = tmp_path / "shape_registry.json"
+    override.write_text(json.dumps(registry), encoding="utf-8")
+    monkeypatch.setenv("C2HLS_HLSFACTORY_SHAPE_REGISTRY", str(override))
+
+    with mock.patch.object(
+        c2hls,
+        "run_native_testbench",
+        return_value={"success": True, "output": _dump("D", 40 * 80)},
+    ):
+        prepared = c2hls._prepare_independent_golden(
+            {
+                "meta": {"benchmark": benchmark, "source_repo": "HLSFactory"},
+                "c_code": "",
+                "testbench_code": testbench,
+                "header_code": "",
+            }
+        )
+
+    assert prepared["success"]
+    assert prepared["provenance"]["shape_registry"]["path"] == str(override)
+
+
 @pytest.mark.skipif(
     os.getenv("C2HLS_RUN_HLSFACTORY_GOLDEN_INTEGRATION") != "1",
     reason="set C2HLS_RUN_HLSFACTORY_GOLDEN_INTEGRATION=1 for all 28 native oracles",

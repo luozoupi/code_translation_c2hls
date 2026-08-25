@@ -94,6 +94,9 @@ artifacts/*.jsonl
 artifacts/*.json
 artifacts/*.md
 artifacts/*.pid
+# New experiment outputs are archived outside Git. Historical artifacts that
+# are already tracked remain tracked normally.
+artifacts/**
 *.xclbin
 *.bin
 *.npy
@@ -102,11 +105,17 @@ artifacts/*.pid
 
 # Root-level generated report exports
 /*.jsonl
+/*.csv
+/*.png
+/*.zip
+/GRPO_7B_SUMMARY.md
 
 # Generated experiment/dataset workspaces
 benchmarks_external/
 /benchmarks_external
 results_sweeps/
+paper_eval/checkpoints/
+amhed-results/
 c2hls_temp.py
 
 # HLS temp dirs

@@ -839,6 +839,12 @@ _ACTION_ONLY_PROMPT_MODES = {
     "positive_only",
     "positive-only",
 }
+_POSITIVE_PRECONDITION_PROMPT_MODES = {
+    "positive_with_preconditions",
+    "positive-with-preconditions",
+    "positive_preconditions",
+    "positive-preconditions",
+}
 _NEGATIVE_REQUIRED_STEP_RE = re.compile(
     r"^\s*(do\s+not|don't|avoid|never|must\s+not)\b",
     re.IGNORECASE,
@@ -869,7 +875,14 @@ def _normalize_prompt_mode(prompt_mode: Optional[str] = None) -> str:
 
 def render_skill_for_prompt(sk: Skill, *, prompt_mode: Optional[str] = None) -> str:
     """Compact render with schema-1.1 guardrails/checklists."""
-    action_only = _normalize_prompt_mode(prompt_mode) in _ACTION_ONLY_PROMPT_MODES
+    normalized_mode = _normalize_prompt_mode(prompt_mode)
+    positive_preconditions = (
+        normalized_mode in _POSITIVE_PRECONDITION_PROMPT_MODES
+    )
+    action_only = (
+        normalized_mode in _ACTION_ONLY_PROMPT_MODES
+        or positive_preconditions
+    )
     required_steps = list(sk.required_steps or [])
     if action_only:
         required_steps = [
@@ -883,6 +896,27 @@ def render_skill_for_prompt(sk: Skill, *, prompt_mode: Optional[str] = None) -> 
     ]
     if sk.kind:
         bullets.insert(1, f"  kind: {sk.kind}")
+    if positive_preconditions:
+        applicability = [f"observed code matches: {sk.pattern}"]
+        if sk.bottleneck_kinds:
+            applicability.append(
+                "synthesis evidence includes one or more of: "
+                + ", ".join(sk.bottleneck_kinds)
+            )
+        if sk.applicable_versions:
+            applicability.append(
+                "tool version is one of: "
+                + ", ".join(sk.applicable_versions)
+            )
+        if sk.applicable_fpgas:
+            applicability.append(
+                "target FPGA is one of: "
+                + ", ".join(sk.applicable_fpgas)
+            )
+        bullets.append(
+            "  positive applicability preconditions:\n"
+            + "\n".join(f"    - {item}" for item in applicability)
+        )
     if required_steps:
         bullets.append("  required steps:\n" + "\n".join(
             f"    - {item}" for item in required_steps[:10]
@@ -910,10 +944,20 @@ def render_skill_set_for_prompt(skills: Iterable[Skill],
                                  max_skills: int = 5,
                                  *,
                                  prompt_mode: Optional[str] = None) -> str:
-    skills_list = list(skills)[:max_skills]
+    skills_list = select_skills_for_prompt(skills, max_skills=max_skills)
     if not skills_list:
         return "No matching skills in library — fall back to your own reasoning."
     return "\n".join(
         render_skill_for_prompt(sk, prompt_mode=prompt_mode)
         for sk in skills_list
     )
+
+
+def select_skills_for_prompt(
+    skills: Iterable[Skill],
+    *,
+    max_skills: int = 5,
+) -> List[Skill]:
+    """Return the exact ordered skill slice rendered into a prompt."""
+
+    return list(skills)[:max(0, int(max_skills))]

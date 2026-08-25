@@ -504,6 +504,76 @@ class ProvenanceStatusTests(unittest.TestCase):
         self.assertIn("llm_call_0:model_mismatch", issues)
         self.assertIn("llm_call_0:top_p_mismatch", issues)
 
+    def test_anthropic_accepts_recorded_top_p_provider_omission(self):
+        fingerprint, result = self._baseline_call_fixture(anthropic=True)
+        for event in result["llm_usage"]["events"]:
+            event["decoding"].update(
+                {
+                    "top_p": None,
+                    "requested_temperature": 0.2,
+                    "requested_top_p": 0.95,
+                    "mutually_exclusive_omission": "top_p",
+                }
+            )
+
+        self.assertEqual(
+            [],
+            repro.effective_llm_call_issues(result, fingerprint),
+        )
+
+    def test_deepseek_accepts_explicit_provider_omissions(self):
+        fingerprint = {
+            "payload": {
+                "model": {
+                    "id": "deepseek-v4-flash",
+                    "revision": {"value": "api-release-1", "resolved": True},
+                },
+                "decoding": {
+                    "temperature": "0.2",
+                    "top_p": "0.95",
+                    "seed": "42",
+                    "max_completion_tokens": "8192",
+                    "thinking": "enabled",
+                    "reasoning_effort": "high",
+                },
+            }
+        }
+        event = {
+            "provider": "deepseek",
+            "model": "deepseek-v4-flash",
+            "model_revision": "api-release-1",
+            "max_tokens": 8192,
+            "prompt_sha256": "a" * 64,
+            "decoding": {
+                "temperature": 0.2,
+                "top_p": None,
+                "seed": None,
+                "seed_supported": False,
+                "requested_temperature": 0.2,
+                "requested_top_p": 0.95,
+                "requested_seed": 42,
+                "mutually_exclusive_omission": "top_p",
+                "thinking": "enabled",
+                "reasoning_effort": "high",
+            },
+        }
+        result = {"llm_usage": {"calls": 1, "events": [event]}}
+
+        self.assertEqual(
+            [], repro.effective_llm_call_issues(result, fingerprint)
+        )
+        event["decoding"]["thinking"] = "disabled"
+        self.assertIn(
+            "llm_call_0:thinking_mismatch",
+            repro.effective_llm_call_issues(result, fingerprint),
+        )
+
+        result["llm_usage"]["events"][0]["decoding"]["requested_top_p"] = 0.5
+        self.assertIn(
+            "llm_call_0:top_p_provider_omission_invalid",
+            repro.effective_llm_call_issues(result, fingerprint),
+        )
+
     def test_qwen_baseline_accepts_base_plus_candidate_index_and_rejects_tamper(self):
         fingerprint, result = self._baseline_call_fixture()
         self.assertEqual([], repro.effective_llm_call_issues(result, fingerprint))

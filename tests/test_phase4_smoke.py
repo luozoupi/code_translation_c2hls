@@ -228,7 +228,10 @@ def test_call_sites_use_feedback_agent(results, tee):
            "regression + no_op paths route through feedback agent",
            results, tee)
 
-    src_qr = inspect.getsource(c2hls.QualityRepairAgent.run)
+    src_qr = (
+        inspect.getsource(c2hls.QualityRepairAgent.run)
+        + inspect.getsource(c2hls.QualityRepairAgent._run_llm_repair)
+    )
     _check("quality-repair-uses-feedback",
            "orch.feedback.render(" in src_qr and '"quality_gap"' in src_qr,
            "quality_gap path routes through feedback agent",

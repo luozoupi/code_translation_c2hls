@@ -105,6 +105,26 @@ def make_run_multistep_harness(*, dynamic: bool = False):
 
 
 class ReferenceBlindControllerTests(unittest.TestCase):
+    def test_reference_blind_scrubs_loaded_expert_source_bundle(self):
+        inputs = {
+            "ground_truth_code": "// EXPERT BASELINE",
+            "gold_hls_source_code": "// EXPERT SOURCE",
+            "gt_variants": {"tiling": "// EXPERT VARIANT"},
+            "gt_variant_headers": {"tiling": "// EXPERT HEADER"},
+            "c_code": "void workload() {}",
+        }
+        with patch.dict(os.environ, {c2hls.REFERENCE_BLIND_ENV: "1"}, clear=False):
+            boundary = c2hls._scrub_reference_material_for_controller(inputs)
+
+        self.assertTrue(boundary["enabled"])
+        self.assertTrue(boundary["scrubbed"])
+        self.assertEqual(inputs["ground_truth_code"], "")
+        self.assertEqual(inputs["gold_hls_source_code"], "")
+        self.assertEqual(inputs["gt_variants"], {})
+        self.assertEqual(inputs["gt_variant_headers"], {})
+        self.assertEqual(inputs["c_code"], "void workload() {}")
+        self.assertFalse(boundary["private_metadata_forwarded_to_controller"])
+
     def test_frozen_skill_snapshot_is_loaded_exactly_before_phase_a(self):
         orch = make_run_multistep_harness(dynamic=True)
         no_step = SimpleNamespace(
@@ -415,6 +435,96 @@ class MatchedBudgetAndSelectionTests(unittest.TestCase):
         self.assertEqual(create.call_args.kwargs["temperature"], 0.2)
         self.assertEqual(create.call_args.kwargs["top_p"], 0.9)
         self.assertEqual(create.call_args.kwargs["seed"], 7)
+
+    def test_anthropic_omits_top_p_when_temperature_is_configured(self):
+        orch = c2hls.C2HLSOrchestrator.__new__(c2hls.C2HLSOrchestrator)
+        orch.max_completion_tokens = 128
+        orch.gpt_model = "claude-sonnet-4-6"
+        orch.llm_candidate_budget = 1
+        orch.llm_candidate_request_count = 0
+        orch.llm_usage_events = []
+        response = SimpleNamespace(
+            content=[SimpleNamespace(text="candidate")],
+            usage=SimpleNamespace(input_tokens=3, output_tokens=2),
+        )
+        create = MagicMock(return_value=response)
+        client = SimpleNamespace(messages=SimpleNamespace(create=create))
+        orch._client_for_model = MagicMock(return_value=("anthropic", client))
+
+        with patch.dict(
+            os.environ,
+            {
+                c2hls.LLM_TEMPERATURE_ENV: "0.2",
+                c2hls.LLM_TOP_P_ENV: "0.95",
+                c2hls.LLM_SEED_ENV: "7",
+            },
+            clear=False,
+        ):
+            result = c2hls.C2HLSOrchestrator._call_llm_with_model(
+                orch, [{"role": "user", "content": "optimize"}]
+            )
+
+        self.assertEqual(result, "candidate")
+        self.assertEqual(create.call_args.kwargs["temperature"], 0.2)
+        self.assertNotIn("top_p", create.call_args.kwargs)
+        decoding = orch.llm_usage_events[0]["decoding"]
+        self.assertIsNone(decoding["top_p"])
+        self.assertEqual(decoding["requested_top_p"], 0.95)
+        self.assertEqual(decoding["mutually_exclusive_omission"], "top_p")
+
+    def test_deepseek_records_unsupported_seed_and_explicit_thinking(self):
+        orch = c2hls.C2HLSOrchestrator.__new__(c2hls.C2HLSOrchestrator)
+        orch.max_completion_tokens = 128
+        orch.gpt_model = "deepseek-v4-flash"
+        orch.llm_candidate_budget = 1
+        orch.llm_candidate_request_count = 0
+        orch.llm_usage_events = []
+        response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="candidate"))],
+            usage=SimpleNamespace(
+                prompt_tokens=3, completion_tokens=2, total_tokens=5
+            ),
+        )
+        create = MagicMock(return_value=response)
+        client = SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=create))
+        )
+        orch._client_for_model = MagicMock(return_value=("deepseek", client))
+
+        with patch.dict(
+            os.environ,
+            {
+                c2hls.LLM_TEMPERATURE_ENV: "0.2",
+                c2hls.LLM_TOP_P_ENV: "0.95",
+                c2hls.LLM_SEED_ENV: "42",
+                c2hls.DEEPSEEK_THINKING_ENV: "enabled",
+                c2hls.DEEPSEEK_REASONING_EFFORT_ENV: "high",
+            },
+            clear=False,
+        ):
+            result = c2hls.C2HLSOrchestrator._call_llm_with_model(
+                orch, [{"role": "user", "content": "optimize"}]
+            )
+
+        self.assertEqual(result, "candidate")
+        kwargs = create.call_args.kwargs
+        self.assertEqual(kwargs["temperature"], 0.2)
+        self.assertNotIn("top_p", kwargs)
+        self.assertNotIn("seed", kwargs)
+        self.assertEqual(
+            kwargs["extra_body"],
+            {
+                "thinking": {"type": "enabled"},
+                "reasoning_effort": "high",
+            },
+        )
+        event = orch.llm_usage_events[0]
+        self.assertEqual(event["provider"], "deepseek")
+        self.assertFalse(event["decoding"]["seed_supported"])
+        self.assertIsNone(event["decoding"]["seed"])
+        self.assertEqual(event["decoding"]["requested_seed"], 42)
+        self.assertEqual(event["decoding"]["thinking"], "enabled")
+        self.assertEqual(event["decoding"]["reasoning_effort"], "high")
 
     def test_reference_blind_mode_removes_handwritten_benchmark_policy(self):
         with patch.dict(

@@ -166,8 +166,31 @@ def _run_vitis_cmd(cmd: str, timeout: int) -> tuple:
             except ProcessLookupError:
                 pass
             _signal_pids(tree_pids, signal.SIGKILL)
-            tail, _ = proc.communicate()
-            output += _as_text(tail)
+            try:
+                tail, _ = proc.communicate(timeout=5)
+                output += _as_text(tail)
+            except subprocess.TimeoutExpired as final_exc:
+                # A Vitis descendant can remain in uninterruptible network-FS
+                # I/O while holding the inherited stdout pipe. Never turn a
+                # tool timeout into an unbounded Python wait.
+                output += _as_text(final_exc.stdout)
+                try:
+                    if proc.stdout is not None:
+                        proc.stdout.close()
+                except OSError:
+                    pass
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+                output += (
+                    "\n[C2HLS] timeout cleanup could not drain all Vitis "
+                    "descendant output within 5s.\n"
+                )
 
         _signal_pids(tree_pids, signal.SIGKILL)
         return output, True
@@ -241,7 +264,10 @@ def _run_vitis_cmd_logged(
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     _terminate_process_group(proc, signal.SIGKILL)
-                    proc.wait()
+                    try:
+                        proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        pass
                 break
 
             if markers:
@@ -258,7 +284,10 @@ def _run_vitis_cmd_logged(
                             proc.wait(timeout=5)
                         except subprocess.TimeoutExpired:
                             _terminate_process_group(proc, signal.SIGKILL)
-                            proc.wait()
+                            try:
+                                proc.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                pass
                         break
                 else:
                     marker_seen_at = None
@@ -371,6 +400,35 @@ def _materialize_inputs(work_dir: str, hls_code: str, header_code: str, header_n
         "hdr_file": hdr_file,
         "extra_files": materialized,
     }
+
+
+def _tcl_testbench_files(paths, *, base_dir: str = "") -> str:
+    """Add testbench sources and runtime data to the Vitis project."""
+
+    repository_metadata_names = {
+        "hls_eval_config.toml",
+        "kernel_description.md",
+        "metadata.json",
+        "top.txt",
+    }
+    selected = []
+    seen = set()
+    for path in paths or []:
+        normalized = str(path or "")
+        if not normalized or normalized in seen:
+            continue
+        if "{" in normalized or "}" in normalized:
+            raise ValueError(f"unsupported brace in Vitis input path: {normalized}")
+        if Path(normalized).name.lower() in repository_metadata_names:
+            continue
+        if base_dir:
+            normalized = os.path.relpath(normalized, base_dir)
+        seen.add(normalized)
+        selected.append(normalized)
+    if not selected:
+        return ""
+    tcl_list = " ".join(f"{{{path}}}" for path in selected)
+    return f"add_files -tb [list {tcl_list}]\n"
 
 
 def run_native_testbench(
@@ -931,7 +989,11 @@ add_files {src_file}
 """
     if hdr_file:
         tcl_content += f"add_files {hdr_file}\n"
-    tcl_content += f"""add_files -tb {tb_file}
+    tcl_content += _tcl_testbench_files(
+        [tb_file, *inputs["extra_files"]],
+        base_dir=work_dir,
+    )
+    tcl_content += f"""\
 open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default
@@ -1013,7 +1075,11 @@ add_files {src_file}
     if DEFAULT_COSIM_TRACE_LEVEL:
         cosim_cmd += f" -trace_level {DEFAULT_COSIM_TRACE_LEVEL}"
 
-    tcl_content += f"""add_files -tb {tb_file}
+    tcl_content += _tcl_testbench_files(
+        [tb_file, *inputs["extra_files"]],
+        base_dir=work_dir,
+    )
+    tcl_content += f"""\
 open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default

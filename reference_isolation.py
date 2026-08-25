@@ -383,6 +383,53 @@ def _reference_metrics(
     return sorted(values)
 
 
+def _controller_metric_renderings(
+    controller_data: Mapping[str, Any] | None,
+) -> set[str]:
+    """Return metrics proven to originate from generated-candidate reports.
+
+    A generated design can legitimately synthesize to exactly the same value
+    as an expert design.  Comparing transcript numbers only against the expert
+    frontier would misclassify that equality as leakage.  Keep the allowlist
+    deliberately narrow: only report-bearing fields produced by candidate
+    evaluation are traversed.  In particular, ``reference_validation``,
+    ``ground_truth_report``, comparisons, and offline reporting fields are
+    never inspected here.
+    """
+
+    if not isinstance(controller_data, Mapping):
+        return set()
+
+    reports: list[Mapping[str, Any]] = []
+
+    def add_report(value: Any) -> None:
+        if isinstance(value, Mapping):
+            reports.append(value)
+
+    for key in ("baseline_report", "final_report", "synth_report"):
+        add_report(controller_data.get(key))
+
+    for key in ("steps", "generated_step_history", "best_so_far_history"):
+        entries = controller_data.get(key)
+        if not isinstance(entries, Sequence) or isinstance(
+            entries, (str, bytes, bytearray)
+        ):
+            continue
+        for entry in entries:
+            if isinstance(entry, Mapping):
+                add_report(entry.get("report"))
+
+    phase_b_fast_candidate = controller_data.get("phase_b_fast_candidate")
+    if isinstance(phase_b_fast_candidate, Mapping):
+        add_report(phase_b_fast_candidate.get("report"))
+
+    renderings: set[str] = set()
+    for report in reports:
+        for _alias, rendered, _distinctive in _reference_metrics(report):
+            renderings.add(rendered)
+    return renderings
+
+
 def _finding(rule: str, index: int, role: str, offset: int, matched: str) -> dict[str, Any]:
     return {
         "rule": rule,
@@ -399,6 +446,7 @@ def audit_messages(
     *,
     benchmark_dir: Path,
     reference_data: Mapping[str, Any] | None = None,
+    controller_data: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Audit controller-visible messages against offline expert material."""
 
@@ -410,7 +458,9 @@ def audit_messages(
     )
     tokens = _expert_tokens(benchmark_dir, metadata, references, plain_text)
     metrics = _reference_metrics(reference_data, public_text=plain_text)
+    controller_metrics = _controller_metric_renderings(controller_data)
     findings: list[dict[str, Any]] = []
+    allowed_controller_metric_matches: list[dict[str, Any]] = []
 
     for index, message in enumerate(messages):
         if not isinstance(message, Mapping):
@@ -473,7 +523,7 @@ def audit_messages(
             pattern = re.compile(
                 rf"(?i)\b(?:gold(?:en)?|reference|expert|oracle|ground[_\s-]*truth)\b"
                 rf"[^\n]{{0,120}}\b{label_pattern}"
-                rf"(?:[_\s-]*(?:cycles|mhz|ns))?\s*[:=<>~]*\s*"
+                rf"(?:[_\s-]*(?:cycles|mhz|ns))?\s*(?:is\s+)?[:=<>~]*\s*"
                 rf"(?<![A-Za-z0-9_.]){re.escape(value)}"
                 rf"(?![A-Za-z0-9_])(?!\.\d)"
             )
@@ -503,6 +553,18 @@ def audit_messages(
                     for start, end in occupied_metric_spans
                 ):
                     continue
+                if value in controller_metrics:
+                    allowed_controller_metric_matches.append(
+                        _finding(
+                            "generated_controller_metric_collision",
+                            index,
+                            role,
+                            match.start(),
+                            match.group(0),
+                        )
+                    )
+                    occupied_metric_spans.append((match.start(), match.end()))
+                    continue
                 findings.append(
                     _finding(
                         "unlabeled_reference_metric",
@@ -529,6 +591,10 @@ def audit_messages(
         "distinctive_unlabeled_metric_count": sum(
             1 for _alias, _value, distinctive in metrics if distinctive
         ),
+        "generated_controller_metric_rendering_count": len(controller_metrics),
+        "generated_controller_metrics_sha256": _digest(
+            "\n".join(sorted(controller_metrics))
+        ),
     }
     return {
         "schema_version": AUDIT_SCHEMA,
@@ -536,6 +602,16 @@ def audit_messages(
         "finding_count": len(findings),
         "finding_counts": counts,
         "findings": findings,
+        "allowed_controller_metric_match_count": len(
+            allowed_controller_metric_matches
+        ),
+        "allowed_controller_metric_match_counts": (
+            {"generated_controller_metric_collision": len(
+                allowed_controller_metric_matches
+            )}
+            if allowed_controller_metric_matches else {}
+        ),
+        "allowed_controller_metric_matches": allowed_controller_metric_matches,
         "corpus": corpus_manifest,
     }
 
@@ -545,6 +621,7 @@ def audit_history_file(
     *,
     benchmark_dir: Path,
     reference_data: Mapping[str, Any] | None = None,
+    controller_data: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     path = Path(history_path)
     try:
@@ -591,6 +668,7 @@ def audit_history_file(
         messages,
         benchmark_dir=benchmark_dir,
         reference_data=reference_data,
+        controller_data=controller_data,
     )
     audit["transcript_sha256"] = transcript_sha256
     audit["transcript_bytes"] = len(raw)

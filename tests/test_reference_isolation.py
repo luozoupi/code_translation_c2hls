@@ -181,6 +181,65 @@ class ReferenceIsolationTests(unittest.TestCase):
         self.assertIn("absolute_reference_metric", audit["finding_counts"])
         self.assertNotIn("unlabeled_reference_metric", audit["finding_counts"])
 
+    def test_generated_metric_equal_to_reference_is_audited_collision(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bench = self._benchmark(Path(tmpdir))
+            audit = isolation.audit_messages(
+                [{
+                    "role": "user",
+                    "content": "Current synthesis report: latency_cycles: 987654.",
+                }],
+                benchmark_dir=bench,
+                reference_data={"report": {"latency_cycles": 987654}},
+                controller_data={
+                    "baseline_report": {"latency_cycles": 987654},
+                },
+            )
+        self.assertTrue(audit["passed"])
+        self.assertEqual(audit["finding_count"], 0)
+        self.assertEqual(audit["allowed_controller_metric_match_count"], 1)
+        self.assertEqual(
+            audit["allowed_controller_metric_match_counts"],
+            {"generated_controller_metric_collision": 1},
+        )
+        self.assertNotIn("987654", json.dumps(audit))
+
+    def test_labeled_reference_metric_remains_fatal_on_generated_collision(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bench = self._benchmark(Path(tmpdir))
+            audit = isolation.audit_messages(
+                [{
+                    "role": "user",
+                    "content": "The hidden reference latency_cycles is 987654.",
+                }],
+                benchmark_dir=bench,
+                reference_data={"report": {"latency_cycles": 987654}},
+                controller_data={
+                    "baseline_report": {"latency_cycles": 987654},
+                },
+            )
+        self.assertFalse(audit["passed"])
+        self.assertIn("absolute_reference_metric", audit["finding_counts"])
+
+    def test_reference_subtree_cannot_authorize_metric_collision(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bench = self._benchmark(Path(tmpdir))
+            audit = isolation.audit_messages(
+                [{
+                    "role": "user",
+                    "content": "Optimize toward exactly 987654 cycles.",
+                }],
+                benchmark_dir=bench,
+                reference_data={"report": {"latency_cycles": 987654}},
+                controller_data={
+                    "reference_validation": {
+                        "report": {"latency_cycles": 987654},
+                    },
+                },
+            )
+        self.assertFalse(audit["passed"])
+        self.assertIn("unlabeled_reference_metric", audit["finding_counts"])
+
     def test_public_plain_c_literal_is_not_an_unlabeled_metric_signature(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             bench = self._benchmark(Path(tmpdir))

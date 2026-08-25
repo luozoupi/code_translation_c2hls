@@ -232,6 +232,16 @@ def _compact_origin_meta(value: Any) -> Any:
     return value
 
 
+def _qor_design_sweep(data: dict) -> dict:
+    quality_repair = (
+        data.get("quality_repair")
+        if isinstance(data.get("quality_repair"), dict)
+        else {}
+    )
+    sweep = data.get("qor_design_sweep") or quality_repair.get("design_sweep")
+    return _compact_origin_meta(sweep) if isinstance(sweep, dict) else {}
+
+
 def _json_safe(value: Any) -> Any:
     if isinstance(value, float) and not math.isfinite(value):
         return None
@@ -653,6 +663,9 @@ def _records_from_results_json(bench_dir: Path, results_json: Path,
     fallbacks = _metric_fallbacks(meta, part, run_meta)
     if fallbacks:
         gen_origin_meta["profiled_fallbacks"] = fallbacks
+    qor_sweep = _qor_design_sweep(data)
+    if qor_sweep:
+        gen_origin_meta["qor_design_sweep"] = qor_sweep
     # Drop None/empty values so records stay tidy.
     gen_origin_meta = {k: v for k, v in gen_origin_meta.items() if v not in (None, "")}
 
@@ -906,6 +919,9 @@ def _records_from_multistep(bench_dir: Path, multistep_json: Path,
     fallbacks = _metric_fallbacks(meta, part, run_meta)
     if fallbacks:
         base_origin_meta["profiled_fallbacks"] = fallbacks
+    qor_sweep = _qor_design_sweep(data)
+    if qor_sweep:
+        base_origin_meta["qor_design_sweep"] = qor_sweep
 
     records: list[dict] = []
     steps = data.get("steps") or []

@@ -96,13 +96,16 @@ _IMPLEMENTATION_SOURCES = (
     "golden_output.py",
     "hls_eval.py",
     "hls_feedback.py",
+    "qor_design_space.py",
     "reference_isolation.py",
     "robustness.py",
     "rubric.py",
     "run_agentic_sweep.py",
     "skill_library.py",
+    "smart_skill_router.py",
     "trajectory_alignment.py",
     "configs/hlsfactory_output_shapes.json",
+    "configs/hlsfactory_output_shapes_fc27133.json",
     "configs/hlsfactory_development_suite.json",
 )
 _PROMPT_SOURCES = ("prompt_c2hls.py",)
@@ -135,6 +138,7 @@ _CONTROL_ENV_NAMES = (
     "C2HLS_FORCE_SKILL_PROMPTS",
     "C2HLS_GT_AWARE_REVERT",
     "C2HLS_GT_COMPARISON_IN_CONTROL",
+    "C2HLS_HLSFACTORY_SHAPE_REGISTRY",
     "C2HLS_HW_EMU_FINAL",
     "C2HLS_HW_EMU_CLOCK_MHZ",
     "C2HLS_HW_EMU_CLOCK_NS",
@@ -145,6 +149,9 @@ _CONTROL_ENV_NAMES = (
     "C2HLS_LLM_TEMPERATURE",
     "C2HLS_LLM_TIMEOUT",
     "C2HLS_LLM_TOP_P",
+    "C2HLS_DEEPSEEK_THINKING",
+    "C2HLS_DEEPSEEK_REASONING_EFFORT",
+    "C2HLS_XAI_REASONING_EFFORT",
     "C2HLS_MAX_COMPLETION_TOKENS",
     "C2HLS_MODEL_REVISION",
     "C2HLS_ORACLE_MODE",
@@ -156,6 +163,14 @@ _CONTROL_ENV_NAMES = (
     "C2HLS_QUALITY_REPAIR_MODEL",
     "C2HLS_QUALITY_REPAIR_TURNS",
     "C2HLS_QUALITY_SCORE_EPSILON",
+    "C2HLS_QOR_DESIGN_SWEEP",
+    "C2HLS_QOR_SWEEP_II_VALUES",
+    "C2HLS_QOR_SWEEP_INTERACTIONS",
+    "C2HLS_QOR_SWEEP_MAX_CANDIDATES",
+    "C2HLS_QOR_SWEEP_MAX_INTERACTIONS",
+    "C2HLS_QOR_SWEEP_MAX_KNOBS",
+    "C2HLS_QOR_SWEEP_TILE_VALUES",
+    "C2HLS_QOR_SWEEP_VALUES",
     "C2HLS_REFERENCE_BLIND",
     "C2HLS_REFERENCE_CACHE_REQUIRE_COSIM",
     "C2HLS_REFERENCE_CODE_IN_PROMPTS",
@@ -796,6 +811,19 @@ def _configured_decoding(environ: Mapping[str, str]) -> dict[str, Any]:
         "max_completion_tokens": _env_value(
             environ, "C2HLS_MAX_COMPLETION_TOKENS", default="controller_default"
         ),
+        "thinking": _env_value(
+            environ, "C2HLS_DEEPSEEK_THINKING", default="provider_default"
+        ),
+        "reasoning_effort": _env_value(
+            environ,
+            "C2HLS_DEEPSEEK_REASONING_EFFORT",
+            default="provider_default",
+        ),
+        "xai_reasoning_effort": _env_value(
+            environ,
+            "C2HLS_XAI_REASONING_EFFORT",
+            default="provider_default",
+        ),
     }
 
 
@@ -1003,6 +1031,10 @@ def build_run_fingerprint(
             "strategy": _env_value(env, "C2HLS_STRATEGY"),
             "dynamic_routing": _bool_env(env, "C2HLS_DYNAMIC_ROUTING"),
             "steps": list(steps) if steps is not None else None,
+            "qor_design_sweep": _bool_env(env, "C2HLS_QOR_DESIGN_SWEEP"),
+            "qor_interactions": _bool_env(
+                env, "C2HLS_QOR_SWEEP_INTERACTIONS"
+            ),
         },
         "budgets": {
             "turns": _env_value(env, "C2HLS_TURNS", default="4"),
@@ -1019,6 +1051,15 @@ def build_run_fingerprint(
             "attempts_per_candidate": _env_value(env, "C2HLS_ATTEMPTS_PER_CANDIDATE"),
             "quality_repair_turns": _env_value(
                 env, "C2HLS_QUALITY_REPAIR_TURNS", default="controller_default"
+            ),
+            "qor_max_knobs": _env_value(
+                env, "C2HLS_QOR_SWEEP_MAX_KNOBS", default="4"
+            ),
+            "qor_max_candidates": _env_value(
+                env, "C2HLS_QOR_SWEEP_MAX_CANDIDATES", default="8"
+            ),
+            "qor_max_interactions": _env_value(
+                env, "C2HLS_QOR_SWEEP_MAX_INTERACTIONS", default="2"
             ),
             "synth_timeout_seconds": _env_value(env, "C2HLS_SYNTH_TIMEOUT"),
             "csim_timeout_seconds": _env_value(env, "C2HLS_CSIM_TIMEOUT"),
@@ -1318,7 +1359,15 @@ def effective_llm_call_issues(
         if not isinstance(decoding, Mapping):
             issues.append(f"{prefix}:decoding_missing")
             continue
+        omitted_decoding = decoding.get("mutually_exclusive_omission")
         for key in ("temperature", "top_p"):
+            if key == omitted_decoding:
+                if decoding.get(key) is not None or not _numeric_equal(
+                    decoding.get(f"requested_{key}"),
+                    configured.get(key),
+                ):
+                    issues.append(f"{prefix}:{key}_provider_omission_invalid")
+                continue
             if not _numeric_equal(decoding.get(key), configured.get(key)):
                 issues.append(f"{prefix}:{key}_mismatch")
         seed_supported = decoding.get("seed_supported")
@@ -1326,7 +1375,13 @@ def effective_llm_call_issues(
             issues.append(f"{prefix}:seed_support_unreported")
 
         expected_seed = configured.get("seed")
-        expected_seed_supported: bool | None = None
+        provider = str(event.get("provider") or "").strip().lower()
+        if not provider:
+            issues.append(f"{prefix}:provider_missing")
+        expected_seed_supported: bool | None = provider not in {
+            "anthropic",
+            "deepseek",
+        }
         if isinstance(baseline_contract, Mapping):
             candidate_index = event.get("candidate_index")
             if (
@@ -1342,6 +1397,10 @@ def effective_llm_call_issues(
                 expected_seed_supported = bool(
                     schedule_entry.get("seed_supported")
                 )
+                if expected_seed_supported != (
+                    provider not in {"anthropic", "deepseek"}
+                ):
+                    issues.append(f"{prefix}:provider_seed_policy_mismatch")
                 if (
                     event.get("requested_seed")
                     != schedule_entry.get("requested_seed")
@@ -1355,7 +1414,6 @@ def effective_llm_call_issues(
         ):
             if (
                 seed_supported is not False
-                or event.get("provider") != "anthropic"
                 or decoding.get("seed") is not None
             ):
                 issues.append(f"{prefix}:unsupported_seed_status_invalid")
@@ -1364,6 +1422,10 @@ def effective_llm_call_issues(
                 issues.append(f"{prefix}:seed_support_status_invalid")
             if not _numeric_equal(decoding.get("seed"), expected_seed):
                 issues.append(f"{prefix}:seed_mismatch")
+        if event.get("provider") == "deepseek":
+            for key in ("thinking", "reasoning_effort"):
+                if decoding.get(key) != configured.get(key):
+                    issues.append(f"{prefix}:{key}_mismatch")
     return issues
 
 

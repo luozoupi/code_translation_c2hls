@@ -107,11 +107,23 @@ def repair_round_limit() -> int:
 
 
 def resolve_autosa_docs_dir() -> Path:
+    """AutoSA docs for the v4 prompt.
+
+    ``C2HLS_AUTOSA_DOCS_DIR`` wins. Otherwise use the sibling AutoSA checkout
+    when it has ``mm_codegen_factors.md``. A Fir scratch tree often does not,
+    so the tracked pack under ``inputs/dse_v4/docs`` is the fallback. Gold
+    kernels are resolved from the parent of whichever docs dir is chosen.
+    """
     raw = os.getenv("C2HLS_AUTOSA_DOCS_DIR", "").strip()
     if raw:
         return Path(raw)
-    from c2hls_paths import AUTOSA_DOCS_DIR
+    from c2hls_paths import AUTOSA_DOCS_DIR, REPO_ROOT
 
+    if (AUTOSA_DOCS_DIR / "mm_codegen_factors.md").is_file():
+        return AUTOSA_DOCS_DIR
+    vendored = REPO_ROOT / "inputs" / "dse_v4" / "docs"
+    if (vendored / "mm_codegen_factors.md").is_file():
+        return vendored
     return AUTOSA_DOCS_DIR
 
 

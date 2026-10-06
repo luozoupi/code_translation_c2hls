@@ -72,38 +72,38 @@ The existing Fir session (`scripts/fir/start_session.sh`) is also the wrong shap
 
 ## Files that have to be on Fir
 
-Put the two checkouts next to each other. `c2hls_paths.py` resolves AutoSA as the sibling of the c2hls repo (`REPO_ROOT.parent / "AutoSA" / "docs"`).
+The Fir clone is `/scratch/asa582/workspaces/code_translation_c2hls`. A `git pull` on `c2hls_enhanced_l_pc2_api_layout` brings the `st0_c1` inputs. The sibling AutoSA tree is not required for this one config.
 
-```text
-/scratch/asa582/projects/c2hls
-/scratch/asa582/projects/AutoSA
-```
+`resolve_autosa_docs_dir()` uses `../AutoSA/docs` only when that tree contains `mm_codegen_factors.md`. The Fir AutoSA checkout does not, so the job reads the tracked pack:
 
-c2hls needs the n1024 bench that is already in the tree:
-
-`artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm/`
-
-AutoSA needs, for `st0_c1`:
-
-- `docs/mm_configs/st0/ap128_128_8__lat1_32__simd8.md`
-- `artifacts/dse/campaigns/20260927_mm1024_u280_st0/u280_paper/validation/mm1024/candidate_1/autosa_out/src/kernel_kernel.cpp`
+- `inputs/dse_v4/docs/mm_codegen_factors.md`
+- `inputs/dse_v4/docs/mm_configs/stream_stitching.md`
+- `inputs/dse_v4/docs/mm_configs/st0/ap128_128_8__lat1_32__simd8.md`
+- `inputs/dse_v4/artifacts/dse/campaigns/20260927_mm1024_u280_st0/u280_paper/validation/mm1024/candidate_1/autosa_out/src/kernel_kernel.cpp`
 - the sibling `kernel_kernel.h` and `kernel_host.cpp` in that same `src/` directory
 
-The rest of the 30 gold trees can wait. Do not copy `artifacts/pc2/autosa_mm_variant_sweep_20260918` or the paused `20260919` records into the output directory.
+The n1024 bench is tracked despite `artifacts/pc2/*/`:
 
-The DeepSeek key lives in the Otus `~/.bashrc` as `DeepSeek_API`. Fir home is a different filesystem. On the Fir login, set `DeepSeek_API` in that account’s `~/.bashrc` the same way. Do not write the key into `fir.env`, the sbatch file, or this doc.
+`artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm/testbench.cpp`
+
+The other 29 gold trees are not in this pack. Do not copy `artifacts/pc2/autosa_mm_variant_sweep_20260918` or the paused `20260919` records into the output directory.
+
+`DeepSeek_API` is already named in the Fir `~/.bashrc`. A non-interactive shell skips that file, which is why the variable is unset. The submit block below reads the assignment and exports it. Do not print the value, and do not write it into `fir.env` or the sbatch file.
 
 ## One job, st0_c1
 
 On a Fir login:
 
 ```bash
-ssh fir
-cd /scratch/asa582/projects/c2hls
+ROOT=/scratch/asa582/workspaces/code_translation_c2hls
+cd "${ROOT}"
+git pull
 
 test -f /scratch/asa582/containers/xilinx_vitis_2023.2.standalone.sif
-test -f ../AutoSA/docs/mm_configs/st0/ap128_128_8__lat1_32__simd8.md
-test -f ../AutoSA/artifacts/dse/campaigns/20260927_mm1024_u280_st0/u280_paper/validation/mm1024/candidate_1/autosa_out/src/kernel_kernel.cpp
+test -f inputs/dse_v4/docs/mm_codegen_factors.md
+test -f inputs/dse_v4/docs/mm_configs/stream_stitching.md
+test -f inputs/dse_v4/docs/mm_configs/st0/ap128_128_8__lat1_32__simd8.md
+test -f inputs/dse_v4/artifacts/dse/campaigns/20260927_mm1024_u280_st0/u280_paper/validation/mm1024/candidate_1/autosa_out/src/kernel_kernel.cpp
 test -f artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm/testbench.cpp
 
 module load apptainer/1.3.5
@@ -120,15 +120,21 @@ Unset the empty placeholder before loading the key, then submit. The key stays i
 
 ```bash
 unset OPENAI_API_KEY CHATHLS_API_KEY
-# shellcheck disable=SC1090
-source ~/.bashrc
-export OPENAI_API_KEY="${DeepSeek_API}"
+if [[ -z "${DeepSeek_API:-}" ]]; then
+  while IFS= read -r line; do
+    case "${line}" in
+      DeepSeek_API=*|export\ DeepSeek_API=*) eval "${line}" ;;
+    esac
+  done < "${HOME}/.bashrc"
+fi
+export OPENAI_API_KEY="${DeepSeek_API:?DeepSeek_API is unset}"
 export OPENAI_BASE_URL=https://api.deepseek.com/v1
 export CHATHLS_API_BASE=https://api.deepseek.com/v1
 export C2HLS_MODEL=deepseek-v4-flash
 export C2HLS_DSE_MODEL=deepseek-v4-flash
+python3 -c 'import os; v=os.environ["OPENAI_API_KEY"]; assert len(v)>=20 and v.lower()!="empty"; print("api_key_loaded len=%d" % len(v))'
 
-OUT=/scratch/asa582/projects/c2hls/artifacts/fir/dse_v4_st0_c1_$(date -u +%Y%m%dT%H%M%SZ)
+OUT=${ROOT}/artifacts/fir/dse_v4_st0_c1_$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "${OUT}"
 
 sbatch --export=ALL <<EOF
@@ -138,12 +144,12 @@ sbatch --export=ALL <<EOF
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=24:00:00
-#SBATCH --chdir=/scratch/asa582/projects/c2hls
+#SBATCH --chdir=${ROOT}
 #SBATCH --output=${OUT}/st0_c1-%j.out
 #SBATCH --error=${OUT}/st0_c1-%j.err
 
 set -euo pipefail
-cd /scratch/asa582/projects/c2hls
+cd ${ROOT}
 module load apptainer/1.3.5
 source scripts/fir/fir_container_env.sh
 export C2HLS_TMP_ROOT=/scratch/asa582/tmp/c2hls
@@ -180,7 +186,7 @@ The run is legal only when `runs/st0_c1` records structural checks and a csim lo
 | Symptom | Cause |
 | --- | --- |
 | `vitis-run` missing | `apptainer` module or the SIF path. `source scripts/fir/fir_container_env.sh` must run in the job, not only on the login. |
-| AutoSA instruction or gold kernel missing | The sibling checkout is absent, or `st0_c1`’s `candidate_1/src` trio was not copied. |
+| AutoSA instruction or gold kernel missing | `inputs/dse_v4` is not in this checkout. Pull `c2hls_enhanced_l_pc2_api_layout` again. |
 | HTTP 401 from DeepSeek | `OPENAI_API_KEY` was `EMPTY` or unset in the job. `sbatch --export=ALL` only keeps variables that were exported in the login shell. |
 | Calls to `127.0.0.1:8000` | `C2HLS_MODEL` / `OPENAI_BASE_URL` were not exported, and something applied the Fir Devstral defaults. |
 | `settings64.sh` under `/opt/software/FPGA` | The command included `--pc2`. |

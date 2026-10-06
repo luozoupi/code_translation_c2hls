@@ -1,0 +1,41 @@
+{
+  "benchmark": "autosa_mm",
+  "source_repo": "AutoSA",
+  "corpus": "autosa_ready",
+  "algorithm_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/AutoSA/autosa_tests/mm/kernel.c",
+  "gold_hls_source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/AutoSA/autosa_tests/mm/kernel.c",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "plain.cpp",
+  "plain_c_file": "plain.cpp",
+  "header_file": "kernel.h",
+  "testbench_file": "testbench.cpp",
+  "baseline_variant": "autosa_mm_0_baseline",
+  "translated_hls_top": "autosa_mm",
+  "hls_top": "autosa_mm",
+  "kernel_top": "autosa_mm",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "synth_timeout_s": 86400,
+  "csim_timeout_s": 86400,
+  "skip_phase_a": false,
+  "variants": [
+    {
+      "name": "autosa_mm_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/scratch/hpc-prf-llmfpga/asa582/projects/AutoSA/autosa_tests/mm/kernel.c"
+    }
+  ],
+  "provenance": {
+    "autosa_kernel_id": "mm",
+    "autosa_rel_dir": "autosa_tests/mm",
+    "plain_c_sha256": "0c3c0aae8f8b1aa8e0593d3a5d983f07508c1dfe0f80f19dab66f1e6b7883066",
+    "gold_hls_baseline_sha256": "0c3c0aae8f8b1aa8e0593d3a5d983f07508c1dfe0f80f19dab66f1e6b7883066"
+  },
+  "ijk": 1024
+}

@@ -386,3 +386,16 @@ def test_start_one_dry_run_does_not_launch_proxy_or_job(tmp_path):
     job = (tmp_path / "st0" / "st0_c1.sbatch.sh").read_text(encoding="utf-8")
     assert "C2HLS_DSE_V4_CONFIG=st0_c1" in job
     assert "OPENAI_BASE_URL=" not in job
+
+
+def test_docs_fall_back_to_tracked_pack_when_sibling_has_no_factors(monkeypatch, tmp_path):
+    import c2hls_paths
+
+    monkeypatch.delenv("C2HLS_AUTOSA_DOCS_DIR", raising=False)
+    monkeypatch.setattr(c2hls_paths, "AUTOSA_DOCS_DIR", tmp_path / "AutoSA" / "docs")
+    docs = v4.resolve_autosa_docs_dir()
+    assert docs == Path(__file__).resolve().parents[1] / "inputs" / "dse_v4" / "docs"
+    cfg = v4.load_v4_config("st0_c1")
+    assert v4.resolve_instruction_path(cfg).is_file()
+    assert v4.resolve_gold_kernel_path(cfg).is_file()
+    assert (v4.resolve_gold_kernel_path(cfg).parent / "kernel_host.cpp").is_file()

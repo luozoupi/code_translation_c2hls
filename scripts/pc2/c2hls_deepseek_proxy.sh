@@ -66,6 +66,13 @@ fi
 # Also clear endpoint so start script rewrites it for this port/host.
 rm -f "${CAMPAIGN_DIR}/deepseek_endpoint.json" "${CAMPAIGN_DIR}/llm_endpoint.json"
 
+_RAW_MODEL="${DEEPSEEK_PROXY_MODEL:-}"
+if [[ "${_RAW_MODEL}" == deepseek-* || "${_RAW_MODEL}" == deepseek ]]; then
+  export DEEPSEEK_PROXY_MODEL="${_RAW_MODEL}"
+else
+  export DEEPSEEK_PROXY_MODEL="deepseek-v4-flash"
+fi
+
 bash "${CHATHLS_ROOT}/scripts/pc2/start_deepseek_queue_proxy.sh" "${CAMPAIGN_DIR}"
 
 DS_ENDPOINT="${CAMPAIGN_DIR}/deepseek_endpoint.json"
@@ -76,7 +83,7 @@ fi
 
 # start_deepseek_queue_proxy.sh writes deepseek_endpoint.json (ChatHLS shape);
 # c2hls's external_llm campaigns read llm_endpoint.json, so translate here.
-MODEL="${DEEPSEEK_PROXY_MODEL:-${C2HLS_MODEL:-deepseek-v4-flash}}"
+MODEL="${DEEPSEEK_PROXY_MODEL:-deepseek-v4-flash}"
 python3 - "${CAMPAIGN_DIR}" "${MODEL}" <<'PY'
 import json
 import sys

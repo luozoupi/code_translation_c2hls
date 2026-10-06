@@ -1,0 +1,37 @@
+{
+  "job_prefix": "flshenf",
+  "synth_nodes_per_variant": 1,
+  "synth_workers_per_node": 1,
+  "cosim_nodes_per_variant": 0,
+  "cosim_workers_per_node": 0,
+  "worker_cpus": 16,
+  "worker_mem_gb": 64,
+  "gpu_policy": "batch_park",
+  "gpu_batch_threshold": 1,
+  "gpu_batch_flush_s": 1800,
+  "park_threshold_s": 1800,
+  "long_cosim_park_s": 3600,
+  "park_grace_s": 1800,
+  "max_inflight_benches": 1,
+  "bench_order": "listed",
+  "bench_seeding": "short_first_waves",
+  "poll_sec": 2.0,
+  "coordinator_poll_sec": 15.0,
+  "pilot": {
+    "variant": "autosa_aav_n_gf",
+    "workflow": "autosa_flash",
+    "corpus": "autosa_ready",
+    "benches": [
+      "autosa_mm",
+      "autosa_mm_int16",
+      "autosa_mm_getting_started",
+      "autosa_mm_hcl_intel",
+      "autosa_mm_intel",
+      "autosa_mm_hcl",
+      "autosa_mm_catapult"
+    ],
+    "failure_policy": "ignore",
+    "model": "deepseek-v4-flash",
+    "turns": 4
+  }
+}

@@ -1,4 +1,4 @@
-"""Flash pipelined finalize should chain pragma_opt + latency_opt like c2hls.py."""
+"""Flash pipelined finalize should chain dse + stream + pragma_opt + latency_opt like c2hls.py."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ class FakeOrch:
 
 
 class FlashFinalizeChainTest(unittest.TestCase):
-    def test_finalize_success_chains_pragma_then_latency(self) -> None:
+    def test_finalize_success_chains_dse_then_stream_then_pragma_then_latency(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             cell = Path(tmp) / "cell"
             cell.mkdir()
@@ -88,8 +88,18 @@ class FlashFinalizeChainTest(unittest.TestCase):
             orch = FakeOrch()
             session.orchestrator = orch
 
+            dse_calls = []
+            stream_calls = []
             pragma_calls = []
             latency_calls = []
+
+            def fake_dse(**kwargs):
+                dse_calls.append(kwargs)
+                return MagicMock(success=True)
+
+            def fake_stream(**kwargs):
+                stream_calls.append(kwargs)
+                return MagicMock(success=True)
 
             def fake_pragma(**kwargs):
                 pragma_calls.append(kwargs)
@@ -109,6 +119,12 @@ class FlashFinalizeChainTest(unittest.TestCase):
                 "flash_pipelined_bench._build_run_attribution",
                 return_value={},
             ), patch(
+                "post_flash_dse.maybe_chain_dse",
+                side_effect=fake_dse,
+            ), patch(
+                "post_flash_stream.maybe_chain_stream",
+                side_effect=fake_stream,
+            ), patch(
                 "post_flash_pragma_opt.maybe_chain_pragma_opt",
                 side_effect=fake_pragma,
             ), patch(
@@ -117,11 +133,16 @@ class FlashFinalizeChainTest(unittest.TestCase):
             ):
                 session._finalize_success()
 
+            self.assertEqual(len(dse_calls), 1)
+            self.assertEqual(len(stream_calls), 1)
             self.assertEqual(len(pragma_calls), 1)
             self.assertEqual(len(latency_calls), 1)
+            self.assertEqual(dse_calls[0]["source_role"], "flash_final")
+            self.assertEqual(stream_calls[0]["source_role"], "flash_final")
             self.assertEqual(pragma_calls[0]["source_role"], "flash_final")
             self.assertEqual(latency_calls[0]["source_role"], "flash_final")
-            self.assertEqual(pragma_calls[0]["bench"], "chathls_kernel_2mm")
+            self.assertEqual(dse_calls[0]["bench"], "chathls_kernel_2mm")
+            self.assertEqual(stream_calls[0]["bench"], "chathls_kernel_2mm")
             self.assertEqual(latency_calls[0]["cell_dir"], cell)
             self.assertTrue((cell / "chathls_kernel_2mm_multistep_results.json").is_file())
 

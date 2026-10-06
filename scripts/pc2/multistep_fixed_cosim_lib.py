@@ -12,6 +12,9 @@ REPO = Path(__file__).resolve().parents[2]
 BENCHMARKS_COSIM_DIR = REPO / "benchmarks_cosim"
 SKILLS_PKG = REPO / "hls_full_optimization_skills_schema_1_1_package"
 NEW_SKILLS_JSON_90 = SKILLS_PKG / "skills_ii_target_miss_solutions_added(90skills).json"
+NEW_SKILLS_JSON_90_GEMM = (
+    SKILLS_PKG / "skills_ii_target_miss_solutions_added(90skills)_gemm_flatten_v1.json"
+)
 
 STAMP_ENV = "C2HLS_MULTISTEP_FIXED_COSIM_STAMP"
 OUT_ENV = "C2HLS_MULTISTEP_FIXED_COSIM_OUT"
@@ -39,6 +42,8 @@ class MultistepFixedCosimVariant:
     skills_json: Optional[Path]
     force_skill_prompts: bool
     skills_in_prompt: bool = True
+    # Merge flash_no_RMW_m_axi_skill_entries.json on top of packaged skills.
+    flash_skill_overlay: bool = False
 
     @property
     def stamp_env(self) -> str:
@@ -52,13 +57,14 @@ class MultistepFixedCosimVariant:
 VARIANTS: dict[str, MultistepFixedCosimVariant] = {
     "aav_n": MultistepFixedCosimVariant(
         key="aav_n",
-        label="All+avoids (new, 90 skills)",
+        label="All+avoids (gemm_flatten_v1 + no_RMW overlay)",
         session_id="multistep_fixed_cosim_aav_n",
         artifact_prefix="multistep_fixed_cosim_aav_n",
         setup_tag="multistep__fixed_cosim__aav_n",
         skill_prompt_mode="all_skills_avoids_global",
-        skills_json=NEW_SKILLS_JSON_90,
+        skills_json=NEW_SKILLS_JSON_90_GEMM,
         force_skill_prompts=True,
+        flash_skill_overlay=True,
     ),
     "nav_n": MultistepFixedCosimVariant(
         key="nav_n",
@@ -158,7 +164,7 @@ def configure_fixed_cosim_multistep_env(
     *,
     inference: InferenceKind = "vllm",
 ) -> None:
-    from c2hls_paths import apply_runtime_defaults
+    from c2hls_paths import FLASH_NO_RMW_M_AXI_SKILL_ENTRIES_JSON, apply_runtime_defaults
     from c2hls_temp import configure_temp_env
 
     apply_runtime_defaults(profile="sweep")
@@ -183,18 +189,36 @@ def configure_fixed_cosim_multistep_env(
     os.environ.setdefault("C2HLS_LLM_TIMEOUT", "1800")
     os.environ.setdefault("OPENAI_API_KEY", "EMPTY")
 
+    os.environ["C2HLS_RAG"] = "0"
+    os.environ["C2HLS_RAG_ENABLE"] = "0"
+    os.environ["C2HLS_RAG_SCRAPE"] = "0"
+    os.environ["C2HLS_RAG2"] = "0"
+    os.environ["C2HLS_POST_FLASH_LATENCY_OPT"] = "0"
+
     if variant.force_skill_prompts and variant.skills_json is not None:
         os.environ["C2HLS_SKILL_MODE"] = "skill_on"
         os.environ["C2HLS_FORCE_SKILL_PROMPTS"] = "1"
         os.environ["C2HLS_SKILL_PROMPT_MODE"] = variant.skill_prompt_mode
-        os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(variant.skills_json.resolve())
+        override = (os.getenv("C2HLS_PACKAGED_SKILLS_JSON") or "").strip()
+        if override and Path(override).expanduser().is_file():
+            skills_path = Path(override).expanduser().resolve()
+        else:
+            skills_path = variant.skills_json.resolve()
+        os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(skills_path)
         os.environ["C2HLS_PACKAGED_SKILLS_ONLY"] = "1"
+        if variant.flash_skill_overlay:
+            os.environ["C2HLS_FLASH_SKILL_ENTRIES_JSON"] = str(
+                FLASH_NO_RMW_M_AXI_SKILL_ENTRIES_JSON
+            )
+        else:
+            os.environ.pop("C2HLS_FLASH_SKILL_ENTRIES_JSON", None)
     else:
         os.environ["C2HLS_SKILL_MODE"] = "skill_off"
         os.environ["C2HLS_FORCE_SKILL_PROMPTS"] = "0"
         os.environ.pop("C2HLS_SKILL_PROMPT_MODE", None)
         os.environ.pop("C2HLS_PACKAGED_SKILLS_JSON", None)
         os.environ.pop("C2HLS_PACKAGED_SKILLS_ONLY", None)
+        os.environ.pop("C2HLS_FLASH_SKILL_ENTRIES_JSON", None)
 
 
 def variant_env_snapshot(variant: MultistepFixedCosimVariant) -> dict:
@@ -210,7 +234,12 @@ def variant_env_snapshot(variant: MultistepFixedCosimVariant) -> dict:
         "force_skill_prompts": variant.force_skill_prompts,
         "skills_in_prompt": variant.skills_in_prompt,
         "skills_json": str(variant.skills_json.resolve()) if variant.skills_json else None,
-        "skills_json_mode": "packaged_only" if variant.skills_json else None,
+        "skills_json_mode": (
+            "packaged_base_plus_flash_overlay"
+            if variant.skills_json and variant.flash_skill_overlay
+            else ("packaged_only" if variant.skills_json else None)
+        ),
+        "flash_skill_overlay": variant.flash_skill_overlay,
         "origin_meta": {
             "note": (
                 "HLSFactory benchmarks_cosim has gold/baseline only; "

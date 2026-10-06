@@ -21,6 +21,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from batch_parallel_config import campaign_paths, gpu_parking_enabled, gpu_policy_from_campaign, load_campaign, load_config, save_campaign
 from batch_parallel_flow import BatchParallelFlow
 from batch_parallel_gpu_state import gpu_must_stay_up, snapshot_gpu_busy
+from batch_parallel_lifecycle import discharge_helper_jobs
 from batch_parallel_park import can_hard_park, evaluate_park_request, should_unpark
 from batch_parallel_queue import BatchParallelQueue
 
@@ -96,6 +97,17 @@ def vitis_pipeline_busy(queue: BatchParallelQueue) -> bool:
 def _clear_park_pending(campaign: dict) -> None:
     campaign.pop("park_pending_at", None)
     campaign.pop("park_pending_reason", None)
+
+
+def _discharge_helpers(campaign: dict) -> None:
+    self_id = os.environ.get("SLURM_JOB_ID")
+    discharged = discharge_helper_jobs(
+        campaign,
+        self_job_id=self_id,
+        scancel=lambda jid: _scancel(jid),
+    )
+    if discharged:
+        logging.info("discharged helper jobs after campaign complete: %s", discharged)
 
 
 def write_summary(campaign_root: Path, queue: BatchParallelQueue, campaign: dict) -> None:
@@ -195,6 +207,7 @@ def main() -> int:
             write_summary(campaign_root, queue, campaign)
             flow._render_reports(force=True)
             paths["complete_marker"].write_text(campaign["completed_at"] + "\n", encoding="utf-8")
+            _discharge_helpers(campaign)
             return 0
 
         unpark_reason = None if external_llm else should_unpark(queue, cfg, campaign)

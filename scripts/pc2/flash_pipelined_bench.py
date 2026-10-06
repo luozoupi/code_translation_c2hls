@@ -96,7 +96,7 @@ class FlashPipelinedBenchSession:
             or os.getenv("C2HLS_PART", "xcu280-fsvh2892-2L-e"),
             clock_ns=meta.get("clock_ns")
             or meta.get("target_clock_ns")
-            or 4.0,
+            or 3.33,
             supports_cosim=bool(meta.get("supports_cosim")),
             cosim_depths=meta.get("cosim_depths", {}),
             benchmark_name=self.bench,
@@ -112,9 +112,13 @@ class FlashPipelinedBenchSession:
             persist_skills = bool(int(os.getenv("C2HLS_SKILL_LIBRARY_PERSIST", "1") or "1"))
             orch.skill_library = make_default_library(persist=persist_skills)
 
+        orch._artifact_output_dir = str(self.cell_dir)
+
         if self.state_path.is_file():
             state = json.loads(self.state_path.read_text(encoding="utf-8"))
             orch.pipelined_import_state(state)
+            # Cell dir is authoritative for this worker (state may be stale/empty).
+            orch._artifact_output_dir = str(self.cell_dir)
         else:
             if not self.reference_validation.get("benchmark_ready"):
                 raise RuntimeError(
@@ -186,6 +190,24 @@ class FlashPipelinedBenchSession:
         repair = job.meta.get("repair")
 
         if job.phase == "phase_b":
+            from c2hls import _skip_phase_b_enabled
+
+            if _skip_phase_b_enabled() or ctx.get("phase_b_skipped"):
+                orch.hls_code = orch.c_code
+                orch.synth_report = None
+                ctx = dict(ctx)
+                ctx["phase_b_skipped"] = True
+                ctx["phase_b_done"] = True
+                orch._pipelined_ctx = ctx
+                logging.info(
+                    "[Phase B] Skipped (C2HLS_SKIP_PHASE_B); next is flash from plain C"
+                )
+                return [{
+                    "kind": "codegen",
+                    "phase": "flash",
+                    "attempt": 0,
+                    "stage": "optimize",
+                }]
             if job.stage == "translate" and not repair:
                 result = orch.pipelined_phase_b_translate()
                 if not result.get("ok"):
@@ -209,6 +231,17 @@ class FlashPipelinedBenchSession:
             }]
 
         if job.phase == "flash":
+            from flash_enforcement import apply_flash_seed_to_orch, skip_flash_enabled
+
+            if skip_flash_enabled() and apply_flash_seed_to_orch(
+                orch, self.bench, getattr(self, "cell_dir", None)
+            ):
+                return [{
+                    "kind": "synth",
+                    "phase": "flash",
+                    "attempt": int(job.meta.get("next_attempt") or ctx.get("flash_attempt") or 0),
+                    "stage": "synth",
+                }]
             result = orch.pipelined_flash_codegen(repair)
             if not result.get("ok"):
                 return [{"kind": "finalize", "phase": "failed", "attempt": job.attempt, "stage": "flash", "error": result.get("error")}]
@@ -257,6 +290,9 @@ class FlashPipelinedBenchSession:
                 if outcome.get("success"):
                     ctx["flash_step_result"] = outcome.get("step_result")
                     orch._pipelined_ctx = ctx
+                    from flash_enforcement import attach_enforcement_after_flash
+
+                    attach_enforcement_after_flash(orch)
                     return [{"kind": "finalize", "phase": "finalize", "attempt": job.attempt, "stage": "done"}]
                 return [{
                     "kind": "finalize",
@@ -279,6 +315,9 @@ class FlashPipelinedBenchSession:
 
     def _finalize_success(self) -> None:
         orch = self._ensure_orchestrator()
+        from flash_enforcement import attach_enforcement_after_flash
+
+        attach_enforcement_after_flash(orch)
         ctx = getattr(orch, "_pipelined_ctx", {})
         baseline_report = dict(
             orch._flow_phase_b_report or getattr(orch, "_baseline_report", None) or {}
@@ -317,6 +356,8 @@ class FlashPipelinedBenchSession:
             "llm_usage": orch._llm_usage_summary(),
             "pipelined": True,
         }
+        if ctx.get("enforcement") is not None:
+            results["enforcement"] = ctx["enforcement"]
         results["run"] = _build_run_attribution(orch, self.inputs["meta"])
         results["reference_validation"] = self.reference_validation
         results["ground_truth_status"] = "valid"
@@ -330,11 +371,68 @@ class FlashPipelinedBenchSession:
         )
         results = _sanitize_saved_result_record(results, self.reference_validation)
         orch.save_multistep_results(str(self.cell_dir), self.bench, results)
+        # Preserve selection/curation fields that save_multistep_results embeds;
+        # do not clobber them with a second write of the bare results dict.
+        if getattr(orch, "_skill_selection_turns", None):
+            results["skill_selection_turns"] = orch._skill_selection_turns
+        if getattr(orch, "_skill_curation_record", None):
+            results["skill_curation"] = orch._skill_curation_record
         result_json = self.cell_dir / f"{self.bench}_multistep_results.json"
-        result_json.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
+        result_json.write_text(json.dumps(results, indent=2, default=str) + "\n", encoding="utf-8")
 
-        # Match c2hls.py flash-final success: optional pragma_opt then latency_opt.
+        # Match c2hls.py flash-final success: optional dse/dse_v2, stream, pragma_opt, latency_opt.
         if results.get("success"):
+            try:
+                from post_flash_dse_v2 import dse_v2_enabled, maybe_chain_dse_v2
+
+                if dse_v2_enabled():
+                    maybe_chain_dse_v2(
+                        bench=self.bench,
+                        bench_dir=self.bench_dir,
+                        cell_dir=self.cell_dir,
+                        orchestrator=orch,
+                        source_role="flash_final",
+                        skip_existing=True,
+                    )
+            except Exception as exc:
+                logging.warning(
+                    "[dse_v2] flash chain skipped for %s: %s", self.bench, exc
+                )
+
+            try:
+                from post_flash_dse import maybe_chain_dse
+
+                maybe_chain_dse(
+                    bench=self.bench,
+                    bench_dir=self.bench_dir,
+                    cell_dir=self.cell_dir,
+                    orchestrator=orch,
+                    source_role="flash_final",
+                    skip_existing=True,
+                )
+            except Exception as exc:
+                logging.warning(
+                    "[dse] flash chain skipped for %s: %s", self.bench, exc
+                )
+
+            try:
+                from post_flash_dse_v2 import dse_v2_enabled as _dse_v2_on
+                from post_flash_stream import maybe_chain_stream
+
+                if not _dse_v2_on():
+                    maybe_chain_stream(
+                        bench=self.bench,
+                        bench_dir=self.bench_dir,
+                        cell_dir=self.cell_dir,
+                        orchestrator=orch,
+                        source_role="flash_final",
+                        skip_existing=True,
+                    )
+            except Exception as exc:
+                logging.warning(
+                    "[stream] flash chain skipped for %s: %s", self.bench, exc
+                )
+
             try:
                 from post_flash_pragma_opt import maybe_chain_pragma_opt
 

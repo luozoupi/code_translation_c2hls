@@ -81,6 +81,16 @@ print("1" if doc.get("no_gpu") else "0")
 PY
 }
 
+_campaign_terminal() {
+  _campaign_py "${SCRIPT_DIR}" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[2])
+from batch_parallel_lifecycle import campaign_root_is_terminal
+print("1" if campaign_root_is_terminal(Path(sys.argv[1])) else "0")
+PY
+}
+
 _campaign_external_llm() {
   _campaign_py <<'PY'
 import json, sys
@@ -554,6 +564,10 @@ pc2_log "batch_parallel watch started (interval=${PC2_WATCH_INTERVAL_SEC}s)"
 pc2_log "flow: gpu_queue → gpu_run → compute_submit; park keeps compute"
 
 while true; do
+  if [[ "$(_campaign_terminal)" == "1" ]]; then
+    pc2_log "watch: campaign terminal; discharging"
+    exit 0
+  fi
   _check_gpu
   _check_compute
 

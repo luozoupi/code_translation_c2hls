@@ -40,9 +40,14 @@ def _load_endpoint_env(endpoint_file: Path) -> None:
         url = payload.get("url")
         if url:
             os.environ["OPENAI_BASE_URL"] = str(url)
+            # Hosted OpenAI path also honors C2HLS_OPENAI_HOSTED_URL.
+            os.environ.setdefault("C2HLS_OPENAI_HOSTED_URL", str(url))
         model = payload.get("model")
         if model and not (os.getenv("C2HLS_MODEL") or "").strip():
             os.environ["C2HLS_MODEL"] = str(model)
+        effort = payload.get("reasoning_effort")
+        if effort and not (os.getenv("C2HLS_REASONING_EFFORT") or "").strip():
+            os.environ["C2HLS_REASONING_EFFORT"] = str(effort)
     except Exception:
         pass
 
@@ -72,12 +77,24 @@ def _heartbeat_while(
 def worker_loop(args: argparse.Namespace) -> int:
     configure_site("pc2")
     campaign_root = Path(args.campaign_root)
+    os.environ["BATCH_PARALLEL_CAMPAIGN_ROOT"] = str(campaign_root)
     paths = campaign_paths(campaign_root)
     # Latency-opt (and any LLM calls on synth nodes) need the campaign endpoint.
     _load_endpoint_env(paths["endpoint"])
     cfg = load_config()
     campaign = load_campaign(campaign_root)
     configure_campaign_env(campaign, args.variant)
+    logging.info(
+        "[enforcement] worker C2HLS_ENFORCEMENT=%s rounds=%s campaign_flag=%s",
+        os.getenv("C2HLS_ENFORCEMENT", ""),
+        os.getenv("C2HLS_ENFORCEMENT_ROUNDS", ""),
+        campaign.get("enforcement"),
+    )
+    logging.info(
+        "[timeout] worker C2HLS_SYNTH_TIMEOUT=%s campaign=%s",
+        os.getenv("C2HLS_SYNTH_TIMEOUT", ""),
+        campaign.get("synth_timeout"),
+    )
     active_variants = campaign.get("active_variants") or [args.variant]
     benches_order = campaign_benches_resolved(campaign, cfg)
     pilot = (campaign.get("config") or {}).get("pilot") or {}

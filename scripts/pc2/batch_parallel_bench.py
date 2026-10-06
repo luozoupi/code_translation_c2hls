@@ -12,6 +12,10 @@ from batch_parallel_queue import BatchParallelJob, BatchParallelQueue
 from flash_pipelined_bench import FlashPipelinedBenchSession
 
 
+def flash_defer_cosim_enabled() -> bool:
+  return os.getenv("C2HLS_FLASH_DEFER_COSIM", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 class BatchParallelBenchSession(FlashPipelinedBenchSession):
   """Extends flash pipelined session: synth jobs are synth-only; cosim is a separate kind."""
 
@@ -97,12 +101,34 @@ class BatchParallelBenchSession(FlashPipelinedBenchSession):
       clock_ns=orch.clock_ns,
       extra_files=orch.extra_files,
       testbench_code=orch.testbench_code,
-      run_csim_check=False,
+      run_csim_check=bool(orch.testbench_code) if flash_defer_cosim_enabled() else False,
       run_cosim_check=False,
       cosim_depths=orch.cosim_depths,
       log_prefix=log_prefix,
       temp_tag=tag,
     )
+
+  @staticmethod
+  def _csim_link_error(error: str) -> bool:
+    low = (error or "").lower()
+    return (
+      "ld returned 1 exit status" in low
+      or ("csim.exe" in low and "error 1" in low)
+      or "undefined reference" in low
+    )
+
+  def _csim_failed(self, outcome: dict) -> tuple[bool, str]:
+    csim = outcome.get("csim") or {}
+    if not isinstance(csim, dict) or not csim.get("ran"):
+      return False, ""
+    if csim.get("passed"):
+      return False, ""
+    error = (
+      (csim.get("error") or "").strip()
+      + "\n"
+      + (csim.get("log_excerpt") or "").strip()
+    ).strip() or "csim failed"
+    return True, error
 
   def _cosim_followup(self, job: BatchParallelJob) -> dict[str, Any]:
     return {
@@ -184,6 +210,8 @@ class BatchParallelBenchSession(FlashPipelinedBenchSession):
         orch.synth_report = result["report"]
         ctx["phase_b_best_state"] = orch.synthesis._record_best(orch.hls_code, result, outcome)
         orch._pipelined_ctx = ctx
+        if flash_defer_cosim_enabled():
+          return self._handle_phase_b_csim_success(job, orch, ctx, outcome)
         return [self._cosim_followup(job)]
 
       error_class_history.append(_classify_synth_error(result.get("error", "")))
@@ -284,6 +312,8 @@ class BatchParallelBenchSession(FlashPipelinedBenchSession):
         orch.synth_report = result["report"]
         ctx["flash_pending_code"] = new_code
         orch._pipelined_ctx = ctx
+        if flash_defer_cosim_enabled():
+          return self._handle_flash_csim_success(job, orch, ctx, new_code, result, outcome)
         return [self._cosim_followup(job)]
 
       attempt_results.append({
@@ -326,6 +356,116 @@ class BatchParallelBenchSession(FlashPipelinedBenchSession):
       }]
 
     raise ValueError(f"unknown synth phase {job.phase}")
+
+  def _handle_phase_b_csim_success(
+      self, job: BatchParallelJob, orch, ctx: dict, outcome: dict,
+  ) -> list[dict[str, Any]]:
+    attempt = job.attempt
+    csim_failed, csim_error = self._csim_failed(outcome)
+    if csim_failed:
+      if attempt >= orch.turns_limitation - 1:
+        return [{
+          "kind": "finalize",
+          "phase": "failed",
+          "attempt": attempt,
+          "stage": "phase_b",
+          "error": csim_error,
+        }]
+      return [{
+        "kind": "codegen",
+        "phase": "phase_b",
+        "attempt": attempt,
+        "stage": "repair",
+        "meta": {
+          "repair": {
+            "kind": "compile" if self._csim_link_error(csim_error) else "csim",
+            "error": csim_error,
+            "attempt": attempt,
+          },
+        },
+      }]
+
+    from c2hls import record_flow_enabled
+
+    ctx["phase_b_done"] = True
+    ctx["phase_b_success"] = True
+    orch._pipelined_ctx = ctx
+    orch.generated_csim = outcome.get("csim")
+    if record_flow_enabled():
+      orch._flow_phase_b_code = orch.hls_code
+      orch._flow_phase_b_report = dict(orch.synth_report or {})
+    orch._baseline_report = dict(orch.synth_report or {})
+    return [{
+      "kind": "codegen",
+      "phase": "flash",
+      "attempt": 0,
+      "stage": "optimize",
+    }]
+
+  def _handle_flash_csim_success(
+      self,
+      job: BatchParallelJob,
+      orch,
+      ctx: dict,
+      new_code: str,
+      result: dict,
+      outcome: dict,
+  ) -> list[dict[str, Any]]:
+    attempt = job.attempt
+    csim_failed, csim_error = self._csim_failed(outcome)
+    if csim_failed:
+      step_turn_records = list(ctx.get("flash_step_turn_records") or [])
+      attempt_results = list(ctx.get("flash_attempt_results") or [])
+      attempt_results.append({
+        "attempt_index": attempt,
+        "success": False,
+        "stage": "csim",
+        "report": result.get("report"),
+        "error": csim_error,
+      })
+      step_turn_records.append({
+        "turn": attempt, "phase": "B", "success": False, "error": csim_error,
+      })
+      ctx["flash_step_turn_records"] = step_turn_records
+      ctx["flash_attempt_results"] = attempt_results
+      orch._pipelined_ctx = ctx
+      if attempt >= orch.turns_limitation - 1:
+        return [{
+          "kind": "finalize",
+          "phase": "failed",
+          "attempt": attempt,
+          "stage": "flash",
+          "error": csim_error,
+        }]
+      next_attempt = attempt + 1
+      return [{
+        "kind": "codegen",
+        "phase": "flash",
+        "attempt": next_attempt,
+        "stage": "repair",
+        "meta": {
+          "repair": {
+            "kind": "compile" if self._csim_link_error(csim_error) else "csim",
+            "error": csim_error,
+            "attempt": attempt,
+          },
+          "next_attempt": next_attempt,
+        },
+      }]
+
+    ctx["flash_step_result"] = {
+      "success": True,
+      "step_name": "flash",
+      "report": result["report"],
+      "code": new_code,
+      "csim": outcome.get("csim"),
+    }
+    ctx["flash_done"] = True
+    orch._pipelined_ctx = ctx
+    from flash_enforcement import attach_enforcement_after_flash
+
+    attach_enforcement_after_flash(orch)
+    return [{"phase": "finalize", "kind": "finalize", "attempt": attempt, "stage": "done"}]
 
   def _run_cosim(self, job: BatchParallelJob) -> list[dict[str, Any]]:
     from c2hls import _run_synth_csim_cosim, join_temp_tag
@@ -390,6 +530,9 @@ class BatchParallelBenchSession(FlashPipelinedBenchSession):
       }
       ctx["flash_done"] = True
       orch._pipelined_ctx = ctx
+      from flash_enforcement import attach_enforcement_after_flash
+
+      attach_enforcement_after_flash(orch)
       return [{"phase": "finalize", "kind": "finalize", "attempt": job.attempt, "stage": "done"}]
 
     next_attempt = int(job.attempt) + 1

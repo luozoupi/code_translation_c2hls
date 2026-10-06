@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import time
@@ -14,6 +15,7 @@ sys.path.insert(0, str(REPO / "scripts" / "pc2"))
 from batch_parallel_config import BatchParallelConfig
 from batch_parallel_gpu_state import (
     begin_llm_request,
+    codegen_should_requeue,
     end_llm_request,
     gpu_codegen_busy,
     gpu_must_stay_up,
@@ -155,7 +157,12 @@ class BatchParallelParkTests(unittest.TestCase):
         self.assertTrue(park_grace_elapsed(campaign, self.cfg))
 
     def test_retriable_llm_error(self) -> None:
+        self.assertTrue(is_retriable_llm_error(RuntimeError("Connection refused")))
         self.assertTrue(is_retriable_llm_error(RuntimeError("Connection error.")))
+        self.assertFalse(is_retriable_llm_error(TimeoutError("The read operation timed out")))
+        wrapped = RuntimeError("Connection error.")
+        wrapped.__cause__ = TimeoutError("The read operation timed out")
+        self.assertFalse(is_retriable_llm_error(wrapped))
 
     def test_requeue_restores_pending_codegen(self) -> None:
         variant = "aav_n"
@@ -328,6 +335,63 @@ class BatchParallelParkTests(unittest.TestCase):
         campaign = {"gpu_mode": "up"}
         self.assertIsNone(
             evaluate_park_request(self.queue, campaign, self.cfg, self.root, now=now)
+        )
+
+    def test_begin_llm_steals_stale_in_flight_slot(self) -> None:
+        begin_llm_request(
+            self.root,
+            job_id=11,
+            variant="autosa_aav_n_gf",
+            bench="autosa_mm_int16",
+            phase="flash",
+            worker="gpu-drain-dead",
+        )
+        state = self.root / "flow" / "gpu_llm.json"
+        payload = json.loads(state.read_text())
+        payload["in_flight"]["started_at"] = time.time() - 20000
+        state.write_text(json.dumps(payload))
+        begin_llm_request(
+            self.root,
+            job_id=12,
+            variant="autosa_aav_n_gf",
+            bench="autosa_mm_int16",
+            phase="flash",
+            worker="gpu-drain-live",
+        )
+        held = read_llm_in_flight(self.root)
+        self.assertIsNotNone(held)
+        self.assertEqual(held["job_id"], 12)
+        self.assertEqual(held["worker"], "gpu-drain-live")
+
+    def test_begin_llm_does_not_steal_a_live_hour_long_call(self) -> None:
+        begin_llm_request(
+            self.root,
+            job_id=21,
+            variant="autosa_aav_n_gf",
+            bench="autosa_mm_int16",
+            phase="flash",
+            worker="gpu-drain-live",
+        )
+        state = self.root / "flow" / "gpu_llm.json"
+        payload = json.loads(state.read_text())
+        payload["in_flight"]["started_at"] = time.time() - 4000
+        state.write_text(json.dumps(payload))
+        with self.assertRaises(RuntimeError):
+            begin_llm_request(
+                self.root,
+                job_id=22,
+                variant="autosa_aav_n_gf",
+                bench="autosa_mm_int16",
+                phase="flash",
+                worker="gpu-drain-other",
+            )
+
+    def test_codegen_requeue_stops_after_one_connection_retry(self) -> None:
+        exc = ConnectionError("Connection refused")
+        self.assertTrue(codegen_should_requeue(self.root, 7, exc))
+        self.assertFalse(codegen_should_requeue(self.root, 7, exc))
+        self.assertFalse(
+            codegen_should_requeue(self.root, 8, TimeoutError("The read operation timed out"))
         )
 
 

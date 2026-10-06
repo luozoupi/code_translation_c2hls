@@ -115,6 +115,7 @@ def run_variant_pipelined(
     model_tag = model_cell_tag(model_id)
     snap = variant_env_snapshot(variant)
     queue_path = out / "pipelined" / "queue.db"
+    turns = int(os.getenv("C2HLS_TURNS", "4"))
 
     plan = {
         "matrix_family": snap["matrix_family"],
@@ -129,6 +130,10 @@ def run_variant_pipelined(
         "benches": [name for name, _ in benches],
         "queue_db": str(queue_path),
         "synth_workers": synth_workers,
+        "turns": turns,
+        "skills_json": snap.get("skills_json"),
+        "skills_json_mode": snap.get("skills_json_mode"),
+        "flash_skill_overlay": snap.get("flash_skill_overlay"),
         "origin_meta": snap.get("origin_meta"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -145,7 +150,6 @@ def run_variant_pipelined(
         return 0
 
     configure_fixed_cosim_multistep_env(variant)
-    turns = int(os.getenv("C2HLS_TURNS", "4"))
     queue = MultistepPipelinedQueue(queue_path)
     bench_map = {name: path for name, path in benches}
 

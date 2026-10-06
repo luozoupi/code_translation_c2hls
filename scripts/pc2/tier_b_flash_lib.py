@@ -52,10 +52,21 @@ def configure_tier_b_flash_aav_n_env() -> None:
     os.environ.setdefault("C2HLS_HW_EMU_FINAL", "0")
     os.environ.setdefault("C2HLS_HW_EMU_DISABLE_DEBUG_SYMBOLS", "1")
     os.environ.setdefault("C2HLS_GT_BASELINE_FALLBACK", "1")
-    # Cosim on for generated + gold reference gates.
-    os.environ["C2HLS_RUN_COSIM"] = "1"
+    # Cosim: legacy inline (RUN/REFERENCE=1) unless FLASH_DEFER_COSIM requests
+    # the modern ranked/async path (csim+csynth during flash; cosim later).
+    defer = (os.getenv("C2HLS_FLASH_DEFER_COSIM") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     os.environ["C2HLS_COSIM_REQUIRED"] = "0"
-    os.environ["C2HLS_REFERENCE_COSIM"] = "1"
+    if defer:
+        os.environ["C2HLS_RUN_COSIM"] = "0"
+        os.environ["C2HLS_REFERENCE_COSIM"] = "0"
+    else:
+        os.environ["C2HLS_RUN_COSIM"] = "1"
+        os.environ["C2HLS_REFERENCE_COSIM"] = "1"
     os.environ.setdefault("C2HLS_COSIM_TRACE_LEVEL", "none")
     os.environ.setdefault("C2HLS_PART", "xcu280-fsvh2892-2L-e")
     os.environ.setdefault("C2HLS_CLOCK_NS", "3.33")

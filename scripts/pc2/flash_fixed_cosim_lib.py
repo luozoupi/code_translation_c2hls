@@ -15,6 +15,10 @@ SKILLS_PKG = REPO / "hls_full_optimization_skills_schema_1_1_package"
 LEGACY_SKILLS_JSON = SKILLS_PKG / "skills.json"
 NEW_SKILLS_JSON_73 = SKILLS_PKG / "skills_ii_target_miss_solutions_added(73skills).json"
 NEW_SKILLS_JSON_90 = SKILLS_PKG / "skills_ii_target_miss_solutions_added(90skills).json"
+NEW_SKILLS_JSON_90_GEMM = (
+    SKILLS_PKG / "skills_ii_target_miss_solutions_added(90skills)_gemm_flatten_v1.json"
+)
+SKILLS_ONCHIP = SKILLS_PKG / "flash_onchip_wide_gemm_skill_entries.json"
 
 STAMP_ENV = "C2HLS_FLASH_FIXED_COSIM_STAMP"
 OUT_ENV = "C2HLS_FLASH_FIXED_COSIM_OUT"
@@ -34,6 +38,8 @@ class FlashFixedCosimVariant:
     skills_json: Optional[Path]
     force_skill_prompts: bool
     skills_in_prompt: bool = True
+    # Merge flash_no_RMW_m_axi_skill_entries.json on top of packaged skills.
+    flash_skill_overlay: bool = True
 
     @property
     def stamp_env(self) -> str:
@@ -65,6 +71,17 @@ VARIANTS: dict[str, FlashFixedCosimVariant] = {
         skills_json=NEW_SKILLS_JSON_90,
         force_skill_prompts=True,
     ),
+    "aav_sel": FlashFixedCosimVariant(
+        key="aav_sel",
+        label="LLM-select then code (new+avoids)",
+        session_id="flash_fixed_cosim_aav_sel",
+        artifact_prefix="flash_fixed_cosim_aav_sel",
+        setup_tag="flash__fixed_cosim__aav_sel",
+        skill_prompt_mode="llm_select_then_code",
+        skills_json=NEW_SKILLS_JSON_90_GEMM,
+        force_skill_prompts=True,
+        flash_skill_overlay=True,
+    ),
     "nav_n": FlashFixedCosimVariant(
         key="nav_n",
         label="No avoids (new)",
@@ -85,6 +102,7 @@ VARIANTS: dict[str, FlashFixedCosimVariant] = {
         skills_json=None,
         force_skill_prompts=False,
         skills_in_prompt=False,
+        flash_skill_overlay=False,
     ),
     "aav_o": FlashFixedCosimVariant(
         key="aav_o",
@@ -96,9 +114,20 @@ VARIANTS: dict[str, FlashFixedCosimVariant] = {
         skills_json=LEGACY_SKILLS_JSON,
         force_skill_prompts=True,
     ),
+    "onchip": FlashFixedCosimVariant(
+        key="onchip",
+        label="AutoSA onchip pack (transfer)",
+        session_id="flash_fixed_cosim_onchip",
+        artifact_prefix="flash_fixed_cosim_onchip",
+        setup_tag="flash__fixed_cosim__onchip",
+        skill_prompt_mode="all_skills_avoids_global",
+        skills_json=SKILLS_ONCHIP,
+        force_skill_prompts=True,
+        flash_skill_overlay=False,
+    ),
 }
 
-VARIANT_ORDER = ["nav_o", "aav_n", "nav_n", "noskills", "aav_o"]
+VARIANT_ORDER = ["nav_o", "aav_n", "aav_sel", "nav_n", "noskills", "aav_o", "onchip"]
 
 
 def count_skills_in_file(path: Path) -> int:
@@ -116,7 +145,9 @@ def verify_variant_skills(variant: FlashFixedCosimVariant) -> dict:
         "aav_o": (LEGACY_SKILLS_JSON, 55),
         "nav_n": (NEW_SKILLS_JSON_73, 75),
         "aav_n": (NEW_SKILLS_JSON_90, 92),
+        "aav_sel": (NEW_SKILLS_JSON_90_GEMM, 99),
         "noskills": (None, 0),
+        "onchip": (SKILLS_ONCHIP, 12),
     }
     path, want = expected[variant.key]
     out: dict = {"variant": variant.key, "label": variant.label, "ok": True, "errors": []}
@@ -226,6 +257,8 @@ def configure_fixed_cosim_flash_env(
     os.environ.setdefault("C2HLS_COSIM_TRACE_LEVEL", "none")
     os.environ.setdefault("C2HLS_SYNTH_TIMEOUT", "1200")
     os.environ.setdefault("C2HLS_CSIM_TIMEOUT", "180")
+    # Prefer gold-check TB for flash functional csim (dump TB always returns 0).
+    os.environ.setdefault("C2HLS_CSIM_USE_COSIM_TB", "1")
     os.environ.setdefault("C2HLS_COSIM_TIMEOUT", "1200")
     os.environ.setdefault("C2HLS_LLM_TIMEOUT", "900")
     os.environ.setdefault("OPENAI_API_KEY", "EMPTY")
@@ -243,7 +276,7 @@ def configure_fixed_cosim_flash_env(
             skills_path = variant.skills_json.resolve()
         os.environ["C2HLS_PACKAGED_SKILLS_JSON"] = str(skills_path)
         os.environ["C2HLS_PACKAGED_SKILLS_ONLY"] = "1"
-        _apply_flash_skill_entries_env(True)
+        _apply_flash_skill_entries_env(bool(variant.flash_skill_overlay))
     else:
         os.environ["C2HLS_SKILL_MODE"] = "skill_off"
         os.environ["C2HLS_FORCE_SKILL_PROMPTS"] = "0"
@@ -266,8 +299,11 @@ def variant_env_snapshot(variant: FlashFixedCosimVariant) -> dict:
         "skills_in_prompt": variant.skills_in_prompt,
         "skills_json": str(variant.skills_json.resolve()) if variant.skills_json else None,
         "skills_json_mode": (
-            "packaged_base_plus_flash_overlay" if variant.skills_json else None
+            "packaged_base_plus_flash_overlay"
+            if variant.skills_json and variant.flash_skill_overlay
+            else ("packaged_base_only" if variant.skills_json else None)
         ),
+        "flash_skill_overlay": variant.flash_skill_overlay,
     }
     if variant.skills_json and variant.skills_json.is_file():
         snap["skills_json_count"] = count_skills_in_file(variant.skills_json)

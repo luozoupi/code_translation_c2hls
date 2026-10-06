@@ -114,9 +114,12 @@ class MultistepPipelinedBenchSession:
             persist_skills = bool(int(os.getenv("C2HLS_SKILL_LIBRARY_PERSIST", "1") or "1"))
             orch.skill_library = make_default_library(persist=persist_skills)
 
+        orch._artifact_output_dir = str(self.cell_dir)
+
         if self.state_path.is_file():
             state = json.loads(self.state_path.read_text(encoding="utf-8"))
             orch.pipelined_import_state(state)
+            orch._artifact_output_dir = str(self.cell_dir)
         else:
             if not self.reference_validation.get("benchmark_ready"):
                 raise RuntimeError(
@@ -151,6 +154,56 @@ class MultistepPipelinedBenchSession:
             if idx + 1 < len(self.opt_steps):
                 return self.opt_steps[idx + 1]
         return None
+
+    def _followups_after_failed_opt_step(
+        self,
+        orch,
+        ctx: dict[str, Any],
+        job: PipelinedJob,
+        step_result: dict[str, Any] | None,
+        error: str,
+    ) -> list[dict[str, Any]]:
+        """Continue the trajectory after an exhausted opt-step, matching sequential multistep.
+
+        Sequential ``run_multistep`` logs the failed step and proceeds; pipelined
+        used to mark the whole bench FAIL even when phase_b (or earlier steps)
+        already succeeded.
+        """
+        failed = dict(step_result or {})
+        failed.setdefault("success", False)
+        failed.setdefault("step_name", job.phase)
+        failed.setdefault("error", error)
+        step_results = list(ctx.get("step_results") or [])
+        if not any(item.get("step_name") == job.phase for item in step_results):
+            step_results.append(failed)
+            ctx["step_results"] = step_results
+            orch._pipelined_ctx = ctx
+        logging.warning(
+            "bench %s: %s failed (%s); keeping best-so-far and continuing",
+            self.bench,
+            job.phase,
+            error,
+        )
+        next_step = self._next_step_after(job.phase)
+        if next_step:
+            return [{
+                "kind": "codegen",
+                "phase": next_step,
+                "attempt": 0,
+                "stage": "optimize",
+                "meta": {"skipped_failed_step": job.phase, "error": error},
+            }]
+        has_phase_b = bool(getattr(orch, "_flow_phase_b_report", None) or getattr(orch, "synth_report", None))
+        has_success = any(item.get("success") for item in step_results)
+        if has_phase_b or has_success:
+            return [{"kind": "finalize", "phase": "finalize", "attempt": job.attempt, "stage": "done"}]
+        return [{
+            "kind": "finalize",
+            "phase": "failed",
+            "attempt": job.attempt,
+            "stage": job.phase,
+            "error": error,
+        }]
 
     def handle_job(self, job: PipelinedJob, queue: MultistepPipelinedQueue) -> None:
         orch = self._ensure_orchestrator()
@@ -216,7 +269,18 @@ class MultistepPipelinedBenchSession:
         if job.phase in self.opt_steps:
             result = orch.pipelined_multistep_step_codegen(job.phase, repair)
             if not result.get("ok"):
-                return [{"kind": "finalize", "phase": "failed", "attempt": job.attempt, "stage": job.phase, "error": result.get("error")}]
+                error = result.get("error") or f"no code in {job.phase} response"
+                return self._followups_after_failed_opt_step(
+                    orch,
+                    getattr(orch, "_pipelined_ctx", {}) or ctx,
+                    job,
+                    {
+                        "success": False,
+                        "step_name": job.phase,
+                        "error": error,
+                    },
+                    error,
+                )
             attempt_key = f"{job.phase}_attempt"
             attempt = int(job.meta.get("next_attempt") or ctx.get(attempt_key) or 0)
             return [{
@@ -266,6 +330,7 @@ class MultistepPipelinedBenchSession:
             done_status = orch._pipelined_step_done_status(job.phase)
             if outcome.get("status") == done_status:
                 result_key = orch._pipelined_step_result_key(job.phase)
+                ctx = getattr(orch, "_pipelined_ctx", {}) or ctx
                 step_result = ctx.get(result_key) or outcome.get("step_result")
                 if outcome.get("success") and step_result:
                     step_results = list(ctx.get("step_results") or [])
@@ -281,13 +346,13 @@ class MultistepPipelinedBenchSession:
                             "stage": "optimize",
                         }]
                     return [{"kind": "finalize", "phase": "finalize", "attempt": job.attempt, "stage": "done"}]
-                return [{
-                    "kind": "finalize",
-                    "phase": "failed",
-                    "attempt": job.attempt,
-                    "stage": job.phase,
-                    "error": outcome.get("error") or f"{job.phase} step failed",
-                }]
+                return self._followups_after_failed_opt_step(
+                    orch,
+                    ctx,
+                    job,
+                    step_result,
+                    outcome.get("error") or f"{job.phase} step failed",
+                )
             repair = outcome.get("repair") or {}
             next_attempt = int(repair.get("attempt", job.attempt)) + 1
             ctx[f"{job.phase}_attempt"] = next_attempt
@@ -304,11 +369,12 @@ class MultistepPipelinedBenchSession:
 
     @staticmethod
     def _latency_cycles(report: dict | None) -> float | None:
+        """Prefer worst-case csynth latency (min of max)."""
         if not isinstance(report, dict):
             return None
-        lat = report.get("latency_cycles")
+        lat = report.get("latency_cycles_worst")
         if lat is None:
-            lat = report.get("latency_cycles_worst")
+            lat = report.get("latency_cycles")
         try:
             return float(lat) if lat is not None else None
         except (TypeError, ValueError):
@@ -402,8 +468,12 @@ class MultistepPipelinedBenchSession:
         )
         results = _sanitize_saved_result_record(results, self.reference_validation)
         orch.save_multistep_results(str(self.cell_dir), self.bench, results)
+        if getattr(orch, "_skill_selection_turns", None):
+            results["skill_selection_turns"] = orch._skill_selection_turns
+        if getattr(orch, "_skill_curation_record", None):
+            results["skill_curation"] = orch._skill_curation_record
         result_json = self.cell_dir / f"{self.bench}_multistep_results.json"
-        result_json.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
+        result_json.write_text(json.dumps(results, indent=2, default=str) + "\n", encoding="utf-8")
 
     def _finalize_failure(self, error: str) -> None:
         orch = self.orchestrator

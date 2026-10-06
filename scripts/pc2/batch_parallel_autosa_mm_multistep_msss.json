@@ -1,0 +1,37 @@
+{
+  "job_prefix": "msmsss",
+  "synth_nodes_per_variant": 1,
+  "synth_workers_per_node": 1,
+  "cosim_nodes_per_variant": 0,
+  "cosim_workers_per_node": 0,
+  "combined_hls_nodes": true,
+  "worker_cpus": 16,
+  "worker_mem_gb": 64,
+  "gpu_policy": "always_on",
+  "cosim_timeout_s": 1200,
+  "bench_order": "listed",
+  "bench_seeding": "short_first_waves",
+  "max_inflight_benches": 1,
+  "poll_sec": 2.0,
+  "coordinator_poll_sec": 15.0,
+  "pilot": {
+    "variant": "autosa_ms_msss",
+    "workflow": "autosa_multistep",
+    "corpus": "autosa_ready",
+    "benches": [
+      "autosa_mm_r01",
+      "autosa_mm_r02",
+      "autosa_mm_r03",
+      "autosa_mm_r04",
+      "autosa_mm_r05",
+      "autosa_mm_r06",
+      "autosa_mm_r07",
+      "autosa_mm_r08",
+      "autosa_mm_r09",
+      "autosa_mm_r10"
+    ],
+    "failure_policy": "ignore",
+    "model": "deepseek-v4-flash",
+    "turns": 4
+  }
+}

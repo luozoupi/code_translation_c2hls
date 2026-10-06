@@ -74,9 +74,15 @@ class TierABatchParallelBenchSession(BatchParallelBenchSession):
         self.reference_validation = payload
 
     def _apply_bench_synth_timeout(self) -> None:
+        from batch_parallel_config import apply_campaign_synth_timeout
         from tier_a_flash_lib import apply_bench_synth_timeout_from_meta
 
         apply_bench_synth_timeout_from_meta(self.inputs.get("meta") or {})
+        apply_campaign_synth_timeout()
+        logging.info(
+            "[timeout] C2HLS_SYNTH_TIMEOUT=%s",
+            os.getenv("C2HLS_SYNTH_TIMEOUT", ""),
+        )
 
     def handle_job(self, job: BatchParallelJob, queue: BatchParallelQueue) -> None:
         self._apply_bench_synth_timeout()
@@ -106,6 +112,20 @@ class TierABatchParallelBenchSession(BatchParallelBenchSession):
                 "attempt": job.attempt,
                 "stage": "reference",
                 "error": error,
+            }]
+        from c2hls import _skip_phase_b_enabled
+        from flash_enforcement import skip_flash_enabled
+
+        if _skip_phase_b_enabled() or skip_flash_enabled():
+            logging.info(
+                "[Phase B] Skipped after gold gate (C2HLS_SKIP_PHASE_B or "
+                "C2HLS_SKIP_FLASH); enqueue flash from plain C / seed"
+            )
+            return [{
+                "kind": "codegen",
+                "phase": "flash",
+                "attempt": 0,
+                "stage": "optimize",
             }]
         return [{
             "kind": "codegen",
@@ -330,6 +350,11 @@ class TierABatchParallelBenchSession(BatchParallelBenchSession):
 
     def _run_synth_flash(self, job: BatchParallelJob) -> list[dict[str, Any]]:
         orch = self._ensure_orchestrator()
+        from flash_enforcement import apply_flash_seed_to_orch, attach_enforcement_after_flash
+
+        if apply_flash_seed_to_orch(orch, self.bench, self.cell_dir):
+            attach_enforcement_after_flash(orch)
+            return [{"phase": "finalize", "kind": "finalize", "attempt": job.attempt, "stage": "done"}]
         ctx = getattr(orch, "_pipelined_ctx", {})
         step_name = "flash"
         new_code = ctx.get("flash_pending_code")
@@ -477,6 +502,9 @@ class TierABatchParallelBenchSession(BatchParallelBenchSession):
         }
         ctx["flash_done"] = True
         orch._pipelined_ctx = ctx
+        from flash_enforcement import attach_enforcement_after_flash
+
+        attach_enforcement_after_flash(orch)
         return [{"phase": "finalize", "kind": "finalize", "attempt": attempt, "stage": "done"}]
 
     def _finalize_failure(self, error: str) -> None:

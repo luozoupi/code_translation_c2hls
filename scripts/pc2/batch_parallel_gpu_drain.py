@@ -7,6 +7,7 @@ import argparse
 import logging
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -15,6 +16,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scripts" / "pc2"))
 
 from batch_parallel_config import campaign_paths, load_campaign, load_config
+from batch_parallel_lifecycle import campaign_is_terminal
 from batch_parallel_dispatch import (
     campaign_benches_resolved,
     cell_dir_for_job,
@@ -27,14 +29,23 @@ from batch_parallel_dispatch import (
 from batch_parallel_flow import BatchParallelFlow
 from batch_parallel_gpu_state import (
     begin_llm_request,
+    codegen_should_requeue,
     end_llm_request,
-    is_retriable_llm_error,
 )
 from batch_parallel_queue import BatchParallelQueue
 from c2hls_paths import configure_site
 from deepseek_peak import is_beijing_peak, sleep_hint_sec
 
 PEAK_PAUSE_EVENT_MIN_INTERVAL_SEC = 300.0
+
+
+def _touch_claim_while(queue, job_id: int, stop: threading.Event, interval_s: float = 60.0) -> None:
+    """Keep a live LLM call from looking stale. A stale requeue starts a second billed call."""
+    while not stop.wait(interval_s):
+        try:
+            queue.touch_claim(job_id)
+        except Exception:
+            logging.exception("claim heartbeat failed for job %s", job_id)
 
 
 def _load_endpoint_env(endpoint_file: Path) -> None:
@@ -134,7 +145,23 @@ def main() -> int:
         model_id = ext_model
     elif ep_model:
         model_id = ep_model
-    turns = cfg.turns
+
+    def _turns() -> int:
+        raw = campaign.get("turns")
+        if raw is not None and str(raw).strip():
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                pass
+        env = os.getenv("C2HLS_TURNS", "").strip()
+        if env:
+            try:
+                return int(env)
+            except ValueError:
+                pass
+        return cfg.turns
+
+    turns = _turns()
     queue = BatchParallelQueue(paths["queue_db"])
     flow = BatchParallelFlow(campaign_root)
     bench_cache = resolve_bench_map(campaign, cfg, benches_order)
@@ -143,9 +170,11 @@ def main() -> int:
     logging.info("gpu_drain model_id=%s external_llm=%s", model_id, bool(campaign.get("external_llm")))
 
     while True:
-        if queue.campaign_complete(active_variants):
-            return 0
         campaign = load_campaign(campaign_root)
+        turns = _turns()
+        if queue.campaign_complete(active_variants) or campaign_is_terminal(campaign):
+            logging.info("gpu_drain: campaign terminal; discharging")
+            return 0
         # Re-resolve model each loop so A/B arms stay on the intended adapter.
         ep_model = _endpoint_model(paths["endpoint"])
         ext_model = (
@@ -199,6 +228,14 @@ def main() -> int:
             phase=job.phase,
             worker=worker,
         )
+        stop_hb = threading.Event()
+        hb_thread = threading.Thread(
+            target=_touch_claim_while,
+            args=(queue, job.id, stop_hb),
+            name=f"hb-codegen-{job.id}",
+            daemon=True,
+        )
+        hb_thread.start()
         flow.emit(
             "codegen_start",
             scope="gpu",
@@ -231,7 +268,7 @@ def main() -> int:
                 job_id=job.id,
             )
         except Exception as exc:
-            if is_retriable_llm_error(exc) and queue.requeue(job.id):
+            if codegen_should_requeue(campaign_root, job.id, exc) and queue.requeue(job.id):
                 queue.set_bench_status(job.variant, job.bench, "active")
                 flow.emit(
                     "codegen_retry",
@@ -261,6 +298,8 @@ def main() -> int:
                     job_id=job.id,
                 )
         finally:
+            stop_hb.set()
+            hb_thread.join(timeout=1.0)
             end_llm_request(campaign_root, job_id=job.id)
 
 

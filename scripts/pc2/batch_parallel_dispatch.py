@@ -16,8 +16,10 @@ from batch_parallel_autosa_dse_lib import (
     autosa_dse_cell_dir,
 )
 from batch_parallel_autosa_lib import (
-    AUTOSA_VARIANT,
+    AUTOSA_VARIANTS,
+    VARIANT_GOLD,
     configure_autosa_campaign_env,
+    is_autosa_gold_workflow,
     is_autosa_workflow,
     resolve_autosa_bench_map,
     autosa_cell_dir,
@@ -60,18 +62,23 @@ from batch_parallel_c2hlsc_lib import (
     c2hlsc_flash_cell_dir,
 )
 from batch_parallel_multistep_lib import (
+    AUTOSA_MS_VARIANTS,
     CHATHLS_MULTISTEP_VARIANT,
     TIER_A_MULTISTEP_VARIANT,
     TIER_B_MULTISTEP_VARIANT,
+    autosa_multistep_cell_dir,
     chathls_multistep_cell_dir,
+    configure_autosa_multistep_campaign_env,
     configure_chathls_multistep_campaign_env,
     configure_tier_a_multistep_campaign_env,
     configure_tier_b_multistep_campaign_env,
+    is_autosa_multistep_workflow,
     is_chathls_multistep_workflow,
     is_multistep_workflow,
     is_tier_a_multistep_workflow,
     is_tier_b_multistep_workflow,
     model_cell_tag as multistep_model_cell_tag,
+    resolve_autosa_multistep_bench_map,
     resolve_chathls_multistep_bench_map,
     resolve_tier_a_multistep_bench_map,
     resolve_tier_b_multistep_bench_map,
@@ -114,8 +121,12 @@ def resolve_bench_map(
         return resolve_tier_a_multistep_bench_map(benches_order)
     if is_tier_b_multistep_workflow(campaign):
         return resolve_tier_b_multistep_bench_map(benches_order)
+    if is_autosa_multistep_workflow(campaign):
+        return resolve_autosa_multistep_bench_map(benches_order)
     if is_autosa_dse_flash_workflow(campaign):
         return resolve_autosa_dse_bench_map(benches_order)
+    if is_autosa_gold_workflow(campaign):
+        return resolve_autosa_bench_map(benches_order)
     if is_chathls_flash_workflow(campaign):
         return resolve_chathls_bench_map(benches_order)
     if is_c2hlsc_flash_workflow(campaign):
@@ -142,47 +153,49 @@ def _apply_campaign_tmp_run() -> None:
 
 
 def configure_campaign_env(campaign: dict[str, Any], variant_key: str) -> None:
+    from flash_enforcement import apply_enforcement_from_campaign
+    from batch_parallel_config import apply_autosa_flow_from_campaign
+
+    apply_enforcement_from_campaign(campaign)
+    apply_autosa_flow_from_campaign(campaign)
     _apply_campaign_tmp_run()
     if is_chathls_multistep_workflow(campaign):
         configure_chathls_multistep_campaign_env()
-        return
-    if is_tier_a_multistep_workflow(campaign):
+    elif is_tier_a_multistep_workflow(campaign):
         configure_tier_a_multistep_campaign_env()
-        return
-    if is_tier_b_multistep_workflow(campaign):
+    elif is_tier_b_multistep_workflow(campaign):
         configure_tier_b_multistep_campaign_env()
-        return
-    if is_autosa_dse_flash_workflow(campaign):
+    elif is_autosa_multistep_workflow(campaign):
+        configure_autosa_multistep_campaign_env(variant_key)
+    elif is_autosa_dse_flash_workflow(campaign):
         configure_autosa_dse_campaign_env()
-        return
-    if is_chathls_flash_workflow(campaign):
+    elif is_autosa_gold_workflow(campaign):
+        configure_autosa_campaign_env(VARIANT_GOLD)
+    elif is_chathls_flash_workflow(campaign):
         configure_chathls_flash_campaign_env()
-        return
-    if is_c2hlsc_flash_workflow(campaign):
+    elif is_c2hlsc_flash_workflow(campaign):
         configure_c2hlsc_flash_campaign_env()
-        return
-    if is_autosa_workflow(campaign):
-        configure_autosa_campaign_env()
-        return
-    if is_tier_b_flash_workflow(campaign):
+    elif is_autosa_workflow(campaign):
+        configure_autosa_campaign_env(variant_key)
+    elif is_tier_b_flash_workflow(campaign):
         configure_tier_b_flash_campaign_env()
-        return
-    if is_tier_b_gold_workflow(campaign):
+    elif is_tier_b_gold_workflow(campaign):
         configure_tier_b_campaign_env()
-        return
-    if is_tier_a_workflow(campaign):
+    elif is_tier_a_workflow(campaign):
         configure_tier_a_campaign_env()
-        return
-    if is_zero_shot_workflow(campaign):
+    elif is_zero_shot_workflow(campaign):
         variant = ZERO_SHOT_VARIANTS.get(variant_key)
         if variant is None:
             raise ValueError(f"unknown zero-shot variant {variant_key}")
         configure_zero_shot_cosim_env(variant)
-        return
-    variant = VARIANTS.get(variant_key)
-    if variant is None:
-        raise ValueError(f"unknown variant {variant_key}")
-    configure_fixed_cosim_flash_env(variant)
+    else:
+        variant = VARIANTS.get(variant_key)
+        if variant is None:
+            raise ValueError(f"unknown variant {variant_key}")
+        configure_fixed_cosim_flash_env(variant)
+    from batch_parallel_config import apply_campaign_synth_timeout
+
+    apply_campaign_synth_timeout(campaign)
 
 
 def validate_variant(campaign: dict[str, Any], variant_key: str) -> bool:
@@ -192,14 +205,18 @@ def validate_variant(campaign: dict[str, Any], variant_key: str) -> bool:
         return variant_key == TIER_A_MULTISTEP_VARIANT
     if is_tier_b_multistep_workflow(campaign):
         return variant_key == TIER_B_MULTISTEP_VARIANT
+    if is_autosa_multistep_workflow(campaign):
+        return variant_key in AUTOSA_MS_VARIANTS
     if is_autosa_dse_flash_workflow(campaign):
         return variant_key == AUTOSA_DSE_VARIANT
+    if is_autosa_gold_workflow(campaign):
+        return variant_key == VARIANT_GOLD
     if is_chathls_flash_workflow(campaign):
         return variant_key == CHATHLS_FLASH_VARIANT
     if is_c2hlsc_flash_workflow(campaign):
         return variant_key == C2HLSC_FLASH_VARIANT
     if is_autosa_workflow(campaign):
-        return variant_key == AUTOSA_VARIANT
+        return variant_key in AUTOSA_VARIANTS
     if is_tier_b_flash_workflow(campaign):
         return variant_key == TIER_B_FLASH_VARIANT
     if is_tier_b_gold_workflow(campaign):
@@ -230,8 +247,22 @@ def cell_dir_for_job(
         return tier_b_multistep_cell_dir(
             cell_root, job.bench, multistep_model_cell_tag(model_id)
         )
+    if is_autosa_multistep_workflow(campaign):
+        return autosa_multistep_cell_dir(
+            cell_root,
+            job.bench,
+            multistep_model_cell_tag(model_id),
+            variant_key=job.variant,
+        )
     if is_autosa_dse_flash_workflow(campaign):
         return autosa_dse_cell_dir(cell_root, job.bench, tier_a_model_cell_tag(model_id))
+    if is_autosa_gold_workflow(campaign):
+        return autosa_cell_dir(
+            cell_root,
+            job.bench,
+            tier_a_model_cell_tag(model_id),
+            variant_key=VARIANT_GOLD,
+        )
     if is_chathls_flash_workflow(campaign):
         return chathls_flash_cell_dir(
             cell_root, job.bench, chathls_flash_model_cell_tag(model_id)
@@ -241,7 +272,12 @@ def cell_dir_for_job(
             cell_root, job.bench, c2hlsc_flash_model_cell_tag(model_id)
         )
     if is_autosa_workflow(campaign):
-        return autosa_cell_dir(cell_root, job.bench, tier_a_model_cell_tag(model_id))
+        return autosa_cell_dir(
+            cell_root,
+            job.bench,
+            tier_a_model_cell_tag(model_id),
+            variant_key=job.variant,
+        )
     if is_tier_b_flash_workflow(campaign):
         return tier_b_flash_cell_dir(
             cell_root, job.bench, flash_model_cell_tag(model_id)
@@ -280,7 +316,7 @@ def run_batch_parallel_job(
             turns=turns,
         )
         return
-    if is_tier_b_gold_workflow(campaign):
+    if is_tier_b_gold_workflow(campaign) or is_autosa_gold_workflow(campaign):
         tier_b_gold_execute_job(
             job=job,
             queue=queue,

@@ -53,6 +53,38 @@ class TierABenchSessionTests(unittest.TestCase):
         self.assertEqual(followups[0]["phase"], "phase_b")
         self.assertEqual(followups[0]["stage"], "translate")
 
+    def test_reference_pass_skip_phase_b_enqueues_flash_not_phase_b(self) -> None:
+        import os
+
+        session = self._session()
+        job = BatchParallelJob(
+            id=1,
+            variant="autosa_zero_shot",
+            bench="autosa_mm",
+            kind="synth",
+            phase="reference",
+            attempt=0,
+            stage="gold_gate",
+            meta={},
+        )
+        ref_ok = {"benchmark_ready": True, "invalid_reason": ""}
+        prev = os.environ.get("C2HLS_SKIP_PHASE_B")
+        os.environ["C2HLS_SKIP_PHASE_B"] = "1"
+        try:
+            with patch.object(
+                TierABatchParallelBenchSession, "_validate_gold_reference", return_value=ref_ok
+            ):
+                with patch.object(session, "_save_reference_validation"):
+                    followups = session._run_reference_synth(job)
+        finally:
+            if prev is None:
+                os.environ.pop("C2HLS_SKIP_PHASE_B", None)
+            else:
+                os.environ["C2HLS_SKIP_PHASE_B"] = prev
+        self.assertEqual(followups[0]["kind"], "codegen")
+        self.assertEqual(followups[0]["phase"], "flash")
+        self.assertEqual(followups[0]["stage"], "optimize")
+
     def test_phase_b_synth_success_no_cosim_followup(self) -> None:
         session = self._session()
         job = BatchParallelJob(
@@ -147,6 +179,45 @@ class TierABenchSessionTests(unittest.TestCase):
                 payload["ground_truth_report"],
                 payload["reference_validation"]["report"],
             )
+
+    def test_flash_success_calls_attach_enforcement(self) -> None:
+        session = self._session()
+        job = BatchParallelJob(
+            id=3,
+            variant="autosa_aav_n_gf",
+            bench="autosa_mm",
+            kind="synth",
+            phase="flash",
+            attempt=0,
+            stage="synth",
+            meta={},
+        )
+        mock_orch = MagicMock()
+        mock_orch.hls_code = "code"
+        mock_orch.header_code = ""
+        mock_orch.header_name = "kernel.h"
+        mock_orch.extra_files = []
+        mock_orch.turns_limitation = 4
+        mock_orch._pipelined_ctx = {"flash_pending_code": "kernel body"}
+        mock_orch._preflight_generated_hls_code.return_value = "kernel body"
+        session.orchestrator = mock_orch
+        session.reference_validation = {"benchmark_ready": True}
+        outcome = {
+            "synth": {"success": True, "report": {"latency_cycles": 12494, "interval": 12495}},
+            "csim": {"ran": True, "passed": True},
+            "cosim": None,
+        }
+        with patch.object(session, "_ensure_orchestrator", return_value=mock_orch):
+            with patch.object(session, "_compile_check_cpp", return_value=(True, "")):
+                with patch.object(session, "_synth_csim_only", return_value=outcome):
+                    with patch(
+                        "flash_enforcement.attach_enforcement_after_flash"
+                    ) as attach:
+                        followups = session._run_synth_flash(job)
+        attach.assert_called_once_with(mock_orch)
+        self.assertEqual(followups[0]["kind"], "finalize")
+        self.assertEqual(followups[0]["phase"], "finalize")
+        self.assertEqual(followups[0]["stage"], "done")
 
 
 if __name__ == "__main__":

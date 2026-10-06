@@ -14,6 +14,7 @@ DRY_RUN=0
 FOREGROUND_COORD=0
 BORROW_GPU=0
 EXTERNAL_LLM=0
+NO_GPU=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -25,15 +26,32 @@ while [[ $# -gt 0 ]]; do
     --borrow-gpu) BORROW_GPU=1; shift ;;
     --no-borrow-gpu) BORROW_GPU=0; shift ;;
     --external-llm) EXTERNAL_LLM=1; shift ;;
+    --no-gpu) NO_GPU=1; shift ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
 
+if [[ ! -f "${CONFIG}" ]]; then
+  echo "ERROR: BATCH_PARALLEL_CONFIG is not a file: ${CONFIG}" >&2
+  exit 2
+fi
+
 if [[ "${BATCH_PARALLEL_EXTERNAL_LLM:-0}" == "1" ]]; then
   EXTERNAL_LLM=1
 fi
+if [[ "${BATCH_PARALLEL_NO_GPU:-0}" == "1" ]]; then
+  NO_GPU=1
+fi
 if [[ "${EXTERNAL_LLM}" -eq 1 && "${BORROW_GPU}" -eq 1 ]]; then
   echo "ERROR: --external-llm and --borrow-gpu are mutually exclusive" >&2
+  exit 2
+fi
+if [[ "${NO_GPU}" -eq 1 && "${EXTERNAL_LLM}" -eq 1 ]]; then
+  echo "ERROR: --no-gpu and --external-llm are mutually exclusive" >&2
+  exit 2
+fi
+if [[ "${NO_GPU}" -eq 1 && "${BORROW_GPU}" -eq 1 ]]; then
+  echo "ERROR: --no-gpu and --borrow-gpu are mutually exclusive" >&2
   exit 2
 fi
 
@@ -136,6 +154,19 @@ PY
 echo "synth: ${SYNTH_NODES} nodes x ${SYNTH_WPN} workers"
 echo "cosim: ${COSIM_NODES} nodes x ${COSIM_WPN} workers"
 
+if [[ "${EXTERNAL_LLM}" -eq 1 && "${DRY_RUN}" -eq 0 ]]; then
+  # Reuse a caller-provided endpoint (shared aav_n/msss proxy). Otherwise
+  # start one dedicated proxy per campaign. Do not fall back to :18092.
+  if [[ -n "${BATCH_PARALLEL_EXTERNAL_ENDPOINT_URL:-}" ]]; then
+    EXTERNAL_ENDPOINT_URL="${BATCH_PARALLEL_EXTERNAL_ENDPOINT_URL}"
+    echo "reusing external llm endpoint: ${EXTERNAL_ENDPOINT_URL}"
+  else
+    EXTERNAL_ENDPOINT_URL="$("${SCRIPT_DIR}/start_dedicated_deepseek_proxy.sh" "${CAMPAIGN_ROOT}/node_llm_proxy")"
+    export BATCH_PARALLEL_EXTERNAL_ENDPOINT_URL="${EXTERNAL_ENDPOINT_URL}"
+    echo "dedicated llm endpoint: ${EXTERNAL_ENDPOINT_URL}"
+  fi
+fi
+
 if [[ "${EXTERNAL_LLM}" -eq 1 ]]; then
   "${PY}" - <<PY
 import json
@@ -176,7 +207,21 @@ fi
 
 GPU_JOB=""
 GPU_BORROWED=0
-if [[ "${EXTERNAL_LLM}" -eq 1 ]]; then
+if [[ "${NO_GPU}" -eq 1 ]]; then
+  echo "no_gpu mode: skipping GPU / external LLM (gold-gate / seed csynth)"
+  "${PY}" - <<PY
+import json
+from pathlib import Path
+p = Path("${CAMPAIGN_ROOT}") / "campaign.json"
+doc = json.loads(p.read_text())
+doc["no_gpu"] = True
+doc["gpu_job_id"] = None
+doc["gpu_borrowed"] = False
+doc["gpu_mode"] = "parked"
+doc["external_llm"] = False
+p.write_text(json.dumps(doc, indent=2) + "\\n")
+PY
+elif [[ "${EXTERNAL_LLM}" -eq 1 ]]; then
   GPU_BORROWED=1
   echo "external_llm mode: skipping GPU submit and --borrow-gpu discovery (endpoint=${EXTERNAL_ENDPOINT_URL})"
 elif [[ "${BORROW_GPU}" -eq 1 ]]; then
@@ -205,7 +250,8 @@ else
       "${SCRIPT_DIR}/batch_parallel_submit_gpu.sh"
   )"
 fi
-"${PY}" - <<PY
+if [[ "${NO_GPU}" -ne 1 ]]; then
+  "${PY}" - <<PY
 import json
 from pathlib import Path
 p = Path("${CAMPAIGN_ROOT}") / "campaign.json"
@@ -215,6 +261,7 @@ doc["gpu_mode"] = "up"
 doc["gpu_borrowed"] = bool(int("${GPU_BORROWED}"))
 p.write_text(json.dumps(doc, indent=2) + "\\n")
 PY
+fi
 
 # Login-node nohup dies unpredictably on long campaigns; run helpers on Slurm.
 _submit_bp_helper() {
@@ -234,7 +281,7 @@ _submit_bp_helper() {
     --cpus-per-task="${cpus}" \
     --mem="${mem}" \
     --time="${PC2_HELPER_WALLTIME:-72:00:00}" \
-    --export=ALL,BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}",BATCH_PARALLEL_CONFIG="${CONFIG}",C2HLS_PYTHON="${PY}",OPENAI_BASE_URL="",C2HLS_MODEL="${C2HLS_MODEL}",BATCH_PARALLEL_EXTERNAL_MODEL="${BATCH_PARALLEL_EXTERNAL_MODEL:-${EXTERNAL_MODEL}}" \
+    --export=ALL,BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}",BATCH_PARALLEL_CONFIG="${CONFIG}",C2HLS_PYTHON="${PY}",OPENAI_BASE_URL="",C2HLS_MODEL="${C2HLS_MODEL}",BATCH_PARALLEL_EXTERNAL_MODEL="${BATCH_PARALLEL_EXTERNAL_MODEL:-${EXTERNAL_MODEL}}",C2HLS_ENFORCEMENT="${C2HLS_ENFORCEMENT:-0}",C2HLS_ENFORCEMENT_ROUNDS="${C2HLS_ENFORCEMENT_ROUNDS:-20}",C2HLS_AUTOSA_FLOW="${C2HLS_AUTOSA_FLOW:-0}",C2HLS_POST_FLASH_DSE="${C2HLS_POST_FLASH_DSE:-0}",C2HLS_DSE_CHAIN_FLASH="${C2HLS_DSE_CHAIN_FLASH:-0}",C2HLS_DSE_V2="${C2HLS_DSE_V2:-0}",C2HLS_DSE_V2_CHAIN_FLASH="${C2HLS_DSE_V2_CHAIN_FLASH:-0}",C2HLS_DSE_V2_GRID="${C2HLS_DSE_V2_GRID:-}",C2HLS_POST_FLASH_STREAM="${C2HLS_POST_FLASH_STREAM:-0}",C2HLS_STREAM_CHAIN_FLASH="${C2HLS_STREAM_CHAIN_FLASH:-0}",C2HLS_POST_FLASH_NO_SKILLS="${C2HLS_POST_FLASH_NO_SKILLS:-0}",C2HLS_SKIP_PHASE_B="${C2HLS_SKIP_PHASE_B:-0}",C2HLS_ONE_SHOT="${C2HLS_ONE_SHOT:-0}",C2HLS_SKIP_FLASH="${C2HLS_SKIP_FLASH:-0}",C2HLS_PP_LOAD_B_IN_DF="${C2HLS_PP_LOAD_B_IN_DF:-}",C2HLS_FLASH_SEED_DIR="${C2HLS_FLASH_SEED_DIR:-}",C2HLS_REFERENCE_ONLY="${C2HLS_REFERENCE_ONLY:-0}",C2HLS_FLASH_OPT_PROMPT_MODE="${C2HLS_FLASH_OPT_PROMPT_MODE:-}",C2HLS_TURNS="${C2HLS_TURNS:-}",C2HLS_SYNTH_TIMEOUT="${C2HLS_SYNTH_TIMEOUT:-14400}",C2HLS_PE_RECIPE="${C2HLS_PE_RECIPE:-}",C2HLS_FLASH_MAX_TOKENS="${C2HLS_FLASH_MAX_TOKENS:-}",C2HLS_LLM_MAX_TOKENS="${C2HLS_LLM_MAX_TOKENS:-}",C2HLS_CPP_CONTINUATIONS="${C2HLS_CPP_CONTINUATIONS:-}",C2HLS_FLASH_MIN_DSP="${C2HLS_FLASH_MIN_DSP:-}",C2HLS_FLASH_MAX_DSP="${C2HLS_FLASH_MAX_DSP:-}",C2HLS_FLASH_ROW_UF="${C2HLS_FLASH_ROW_UF:-}",C2HLS_FLASH_PE_BLK="${C2HLS_FLASH_PE_BLK:-}",C2HLS_FLASH_K_TILE="${C2HLS_FLASH_K_TILE:-}",C2HLS_FLASH_TILE_PP="${C2HLS_FLASH_TILE_PP:-}",C2HLS_FLASH_ONCHIP="${C2HLS_FLASH_ONCHIP:-}",C2HLS_FLASH_ONCHIP_TILE="${C2HLS_FLASH_ONCHIP_TILE:-}",C2HLS_FLASH_SKILL_BIN="${C2HLS_FLASH_SKILL_BIN:-}",C2HLS_PACKAGED_SKILLS_JSON="${C2HLS_PACKAGED_SKILLS_JSON:-}",C2HLS_PACKAGED_SKILLS_ONLY="${C2HLS_PACKAGED_SKILLS_ONLY:-}",C2HLS_SKILL_PROMPT_ORDER_JSON="${C2HLS_SKILL_PROMPT_ORDER_JSON:-}",C2HLS_DSE_SKILL_ENTRIES_JSON="${C2HLS_DSE_SKILL_ENTRIES_JSON:-}",C2HLS_STREAM_SKILL_ENTRIES_JSON="${C2HLS_STREAM_SKILL_ENTRIES_JSON:-}",C2HLS_DSE_MIN_DSP="${C2HLS_DSE_MIN_DSP:-}",C2HLS_THINKING="${C2HLS_THINKING:-}",C2HLS_FLASH_ONLY="${C2HLS_FLASH_ONLY:-0}",C2HLS_LLM_TIMEOUT="${C2HLS_LLM_TIMEOUT:-3600}",C2HLS_LLM_EMPTY_RETRIES="${C2HLS_LLM_EMPTY_RETRIES:-1}" \
     --wrap="${wrap_cmd}"
 }
 
@@ -249,11 +296,14 @@ WATCH_JOB="$(_submit_bp_helper watch \
   "${CAMPAIGN_ROOT}/flow/helper_watch-%j.err" \
   4G 1)"
 
-DRAIN_JOB="$(_submit_bp_helper drain \
-  "source ${SCRIPT_DIR}/common.sh && source ${SCRIPT_DIR}/setup_vitis_env.sh && pc2_setup_vitis_env && ${PY} ${SCRIPT_DIR}/batch_parallel_gpu_drain.py --campaign-root ${CAMPAIGN_ROOT} >> ${CAMPAIGN_ROOT}/flow/gpu_drain.log 2>&1" \
-  "${CAMPAIGN_ROOT}/flow/helper_drain-%j.out" \
-  "${CAMPAIGN_ROOT}/flow/helper_drain-%j.err" \
-  16G 4)"
+DRAIN_JOB=""
+if [[ "${NO_GPU}" -ne 1 ]]; then
+  DRAIN_JOB="$(_submit_bp_helper drain \
+    "source ${SCRIPT_DIR}/common.sh && source ${SCRIPT_DIR}/setup_vitis_env.sh && pc2_setup_vitis_env && ${PY} ${SCRIPT_DIR}/batch_parallel_gpu_drain.py --campaign-root ${CAMPAIGN_ROOT} >> ${CAMPAIGN_ROOT}/flow/gpu_drain.log 2>&1" \
+    "${CAMPAIGN_ROOT}/flow/helper_drain-%j.out" \
+    "${CAMPAIGN_ROOT}/flow/helper_drain-%j.err" \
+    16G 4)"
+fi
 
 COORD_JOB=""
 if [[ "${FOREGROUND_COORD}" -ne 1 ]]; then

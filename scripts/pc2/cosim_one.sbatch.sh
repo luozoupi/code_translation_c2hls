@@ -19,6 +19,7 @@ mkdir -p artifacts/pc2/flash_cosim/slurm c2hls_tmp
 export C2HLS_SITE=pc2
 export C2HLS_RUN_COSIM=1
 export C2HLS_COSIM_TIMEOUT="${C2HLS_COSIM_TIMEOUT:-7200}"
+export C2HLS_COSIM_XELAB_MT_OFF="${C2HLS_COSIM_XELAB_MT_OFF:-1}"
 # shellcheck disable=SC1091
 source "${C2HLS_ROOT}/scripts/setup_emu_env.sh"
 

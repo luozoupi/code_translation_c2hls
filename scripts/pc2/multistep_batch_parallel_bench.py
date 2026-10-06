@@ -17,12 +17,22 @@ from multistep_pipelined_bench import MultistepPipelinedBenchSession
 COSIM_FALLBACK_MAX_ATTEMPTS = 3
 
 
+def skip_final_cosim() -> bool:
+    return os.getenv("C2HLS_MULTISTEP_SKIP_FINAL_COSIM", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def _latency_cycles_from_report(report: dict | None) -> float | None:
+    """Ranking key: worst-case csynth latency (min of max)."""
     if not isinstance(report, dict):
         return None
-    lat = report.get("latency_cycles")
+    lat = report.get("latency_cycles_worst")
     if lat is None:
-        lat = report.get("latency_cycles_worst")
+        lat = report.get("latency_cycles")
     try:
         return float(lat) if lat is not None else None
     except (TypeError, ValueError):
@@ -46,7 +56,10 @@ def collect_cosim_candidates(
     phases: list[str],
 ) -> list[dict[str, Any]]:
     """Collect successful pre/post lat-opt kernels with csynth latency for ranking."""
+    import re
+
     candidates: list[dict[str, Any]] = []
+    round_re = re.compile(r"^.+_r(\d+)\.cpp$")
     for phase_idx, phase in enumerate(phases):
         pre_cpp = cell_dir / f"{bench}_multistep_{phase}.cpp"
         pre_report_path = cell_dir / f"{bench}_multistep_{phase}_report.json"
@@ -66,11 +79,38 @@ def collect_cosim_candidates(
                 }
             )
 
-        post_cpp = cell_dir / f"{bench}_multistep_{phase}_latency_opt.cpp"
-        post_result = _load_json_dict(
-            cell_dir / f"{bench}_multistep_{phase}_latency_opt_result.json"
-        )
-        post_report_path = cell_dir / f"{bench}_multistep_{phase}_latency_opt_report.json"
+        stem = f"{bench}_multistep_{phase}_latency_opt"
+        round_bodies: set[str] = set()
+        for round_cpp in sorted(cell_dir.glob(f"{stem}_r*.cpp")):
+            match = round_re.match(round_cpp.name)
+            if not match:
+                continue
+            round_idx = match.group(1)
+            body = round_cpp.read_text(encoding="utf-8")
+            if not body.strip():
+                continue
+            round_report_path = cell_dir / f"{stem}_r{round_idx}_report.json"
+            round_report = _load_json_dict(round_report_path)
+            round_lat = _latency_cycles_from_report(round_report)
+            if round_lat is None or not lat_opt_improved_vs_seed(pre_lat, round_lat):
+                continue
+            round_bodies.add(body)
+            candidates.append(
+                {
+                    "id": f"{phase}:post_lat_opt_r{round_idx}",
+                    "phase": phase,
+                    "variant": "post_lat_opt",
+                    "phase_idx": phase_idx,
+                    "latency_cycles": round_lat,
+                    "code_path": str(round_cpp),
+                    "report_path": str(round_report_path) if round_report_path.is_file() else "",
+                    "report": dict(round_report or {"latency_cycles": round_lat}),
+                }
+            )
+
+        post_cpp = cell_dir / f"{stem}.cpp"
+        post_result = _load_json_dict(cell_dir / f"{stem}_result.json")
+        post_report_path = cell_dir / f"{stem}_report.json"
         post_report = _load_json_dict(post_report_path)
         post_ok = bool(post_result and post_result.get("success"))
         post_lat = _latency_cycles_from_report(post_report)
@@ -92,6 +132,9 @@ def collect_cosim_candidates(
             and lat_opt_improved_vs_seed(pre_lat, post_lat)
             and post_cpp.read_text(encoding="utf-8").strip()
         ):
+            post_body = post_cpp.read_text(encoding="utf-8")
+            if post_body in round_bodies:
+                continue
             candidates.append(
                 {
                     "id": f"{phase}:post_lat_opt",
@@ -410,6 +453,13 @@ class MultistepBatchParallelBenchSession(MultistepPipelinedBenchSession):
         if job.phase in self.opt_steps and first.get("phase") == "finalize":
             self._maybe_run_latency_opt(job.phase)
             self._prepare_selected_for_cosim()
+            if skip_final_cosim():
+                return [{
+                    "kind": "finalize",
+                    "phase": "finalize",
+                    "attempt": 0,
+                    "stage": "done",
+                }]
             return [{
                 "kind": "cosim",
                 "phase": "selected",
@@ -420,6 +470,13 @@ class MultistepBatchParallelBenchSession(MultistepPipelinedBenchSession):
             # No opt steps configured: lat-opt phase_b then cosim.
             self._maybe_run_latency_opt("phase_b")
             self._prepare_selected_for_cosim()
+            if skip_final_cosim():
+                return [{
+                    "kind": "finalize",
+                    "phase": "finalize",
+                    "attempt": 0,
+                    "stage": "done",
+                }]
             return [{
                 "kind": "cosim",
                 "phase": "selected",

@@ -121,94 +121,84 @@ echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] exporting flash_selected -> ${FLASH_BUNDL
   --matrix-root "${CAMPAIGN_ROOT}" \
   --out-root "${C2HLS_ROOT}/artifacts/pc2/flash_selected_bundle"
 
-echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] starting post-flash dataflow (cosim on)"
+# Cosim flash-selected only (individual sbatch jobs, no arrays). Pin xelab -mt off.
+export C2HLS_COSIM_XELAB_MT_OFF="${C2HLS_COSIM_XELAB_MT_OFF:-1}"
+export C2HLS_FLASH_COSIM_KERNEL=selected
+export C2HLS_FLASH_COSIM_FULL_SIZE="${C2HLS_FLASH_COSIM_FULL_SIZE:-1}"
+export C2HLS_COSIM_BENCHMARKS_ROOT="${C2HLS_COSIM_BENCHMARKS_ROOT:-${C2HLS_ROOT}/benchmarks_cosim}"
+echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] cosim flash-selected (MT_OFF=${C2HLS_COSIM_XELAB_MT_OFF})"
+bash "${SCRIPT_DIR}/run_campaign_selected_cosim.sh" --campaign-root "${CAMPAIGN_ROOT}" --force
+
+echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] starting post-flash dataflow PARALLEL (one exclusive Slurm job per remaining bench)"
 export C2HLS_POST_FLASH_MATRIX_ROOT="${CAMPAIGN_ROOT}"
 export C2HLS_RUN_COSIM=1
+export C2HLS_COSIM_XELAB_MT_OFF="${C2HLS_COSIM_XELAB_MT_OFF:-1}"
 export C2HLS_DATAFLOW_REPAIR_ROUNDS="${C2HLS_DATAFLOW_REPAIR_ROUNDS:-4}"
 export C2HLS_DATAFLOW_CONTRACT_ROUNDS="${C2HLS_DATAFLOW_CONTRACT_ROUNDS:-4}"
 export C2HLS_POST_FLASH_RESULTS_SUFFIX="${C2HLS_POST_FLASH_RESULTS_SUFFIX:-hlsfactory_cosim_repairs}"
+export C2HLS_DATAFLOW_EXCLUSIVE="${C2HLS_DATAFLOW_EXCLUSIVE:-1}"
+export C2HLS_DATAFLOW_WORKER_CPUS="${C2HLS_DATAFLOW_WORKER_CPUS:-16}"
+export C2HLS_DATAFLOW_WORKER_MEM_GB="${C2HLS_DATAFLOW_WORKER_MEM_GB:-64}"
+
+# Prompt policy: skills arm uses system_skills; noskills/bare keep DATAFLOW_NO_SKILLS / BARE envs.
+PROMPT_POLICY="${C2HLS_POST_FLASH_PROMPT_POLICY:-system_skills}"
+export C2HLS_POST_FLASH_PROMPT_POLICY="${PROMPT_POLICY}"
 
 # Prefer campaign DeepSeek / external_llm endpoint. Never spawn an open-weight
 # gpu_h100 vLLM when the flash campaign already used an external API.
-use_external_llm=0
 ep_url="${BATCH_PARALLEL_EXTERNAL_ENDPOINT_URL:-}"
 ep_model="${BATCH_PARALLEL_EXTERNAL_MODEL:-${C2HLS_MODEL:-deepseek-chat}}"
 if [[ -z "${ep_url}" && -f "${CAMPAIGN_ROOT}/llm_endpoint.json" ]]; then
   ep_url="$("${PY}" -c "import json;print(json.load(open('${CAMPAIGN_ROOT}/llm_endpoint.json')).get('url',''))")"
   ep_model="$("${PY}" -c "import json;d=json.load(open('${CAMPAIGN_ROOT}/llm_endpoint.json'));print(d.get('model') or '${ep_model}')")"
 fi
-if [[ -z "${ep_url}" ]]; then
-  ep_url="$("${PY}" -c "import json;from pathlib import Path;p=Path('${CAMPAIGN_ROOT}')/'campaign.json';
-d=json.loads(p.read_text()) if p.is_file() else {};
-print((d.get('external_llm') or {}).get('endpoint_url') if isinstance(d.get('external_llm'), dict) else '')")"
-fi
-ext_flag="$("${PY}" -c "import json;from pathlib import Path;p=Path('${CAMPAIGN_ROOT}')/'campaign.json';
-d=json.loads(p.read_text()) if p.is_file() else {};
-print('1' if d.get('external_llm') else '0')")"
-if [[ -n "${ep_url}" && ( "${ext_flag}" == "1" || "${BATCH_PARALLEL_EXTERNAL_LLM:-0}" == "1" || "${ep_url}" == *login* || "${ep_url}" == *deepseek* ) ]]; then
-  use_external_llm=1
-fi
-
-if [[ "${use_external_llm}" -eq 1 ]]; then
+if [[ -n "${ep_url}" ]]; then
   export OPENAI_BASE_URL="${ep_url}"
   export CHATHLS_API_BASE="${OPENAI_BASE_URL}"
   export C2HLS_MODEL="${ep_model}"
   export OPENAI_API_KEY="${OPENAI_API_KEY:-${CHATHLS_API_KEY:-EMPTY}}"
   export CHATHLS_API_KEY="${CHATHLS_API_KEY:-${OPENAI_API_KEY}}"
-  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] external_llm dataflow via ${OPENAI_BASE_URL} model=${C2HLS_MODEL} (no gpu_h100)"
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] external_llm dataflow via ${OPENAI_BASE_URL} model=${C2HLS_MODEL}"
   if ! curl -sf --max-time 10 "${OPENAI_BASE_URL}/models" >/dev/null; then
     echo "ERROR: external endpoint not reachable: ${OPENAI_BASE_URL}" >&2
     exit 4
   fi
-  # Inline — call the runner directly (start_post_flash_dataflow.sh execs and would
-  # skip export). Do NOT submit a gpu_h100 open-weight serve.
-  "${PY}" "${SCRIPT_DIR}/run_post_flash_dataflow.py" \
-    --pc2 \
-    --matrix-root "${CAMPAIGN_ROOT}" \
-    --results-suffix "${C2HLS_POST_FLASH_RESULTS_SUFFIX}" \
-    --prompt-policy system_skills \
-    --contract-turns "${C2HLS_DATAFLOW_CONTRACT_ROUNDS}" \
-    --force
-else
-  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] no external endpoint; supervised GPU session (borrow if possible)"
-  "${SCRIPT_DIR}/start_post_flash_dataflow.sh" \
-    --submit \
-    --force \
-    --borrow-gpu \
-    --no-auto-stop-gpu \
-    --matrix-root "${CAMPAIGN_ROOT}" \
-    --prompt-policy system_skills \
-    --contract-turns "${C2HLS_DATAFLOW_CONTRACT_ROUNDS}"
-
-  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] waiting for dataflow summary under campaign"
-  while true; do
-    if compgen -G "${CAMPAIGN_ROOT}/post_flash_dataflow_summary_*.json" > /dev/null; then
-      break
-    fi
-    sleep "${POLL_SEC}"
-  done
 fi
 
-if [[ "${use_external_llm}" -eq 1 ]]; then
-  if ! compgen -G "${CAMPAIGN_ROOT}/post_flash_dataflow_summary_*.json" > /dev/null; then
-    echo "WARNING: no post_flash_dataflow_summary_*.json after external dataflow run" >&2
+# One exclusive Slurm job per remaining bench (max Vitis parallelism). Export job
+# depends on all df jobs and writes dataflow_selected_bundle.
+PREFIX="${PC2_BATCH_JOB_PREFIX:-bphfpdf}"
+bash "${SCRIPT_DIR}/start_hlsfactory_parallel_dataflow.sh" \
+  --campaign-root "${CAMPAIGN_ROOT}" \
+  --remaining \
+  --job-prefix "${PREFIX}" \
+  --no-cancel-post
+
+LAUNCH_JSON="${CAMPAIGN_ROOT}/flow/parallel_dataflow/launch.json"
+EXPORT_JOB="$("${PY}" -c "import json;from pathlib import Path;p=Path('${LAUNCH_JSON}');
+print(json.load(open(p)).get('export_job_id','') if p.is_file() else '')")"
+if [[ -z "${EXPORT_JOB}" ]]; then
+  echo "ERROR: parallel dataflow launch did not record export_job_id" >&2
+  exit 5
+fi
+
+echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] waiting for parallel export job ${EXPORT_JOB}"
+while true; do
+  st="$(squeue -j "${EXPORT_JOB}" -h -o '%T' 2>/dev/null || true)"
+  if [[ -z "${st}" ]]; then
+    break
   fi
-fi
-
-echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] exporting dataflow_selected -> ${DATAFLOW_BUNDLE}"
-mkdir -p "${DATAFLOW_BUNDLE}"
-"${PY}" "${C2HLS_ROOT}/scripts/pc2/export_post_flash_dataflow_csynth_bundle.py" \
-  --matrix-root "${CAMPAIGN_ROOT}" \
-  --flash-bundle-root "${FLASH_BUNDLE}" \
-  --kernel-bundle "${DATAFLOW_BUNDLE}" \
-  --force \
-  || true
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] export_job=${EXPORT_JOB} state=${st}"
+  sleep "${POLL_SEC}"
+done
 
 # Also keep a stable pointer next to flash_selected naming.
 if [[ -d "${FLASH_BUNDLE}" ]]; then
   ln -sfn "${FLASH_BUNDLE}" "${CAMPAIGN_ROOT}/flash_selected"
 fi
-ln -sfn "${DATAFLOW_BUNDLE}" "${CAMPAIGN_ROOT}/dataflow_selected"
+if [[ -d "${DATAFLOW_BUNDLE}" ]]; then
+  ln -sfn "${DATAFLOW_BUNDLE}" "${CAMPAIGN_ROOT}/dataflow_selected"
+fi
 
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] done"
 echo "flash_selected=${FLASH_BUNDLE}"

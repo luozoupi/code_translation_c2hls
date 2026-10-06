@@ -62,6 +62,14 @@ done
 
 pc2_cancel_batch_parallel_named_jobs "$(pc2_batch_job_prefix "${CAMPAIGN_ROOT}")"
 
+proxy_pid_file="${CAMPAIGN_ROOT}/node_llm_proxy/deepseek_proxy.pid"
+if [[ -f "${proxy_pid_file}" ]]; then
+  proxy_pid="$(cat "${proxy_pid_file}" 2>/dev/null || true)"
+  if [[ -n "${proxy_pid}" ]]; then
+    kill "${proxy_pid}" 2>/dev/null || true
+  fi
+fi
+
 BATCH_PARALLEL_CAMPAIGN_ROOT="${CAMPAIGN_ROOT}" "${SCRIPT_DIR}/batch_parallel_stop_session.sh"
 pkill -u "$(whoami)" -f "batch_parallel_gpu_drain.py --campaign-root ${CAMPAIGN_ROOT}" 2>/dev/null || true
 pkill -u "$(whoami)" -f "batch_parallel_coordinator.py --campaign-root ${CAMPAIGN_ROOT}" 2>/dev/null || true

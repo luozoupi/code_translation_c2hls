@@ -10,21 +10,21 @@ from typing import Any, Callable
 
 from batch_parallel_config import load_campaign
 
-RETRIABLE_LLM_MARKERS = (
-    "connection error",
-    "connection reset",
+# Only failures that happen before api.deepseek.com accepts the request.
+# A timeout, reset, or closed socket means the completion was already billed.
+# Requeueing those starts another billed call for the same kernel.
+PRE_UPSTREAM_LLM_MARKERS = (
     "connection refused",
-    "endpoint",
-    "timed out",
-    "timeout",
-    "remote end closed",
-    "broken pipe",
+    "connection error",
+    "name or service not known",
+    "temporary failure in name resolution",
+    "nodename nor servname",
 )
 
+# One extra try when the login proxy is not up yet. A second failure stops.
+MAX_CODEGEN_CONNECTION_TRIES = 2
 
-def is_retriable_llm_error(exc: BaseException) -> bool:
-    msg = str(exc).lower()
-    return any(marker in msg for marker in RETRIABLE_LLM_MARKERS)
+STALE_LLM_SLOT_S = 7200.0
 
 
 def _state_path(campaign_root: Path) -> Path:
@@ -74,6 +74,45 @@ def gpu_llm_busy(campaign_root: Path) -> bool:
     return read_llm_in_flight(campaign_root) is not None
 
 
+def _exception_text(exc: BaseException) -> str:
+    parts: list[str] = []
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        parts.append(str(cur))
+        cur = cur.__cause__ if cur.__cause__ is not None else cur.__context__
+    return " ".join(parts).lower()
+
+
+def is_retriable_llm_error(exc: BaseException) -> bool:
+    msg = _exception_text(exc)
+    if "timed out" in msg or "timeout" in msg:
+        return False
+    return any(marker in msg for marker in PRE_UPSTREAM_LLM_MARKERS)
+
+
+def codegen_should_requeue(campaign_root: Path, job_id: int, exc: BaseException) -> bool:
+    """Allow one pre-upstream retry. Never retry a call that already reached DeepSeek."""
+    if not is_retriable_llm_error(exc):
+        return False
+    path = campaign_root.resolve() / "flow" / "llm_codegen_attempts.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    doc: dict[str, Any] = {}
+    if path.is_file():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                doc = loaded
+        except json.JSONDecodeError:
+            doc = {}
+    key = str(int(job_id))
+    tries = int(doc.get(key) or 0) + 1
+    doc[key] = tries
+    path.write_text(json.dumps(doc) + "\n", encoding="utf-8")
+    return tries < MAX_CODEGEN_CONNECTION_TRIES
+
+
 def begin_llm_request(
     campaign_root: Path,
     *,
@@ -84,8 +123,17 @@ def begin_llm_request(
     worker: str,
 ) -> None:
     def _upd(payload: dict[str, Any]) -> dict[str, Any]:
-        if payload.get("in_flight"):
-            raise RuntimeError(f"GPU LLM slot already held: {payload['in_flight']}")
+        inflight = payload.get("in_flight")
+        if isinstance(inflight, dict) and inflight:
+            if int(inflight.get("job_id", -1)) == int(job_id):
+                inflight["worker"] = worker
+                inflight["started_at"] = time.time()
+                payload["in_flight"] = inflight
+                return payload
+            started = float(inflight.get("started_at") or 0.0)
+            age_s = time.time() - started
+            if age_s < STALE_LLM_SLOT_S:
+                raise RuntimeError(f"GPU LLM slot already held: {payload['in_flight']}")
         payload["in_flight"] = {
             "job_id": int(job_id),
             "variant": variant,

@@ -16,6 +16,8 @@ PILOT=0
 AUTO_STOP=1
 VARIANT="${C2HLS_MULTISTEP_VARIANT:-aav_n}"
 STAMP="${C2HLS_MULTISTEP_FIXED_COSIM_STAMP:-$(date +%Y%m%d)_fixed_cosim_multistep}"
+BENCHES="${C2HLS_MULTISTEP_BENCHES:-}"
+TURNS="${C2HLS_TURNS:-4}"
 PY="${C2HLS_PYTHON:-python3}"
 
 while [[ $# -gt 0 ]]; do
@@ -25,20 +27,27 @@ while [[ $# -gt 0 ]]; do
     --variant) shift; VARIANT="$1"; shift ;;
     --auto-stop-on-complete) AUTO_STOP=1; shift ;;
     --stamp) shift; STAMP="$1"; shift ;;
+    --benches) shift; BENCHES="$1"; shift ;;
+    --turns) shift; TURNS="$1"; shift ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
 
 export C2HLS_MULTISTEP_VARIANT="${VARIANT}"
+export C2HLS_TURNS="${TURNS}"
+export C2HLS_MAX_REPAIR_ATTEMPT="${C2HLS_MAX_REPAIR_ATTEMPT:-${TURNS}}"
 
 if [[ "${PILOT}" -eq 1 ]]; then
   export PC2_FORCE_WALLTIME="${PC2_MULTISTEP_PILOT_WALLTIME:-12:00:00}"
-  SESSION_ID="multistep_pipelined_cosim_pilot_${VARIANT}"
+  SESSION_ID="multistep_pipelined_cosim_pilot_${VARIANT}_${STAMP}"
   EXTRA_ARGS="--pilot --variant ${VARIANT}"
 else
   export PC2_FORCE_WALLTIME="${PC2_MULTISTEP_FULL_WALLTIME:-48:00:00}"
-  SESSION_ID="multistep_pipelined_cosim_${VARIANT}"
+  SESSION_ID="multistep_pipelined_cosim_${VARIANT}_${STAMP}"
   EXTRA_ARGS="--variant ${VARIANT}"
+fi
+if [[ -n "${BENCHES}" ]]; then
+  EXTRA_ARGS="${EXTRA_ARGS} --benches ${BENCHES}"
 fi
 
 export PC2_COMPUTE_CPUS=64
@@ -48,7 +57,10 @@ export C2HLS_SYNTH_TIMEOUT="${C2HLS_SYNTH_TIMEOUT:-3600}"
 export C2HLS_MULTISTEP_FIXED_COSIM_STAMP="${STAMP}"
 
 echo "multistep pipelined variant=${VARIANT} stamp=${STAMP} pilot=${PILOT} walltime=${PC2_FORCE_WALLTIME}"
-echo "synth_workers=${C2HLS_PIPELINED_SYNTH_WORKERS} compute=${PC2_COMPUTE_CPUS}cpu/${PC2_COMPUTE_MEM}"
+echo "synth_workers=${C2HLS_PIPELINED_SYNTH_WORKERS} compute=${PC2_COMPUTE_CPUS}cpu/${PC2_COMPUTE_MEM} turns=${TURNS}"
+if [[ -n "${BENCHES}" ]]; then
+  echo "benches=${BENCHES}"
+fi
 
 "${PY}" scripts/pc2/run_multistep_fixed_cosim_pipelined.py --pc2 ${EXTRA_ARGS} --stamp "${STAMP}" --dry-run
 
@@ -59,7 +71,7 @@ fi
 
 export PC2_SLURM_ACCOUNT="${PC2_SLURM_ACCOUNT:-hpc-prf-llmfpga}"
 
-WORKER_CMD="C2HLS_MULTISTEP_FIXED_COSIM_STAMP=${STAMP} ${PY} scripts/pc2/run_multistep_fixed_cosim_pipelined.py --pc2 ${EXTRA_ARGS} --stamp ${STAMP}"
+WORKER_CMD="C2HLS_MULTISTEP_FIXED_COSIM_STAMP=${STAMP} C2HLS_TURNS=${TURNS} C2HLS_MAX_REPAIR_ATTEMPT=${C2HLS_MAX_REPAIR_ATTEMPT} ${PY} scripts/pc2/run_multistep_fixed_cosim_pipelined.py --pc2 ${EXTRA_ARGS} --stamp ${STAMP}"
 START_ARGS=(--session-id "${SESSION_ID}" --worker-cmd "${WORKER_CMD}")
 if [[ "${AUTO_STOP}" -eq 1 ]]; then
   START_ARGS+=(--auto-stop-on-complete)

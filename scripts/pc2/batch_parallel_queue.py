@@ -445,6 +445,14 @@ class BatchParallelQueue:
                 )
             return True
 
+    def touch_claim(self, job_id: int) -> None:
+        """Refresh claimed_at so a long in-flight LLM call is not requeued."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE jobs SET claimed_at=? WHERE id=? AND status='claimed'",
+                (time.time(), int(job_id)),
+            )
+
     def requeue_orphaned_claimed(self, *, kinds: tuple[str, ...] = ("cosim", "synth", "codegen")) -> list[int]:
         """Reset claimed jobs back to pending (e.g. after Slurm TIMEOUT)."""
         placeholders = ",".join("?" for _ in kinds)

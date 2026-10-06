@@ -1,0 +1,31 @@
+{
+  "job_prefix": "bphfgs",
+  "combined_hls_nodes": true,
+  "synth_nodes_per_variant": 5,
+  "synth_workers_per_node": 1,
+  "cosim_nodes_per_variant": 0,
+  "cosim_workers_per_node": 0,
+  "worker_cpus": 16,
+  "worker_mem_gb": 64,
+  "gpu_policy": "always_on",
+  "cosim_timeout_s": 43200,
+  "bench_order": "listed",
+  "bench_seeding": "short_first_waves",
+  "max_inflight_benches": 5,
+  "poll_sec": 2.0,
+  "coordinator_poll_sec": 15.0,
+  "pilot": {
+    "variant": "aav_n",
+    "workflow": "flash",
+    "benches": [
+      "hlsfactory_atax",
+      "hlsfactory_mvt",
+      "hlsfactory_2mm",
+      "hlsfactory_3mm",
+      "hlsfactory_heat-3d"
+    ],
+    "failure_policy": "ignore",
+    "model": "grok-4.5",
+    "turns": 4
+  }
+}

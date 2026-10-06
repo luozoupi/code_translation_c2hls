@@ -1,0 +1,26 @@
+{
+  "job_prefix": "bpnlr",
+  "combined_hls_nodes": true,
+  "synth_nodes_per_variant": 1,
+  "synth_workers_per_node": 1,
+  "cosim_nodes_per_variant": 0,
+  "cosim_workers_per_node": 0,
+  "worker_cpus": 8,
+  "worker_mem_gb": 32,
+  "gpu_policy": "always_on",
+  "cosim_timeout_s": 43200,
+  "bench_order": "listed",
+  "bench_seeding": "short_first_waves",
+  "max_inflight_benches": 1,
+  "poll_sec": 2.0,
+  "coordinator_poll_sec": 15.0,
+  "pilot": {
+    "variant": "aav_n",
+    "workflow": "flash",
+    "benches": [
+      "hlsfactory_bicg"
+    ],
+    "failure_policy": "ignore",
+    "turns": 4
+  }
+}

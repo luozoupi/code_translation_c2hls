@@ -317,8 +317,18 @@ def call_llm(messages: list[dict[str, str]], *, model: Optional[str] = None) -> 
     timeout = float(os.getenv("C2HLS_LLM_TIMEOUT", "900"))
     client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout)
     kwargs: dict[str, Any] = {"model": model, "messages": messages}
-    if "gpt" in model.lower() or "o1" in model.lower() or "o3" in model.lower():
+    low = model.lower()
+    if (
+        "gpt" in low
+        or low.startswith("o1")
+        or low.startswith("o3")
+        or low.startswith("o4")
+        or low.startswith("grok-")
+    ):
         kwargs["max_completion_tokens"] = int(os.getenv("C2HLS_LLM_MAX_TOKENS", "8192"))
+        effort = (os.getenv("C2HLS_REASONING_EFFORT") or "").strip()
+        if effort:
+            kwargs["reasoning_effort"] = effort
     else:
         kwargs["max_tokens"] = int(os.getenv("C2HLS_LLM_MAX_TOKENS", "8192"))
     response = client.chat.completions.create(**kwargs)

@@ -168,6 +168,57 @@ def test_prompt_text_includes_contract_prompts():
     assert "Contract breaches" in prompts["contract_fix_user"]
 
 
+def test_is_empty_llm_reply():
+    assert pfd.is_empty_llm_reply(None) is True
+    assert pfd.is_empty_llm_reply("") is True
+    assert pfd.is_empty_llm_reply("   \n") is True
+    assert pfd.is_empty_llm_reply("```kernel\nvoid f(){}\n```") is False
+
+
+def test_call_llm_reject_empty_retries_then_returns_nonempty():
+    calls = {"n": 0}
+
+    class Orch:
+        def _call_llm(self, messages, max_tokens=None):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                return ""
+            return "```kernel\nvoid ok() {}\n```"
+
+    history = []
+    reply = pfd.call_llm_reject_empty(
+        Orch(),
+        [{"role": "user", "content": "fix"}],
+        purpose="contract_fix",
+        retries=3,
+        history=history,
+    )
+    assert calls["n"] == 3
+    assert "void ok" in reply
+    # every attempt recorded; empties kept (no early stop of outer loop)
+    assert len(history) == 3
+    assert history[0]["content"] == ""
+    assert history[1]["content"] == ""
+    assert "void ok" in history[2]["content"]
+
+
+def test_call_llm_reject_empty_exhausts_retries_without_raising():
+    class Orch:
+        def _call_llm(self, messages, max_tokens=None):
+            return ""
+
+    history = []
+    reply = pfd.call_llm_reject_empty(
+        Orch(),
+        [{"role": "user", "content": "fix"}],
+        purpose="contract_fix",
+        retries=2,
+        history=history,
+    )
+    assert reply == ""
+    assert len(history) == 2
+
+
 if __name__ == "__main__":
     test_extract_kernel_block()
     test_extract_kernel_block_labeled_include()
@@ -183,4 +234,7 @@ if __name__ == "__main__":
     test_dataflow_prompt_is_kernel_blind()
     test_dataflow_skills_load_from_flash_overlay()
     test_prompt_text_includes_contract_prompts()
+    test_is_empty_llm_reply()
+    test_call_llm_reject_empty_retries_then_returns_nonempty()
+    test_call_llm_reject_empty_exhausts_retries_without_raising()
     print("test_post_flash_dataflow: ok")

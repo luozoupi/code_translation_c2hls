@@ -24,7 +24,7 @@ RULE_FIX_SKILL: dict[str, str] = {
     "local-buffer-fanout": "hls-dataflow-merge-parallel-consumers",
     "m_axi-bundle-multi-reader": "hls-distinct-gmem-bundle-per-port",
     "m_axi-bundle-multi-writer": "hls-distinct-gmem-bundle-per-port",
-    "m_axi-port-concurrent-rw": "hls-distinct-gmem-bundle-per-port",
+    "m_axi-port-concurrent-rw": "hls-load-compute-store-no-rmw-m_axi",
     "inline-copy-in-dataflow": "hls-dataflow-fused-compute-phases",
     "timestep-multi-compute": "hls-dataflow-fused-compute-phases",
     "dual-layout-unfused-load": "hls-dual-layout-fused-load-dataflow",
@@ -36,7 +36,11 @@ Review the kernel against the mandatory DATAFLOW rules below. Report **only** st
 
 ## Mandatory rules (audit checklist)
 1. Top kernel body contains exactly one `#pragma HLS DATAFLOW` with ≥3 static task calls.
-2. Each `m_axi` bundle: ≤1 concurrent reader task and ≤1 concurrent writer task among DATAFLOW processes.
+2. Each `m_axi` **port** and each `m_axi` **bundle** among concurrent DATAFLOW tasks:
+   - ≤1 reader task total, **and**
+   - ≤1 writer task total, **and**
+   - **must not** have both a reader task and a writer task (even if each count is 1).
+   Same-port load+store (e.g. `load_D_task(D, …)` + `store_D_task(D, …)` / `store_D_task(…, D)` in one DATAFLOW region) is a breach with `rule_id` = `m_axi-port-concurrent-rw`.
 3. Every on-chip local array crossing concurrent tasks: exactly **one writer** and **one reader** (no fan-out).
 4. No `for (tile…)` or `for (t…)` loop **inside** `#pragma HLS DATAFLOW` whose body calls tasks that read/write `m_axi` ports.
 5. No top-level `m_axi` port pointers passed into compute tasks while another concurrent task accesses that port.
@@ -45,17 +49,28 @@ Review the kernel against the mandatory DATAFLOW rules below. Report **only** st
 8. Time-step loops must be inside a single compute task, not split across concurrent compute tasks.
 
 ## Output — JSON only
-Return **one** fenced block:
+Return **one** fenced block. Example when a same-port R/W exists:
 ```json
 {
   "schema": "dataflow_contract_breach_v1",
-  "passed": true,
-  "breaches": []
+  "passed": false,
+  "breaches": [
+    {
+      "rule_id": "m_axi-port-concurrent-rw",
+      "severity": "error",
+      "symbol": "D",
+      "tasks": ["load_D_task", "store_D_task"],
+      "location": "DATAFLOW region",
+      "message": "Port D has concurrent reader load_D_task and writer store_D_task.",
+      "fix_skill_id": "hls-load-compute-store-no-rmw-m_axi",
+      "source": "llm"
+    }
+  ]
 }
 ```
 
 Each breach object must include:
-- `rule_id` (string, use ids from the checklist themes above)
+- `rule_id` (string; use ids such as `m_axi-port-concurrent-rw`, `local-buffer-fanout`, `m_axi-bundle-multi-reader`, `m_axi-bundle-multi-writer`, `m_axi-in-compute-task`, `tile-loop-m_axi-in-dataflow`, `inline-copy-in-dataflow`)
 - `severity` (`error` or `warning`)
 - `symbol` (array/local/port name or null)
 - `tasks` (list of task function names involved)
@@ -64,9 +79,10 @@ Each breach object must include:
 - `fix_skill_id` (matching skill id or null)
 - `source`: `"llm"`
 
-If no breaches, set `"passed": true` and `"breaches": []`.
+If and only if **no** breaches, set `"passed": true` and `"breaches": []`.
 Do **not** return kernel code — audit only.
 """
+
 
 _CONTRACT_AUDIT_USER = """Audit this DATAFLOW kernel for mandatory contract violations.
 

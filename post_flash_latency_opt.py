@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -114,6 +115,18 @@ def under_device_budget(
     return True
 
 
+def _interval_of(obj: Optional[dict[str, Any]]) -> Optional[int]:
+    if not obj:
+        return None
+    raw = obj.get("interval")
+    if raw is None:
+        raw = (obj.get("report") or {}).get("interval")
+    try:
+        return int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def should_accept(
     candidate: dict[str, Any],
     best: Optional[dict[str, Any]],
@@ -138,7 +151,17 @@ def should_accept(
         best_lat = int(best["latency_cycles"])
     except (KeyError, TypeError, ValueError):
         return True
-    return lat_i < best_lat
+    if lat_i < best_lat:
+        return True
+    # DATAFLOW: fixing store_tiles can drop top interval while worst-case
+    # latency stays similar. Accept a strictly better interval if latency did
+    # not get worse.
+    if lat_i <= best_lat:
+        cand_iv = _interval_of(candidate)
+        best_iv = _interval_of(best)
+        if cand_iv is not None and best_iv is not None and cand_iv < best_iv:
+            return True
+    return False
 
 
 def _resource_util_lines(report: dict[str, Any], part: str) -> list[str]:
@@ -178,11 +201,50 @@ def _max_resource_util_pct(report: dict[str, Any], part: str) -> float:
     return max_pct
 
 
+def dataflow_process_scopes(report: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Child HLS modules (DATAFLOW processes), hottest interval first.
+
+    Top-level interval of a DATAFLOW kernel is approximately the max of
+    these process intervals. Rank so latency-opt can attack one stage per
+    round (store, then load, then compute).
+    """
+    scopes = ((report or {}).get("feedback") or {}).get("scopes") or []
+    procs: list[dict[str, Any]] = []
+    for scope in scopes:
+        if (scope.get("kind") or "") != "module":
+            continue
+        if scope.get("parent") is None and int(scope.get("depth") or 0) == 0:
+            continue
+        procs.append(scope)
+    procs.sort(
+        key=lambda s: (
+            -(s.get("interval") or s.get("latency_cycles") or 0),
+            -(s.get("latency_cycles") or 0),
+        )
+    )
+    return procs
+
+
 def template_actions_for_report(report: dict[str, Any], part: str) -> list[str]:
     """Deterministic guided actions from bottlenecks and resource pressure."""
     actions: list[str] = []
     feedback = report.get("feedback") or {}
     seen: set[str] = set()
+
+    processes = dataflow_process_scopes(report)
+    if processes:
+        hot = processes[0]
+        sid = hot.get("scope_id") or hot.get("name") or "?"
+        iv = hot.get("interval")
+        lat = hot.get("latency_cycles")
+        msg = (
+            f"Fix the dominant DATAFLOW process `{sid}` first "
+            f"(interval={iv}, latency={lat}). Top interval ≈ max(process "
+            "intervals). After it drops, the next-hottest process is the "
+            "target. Do not rewrite the ping-pong DATAFLOW skeleton."
+        )
+        seen.add(msg)
+        actions.append(msg)
 
     for b in feedback.get("bottlenecks") or []:
         kind = b.get("kind") or ""
@@ -264,8 +326,35 @@ def render_latency_analysis_pack(
     interval = report.get("interval")
     if interval is not None:
         lines.append(f"Interval: {interval}")
+        lat_n = report.get("latency_cycles")
+        try:
+            if lat_n is not None and int(interval) + 8 >= int(lat_n):
+                lines.append(
+                    "Overlap hint: top interval ≈ latency. If DATAFLOW is "
+                    "present, the slowest process dominates — fix that process, "
+                    "do not rewrite the skeleton."
+                )
+        except (TypeError, ValueError):
+            pass
     lines.append("Resources:")
     lines.extend(_resource_util_lines(report, part))
+
+    processes = dataflow_process_scopes(report)
+    if processes:
+        lines.append("")
+        lines.append("=== DATAFLOW processes (hottest interval first) ===")
+        lines.append(
+            "Top interval ≈ max(these). Attack the first row this round; "
+            "after it drops, the next row becomes the target."
+        )
+        for s in processes[:max_scopes]:
+            sid = s.get("scope_id") or s.get("name") or "?"
+            s_lat = s.get("latency_cycles")
+            ii = s.get("interval")
+            pipelined = s.get("pipelined")
+            lines.append(
+                f"  {sid} lat={s_lat} interval={ii} pipelined={pipelined}"
+            )
 
     scopes = feedback.get("scopes") or []
     if scopes:
@@ -380,11 +469,17 @@ Given a latency analysis pack and the current kernel, produce a **concise struct
 
 ## Rules
 - Every target must cite a `scope_id` from the ranked scopes / bottlenecks table.
+- If a **DATAFLOW processes** table is present: change **one** hottest
+  process per round (typically `store_tiles`, then `load_tiles`, then
+  compute). Top interval equals the max process interval. Do **not** rip out
+  DATAFLOW or ping-pong buffers.
 - Prefer pipeline/II fixes before large unroll/partition when utilization is high.
 - Respect the device budget constraint.
 - No full kernel rewrites in the plan — only actionable edits.
 - When suggesting INTERFACE edits: keep each `#pragma HLS` on one line (no `\\` continuations);
   never use `data_width=` on INTERFACE (use `max_widen_bitwidth=` for m_axi widening).
+- Do **not** plan speculative ping-pong / double-buffer rewrites or false `DEPENDENCE ... FALSE`
+  on true loop-carried accumulations — those routinely break C TB equivalence.
 """
 
 _PLAN_USER = """## Latency analysis pack
@@ -397,6 +492,10 @@ _PLAN_USER = """## Latency analysis pack
 
 ## Optimization goal
 Reduce **latency_cycles** below **{best_latency}** while staying within device budget.
+For DATAFLOW kernels also reduce the **dominant process interval** so top
+`interval` can fall (top interval ≈ max of load/compute/store). After the
+hottest process is fixed, the next round targets the new hottest. Keep the
+ping-pong DATAFLOW skeleton.
 
 ## Budget constraint
 {budget_block}
@@ -419,6 +518,13 @@ Apply the given latency optimization plan to the kernel exactly.
 - Follow the plan — do not re-diagnose from scratch or make unrelated changes.
 - Label loops you touch with descriptive names.
 - Stay within the device budget; avoid large unroll/partition when the plan warns of resource pressure.
+- **Correctness first:** do not invent ping-pong / double buffers (`buf0`/`buf1`) to "break"
+  carry dependences unless both banks are written and read with a proven toggle and the
+  mathematical result is identical to the seed. Prefer PIPELINE/UNROLL/PARTITION on existing
+  arrays. False `DEPENDENCE ... FALSE` on true loop-carried values is forbidden.
+- If the seed already has `#pragma HLS DATAFLOW` and ping-pong tiles, **keep that
+  skeleton**. Edit the hottest DATAFLOW process (often `store_tiles`, then load,
+  then compute). Do not flatten back to sequential load-all / compute-all / store-all.
 
 ## Output
 Return **one** fenced block only:
@@ -502,6 +608,38 @@ def artifact_paths(cell_dir: Path, bench: str, source_role: SourceRole) -> dict[
         "trajectory": cell_dir / f"{base}_trajectory.json",
         "manifest": cell_dir / f"{base}_manifest.json",
     }
+
+
+def round_artifact_paths(
+    cell_dir: Path,
+    bench: str,
+    source_role: SourceRole,
+    round_idx: int,
+) -> dict[str, Path]:
+    """Per-accepted-round kernel/report paths for ranked-cosim fallback pool."""
+    base = artifact_paths(cell_dir, bench, source_role)["kernel"].stem  # e.g. bench_latency_opt
+    return {
+        "kernel": cell_dir / f"{base}_r{int(round_idx)}.cpp",
+        "report": cell_dir / f"{base}_r{int(round_idx)}_report.json",
+    }
+
+
+def persist_accepted_round_kernel(
+    *,
+    cell_dir: Path,
+    bench: str,
+    source_role: SourceRole,
+    round_idx: int,
+    code: str,
+    report: dict[str, Any],
+) -> dict[str, str]:
+    """Write accepted round kernel+report; return {kernel, report} basenames."""
+    paths = round_artifact_paths(cell_dir, bench, source_role, round_idx)
+    paths["kernel"].write_text(code, encoding="utf-8")
+    paths["report"].write_text(
+        json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8"
+    )
+    return {"kernel": paths["kernel"].name, "report": paths["report"].name}
 
 
 def new_trajectory(
@@ -834,6 +972,30 @@ def promote_latency_opt_as_selected(
     if source_role == "flash_final":
         selected_cpp = cell_dir / f"{bench}_selected.cpp"
         selected_report = cell_dir / f"{bench}_selected_report.json"
+        # Preserve the true flash seed BEFORE overwriting selected. Ranking/cosim
+        # must keep the pre-lat_opt kernel in the pool even when lat_opt wins csynth.
+        seed_cpp = cell_dir / f"{bench}_flash_seed.cpp"
+        seed_report = cell_dir / f"{bench}_flash_seed_report.json"
+        if not seed_cpp.is_file():
+            if selected_cpp.is_file() and selected_cpp.read_text(encoding="utf-8").strip():
+                shutil.copy2(selected_cpp, seed_cpp)
+                if selected_report.is_file():
+                    shutil.copy2(selected_report, seed_report)
+            else:
+                final_cpp = cell_dir / f"{bench}_final.cpp"
+                final_report = cell_dir / f"{bench}_final_report.json"
+                if not final_report.is_file():
+                    alt = cell_dir / f"{bench}_flash_opt_report.json"
+                    if alt.is_file():
+                        final_report = alt
+                if final_cpp.is_file() and final_cpp.read_text(encoding="utf-8").strip():
+                    shutil.copy2(final_cpp, seed_cpp)
+                    if final_report.is_file():
+                        shutil.copy2(final_report, seed_report)
+            if seed_cpp.is_file():
+                promotion["flash_seed_kernel"] = seed_cpp.name
+                if seed_report.is_file():
+                    promotion["flash_seed_report"] = seed_report.name
         selected_cpp.write_text(code, encoding="utf-8")
         selected_report.write_text(
             json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8"
@@ -1359,18 +1521,31 @@ def run_latency_opt_for_cell(
                 resources=cand_resources,
                 kernel_sha256=sha256_text(candidate_code),
             )
-            decision, reason = "accept", "lower latency under budget"
-            trajectory_summary_lines.append(f"Round {round_idx}: accepted latency {cand_latency} cycles.")
+            decision, reason = "accept", "lower latency or interval under budget"
+            trajectory_summary_lines.append(
+                f"Round {round_idx}: accepted latency {cand_latency} "
+                f"interval {cand_report.get('interval')} cycles."
+            )
+            round_files = persist_accepted_round_kernel(
+                cell_dir=cell_dir,
+                bench=bench,
+                source_role=source_role,
+                round_idx=round_idx,
+                code=candidate_code,
+                report=cand_report if isinstance(cand_report, dict) else {},
+            )
         elif not cand_under_budget:
             decision, reason = "reject_budget", "candidate exceeds device budget"
             trajectory_summary_lines.append(f"Round {round_idx}: rejected (over budget), latency {cand_latency}.")
+            round_files = {}
         else:
             decision, reason = "reject_latency", "candidate does not improve latency"
             trajectory_summary_lines.append(
                 f"Round {round_idx}: rejected (no latency improvement), latency {cand_latency}."
             )
+            round_files = {}
 
-        append_round_event(traj, {
+        accept_event = {
             "round": round_idx,
             "phase": "optimize",
             "repair_index": None,
@@ -1381,7 +1556,12 @@ def run_latency_opt_for_cell(
             "under_budget": cand_under_budget,
             "decision": decision,
             "reason": reason,
-        })
+        }
+        if round_files:
+            accept_event["kernel"] = round_files["kernel"]
+            accept_event["report"] = round_files["report"]
+            accept_event["kernel_sha256"] = sha256_text(candidate_code)
+        append_round_event(traj, accept_event)
 
     success = best_so_far is not None
     final_code = (best_so_far or {}).get("code") or seed_code
@@ -1471,6 +1651,19 @@ def run_latency_opt_for_cell(
     return LatencyOptOutcome(bench, source_role, success, str(cell_dir), result_payload.get("error", ""), result_payload)
 
 
+def enforcement_requests_latency_opt(orchestrator: Any) -> bool:
+    """True when enforcement locked in DATAFLOW but overlap still needs work."""
+    res = getattr(orchestrator, "enforcement_result", None)
+    if isinstance(res, dict) and res.get("needs_latency_opt"):
+        return True
+    ctx = getattr(orchestrator, "_pipelined_ctx", None)
+    if isinstance(ctx, dict):
+        enf = ctx.get("enforcement")
+        if isinstance(enf, dict) and enf.get("needs_latency_opt"):
+            return True
+    return False
+
+
 def maybe_chain_latency_opt(
     *,
     bench: str,
@@ -1485,16 +1678,26 @@ def maybe_chain_latency_opt(
     Source resolution (see `resolve_latency_source_kernel`) is intentionally
     simple for now — chaining/ordering with other post-flash steps is
     refined in a later task.
+
+    Enforcement can force a flash_final chain when the kernel is already
+    ping-pong DATAFLOW but a dominant process (e.g. store_tiles) still
+    sets top interval.
     """
+    force = enforcement_requests_latency_opt(orchestrator)
     if is_multistep_source_role(source_role):
         if not latency_opt_enabled():
             return None
-    elif source_role == "flash_final" and not chain_after_flash():
+    elif source_role == "flash_final" and not chain_after_flash() and not force:
         return None
     elif source_role == "dataflow" and not chain_after_dataflow():
         return None
-    elif not latency_opt_enabled():
+    elif not latency_opt_enabled() and not force:
         return None
+    if force and source_role == "flash_final":
+        _LOG.info(
+            "[latency_opt] chaining after enforcement for %s (dominant DATAFLOW stage)",
+            bench,
+        )
     try:
         outcome = run_latency_opt_for_cell(
             bench=bench,
@@ -1525,7 +1728,9 @@ __all__ = [
     "chain_after_dataflow",
     "chain_after_flash",
     "configure_post_flash_env",
+    "dataflow_process_scopes",
     "discover_matrix_cells",
+    "enforcement_requests_latency_opt",
     "finalize_trajectory",
     "latency_opt_enabled",
     "latency_round_limit",
@@ -1536,10 +1741,12 @@ __all__ = [
     "plan_mentions_scope",
     "promote_latency_opt_as_selected",
     "prompt_text_for_docs",
+    "persist_accepted_round_kernel",
     "render_budget_block",
     "render_latency_analysis_pack",
     "repair_round_limit",
     "resolve_latency_source_kernel",
+    "round_artifact_paths",
     "run_latency_opt_for_cell",
     "set_best_so_far",
     "should_accept",

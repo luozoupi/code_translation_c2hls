@@ -157,6 +157,17 @@ extern "C" void kernel_test(double A[8], double B[8]) {
     assert report.passed, [b.message for b in report.breaches]
 
 
+def test_contract_audit_prompt_forbids_same_port_reader_and_writer():
+    from dataflow_contract_check import contract_audit_system_prompt
+
+    text = contract_audit_system_prompt().lower()
+    assert "must not" in text and "reader task and a writer task" in text
+    assert "m_axi-port-concurrent-rw" in text
+    assert "if and only if" in text
+    assert "load_d_task" in text and "store_d_task" in text
+    assert '"passed": false' in text
+
+
 if __name__ == "__main__":
     test_static_detects_2mm_multi_writer_and_port_rw()
     test_static_detects_gemver_tile_loop_m_axi()
@@ -164,4 +175,5 @@ if __name__ == "__main__":
     test_parse_llm_contract_json()
     test_merge_static_and_llm_dedupes()
     test_valid_minimal_dataflow_kernel_passes_static()
+    test_contract_audit_prompt_forbids_same_port_reader_and_writer()
     print("test_dataflow_contract_check: ok")

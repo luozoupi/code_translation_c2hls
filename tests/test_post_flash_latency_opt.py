@@ -83,6 +83,116 @@ def test_under_budget_u280():
     assert plo.under_device_budget(report_over, part, budget_pct=100.0) is False
 
 
+def test_should_accept_interval_improvement():
+    part = "xcu280-fsvh2892-2L-e"
+    report = {"lut": 1, "dsp": 1, "ff": 1, "bram": 0, "uram": 0, "interval": 589828}
+    best = {"latency_cycles": 618668, "report": report, "interval": 589828}
+    better_iv = {
+        "latency_cycles": 618668,
+        "report": {**report, "interval": 24669},
+        "interval": 24669,
+    }
+    assert plo.should_accept(better_iv, best, part=part) is True
+    worse_iv = {
+        "latency_cycles": 618668,
+        "report": {**report, "interval": 600000},
+        "interval": 600000,
+    }
+    assert plo.should_accept(worse_iv, best, part=part) is False
+
+
+def test_dataflow_process_scopes_hot_first():
+    report = {
+        "latency_cycles": 618668,
+        "interval": 589828,
+        "feedback": {
+            "scopes": [
+                {"scope_id": "kernel0", "kind": "module", "parent": None, "depth": 0,
+                 "latency_cycles": 618668, "interval": 589828},
+                {"scope_id": "load_tiles", "kind": "module", "parent": "kernel0", "depth": 1,
+                 "latency_cycles": 4170, "interval": 4170},
+                {"scope_id": "compute_tiles", "kind": "module", "parent": "kernel0", "depth": 1,
+                 "latency_cycles": 24669, "interval": 24669},
+                {"scope_id": "store_tiles", "kind": "module", "parent": "kernel0", "depth": 1,
+                 "latency_cycles": 589827, "interval": 589827},
+            ],
+        },
+    }
+    procs = plo.dataflow_process_scopes(report)
+    assert [p["scope_id"] for p in procs] == ["store_tiles", "compute_tiles", "load_tiles"]
+
+
+def test_render_pack_ranks_dataflow_processes():
+    report = {
+        "latency_cycles": 618668,
+        "interval": 589828,
+        "lut": 100, "dsp": 8, "ff": 200, "bram": 0, "uram": 0,
+        "feedback": {
+            "summary": {},
+            "scopes": [
+                {"scope_id": "kernel0", "kind": "module", "parent": None, "depth": 0,
+                 "latency_cycles": 618668, "interval": 589828, "pipelined": "dataflow"},
+                {"scope_id": "store_tiles", "kind": "module", "parent": "kernel0", "depth": 1,
+                 "latency_cycles": 589827, "interval": 589827, "pipelined": "no"},
+                {"scope_id": "load_tiles", "kind": "module", "parent": "kernel0", "depth": 1,
+                 "latency_cycles": 4170, "interval": 4170, "pipelined": "yes"},
+            ],
+            "bottlenecks": [],
+        },
+    }
+    text = plo.render_latency_analysis_pack(report, part="xcu280-fsvh2892-2L-e")
+    assert "DATAFLOW processes" in text
+    assert text.find("store_tiles") < text.find("load_tiles")
+    assert "dominant DATAFLOW process" in text
+    assert "do not rewrite" in text.lower() or "Do not rewrite" in text
+
+
+def test_maybe_chain_forced_by_enforcement(monkeypatch, tmp_path):
+    monkeypatch.delenv("C2HLS_POST_FLASH_LATENCY_OPT", raising=False)
+    monkeypatch.delenv("C2HLS_LATENCY_OPT_CHAIN_FLASH", raising=False)
+    called = {}
+
+    def fake_run(**kwargs):
+        called["yes"] = True
+        return plo.LatencyOptOutcome("autosa_mm", "flash_final", True, str(tmp_path), "", {})
+
+    monkeypatch.setattr(plo, "run_latency_opt_for_cell", fake_run)
+    from types import SimpleNamespace
+    orch = SimpleNamespace(enforcement_result={"needs_latency_opt": True})
+    out = plo.maybe_chain_latency_opt(
+        bench="autosa_mm",
+        bench_dir=tmp_path,
+        cell_dir=tmp_path,
+        orchestrator=orch,
+        source_role="flash_final",
+    )
+    assert called.get("yes") is True
+    assert out is not None
+
+
+def test_maybe_chain_skips_when_enforcement_does_not_request(monkeypatch, tmp_path):
+    monkeypatch.delenv("C2HLS_POST_FLASH_LATENCY_OPT", raising=False)
+    monkeypatch.delenv("C2HLS_LATENCY_OPT_CHAIN_FLASH", raising=False)
+    called = {"n": 0}
+
+    def fake_run(**kwargs):
+        called["n"] += 1
+        return plo.LatencyOptOutcome("autosa_mm", "flash_final", True, str(tmp_path), "", {})
+
+    monkeypatch.setattr(plo, "run_latency_opt_for_cell", fake_run)
+    from types import SimpleNamespace
+    orch = SimpleNamespace(enforcement_result={"needs_latency_opt": False})
+    out = plo.maybe_chain_latency_opt(
+        bench="autosa_mm",
+        bench_dir=tmp_path,
+        cell_dir=tmp_path,
+        orchestrator=orch,
+        source_role="flash_final",
+    )
+    assert called["n"] == 0
+    assert out is None
+
+
 def test_should_accept_candidate():
     best = {"latency_cycles": 1000, "report": {"lut": 1, "dsp": 1, "ff": 1, "bram": 0, "uram": 0}}
     cand_ok = {"latency_cycles": 800, "report": {"lut": 1, "dsp": 1, "ff": 1, "bram": 0, "uram": 0}}
@@ -151,7 +261,7 @@ def test_template_actions_resource_pressure():
 
 def test_plan_and_modify_prompts_structure():
     docs = plo.prompt_text_for_docs()
-    assert "analyst" in docs["plan_system"].lower() or "plan" in docs["plan_system"].lower()
+    assert "do not rip out" in docs["plan_system"].lower() or "DATAFLOW" in docs["plan_system"]
     assert "target" in docs["plan_user"].lower() or "action" in docs["plan_user"].lower()
     assert "kernel" in docs["modify_system"].lower()
     assert "kernel" in docs["modify_user"].lower()
@@ -399,6 +509,88 @@ def test_run_latency_opt_for_cell_accepts_lower_latency(tmp_path, monkeypatch):
     assert len(accept_events) == 1
     assert traj["final"]["latency_cycles"] == 500
     assert traj["final"]["success"] is True
+    # Accepted round kernels are persisted for ranked cosim fallback.
+    round_cpp = cell_dir / f"{bench}_latency_opt_r1.cpp"
+    round_report = cell_dir / f"{bench}_latency_opt_r1_report.json"
+    assert round_cpp.is_file()
+    assert "PIPELINE" in round_cpp.read_text(encoding="utf-8")
+    assert round_report.is_file()
+    assert accept_events[0].get("kernel") == round_cpp.name
+    assert accept_events[0].get("report") == round_report.name
+
+
+def test_run_latency_opt_persists_each_accepted_round(tmp_path, monkeypatch):
+    """N=2 accepts → seed-equivalent not written; r1 and r2 kernels on disk."""
+    bench = "atax"
+    cell_dir = tmp_path / "cell"
+    cell_dir.mkdir()
+    bench_dir = tmp_path / "bench"
+    bench_dir.mkdir()
+
+    seed_code = 'extern "C" void kernel_atax(int *x) {\n  x[0] = x[0] + 1;\n}\n'
+    (cell_dir / f"{bench}_selected.cpp").write_text(seed_code)
+
+    monkeypatch.setattr(c2hls, "_load_benchmark_inputs", _fake_load_benchmark_inputs_factory())
+    monkeypatch.setattr(c2hls, "compile_check_cpp", lambda *a, **k: (True, ""))
+
+    reports = [
+        {"latency_cycles": 1000, "latency_cycles_worst": 2000, "lut": 10, "dsp": 1, "ff": 10, "bram": 0, "uram": 0},
+        {"latency_cycles": 800, "latency_cycles_worst": 1500, "lut": 10, "dsp": 1, "ff": 10, "bram": 0, "uram": 0},
+        {"latency_cycles": 400, "latency_cycles_worst": 700, "lut": 10, "dsp": 1, "ff": 10, "bram": 0, "uram": 0},
+    ]
+    monkeypatch.setattr(c2hls, "_run_synth_csim_cosim", _fake_run_synth_csim_cosim_factory(reports))
+    monkeypatch.setenv("C2HLS_LATENCY_OPT_ROUNDS", "2")
+    monkeypatch.setenv("C2HLS_LATENCY_OPT_REPAIR_ROUNDS", "1")
+    monkeypatch.setenv("C2HLS_POST_FLASH_LATENCY_OPT", "1")
+
+    plan = (
+        "**targets:** k/loop\n"
+        "**actions:** PIPELINE II=1 on k/loop\n"
+        "**avoid:** unroll\n"
+        "**risk:** low"
+    )
+    mod1 = (
+        '```kernel\n'
+        'extern "C" void kernel_atax(int *x) {\n'
+        '#pragma HLS PIPELINE II=1\n'
+        '  x[0] = x[0] + 1;\n'
+        '}\n'
+        '```'
+    )
+    mod2 = (
+        '```kernel\n'
+        'extern "C" void kernel_atax(int *x) {\n'
+        '#pragma HLS PIPELINE II=1\n'
+        '#pragma HLS UNROLL factor=2\n'
+        '  x[0] = x[0] + 1;\n'
+        '}\n'
+        '```'
+    )
+    orch = FakeOrch([plan, mod1, plan, mod2])
+    outcome = plo.run_latency_opt_for_cell(
+        bench=bench,
+        bench_dir=bench_dir,
+        cell_dir=cell_dir,
+        orchestrator=orch,
+        source_role="flash_final",
+        skip_existing=True,
+    )
+    assert outcome.success is True
+    r1 = cell_dir / f"{bench}_latency_opt_r1.cpp"
+    r2 = cell_dir / f"{bench}_latency_opt_r2.cpp"
+    assert r1.is_file() and "PIPELINE" in r1.read_text(encoding="utf-8")
+    assert r2.is_file() and "UNROLL" in r2.read_text(encoding="utf-8")
+    assert (cell_dir / f"{bench}_latency_opt_r1_report.json").is_file()
+    assert (cell_dir / f"{bench}_latency_opt_r2_report.json").is_file()
+    # Final best equals last accepted round.
+    assert (cell_dir / f"{bench}_latency_opt.cpp").read_text(encoding="utf-8") == r2.read_text(
+        encoding="utf-8"
+    )
+    traj = json.loads((cell_dir / f"{bench}_latency_opt_trajectory.json").read_text())
+    accepts = [r for r in traj["rounds"] if r.get("decision") == "accept"]
+    assert [a["round"] for a in accepts] == [1, 2]
+    assert accepts[0]["kernel"] == f"{bench}_latency_opt_r1.cpp"
+    assert accepts[1]["kernel"] == f"{bench}_latency_opt_r2.cpp"
 
 
 def test_run_latency_opt_for_cell_rejects_over_budget_candidate(tmp_path, monkeypatch):

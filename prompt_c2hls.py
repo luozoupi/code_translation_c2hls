@@ -28,6 +28,16 @@ Pragma formatting (MANDATORY):
 
 Always provide complete code in a ```cpp code fence."""
 
+# Shared output contract for Multistep step and repair replies. DeepSeek-v4-flash
+# otherwise spends the token budget on analysis and leaves ```cpp unclosed.
+CLOSED_CPP_OUTPUT_CONTRACT = """
+OUTPUT CONTRACT (mandatory):
+- Follow the requested step or repair instructions only.
+- Do not explain, sketch, narrate, or write analysis.
+- Emit one complete compilable HLS kernel in a single ```cpp fence that is opened AND closed.
+- Include `#include "kernel.h"` and the full testbench-visible top function.
+- No `...` placeholders, no `void top(...)` sketches, and no truncated fragments."""
+
 # Zero-shot: short expert system instruction (no pragma list / fence coaching).
 Instruction_c2hls_zero_shot = """You are an expert in FPGA High-Level Synthesis (HLS) using Xilinx Vitis HLS. Your task is to add HLS pragmas and optimizations to plain C/C++ code to make it synthesizable and efficient on FPGAs.
 
@@ -193,6 +203,189 @@ Provide the complete functional HLS baseline code in a ```cpp code fence."""
 
 q_translate_c_to_hls_functional = _with_top_rules(q_translate_c_to_hls_functional)
 
+hls_flash_dsp_floor_fix = """HARD REJECT — DSP cutoff not met. Do not reuse this kernel.
+
+Cutoff: csynth DSP must be **>= {min_dsp}**. This is a hard reject, not a hint.
+Previous kernel was **not accepted** because DSP={dsp} (latency {latency_cycles} cycles).
+
+Why it was rejected:
+{reject_reason}
+
+Single-digit / low DSP almost always means a k-loop that updates one `C[i][j]` or
+`crow[j]` (II=4 float add recurrence, ~3–10 DSP). Unrolling that k-loop a little,
+or adding INTERFACE-only pragmas, will fail the cutoff again.
+
+What to emit instead:
+- Enough parallel MACs that Vitis counts DSP>={min_dsp} (for 64³ float that is a
+  PE×SIMD nest, e.g. 16×4 → ~320 DSP, not one accumulator).
+- Keep the exact `extern "C"` top name, parameter list, and legal INTERFACE lines.
+- Do not clone an AutoSA `kernel0` PE/IO netlist.
+
+Previous (rejected) code:
+```cpp
+{hls_code}
+```
+
+{attempt_history}Header:
+```cpp
+{header_code}
+```
+
+Before the fence, one sentence: (a) why DSP stayed at {dsp} and (b) the parallel
+structure you will emit so DSP>={min_dsp}. Then the complete kernel in ```cpp.
+"""
+
+
+hls_flash_dsp_ceiling_fix = """HARD REJECT — DSP above the device cap. Do not reuse this kernel.
+
+Cutoff: csynth DSP must be **<= {max_dsp}**. U280 has 9024 DSP. This is a hard
+reject, not a hint. Previous kernel was **not accepted** because DSP={dsp}
+(latency {latency_cycles} cycles).
+
+Why it was rejected:
+{reject_reason}
+
+DSP above the cap almost always means PE_BLK*K (or O*I*K*K for conv) was fully
+unrolled. Shrink the parallel set: K_TILE so PE_BLK*K_TILE*dsp_per_mac stays
+under {max_dsp}, or unroll a subset of output channels (e.g. 8 of 16 for the
+small CNN), or drop ROW_UF. Keep separate load_A / load_B and the kernel.h ABI.
+
+Previous (rejected) code:
+```cpp
+{hls_code}
+```
+
+{attempt_history}Header:
+```cpp
+{header_code}
+```
+
+Before the fence, one sentence: (a) why DSP={dsp} overshot {max_dsp} and (b)
+the tile / smaller unroll you will emit. Then the complete kernel in ```cpp.
+"""
+
+
+hls_flash_dsp_redo_floor_fix = """HARD REJECT — DSP leftover, not a filled datapath. Do not reuse this kernel.
+
+Cutoff: csynth DSP must be **>= {min_dsp}** and **<= {max_dsp}** (U280 = 9024).
+All of BRAM/FF/LUT/URAM must stay **strictly below 100%**. This is a hard reject.
+Previous kernel was **not accepted** because DSP={dsp} (latency {latency_cycles} cycles).
+
+Why it was rejected:
+{reject_reason}
+
+Single-digit / low DSP means a k-loop that updates one `C[i][j]` (II=4 float add,
+~3–10 DSP). Unrolling k a little is not enough. Do not stop at a 64-wide k MAC.
+
+What to emit instead:
+- Parallel MACs from unroll of k **and** spatial PE / i,j until DSP is filled
+  (near {max_dsp}) or another resource would exceed 100%.
+- Keep the exact `extern "C"` top name, parameter list, and legal INTERFACE lines.
+- Do not clone an AutoSA `kernel0` PE/IO netlist.
+
+Previous (rejected) code:
+```cpp
+{hls_code}
+```
+
+{attempt_history}Header:
+```cpp
+{header_code}
+```
+
+Before the fence, one sentence: (a) why DSP stayed at {dsp} and (b) the parallel
+structure you will emit so DSP is filled under 100% of every resource. Then the
+complete kernel in ```cpp.
+"""
+
+
+hls_flash_dsp_fill_fix = """HARD REJECT — DSP not filled while the device still has headroom.
+
+Cutoff: use the Alveo U280 DSP budget. Csynth DSP={dsp} (latency {latency_cycles})
+is below a filled datapath (target about {fill_pct}% of {max_dsp} DSP) and other
+resources are not near 100%. DSP=2000 or DSP=5000 is **not** done if LUT/FF/BRAM
+still have room. This is a hard reject, not a hint.
+
+Why it was rejected:
+{reject_reason}
+
+Add parallel MACs (unroll k **and** spatial PE / i,j). Stop adding only when DSP
+is near {max_dsp} or another resource would exceed 100%. Stay strictly below 100%
+of DSP/BRAM/FF/LUT/URAM. Keep the exact `extern "C"` top and kernel.h ABI.
+
+Previous (rejected) code:
+```cpp
+{hls_code}
+```
+
+{attempt_history}Header:
+```cpp
+{header_code}
+```
+
+Before the fence, one sentence: (a) why DSP stayed at {dsp} with headroom left
+and (b) how you will emit more parallel MACs. Then the complete kernel in ```cpp.
+"""
+
+
+hls_flash_resource_cap_fix = """HARD REJECT — a device resource is at or above 100%. Do not reuse this kernel.
+
+Cutoff: DSP, BRAM, FF, LUT, and URAM must all stay **strictly below 100%** of
+Alveo U280 (DSP cap {max_dsp}). Previous kernel was **not accepted**
+(DSP={dsp}, latency {latency_cycles} cycles).
+
+Why it was rejected:
+{reject_reason}
+
+Shrink the parallel set (smaller PE, K tile, or unroll) until every resource is
+under 100%, but keep as many DSPs as will still fit. Keep the exact `extern "C"`
+top and kernel.h ABI.
+
+Previous (rejected) code:
+```cpp
+{hls_code}
+```
+
+{attempt_history}Header:
+```cpp
+{header_code}
+```
+
+Before the fence, one sentence: (a) which resource hit 100% and (b) the smaller
+parallel structure you will emit. Then the complete kernel in ```cpp.
+"""
+
+
+hls_flash_fused_ab_fix = """HARD REJECT — fused A+B load. Do not reuse this kernel.
+
+Cutoff: on-chip flash must emit **two loops**, `load_A` then `load_B`.
+A single `load_A_B` / `load_AB` pipeline, or zipping `A_loc = A[...]` and
+`B_loc = B[...]` in the same loop body, is a hard reject.
+
+Why it was rejected:
+{reject_reason}
+
+Csynth can price lockstep II=1 as cheap; RTL stalls if either AXI is busy.
+HLS can overlap two independent load modules. Copy the champion shape:
+nested `i` / `j += LANES`, separate `load_A` then `load_B`, then compute,
+then store_C. Never fuse A+B into one trip.
+
+Previous (rejected) code:
+```cpp
+{hls_code}
+```
+
+{attempt_history}Header:
+```cpp
+{header_code}
+```
+
+Before the fence, one sentence: (a) where A and B were zipped and (b) the
+two-loop load_A / load_B structure you will emit. Then the complete kernel
+in ```cpp.
+"""
+
+
 # Fix HLS synthesis errors
 hls_synthesis_fix = """The HLS code failed synthesis with the following error:
 
@@ -228,10 +421,7 @@ Before returning, verify:
 - every identifier you reference is declared
 - every `#pragma HLS` appears inside a function body
 - the single testbench-visible top function name and `extern "C"` linkage still match the benchmark guidance
-
-Before writing the corrected code, in ONE sentence at the top of your reply name (a) the
-category of mistake your last attempt made and (b) the smallest specific change you'll make
-to fix it. Then provide the corrected code in a ```cpp code fence."""
+""" + CLOSED_CPP_OUTPUT_CONTRACT
 
 # Fix synthesis timeout — tells LLM to simplify
 hls_synthesis_timeout_fix = """The HLS code TIMED OUT during synthesis (exceeded {timeout}s).
@@ -305,11 +495,7 @@ optimization intent (do NOT revert the whole step) but restore byte-equivalent
 output to the testbench. If the optimization is fundamentally incompatible
 with the testbench's data shape, fall back to a minimal-pragma version of
 this step rather than producing wrong values.
-
-Before writing the corrected code, in ONE sentence at the top of your reply
-name (a) the specific defect category (loop bounds / indexing / ordering /
-buffering / burst-tail) and (b) the smallest specific change you'll make to
-fix it. Then provide the corrected code in a ```cpp code fence."""
+""" + CLOSED_CPP_OUTPUT_CONTRACT
 
 # Quality-aware post-synthesis repair. Reference/gold reports are deliberately
 # not exposed here; the controller keeps them offline for scoring.
@@ -359,16 +545,14 @@ Here is the current code:
 {hls_code}
 ```
 
-Before writing the corrected code, in ONE sentence at the top of your reply name (a) the
-category of mistake your last attempt made and (b) the smallest specific change you'll make
-to fix it. Then provide corrected code in a ```cpp code fence.
 Do NOT duplicate declarations from the header file; include the header and remove redundant structs/prototypes/macros from the source.
 Do NOT invent new undeclared buffers or helper arrays; either declare and initialize them properly or use the existing arrays/signatures from the input.
 Preserve the exact testbench-visible top function signature and `extern "C"` linkage expected by the benchmark/testbench.
 If the error is a function redefinition (same `void` name twice): keep exactly one full body
 per name. Never delete AutoSA module callees (`A_IO_L1_in`, `PE`, drain/IO modules, …) while
 leaving `*_wrapper` shells — the full module graph must remain callable from `kernel0`.
-Keep every `hls::stream<…>` local declaration that `kernel0` uses."""
+Keep every `hls::stream<…>` local declaration that `kernel0` uses.
+""" + CLOSED_CPP_OUTPUT_CONTRACT
 
 # Synthesis report comparison prompt
 synthesis_comparison = """Compare the synthesis reports of the generated HLS code vs the ground truth.
@@ -436,7 +620,8 @@ Rules:
 - Label every `for` loop with a descriptive C loop label before the `for`
   (e.g. `load_row: for (...) { ... }`) so synthesis reports name loops clearly.
 - Always provide complete code in a ```cpp code fence.
-- Do NOT add optimizations beyond the one requested."""
+- Do NOT add optimizations beyond the one requested.
+""" + CLOSED_CPP_OUTPUT_CONTRACT
 
 # Flash mode: single-shot rewrite; emphasize distinct m_axi bundles per port.
 Instruction_c2hls_flash = """You are an expert in FPGA High-Level Synthesis (HLS) using Xilinx Vitis HLS.
@@ -491,7 +676,8 @@ Current HLS code:
 {current_code}
 ```
 
-Provide the complete tiling-optimized code in a ```cpp code fence."""
+Provide the complete tiling-optimized code in a ```cpp code fence.
+""" + CLOSED_CPP_OUTPUT_CONTRACT
 
 q_optimize_pipeline = """Apply PIPELINE optimization to the following HLS code.
 
@@ -517,7 +703,8 @@ Current HLS code:
 {current_code}
 ```
 
-Provide the complete pipeline-optimized code in a ```cpp code fence."""
+Provide the complete pipeline-optimized code in a ```cpp code fence.
+""" + CLOSED_CPP_OUTPUT_CONTRACT
 
 q_optimize_unroll = """Apply UNROLL optimization to the following HLS code.
 
@@ -543,7 +730,8 @@ Current HLS code:
 {current_code}
 ```
 
-Provide the complete unroll-optimized code in a ```cpp code fence."""
+Provide the complete unroll-optimized code in a ```cpp code fence.
+""" + CLOSED_CPP_OUTPUT_CONTRACT
 
 q_optimize_doublebuffer = """Apply DOUBLE BUFFERING optimization to the following HLS code.
 
@@ -587,7 +775,8 @@ Current HLS code:
 {current_code}
 ```
 
-Provide the complete double-buffer-optimized code in a ```cpp code fence."""
+Provide the complete double-buffer-optimized code in a ```cpp code fence.
+""" + CLOSED_CPP_OUTPUT_CONTRACT
 
 q_optimize_coalescing = """Apply MEMORY COALESCING optimization to the following HLS code.
 
@@ -634,7 +823,8 @@ Current HLS code:
 {current_code}
 ```
 
-Provide the complete coalescing-optimized code in a ```cpp code fence."""
+Provide the complete coalescing-optimized code in a ```cpp code fence.
+""" + CLOSED_CPP_OUTPUT_CONTRACT
 
 # Generic "apply optimization X" prompt (for custom step names)
 q_optimize_generic = """Apply the following optimization to the HLS code: **{optimization_name}**
@@ -798,8 +988,10 @@ fits the kernel:
    baseline onto each new bundle line.
 2. Pipeline hot inner loops with `#pragma HLS pipeline II=1` only when
    memory ports and loop-carried dependencies can support it.
-3. Unroll small data-parallel loops with a bounded factor, usually 2, 4,
-   or 8, and match any local-buffer array partitioning to the unroll factor.
+3. Unroll small data-parallel loops with a bounded power-of-two factor,
+   usually 2, 4, 8, 16, 32, 64, or 128 if the trip count, memory ports,
+   and device budget allow it, and match any local-buffer array
+   partitioning to the unroll factor.
 4. Use local scalar or array staging for repeated accesses; partition only
    small hot buffers, not large global-size arrays.
 5. Add DATAFLOW/load-compute-store structure only when the added buffering
@@ -1062,4 +1254,90 @@ def build_skill_curation_user_prompt(
         "Pick the smallest high-impact set (typically 2–8 skills). Prefer high-confidence "
         "skills that match the active bottlenecks/warnings.",
     ])
+    return "\n".join(sections)
+
+
+def build_skill_selection_user_prompt(
+    *,
+    benchmark_name: str,
+    step_name: str,
+    synth_summary: str,
+    feedback_text: str,
+    diagnostic_text: str,
+    full_library_text: str,
+    code_excerpt: str,
+) -> str:
+    """Selector prompt for llm_select_then_code (full library, JSON ids only)."""
+    sections = [
+        "You are selecting optimization skills for a Vitis HLS flash rewrite.",
+        "Read the FULL skill library below (pattern/strategy/required steps/guards/template).",
+        "Also read the code, synthesis summary, bottlenecks, and diagnostics.",
+        "",
+        "RESPONSE RULES (mandatory):",
+        "- ALWAYS reply with non-empty content. An empty reply is a hard failure.",
+        "- Content MUST be faithful to this selection task only: choose library skill ids",
+        "  for this kernel/report. Do NOT invent skill ids, do NOT invent library entries,",
+        "  do NOT emit HLS/C++ source, do NOT refuse with prose, do NOT apologize.",
+        "- If unsure which skills apply, still return valid JSON and INCLUDE plausible",
+        "  library ids (prefer over-inclusion). Never return {} with empty lists unless",
+        "  the library itself is empty.",
+        "- Output ONLY valid JSON (no markdown fences, no commentary before/after).",
+        "- Prefer COMPACT JSON (minimal whitespace / short lines) so the reply is not",
+        "  truncated. Completing both id arrays matters more than pretty formatting.",
+        "",
+        "SELECTION POLICY (broad — do NOT pick a tiny high-impact subset):",
+        "- Prefer MORE skills over fewer. Sparse selection is wrong for this mode.",
+        "- Include EVERY library skill that could help optimize this kernel: reduce latency,",
+        "  raise effective compute throughput, or increase memory parallelism / bandwidth use",
+        "  (pipelining, II, unroll, partition/banking, coalescing/bursts, tiling, staging,",
+        "  double-buffering, load-compute-store structure, dependence fixes, etc.).",
+        "- If a skill has any plausible positive effect on latency, compute power, or memory",
+        "  parallelism for this code/report, INCLUDE its id. When unsure, INCLUDE it.",
+        "- Also select avoid-tier skills that warn against harmful patterns for this kernel.",
+        "- There is NO upper limit on how many skills or avoids you may select.",
+        "- Do NOT aim for 'smallest set' or '2–8 skills'. Aim for broad coverage of all",
+        "  relevant optimization families above.",
+        "",
+        "You may ONLY reference skills by exact `id` from the library. Do not invent skill ids.",
+        "own_knowledge is optional: short situational notes from your HLS knowledge.",
+        "Constraints for own_knowledge: short text only; no full kernels; no invented skill ids;",
+        "prefer implementing selected library skills first.",
+        "Empty own_knowledge ([]) is valid when library skills alone suffice.",
+        "",
+        f"Benchmark: {benchmark_name}",
+        f"Optimization step: {step_name}",
+        "",
+        "Baseline synthesis summary:",
+        synth_summary or "(none)",
+        "",
+        "Structured feedback:",
+        feedback_text or "(none)",
+        "",
+        "Diagnostics:",
+        diagnostic_text or "(none)",
+        "",
+        "FULL SKILL LIBRARY:",
+        full_library_text or "(empty library)",
+        "",
+        "Current HLS code:",
+        "```cpp",
+        (code_excerpt or "")[:20000],
+        "```",
+        "",
+        "Output ONLY valid compact JSON with this schema:",
+        "{",
+        '  "selected_skill_ids": ["skill-id", "..."],',
+        '  "avoid_skill_ids": ["avoid-skill-id", "..."],',
+        '  "own_knowledge": [',
+        "    {",
+        '      "title": "...",',
+        '      "problem": "...",',
+        '      "recommendation": "..."',
+        "    }",
+        "  ]",
+        "}",
+        "",
+        "Return a LONG selected_skill_ids list whenever many library entries apply.",
+        "Finish the JSON object completely (close all strings, arrays, and braces).",
+    ]
     return "\n".join(sections)

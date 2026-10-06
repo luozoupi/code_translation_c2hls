@@ -12,6 +12,7 @@ Up to four repair rounds per cell on validation failure.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -39,6 +40,7 @@ from post_flash_mem_parallel import (
 )
 
 DEFAULT_REPAIR_ROUNDS = 4
+DEFAULT_EMPTY_REPLY_RETRIES = 3
 STEP_TAG = "dataflow"
 DEFAULT_PROMPT_POLICY = "system_skills"
 PROMPT_POLICIES = ("system_skills", "user_skills")
@@ -343,8 +345,84 @@ def repair_round_limit() -> int:
         return DEFAULT_REPAIR_ROUNDS
 
 
+def empty_reply_retry_limit() -> int:
+    """Retries for a single LLM call that returned empty content (not outer round budget)."""
+    try:
+        return max(
+            1,
+            int(os.getenv("C2HLS_LLM_EMPTY_RETRIES", str(DEFAULT_EMPTY_REPLY_RETRIES))),
+        )
+    except ValueError:
+        return DEFAULT_EMPTY_REPLY_RETRIES
+
+
+def is_empty_llm_reply(text: Optional[str]) -> bool:
+    return not (text or "").strip()
+
+
+def call_llm_reject_empty(
+    orchestrator: Any,
+    messages: list,
+    *,
+    purpose: str = "llm",
+    max_tokens: Optional[int] = None,
+    retries: Optional[int] = None,
+    history: Optional[list] = None,
+) -> str:
+    """Call LLM; reject empty replies and retry.
+
+    Does **not** early-stop outer contract/repair loops — after exhausting
+    retries it returns the last (possibly empty) reply so the caller can
+    continue its existing round budget.
+    """
+    limit = empty_reply_retry_limit() if retries is None else max(1, int(retries))
+    last = ""
+    for attempt in range(limit):
+        kwargs: dict[str, Any] = {}
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
+        raw = orchestrator._call_llm(messages, **kwargs)
+        last = raw if isinstance(raw, str) else ("" if raw is None else str(raw))
+        if history is not None:
+            history.append({"role": "assistant", "content": last})
+        if not is_empty_llm_reply(last):
+            if attempt > 0:
+                logging.info(
+                    "[%s] non-empty LLM reply on retry %d/%d (len=%d)",
+                    purpose,
+                    attempt + 1,
+                    limit,
+                    len(last),
+                )
+            return last
+        logging.warning(
+            "[%s] rejected empty LLM reply attempt %d/%d (len=%d); retrying",
+            purpose,
+            attempt + 1,
+            limit,
+            len(last),
+        )
+    logging.error(
+        "[%s] empty LLM reply after %d attempts; continuing without early stop",
+        purpose,
+        limit,
+    )
+    return last
+
+
 def dataflow_noskills_enabled() -> bool:
     return os.getenv("C2HLS_DATAFLOW_NO_SKILLS", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def bare_opt_prompts_enabled() -> bool:
+    """Bare HLS-opt prompts experiment arm: skip DATAFLOW technique mandate /
+    pragma coaching entirely, even when packaged skills would otherwise apply.
+
+    Set via ``C2HLS_BARE_OPT_PROMPTS=1`` (or true/yes/on).
+    """
+    return os.getenv("C2HLS_BARE_OPT_PROMPTS", "").strip().lower() in {
         "1", "true", "yes", "on",
     }
 
@@ -387,6 +465,22 @@ def build_dataflow_skills_prompt_block(
     path: Optional[Path] = None,
 ) -> tuple[str, dict[str, Any]]:
     """Load flash skill entries and render them for the DATAFLOW system prompt."""
+    if bare_opt_prompts_enabled():
+        block = (
+            "## Bare mode (no packaged skills / no HLS technique list)\n\n"
+            "Refactor the kernel for the dataflow step while preserving the "
+            "public ABI, extern C top, and INTERFACE pragmas. Return complete "
+            "C++ in one fence.\n"
+        )
+        meta: dict[str, Any] = {
+            "skills_path": None,
+            "skill_count": 0,
+            "skill_ids": [],
+            "noskills": dataflow_noskills_enabled(),
+            "bare": True,
+        }
+        return block, meta
+
     if dataflow_noskills_enabled():
         block = (
             "## No packaged skills (RAG-only / noskills mode)\n\n"
@@ -980,14 +1074,22 @@ def run_dataflow_for_cell(
                 {"role": "system", "content": system},
                 {"role": "user", "content": fix_user},
             ]
-            fix_reply = orchestrator._call_llm(fix_messages)
-            history.extend([
-                {"role": "user", "content": fix_user},
-                {"role": "assistant", "content": fix_reply},
-            ])
+            history.append({"role": "user", "content": fix_user})
+            fix_reply = call_llm_reject_empty(
+                orchestrator,
+                fix_messages,
+                purpose="contract_fix",
+                history=history,
+            )
             extracted = extract_kernel_block(fix_reply)
             if extracted:
                 kernel_code = extracted
+            elif is_empty_llm_reply(fix_reply):
+                logging.warning(
+                    "[contract_fix] round %d got empty reply after retries; "
+                    "keeping prior kernel and continuing contract rounds",
+                    c_round,
+                )
 
     if not contract_passed and contract_attempts:
         last_error = contract_failure_message(last_contract_report) if last_contract_report else "DATAFLOW contract check failed"
@@ -1219,7 +1321,7 @@ def configure_post_flash_env() -> None:
         run_slug = Path(matrix).name
         if run_slug:
             os.environ["C2HLS_TMP_RUN"] = run_slug
-    if dataflow_noskills_enabled():
+    if dataflow_noskills_enabled() or bare_opt_prompts_enabled():
         os.environ.pop("C2HLS_DATAFLOW_SKILL_ENTRIES_JSON", None)
         os.environ.pop("C2HLS_FLASH_SKILL_ENTRIES_JSON", None)
         os.environ.pop("C2HLS_PACKAGED_SKILLS_JSON", None)

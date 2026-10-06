@@ -166,6 +166,22 @@ def _config_compile_jobs_tcl() -> str:
     return f"config_compile -jobs {jobs}\n"
 
 
+def csynth_pre_commands(*, allow_compile_jobs: bool = True, extra_commands: str = "") -> str:
+    """Tcl inserted immediately before ``csynth_design``.
+
+    Defaults match ``_config_compile_jobs_tcl()`` so existing synthesis TCL is
+    unchanged. DSE v3 harness passes ``allow_compile_jobs=False`` because this
+    Vitis errors on ``config_compile -jobs``.
+    """
+    parts: list[str] = []
+    if allow_compile_jobs:
+        parts.append(_config_compile_jobs_tcl())
+    extra = (extra_commands or "").strip()
+    if extra:
+        parts.append(extra + "\n")
+    return "".join(parts)
+
+
 def _cosim_design_tcl(*, trace_level: str | None = None) -> str:
     """Tcl cosim_design line, including -XsimJobs when jobs > 1."""
     cmd = "cosim_design"
@@ -600,6 +616,9 @@ def run_hls_synthesis(
     clock_ns: float = DEFAULT_CLOCK_NS,
     work_dir: str = None,
     extra_files=None,
+    *,
+    allow_compile_jobs: bool = True,
+    extra_csynth_tcl: str = "",
 ) -> dict:
     """
     Run Vitis HLS C-synthesis on the given code.
@@ -625,7 +644,7 @@ add_files {src_file}
     tcl_content += f"""open_solution "sol1" -flow_target {DEFAULT_FLOW_TARGET}
 set_part {{{part}}}
 create_clock -period {clock_ns} -name default
-{_config_compile_jobs_tcl()}csynth_design
+{csynth_pre_commands(allow_compile_jobs=allow_compile_jobs, extra_commands=extra_csynth_tcl)}csynth_design
 exit
 """
     with open(tcl_file, "w") as f:
@@ -859,6 +878,36 @@ def run_hls_synthesis_repeated(
 # =============================================================================
 
 
+# AutoSA benches count mismatches then printf this and, historically, return 0.
+# Vitis treats that exit as "CSim done with 0 errors". Match the bench text,
+# not a bare "Failed", so Vitis "Failed to ..." lines are left alone. The
+# source format string uses %d, so a dumped printf is not a reported mismatch.
+_CSIM_TB_MISMATCH_RE = re.compile(r"Failed with \d+ errors!")
+
+
+def csim_testbench_reported_mismatch(log: str) -> bool:
+    """True when the testbench printed ``Failed with <N> errors!``."""
+    return _CSIM_TB_MISMATCH_RE.search(log or "") is not None
+
+
+def csim_log_passed(log: str) -> bool:
+    """Functional csim pass from the Vitis log plus the bench result line.
+
+    ``CSim done with 0 errors`` and ``csim_design finished successfully`` mean
+    the testbench process exited 0. A ``Failed with <N> errors!`` line is a
+    failure even when those strings are present. ``Passed!`` with a clean
+    Vitis log and no mismatch line stays a pass. Benches that do not print
+    either line keep the Vitis success strings.
+    """
+    text = log or ""
+    if csim_testbench_reported_mismatch(text):
+        return False
+    return (
+        "CSim done with 0 errors" in text
+        or "csim_design finished successfully" in text.lower()
+    )
+
+
 def run_csim(
     hls_code: str,
     testbench_code: str,
@@ -926,7 +975,7 @@ exit
             "work_dir": work_dir,
         }
 
-    passed = "CSim done with 0 errors" in log or "csim_design finished successfully" in log.lower()
+    passed = csim_log_passed(log)
     log_lower = log.lower()
     has_error = (
         ("ERROR" in log and "0 errors" not in log_lower)

@@ -37,7 +37,13 @@ from prompt_c2hls import (
     Instruction_c2hls_flash,
     Instruction_c2hls_multistep,
     OPTIMIZATION_PROMPTS,
-    hls_synthesis_timeout_fix,
+            hls_synthesis_timeout_fix,
+            hls_flash_dsp_floor_fix,
+            hls_flash_dsp_ceiling_fix,
+            hls_flash_dsp_fill_fix,
+            hls_flash_dsp_redo_floor_fix,
+            hls_flash_resource_cap_fix,
+            hls_flash_fused_ab_fix,
 )
 from hls_eval import (
     DEFAULT_CLOCK_NS,
@@ -108,6 +114,8 @@ GLOBAL_SKILL_PROMPT_MODES = frozenset({
     "all_skills_avoids_global",
     "all_skills_no_avoids_global",
     "llm_curated",
+    "llm_select_then_code",
+    "msss",
 })
 
 CURATION_FOCUS_VALUES = frozenset({"bottleneck", "warnings", "combined"})
@@ -144,10 +152,168 @@ def _skip_phase_b_enabled() -> bool:
     }
 
 
+def _bare_opt_prompts_enabled() -> bool:
+    """Bare HLS-opt prompts experiment arm: skip packaged skills / technique
+    mandates and rely on a minimal ABI-preserving instruction.
+
+    Set via ``C2HLS_BARE_OPT_PROMPTS=1`` (or true/yes/on).
+    """
+    return os.getenv("C2HLS_BARE_OPT_PROMPTS", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
 def _flash_opt_prompt_zero_shot() -> bool:
+    if _bare_opt_prompts_enabled():
+        return True
     return os.getenv("C2HLS_FLASH_OPT_PROMPT_MODE", "").strip().lower() in {
         "zero_shot", "zero-shot", "0shot", "0_shot",
     }
+
+
+def _one_shot_enabled() -> bool:
+    return os.getenv("C2HLS_ONE_SHOT", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def flash_step_guidance_extra_blocks() -> list[str]:
+    """FLASH MODE extras: DSP floor/redo/cap, onchip pack, skill-bin, PE/row.
+
+    Empty when ``C2HLS_ONE_SHOT=1`` so one-shot uses only the zero-shot prompt.
+    """
+    if _one_shot_enabled():
+        return []
+    from autosa_flow_gates import (
+        flash_dsp_ceiling_initial_guidance,
+        flash_dsp_floor_initial_guidance,
+        flash_dsp_redo,
+        flash_dsp_redo_initial_guidance,
+        flash_gemm_family_initial_guidance,
+        flash_generic_hls_initial_guidance,
+        flash_k_tile,
+        flash_max_dsp,
+        flash_min_dsp,
+        flash_onchip,
+        flash_onchip_initial_guidance,
+        flash_onchip_tile,
+        flash_onchip_tile_initial_guidance,
+        flash_pe_blk,
+        flash_pe_blk_initial_guidance,
+        flash_row_uf,
+        flash_row_uf_initial_guidance,
+        flash_skill_bin,
+        flash_systolic_io_initial_guidance,
+        flash_tile_pp,
+        flash_tile_pp_initial_guidance,
+    )
+
+    extra_blocks: list[str] = []
+    min_dsp = flash_min_dsp()
+    max_dsp = flash_max_dsp()
+    if flash_dsp_redo():
+        extra_blocks.append(
+            flash_dsp_redo_initial_guidance(
+                min_dsp or 300,
+                max_dsp or 9024,
+            )
+        )
+    if min_dsp:
+        extra_blocks.append(flash_dsp_floor_initial_guidance(min_dsp))
+    if max_dsp:
+        extra_blocks.append(flash_dsp_ceiling_initial_guidance(max_dsp))
+    pe_blk = flash_pe_blk()
+    if pe_blk:
+        extra_blocks.append(flash_pe_blk_initial_guidance(pe_blk))
+    if flash_onchip():
+        extra_blocks.append(flash_onchip_initial_guidance())
+        if flash_onchip_tile():
+            extra_blocks.append(
+                flash_onchip_tile_initial_guidance(flash_k_tile())
+            )
+    else:
+        skill_bin = flash_skill_bin()
+        if skill_bin == "generic":
+            extra_blocks.append(flash_generic_hls_initial_guidance())
+        elif skill_bin == "gemm_family":
+            extra_blocks.append(flash_gemm_family_initial_guidance())
+        elif skill_bin == "systolic_io":
+            extra_blocks.append(flash_systolic_io_initial_guidance())
+        elif flash_tile_pp():
+            extra_blocks.append(flash_tile_pp_initial_guidance())
+    row_uf = flash_row_uf()
+    if row_uf:
+        extra_blocks.append(flash_row_uf_initial_guidance(row_uf))
+    return extra_blocks
+
+
+def flash_dsp_floor_reject_error(
+    step_name: str, report: Optional[dict[str, Any]]
+) -> Optional[str]:
+    """Hard DSP floor on the flash step only. None when the gate is off or met."""
+    if step_name != "flash":
+        return None
+    from autosa_flow_gates import flash_dsp_floor_error, flash_min_dsp
+
+    min_dsp = flash_min_dsp()
+    if min_dsp is None:
+        return None
+    return flash_dsp_floor_error(report, min_dsp=min_dsp)
+
+
+def flash_dsp_ceiling_reject_error(
+    step_name: str, report: Optional[dict[str, Any]]
+) -> Optional[str]:
+    """Hard DSP ceiling on the flash step only. None when the gate is off or met."""
+    if step_name != "flash":
+        return None
+    from autosa_flow_gates import flash_dsp_ceiling_error, flash_max_dsp
+
+    max_dsp = flash_max_dsp()
+    if max_dsp is None:
+        return None
+    return flash_dsp_ceiling_error(report, max_dsp=max_dsp)
+
+
+def flash_resource_cap_reject_error(
+    step_name: str, report: Optional[dict[str, Any]]
+) -> Optional[str]:
+    """Reject flash when any U280 resource is at or above 100%. Redo only."""
+    if step_name != "flash":
+        return None
+    from autosa_flow_gates import flash_dsp_redo, flash_resource_cap_error
+
+    if not flash_dsp_redo():
+        return None
+    return flash_resource_cap_error(report)
+
+
+def flash_dsp_fill_reject_error(
+    step_name: str, report: Optional[dict[str, Any]]
+) -> Optional[str]:
+    """Reject flash that compiles but leaves DSP headroom. Redo only."""
+    if step_name != "flash":
+        return None
+    from autosa_flow_gates import flash_dsp_fill_error, flash_dsp_redo
+
+    if not flash_dsp_redo():
+        return None
+    return flash_dsp_fill_error(report)
+
+
+def flash_fused_ab_reject_error(
+    step_name: str,
+    code: Optional[str],
+    report: Optional[dict[str, Any]] = None,
+) -> Optional[str]:
+    """Hard fused A+B reject on the flash step when the on-chip pack is on."""
+    if step_name != "flash":
+        return None
+    from autosa_flow_gates import flash_fused_ab_error, flash_onchip
+
+    if not flash_onchip():
+        return None
+    return flash_fused_ab_error(code, report)
 
 
 def _skill_prompt_mode() -> str:
@@ -456,24 +622,55 @@ def _normalize_srad_halo_copy_offsets(code: str) -> tuple[str, list[str]]:
     return patched, notes
 
 
+def looks_like_complete_hls_kernel(code: str) -> bool:
+    """True when a fence body looks like compilable C/C++, not a CoT sketch.
+
+    DeepSeek-v4-flash often closes unlabeled markdown fences around
+    pseudocode (`for i` / `for j`) before it ever emits the kernel.
+    Those must not be accepted as a finished rewrite.
+    """
+    text = (code or "").strip()
+    if not text:
+        return False
+    if re.search(
+        r"\b(?:void|int|float|double|char|auto|unsigned|static|inline|template|"
+        r"ap_int|ap_uint|hls::)\b",
+        text,
+    ) and re.search(r"\w+\s*\([^;]{0,800}\)", text):
+        return True
+    if re.search(r"^[A-Za-z_].*\w+\s*\([^;]*\)\s*\{", text, re.MULTILINE):
+        return True
+    return False
+
+
 def extract_cpp_code(text: str) -> Optional[str]:
-    """Extract C/C++ code from the last *complete* fenced block.
+    """Extract C/C++ code from the last *complete* fenced kernel.
 
     Incomplete / truncated fences (opening ```cpp without a closing ```) are
     rejected — callers must continue generation until the fence closes.
     Empty/whitespace-only bodies return None.
+    Prefer a labeled ```cpp / c++ / c / hls fence. Unlabeled fences are used
+    only when the body looks like a real kernel, so CoT sketches are ignored.
     """
     if not text:
         return None
-    fence_pattern = re.compile(
+    labeled_pat = re.compile(
+        r"```(?:cpp|c\+\+|c|hls)\s*(.*?)```",
+        re.DOTALL | re.IGNORECASE,
+    )
+    labeled = [m.strip() for m in labeled_pat.findall(text) if m.strip()]
+    for code in reversed(labeled):
+        if looks_like_complete_hls_kernel(code):
+            return code
+    unlabeled_pat = re.compile(
         r"```(?:cpp|c\+\+|c|hls)?\s*(.*?)```",
         re.DOTALL | re.IGNORECASE,
     )
-    matches = fence_pattern.findall(text)
-    if not matches:
-        return None
-    code = matches[-1].strip()
-    return code or None
+    unlabeled = [m.strip() for m in unlabeled_pat.findall(text) if m.strip()]
+    for code in reversed(unlabeled):
+        if looks_like_complete_hls_kernel(code):
+            return code
+    return None
 
 
 def cpp_fence_is_truncated(text: str) -> bool:
@@ -519,13 +716,36 @@ you stopped. Rules:
 - When the full kernel is finished, close with a ``` line on its own.
 """
 
+_CPP_FENCE_MISSING_PROMPT = """\
+Your previous reply used the token budget on reasoning and did not emit a
+complete, closed ```cpp kernel. Pseudocode sketches are not acceptable.
+
+Stop reasoning. Open a ```cpp fence now (if one is not already open) and emit
+the COMPLETE compilable HLS kernel, then close the fence with a ``` line.
+Do not restart a fence that is already open. Do not emit `for i` sketches.
+"""
+
+_CLOSED_CPP_RETRY_TRIES = 3
+_CLOSED_CPP_RETRY_PROMPT = """\
+Previous reply had no closed ```cpp kernel. Emit only the complete compilable
+kernel in one opened-and-closed ```cpp fence. No explanation.
+"""
+
+# DSE/stream already default to 65536. Flash at 16384 hit finish_reason=length
+# on DeepSeek-v4-flash CoT and produced no kernel for zero-shot / no-skills.
+_FLASH_MAX_COMPLETION_FLOOR = 65536
+
 
 def _flash_max_completion_tokens(default: int) -> int:
     raw = os.getenv("C2HLS_FLASH_MAX_TOKENS") or os.getenv("C2HLS_LLM_MAX_TOKENS")
     if raw and raw.strip().isdigit():
-        return max(int(raw.strip()), default)
-    # AutoSA-scale kernels often need >8k completion tokens per chunk.
-    return max(int(default or 8192), 16384)
+        requested = int(raw.strip())
+        # Frozen mmflow flash (20260830) used 16384. The 65536 floor is the
+        # unset default only — do not raise an explicit below-floor request.
+        if requested < _FLASH_MAX_COMPLETION_FLOOR:
+            return requested
+        return max(requested, default)
+    return max(int(default or 8192), _FLASH_MAX_COMPLETION_FLOOR)
 
 
 def _cpp_continuation_limit(baseline_chars: int, max_tokens: int) -> int:
@@ -535,7 +755,8 @@ def _cpp_continuation_limit(baseline_chars: int, max_tokens: int) -> int:
     need = (approx_tokens + per - 1) // per + 2
     env = os.getenv("C2HLS_CPP_CONTINUATIONS", "").strip()
     if env.isdigit():
-        return max(1, int(env))
+        # 0 = one shot (frozen mmflow flash). Default campaigns still pass 8.
+        return max(0, int(env))
     return min(max(need, 2), 16)
 
 
@@ -916,6 +1137,9 @@ def _run_synth_csim_cosim(
     cosim_requires_csim_pass: bool = False,
     log_prefix: str = "",
     temp_tag: str = "",
+    *,
+    allow_compile_jobs: bool = True,
+    extra_csynth_tcl: str = "",
 ) -> dict:
     """Synthesize HLS code, then optionally run csim and cosim.
 
@@ -937,6 +1161,8 @@ def _run_synth_csim_cosim(
             part=part,
             clock_ns=clock_ns,
             extra_files=extra_files,
+            allow_compile_jobs=allow_compile_jobs,
+            extra_csynth_tcl=extra_csynth_tcl,
         )
 
     csim_summary = None
@@ -1031,9 +1257,57 @@ def _load_openai_api_key() -> str:
     key = os.getenv("OPENAI_API_KEY", "").strip()
     if key:
         return key
+    # Common typo / local bashrc alias used on PC2.
+    key = os.getenv("OPEN_AI_API", "").strip()
+    if key:
+        return key
     if OPENAI_API_KEY_FILE.exists():
         return OPENAI_API_KEY_FILE.read_text().strip()
     return ""
+
+
+def _openai_reasoning_effort() -> str:
+    """Optional Chat Completions reasoning_effort (e.g. xhigh for gpt-5.6-luna)."""
+    return (os.getenv("C2HLS_REASONING_EFFORT") or "").strip()
+
+
+def _thinking_env_mode() -> str:
+    """Map C2HLS_THINKING to DeepSeek thinking.type, or '' to omit (API default)."""
+    raw = (os.getenv("C2HLS_THINKING") or "").strip().lower()
+    if raw in {"0", "off", "false", "no", "disabled", "none"}:
+        return "disabled"
+    if raw in {"1", "on", "true", "yes", "enabled"}:
+        return "enabled"
+    return ""
+
+
+def _openai_compat_extra_body(model_name: str) -> dict:
+    """Provider extras merged via OpenAI SDK extra_body.
+
+    Qwen on vLLM needs enable_thinking=false. Hosted DeepSeek-v4-flash thinks
+    by default; send thinking.type=disabled when C2HLS_THINKING=disabled.
+    """
+    extra: dict = {}
+    model = (model_name or "").lower()
+    if "qwen" in model:
+        extra["chat_template_kwargs"] = {"enable_thinking": False}
+    if "deepseek" in model:
+        mode = _thinking_env_mode()
+        if mode:
+            extra["thinking"] = {"type": mode}
+    return extra
+
+
+def _hosted_openai_base_url() -> str:
+    """Prefer login-node proxy (OPENAI_BASE_URL) when set; else hosted API URL.
+
+    PC2 compute nodes have no outbound internet, so batch campaigns inject a
+    login-node OpenAI-compat proxy via OPENAI_BASE_URL.
+    """
+    proxy = (os.getenv("OPENAI_BASE_URL") or "").strip()
+    if proxy:
+        return proxy.rstrip("/")
+    return OPENAI_HOSTED_BASE_URL.rstrip("/")
 
 
 def _llm_timeout_seconds(default: float = 600.0) -> float:
@@ -1048,6 +1322,18 @@ def _llm_timeout_seconds(default: float = 600.0) -> float:
         )
         return default
     return max(1.0, parsed)
+
+
+def _openai_max_retries() -> int:
+    """Do not SDK-retry through the login-node queue proxy.
+
+    The default of 2 retries keeps the first request queued and then adds
+    two more. Each one is billed even after the caller has timed out.
+    Campaign code already requeues a failed codegen job.
+    """
+    if (os.getenv("OPENAI_BASE_URL") or "").strip():
+        return 0
+    return 2
 
 
 def _notify_batch_llm_hook(event: str, **fields) -> None:
@@ -1068,6 +1354,30 @@ def _notify_batch_llm_hook(event: str, **fields) -> None:
 def _is_hosted_openai_model(model_name: str) -> bool:
     model = (model_name or "").lower()
     return model.startswith(("gpt-", "o1", "o3", "o4", "codex-"))
+
+
+def _is_xai_grok_model(model_name: str) -> bool:
+    return (model_name or "").lower().startswith("grok-")
+
+
+def _uses_openai_compat_reasoning(model_name: str) -> bool:
+    """Models that accept Chat Completions reasoning_effort + max_completion_tokens."""
+    return _is_hosted_openai_model(model_name) or _is_xai_grok_model(model_name)
+
+
+def _load_xai_api_key() -> str:
+    for name in ("XAI_API_KEY", "Grok_API", "GROK_API", "OPENAI_API_KEY", "OPEN_AI_API"):
+        key = os.getenv(name, "").strip()
+        if key and key.lower() != "empty":
+            return key
+    return _load_openai_api_key()
+
+
+def _xai_hosted_base_url() -> str:
+    proxy = (os.getenv("OPENAI_BASE_URL") or "").strip()
+    if proxy:
+        return proxy.rstrip("/")
+    return (os.getenv("C2HLS_XAI_HOSTED_URL") or "https://api.x.ai/v1").rstrip("/")
 
 
 def _extract_struct_names(header_code: str) -> List[str]:
@@ -3764,8 +4074,188 @@ class SkillCurationAgent(_AgentBase):
         )
         return block, record
 
+    def select_then_code_for_flash(self, step_name: str) -> tuple[str, dict]:
+        """Full-library LLM skill selection → coder prompt block (uncapped)."""
+        orch = self.orch
+        empty: dict = {"enabled": False, "step_name": step_name, "mode": "llm_select_then_code"}
+        if orch.skill_library is None:
+            return "", empty
+        if orch.synth_report is None:
+            return "", {**empty, "error": "no synth_report"}
+
+        from hls_feedback import render_diagnostic_for_prompt, render_feedback_for_prompt
+        from prompt_c2hls import build_skill_selection_user_prompt
+        from skill_library import (
+            TIER_AVOID,
+            build_select_then_code_prompt_block,
+            global_skills_for_prompt,
+            parse_skill_selection_response,
+            render_skill_set_for_prompt_full,
+            resolve_skill_selection,
+            salvage_skill_selection_from_truncated_reply,
+        )
+
+        feedback = (orch.synth_report or {}).get("feedback") or {}
+        feedback_text = render_feedback_for_prompt(feedback)
+        diagnostic_text = render_diagnostic_for_prompt(feedback)
+        library_skills = global_skills_for_prompt(
+            orch.skill_library,
+            include_avoids=True,
+            vitis_version=orch.vitis_version,
+            fpga=orch.part,
+        )
+        full_library_text = render_skill_set_for_prompt_full(library_skills)
+        synth_summary = (
+            format_report_summary(orch.synth_report)
+            if orch.synth_report else "(no report)"
+        )
+        user_prompt = build_skill_selection_user_prompt(
+            benchmark_name=orch.benchmark_name or "unknown",
+            step_name=step_name,
+            synth_summary=synth_summary,
+            feedback_text=feedback_text,
+            diagnostic_text=diagnostic_text,
+            full_library_text=full_library_text,
+            code_excerpt=orch.hls_code or "",
+        )
+
+        raw_reply = ""
+        used_fallback = False
+        salvaged_from_truncation = False
+        parse_error = ""
+        resolved: dict = {}
+        parsed: dict = {}
+        try:
+            messages = [{"role": "user", "content": user_prompt}]
+            # Large library in; long selected_skill_ids list out.
+            raw_reply = self._call_llm(messages, max_tokens=8192)
+            if not (raw_reply or "").strip():
+                raise ValueError("selector returned empty content")
+            parsed = parse_skill_selection_response(raw_reply)
+            if not parsed.get("selected_skill_ids") and not parsed.get("avoid_skill_ids"):
+                salvaged = salvage_skill_selection_from_truncated_reply(raw_reply)
+                if salvaged.get("selected_skill_ids") or salvaged.get("avoid_skill_ids"):
+                    parsed = salvaged
+                    salvaged_from_truncation = True
+                    logging.warning(
+                        "Skill select-then-code: salvaged %d selected + %d avoid ids "
+                        "from truncated/invalid JSON",
+                        len(parsed.get("selected_skill_ids") or []),
+                        len(parsed.get("avoid_skill_ids") or []),
+                    )
+            resolved = resolve_skill_selection(
+                parsed,
+                orch.skill_library,
+                include_avoids=True,
+            )
+            if not resolved.get("selected_skills") and not resolved.get("avoid_skills"):
+                raise ValueError("no valid skill ids after validation")
+        except Exception as exc:
+            parse_error = str(exc)
+            logging.warning(
+                "Skill select-then-code failed (%s); using aav_n full-library fallback",
+                exc,
+            )
+            used_fallback = True
+            # Same injection set as aav_n: all applicable skills + avoids.
+            fallback_skills = library_skills
+            resolved = {
+                "selected_skills": [
+                    sk for sk in fallback_skills if sk.confidence != TIER_AVOID
+                ],
+                "avoid_skills": [
+                    sk for sk in fallback_skills if sk.confidence == TIER_AVOID
+                ],
+                "own_knowledge": [],
+                "unknown_skill_ids": [],
+                "analysis": {},
+            }
+            if (raw_reply or "").strip():
+                parsed = parse_skill_selection_response(raw_reply)
+                if not parsed.get("selected_skill_ids") and not parsed.get("avoid_skill_ids"):
+                    salvaged = salvage_skill_selection_from_truncated_reply(raw_reply)
+                    if salvaged.get("selected_skill_ids") or salvaged.get("avoid_skill_ids"):
+                        parsed = salvaged
+                        salvaged_from_truncation = True
+            else:
+                parsed = parse_skill_selection_response("")
+
+        block = build_select_then_code_prompt_block(
+            selected_skills=resolved.get("selected_skills") or [],
+            avoid_skills=resolved.get("avoid_skills") or [],
+            own_knowledge=resolved.get("own_knowledge") or [],
+            step_name=step_name,
+            used_fallback=used_fallback,
+        )
+        record = {
+            "enabled": True,
+            "mode": "llm_select_then_code",
+            "step_name": step_name,
+            "used_fallback": used_fallback,
+            "fallback_mode": "aav_n_all_skills_avoids" if used_fallback else "",
+            "salvaged_from_truncation": salvaged_from_truncation,
+            "parse_error": parse_error,
+            "raw_reply": raw_reply,
+            "parsed": parsed,
+            "selected_skill_ids": [sk.id for sk in resolved.get("selected_skills") or []],
+            "avoid_skill_ids": [sk.id for sk in resolved.get("avoid_skills") or []],
+            "unknown_skill_ids": resolved.get("unknown_skill_ids") or [],
+            "own_knowledge": resolved.get("own_knowledge") or [],
+            "library_skill_count": len(library_skills),
+            "injected_block_chars": len(block),
+        }
+        turns = getattr(orch, "_skill_selection_turns", None)
+        if turns is None:
+            turns = []
+            orch._skill_selection_turns = turns
+        turns.append(record)
+        orch._skill_selection_record = record
+        orch._append_history(
+            "system",
+            f"[SkillSelectThenCode] selected={record['selected_skill_ids']} "
+            f"avoids={record['avoid_skill_ids']} fallback={used_fallback} "
+            f"salvaged={salvaged_from_truncation} "
+            f"parse_error={parse_error!r} unknown={record['unknown_skill_ids']}",
+        )
+        # Persist selector reply itself (not just resolved ids) for debugging.
+        orch._append_history(
+            "assistant",
+            "[SkillSelectThenCodeReply]\n" + (raw_reply or ""),
+        )
+        _persist_skill_selection_json(orch)
+        return block, record
 
 # =============================================================================
+
+def _persist_skill_selection_json(orch) -> None:
+    """Write ``skill_selection.json`` under the cell/output dir when known.
+
+    Pipelined flash runs selection on the codegen worker and finalize on a later
+    worker; writing eagerly ensures ``raw_reply`` survives even if state handoff
+    fails. Finalize also re-writes via ``save_multistep_results``.
+    """
+    out_dir = getattr(orch, "_artifact_output_dir", None)
+    if not out_dir:
+        return
+    turns = getattr(orch, "_skill_selection_turns", None) or []
+    if not turns:
+        return
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+        path = os.path.join(out_dir, "skill_selection.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "mode": "llm_select_then_code",
+                    "turns": turns,
+                    "latest": getattr(orch, "_skill_selection_record", None),
+                },
+                f,
+                indent=2,
+                default=str,
+            )
+    except Exception as exc:  # pragma: no cover
+        logging.warning("Failed to persist skill_selection.json: %s", exc)
 
 
 class C2HLSOrchestrator:
@@ -3792,8 +4282,16 @@ class C2HLSOrchestrator:
         self.idx = idx
         self.quality_repair_turns = quality_repair_turns
 
-        self.use_anthropic = gpt_model.lower().startswith("claude")
+        # Prefer OpenAI-compatible client when OPENAI_BASE_URL is set (PC2 login
+        # Anthropic/DeepSeek queue proxies). Compute nodes have no internet, so
+        # the Anthropic SDK must not dial api.anthropic.com directly.
+        _openai_base = (os.getenv("OPENAI_BASE_URL") or "").strip()
+        self.use_openai_base_proxy = bool(_openai_base)
+        self.use_anthropic = (
+            gpt_model.lower().startswith("claude") and not self.use_openai_base_proxy
+        )
         self.use_hosted_openai = _is_hosted_openai_model(gpt_model)
+        self.use_xai_grok = _is_xai_grok_model(gpt_model)
         if self.use_anthropic:
             assert HAS_ANTHROPIC, "anthropic package required for Claude models: pip install anthropic"
             api_key = _load_anthropic_api_key()
@@ -3806,14 +4304,19 @@ class C2HLSOrchestrator:
             if self.use_hosted_openai:
                 self.key = _load_openai_api_key()
                 assert self.key, f"Missing OpenAI API key. Set OPENAI_API_KEY or populate {OPENAI_API_KEY_FILE}."
-                self.base_url = OPENAI_HOSTED_BASE_URL
+                self.base_url = _hosted_openai_base_url()
+            elif self.use_xai_grok:
+                self.key = _load_xai_api_key()
+                assert self.key, "Missing xAI/Grok API key. Set Grok_API / XAI_API_KEY."
+                self.base_url = _xai_hosted_base_url()
             else:
-                self.key = os.getenv("OPENAI_API_KEY", "EMPTY")
+                self.key = os.getenv("OPENAI_API_KEY", "EMPTY") or os.getenv("OPEN_AI_API", "EMPTY")
                 self.base_url = os.getenv("OPENAI_BASE_URL", "http://127.0.0.1:8000/v1")
             self.client = OpenAI(
                 base_url=self.base_url,
                 api_key=self.key,
                 timeout=_llm_timeout_seconds(),
+                max_retries=_openai_max_retries(),
             )
 
         # Per-agent LLM cache. Populated lazily when an agent's model differs
@@ -3915,6 +4418,9 @@ class C2HLSOrchestrator:
         self.feedback = FeedbackAgent(self)
         self.skill_curation = SkillCurationAgent(self)
         self._skill_curation_record: Optional[dict] = None
+        self._skill_selection_record: Optional[dict] = None
+        self._skill_selection_turns: list = []
+        self._artifact_output_dir: Optional[str] = None
 
     def configure_benchmark(
         self,
@@ -3972,27 +4478,42 @@ class C2HLSOrchestrator:
         self._append_history("assistant", reply)
         assembled = reply or ""
 
-        for cont_i in range(max_continuations):
-            if not cpp_fence_is_truncated(assembled):
-                code = extract_cpp_code(assembled)
-                if code and cont_i:
+        for cont_i in range(max_continuations + 1):
+            truncated = cpp_fence_is_truncated(assembled)
+            code = extract_cpp_code(assembled)
+            usable = bool(code and looks_like_complete_hls_kernel(code))
+            if usable and not truncated:
+                if cont_i:
                     logging.info(
                         "Assembled complete cpp fence after %d continuation(s)",
                         cont_i,
                     )
                 return code
+            if cont_i >= max_continuations:
+                break
 
+            reason = "truncated fence" if truncated else "no complete kernel"
             logging.warning(
-                "Incomplete ```cpp fence (continuation %d/%d); requesting remainder",
+                "Incomplete HLS kernel (%s, continuation %d/%d); requesting remainder",
+                reason,
                 cont_i + 1,
                 max_continuations,
             )
-            messages.append({"role": "user", "content": _CPP_FENCE_CONTINUE_PROMPT})
-            self._append_history("user", _CPP_FENCE_CONTINUE_PROMPT)
+            prompt = (
+                _CPP_FENCE_CONTINUE_PROMPT
+                if truncated
+                else _CPP_FENCE_MISSING_PROMPT
+            )
+            messages.append({"role": "user", "content": prompt})
+            self._append_history("user", prompt)
             cont = self._call_llm(messages, max_tokens=max_tokens)
             messages.append({"role": "assistant", "content": cont})
             self._append_history("assistant", cont)
-            assembled = stitch_cpp_continuation(assembled, cont)
+            assembled = (
+                stitch_cpp_continuation(assembled, cont)
+                if truncated
+                else (assembled + "\n" + (cont or ""))
+            )
 
         if cpp_fence_is_truncated(assembled):
             logging.error(
@@ -4000,7 +4521,70 @@ class C2HLSOrchestrator:
                 max_continuations,
             )
             return None
-        return extract_cpp_code(assembled)
+        code = extract_cpp_code(assembled)
+        if code and looks_like_complete_hls_kernel(code):
+            return code
+        logging.error(
+            "No complete HLS kernel after %d continuation(s)",
+            max_continuations,
+        )
+        return None
+
+    def _call_llm_until_closed_cpp(
+        self,
+        messages: list,
+        *,
+        max_tokens: int = None,
+        baseline_chars: int = 0,
+        max_tries: int = None,
+    ) -> Optional[str]:
+        """Ask for a closed kernel up to ``max_tries`` times.
+
+        Each try uses ``_call_llm_for_complete_cpp`` (fence stitching) at the
+        flash token floor. A missing kernel is a new try, not another HLS
+        synth round.
+        """
+        if max_tokens is None:
+            max_tokens = _flash_max_completion_tokens(self.max_completion_tokens)
+        tries = max(1, int(max_tries or _CLOSED_CPP_RETRY_TRIES))
+        for try_i in range(tries):
+            code = self._call_llm_for_complete_cpp(
+                messages,
+                max_tokens=max_tokens,
+                baseline_chars=baseline_chars,
+            )
+            if code:
+                if try_i:
+                    logging.info(
+                        "Closed cpp kernel after %d extra emit try/tries",
+                        try_i,
+                    )
+                return code
+            if try_i + 1 >= tries:
+                break
+            logging.warning(
+                "No closed cpp kernel (emit try %d/%d); retrying",
+                try_i + 1,
+                tries,
+            )
+            messages.append({"role": "user", "content": _CLOSED_CPP_RETRY_PROMPT})
+            self._append_history("user", _CLOSED_CPP_RETRY_PROMPT)
+        logging.error("No closed cpp kernel after %d emit tries", tries)
+        return None
+
+    def _request_closed_cpp_repair(
+        self,
+        fix_prompt: str,
+        *,
+        baseline_code: str = "",
+    ) -> Optional[str]:
+        """Append a repair prompt and require a closed kernel."""
+        self.messages.append({"role": "user", "content": fix_prompt})
+        self._append_history("user", fix_prompt)
+        return self._call_llm_until_closed_cpp(
+            self.messages,
+            baseline_chars=len(baseline_code or ""),
+        )
 
     @staticmethod
     def _usage_value(obj, name: str, default: int = 0) -> int:
@@ -4015,20 +4599,51 @@ class C2HLSOrchestrator:
         except (TypeError, ValueError):
             return default
 
+    @staticmethod
+    def _normalize_llm_content(content) -> str:
+        """Coerce provider content to str; None/missing → empty string."""
+        if content is None:
+            return ""
+        return content if isinstance(content, str) else str(content)
+
+    @staticmethod
+    def _message_text(message) -> str:
+        """Prefer message.content; DeepSeek-v4-flash may put the kernel in reasoning_content."""
+        content = C2HLSOrchestrator._normalize_llm_content(
+            getattr(message, "content", None)
+        )
+        if content.strip():
+            return content
+        for attr in ("reasoning_content", "reasoning"):
+            alt = C2HLSOrchestrator._normalize_llm_content(getattr(message, attr, None))
+            if alt.strip():
+                return alt
+        return content
+
     def _record_llm_usage(self, *, provider: str, model: str, agent_name: str,
-                          usage, messages: list, max_tokens: int) -> None:
+                          usage, messages: list, max_tokens: int,
+                          finish_reason: str = None,
+                          content_len: int = 0,
+                          content_empty: bool = False) -> None:
         """Record provider-reported token usage for bench-level accounting."""
+        meta = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "provider": provider,
+            "model": model,
+            "agent": agent_name or "unknown",
+            "message_count": len(messages or []),
+            "max_tokens": max_tokens,
+            "finish_reason": finish_reason,
+            "content_len": int(content_len or 0),
+            "content_empty": bool(content_empty),
+        }
         if usage is None:
-            event = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "provider": provider,
-                "model": model,
-                "agent": agent_name or "unknown",
-                "message_count": len(messages or []),
-                "max_tokens": max_tokens,
-                "usage_available": False,
-            }
+            event = {**meta, "usage_available": False}
             self.llm_usage_events.append(event)
+            logging.info(
+                "LLM usage model=%s finish_reason=%s content_len=%d empty=%s usage=unavailable",
+                model, finish_reason, content_len or 0, bool(content_empty),
+            )
             return
 
         if provider == "anthropic":
@@ -4060,16 +4675,22 @@ class C2HLSOrchestrator:
             }
 
         event = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "provider": provider,
-            "model": model,
-            "agent": agent_name or "unknown",
-            "message_count": len(messages or []),
-            "max_tokens": max_tokens,
+            **meta,
             "usage_available": True,
             **normalized,
         }
         self.llm_usage_events.append(event)
+        logging.info(
+            "LLM usage model=%s finish_reason=%s content_len=%d empty=%s "
+            "in=%s out=%s total=%s",
+            model,
+            finish_reason,
+            content_len or 0,
+            bool(content_empty),
+            normalized.get("input_tokens"),
+            normalized.get("output_tokens"),
+            normalized.get("total_tokens"),
+        )
 
     def _llm_usage_summary(self) -> dict:
         fields = [
@@ -4126,7 +4747,8 @@ class C2HLSOrchestrator:
             return cached
 
         is_claude = model.lower().startswith("claude")
-        if is_claude:
+        openai_base = (os.getenv("OPENAI_BASE_URL") or "").strip()
+        if is_claude and not openai_base:
             assert HAS_ANTHROPIC, (
                 "anthropic package required for Claude models: pip install anthropic"
             )
@@ -4146,15 +4768,22 @@ class C2HLSOrchestrator:
                 assert api_key, (
                     f"Missing OpenAI API key for agent model {model!r}."
                 )
-                base_url = OPENAI_HOSTED_BASE_URL
+                base_url = _hosted_openai_base_url()
+            elif _is_xai_grok_model(model):
+                api_key = _load_xai_api_key()
+                assert api_key, (
+                    f"Missing xAI/Grok API key for agent model {model!r}."
+                )
+                base_url = _xai_hosted_base_url()
             else:
-                api_key = os.getenv("OPENAI_API_KEY", "EMPTY")
+                api_key = os.getenv("OPENAI_API_KEY", "EMPTY") or os.getenv("OPEN_AI_API", "EMPTY")
                 base_url = os.getenv("OPENAI_BASE_URL",
                                      "http://127.0.0.1:8000/v1")
             entry = ("openai", OpenAI(
                 base_url=base_url,
                 api_key=api_key,
                 timeout=_llm_timeout_seconds(),
+                max_retries=_openai_max_retries(),
             ))
         self._extra_clients[model] = entry
         return entry
@@ -4189,6 +4818,12 @@ class C2HLSOrchestrator:
                     system=system_text.strip() if system_text else "",
                     messages=conv_messages,
                 )
+                finish_reason = getattr(response, "stop_reason", None)
+                if getattr(response, "content", None):
+                    raw = response.content[0].text
+                else:
+                    raw = ""
+                content = self._normalize_llm_content(raw)
                 self._record_llm_usage(
                     provider="anthropic",
                     model=model,
@@ -4196,17 +4831,27 @@ class C2HLSOrchestrator:
                     usage=getattr(response, "usage", None),
                     messages=messages,
                     max_tokens=max_tokens,
+                    finish_reason=finish_reason,
+                    content_len=len(content),
+                    content_empty=not content.strip(),
                 )
-                return response.content[0].text
+                return content
 
             kwargs = {"model": model, "messages": messages}
-            if _is_hosted_openai_model(model):
+            if _uses_openai_compat_reasoning(model):
                 kwargs["max_completion_tokens"] = max_tokens
+                effort = _openai_reasoning_effort()
+                if effort:
+                    kwargs["reasoning_effort"] = effort
             else:
                 kwargs["max_tokens"] = max_tokens
-            if "qwen" in model.lower():
-                kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+            extra_body = _openai_compat_extra_body(model)
+            if extra_body:
+                kwargs["extra_body"] = extra_body
             response = client.chat.completions.create(**kwargs)
+            choice = response.choices[0]
+            finish_reason = getattr(choice, "finish_reason", None)
+            content = self._message_text(choice.message)
             self._record_llm_usage(
                 provider="openai",
                 model=model,
@@ -4214,8 +4859,11 @@ class C2HLSOrchestrator:
                 usage=getattr(response, "usage", None),
                 messages=messages,
                 max_tokens=max_tokens,
+                finish_reason=finish_reason,
+                content_len=len(content),
+                content_empty=not content.strip(),
             )
-            return response.choices[0].message.content
+            return content
         finally:
             _notify_batch_llm_hook("llm_exit", model=model, agent_name=agent_name)
 
@@ -4446,6 +5094,12 @@ class C2HLSOrchestrator:
             "_flow_phase_b_report": self._flow_phase_b_report,
             "_flow_skills_context": self._flow_skills_context,
             "_flow_step_skills_records": getattr(self, "_flow_step_skills_records", None) or [],
+            # Selection/curation must survive codegen→finalize worker handoff
+            # (otherwise skill_selection.json is never written at finalize).
+            "_skill_selection_turns": list(getattr(self, "_skill_selection_turns", None) or []),
+            "_skill_selection_record": getattr(self, "_skill_selection_record", None),
+            "_skill_curation_record": getattr(self, "_skill_curation_record", None),
+            "_artifact_output_dir": getattr(self, "_artifact_output_dir", None),
             "pipelined_ctx": extra,
         }
 
@@ -4469,10 +5123,26 @@ class C2HLSOrchestrator:
         self._flow_phase_b_report = state.get("_flow_phase_b_report")
         self._flow_skills_context = state.get("_flow_skills_context")
         self._flow_step_skills_records = list(state.get("_flow_step_skills_records") or [])
+        self._skill_selection_turns = list(state.get("_skill_selection_turns") or [])
+        self._skill_selection_record = state.get("_skill_selection_record")
+        self._skill_curation_record = state.get("_skill_curation_record")
+        if state.get("_artifact_output_dir"):
+            self._artifact_output_dir = state.get("_artifact_output_dir")
         self._pipelined_ctx = dict(state.get("pipelined_ctx") or {})
-
     def pipelined_phase_b_translate(self) -> dict:
         """Initial Phase B LLM translate (codegen worker)."""
+        if _skip_phase_b_enabled():
+            plain = (getattr(self, "c_code", "") or "").strip()
+            self.hls_code = plain
+            logging.info(
+                "[Phase B] Skipped (C2HLS_SKIP_PHASE_B); seeded from plain C (%d bytes)",
+                len(plain),
+            )
+            self._append_history(
+                "system",
+                "[Phase B] Skipped: zero-shot direct flash from plain.cpp.",
+            )
+            return {"ok": True}
         from_gold = os.getenv("C2HLS_PHASEB_FROM_GOLD", "").strip().lower() in {
             "1", "true", "yes", "on",
         }
@@ -4606,7 +5276,7 @@ class C2HLSOrchestrator:
 
         orch.messages.append({"role": "user", "content": fix_prompt})
         orch._append_history("user", fix_prompt)
-        fixed = orch._call_llm_for_complete_cpp(
+        fixed = orch._call_llm_until_closed_cpp(
             orch.messages,
             baseline_chars=len(orch.hls_code or ""),
         )
@@ -4773,6 +5443,14 @@ class C2HLSOrchestrator:
     def pipelined_flash_codegen(self, repair_ctx: dict | None = None) -> dict:
         """Flash-step LLM codegen (initial or repair)."""
         step_name = "flash"
+        if not repair_ctx:
+            from flash_enforcement import apply_flash_seed_to_orch, skip_flash_enabled
+
+            if skip_flash_enabled() and apply_flash_seed_to_orch(
+                self, getattr(self, "benchmark_name", "") or "",
+                getattr(self, "_artifact_output_dir", None),
+            ):
+                return {"ok": True, "code": self.hls_code, "seeded": True}
         if repair_ctx:
             return self._pipelined_flash_repair_codegen(step_name, repair_ctx)
 
@@ -4859,9 +5537,8 @@ class C2HLSOrchestrator:
 
         self.messages.append({"role": "user", "content": fix_prompt})
         self._append_history("user", fix_prompt)
-        fixed = self._call_llm_for_complete_cpp(
+        fixed = self._call_llm_until_closed_cpp(
             self.messages,
-            max_tokens=_flash_max_completion_tokens(self.max_completion_tokens),
             baseline_chars=len(new_code or ""),
         )
         if not fixed:
@@ -5129,11 +5806,7 @@ class C2HLSOrchestrator:
                 f"{err[:2000]}\n{(new_code or '')[:4000]}",
             )
 
-        self.messages.append({"role": "user", "content": fix_prompt})
-        reply = self._call_llm(self.messages)
-        self.messages.append({"role": "assistant", "content": reply})
-        self._append_history("assistant", reply)
-        fixed = extract_cpp_code(reply)
+        fixed = self._request_closed_cpp_repair(fix_prompt, baseline_code=new_code)
         if not fixed:
             return {"ok": False, "error": f"no code in {step_name} repair response"}
         ctx[pending_key] = fixed
@@ -5818,6 +6491,9 @@ class C2HLSOrchestrator:
             attempts.append(attempt)
 
         successes = [a for a in attempts if a.get("success") and a.get("report")]
+        from autosa_flow_gates import flash_dsp_redo, select_flash_dsp_redo_winner
+
+        redo_flash = flash_dsp_redo() and step_name == "flash"
         candidate_search = {
             "candidate_count": count,
             "attempts_per_candidate": attempt_count,
@@ -5845,7 +6521,31 @@ class C2HLSOrchestrator:
             chosen["candidate_search"] = candidate_search
             return chosen
 
-        chosen = min(successes, key=lambda a: self._best_so_far_score(a.get("report") or {}))
+        if redo_flash:
+            chosen = select_flash_dsp_redo_winner(
+                successes, part=getattr(self, "part", None)
+            )
+            if chosen is None:
+                chosen = attempts[-1] if attempts else {
+                    "success": False,
+                    "step_name": step_name,
+                    "error": "no filled DSP candidates",
+                }
+                chosen["success"] = False
+                chosen["error"] = (
+                    "FLASH DSP REDO: no candidate filled U280 DSP under 100% "
+                    "of every resource"
+                )
+                chosen["candidate_attempts"] = [
+                    _compact_attempt_record(a) for a in attempts
+                ]
+                chosen["candidate_search"] = candidate_search
+                return chosen
+        else:
+            chosen = min(
+                successes,
+                key=lambda a: self._best_so_far_score(a.get("report") or {}),
+            )
         chosen["candidate_selected"] = True
         chosen["selected_candidate_index"] = chosen.get("candidate_index")
         chosen["candidate_attempts"] = [
@@ -5916,6 +6616,8 @@ class C2HLSOrchestrator:
             requested_clock_ns=self.clock_ns,
         )
         extra_blocks = []
+        if step_name == "flash":
+            extra_blocks.extend(flash_step_guidance_extra_blocks())
         if candidate_count > 1:
             extra_blocks.append(
                 f"CANDIDATE SEARCH: this is candidate {candidate_index + 1} "
@@ -5956,6 +6658,7 @@ class C2HLSOrchestrator:
                 from skill_library import (
                     TIER_AVOID,
                     global_skills_for_prompt,
+                    msss_skills_for_step,
                     render_skill_set_for_prompt,
                 )
                 pos_limit, avoid_limit = _bottleneck_skill_limits()
@@ -5966,7 +6669,13 @@ class C2HLSOrchestrator:
                 curation_block = ""
                 skill_block = ""
 
-                if skill_mode == "all_skills_avoids_global":
+                if skill_mode == "msss":
+                    prompt_skills = msss_skills_for_step(step_name)
+                    skill_header = (
+                        "STEP-SPECIFIC SKILL LIBRARY — recipes and avoid rules "
+                        f"for the `{step_name}` Multistep step only:\n\n"
+                    )
+                elif skill_mode == "all_skills_avoids_global":
                     prompt_skills = global_skills_for_prompt(
                         self.skill_library,
                         include_avoids=True,
@@ -5994,6 +6703,13 @@ class C2HLSOrchestrator:
                     )
                 elif skill_mode == "llm_curated" and _skill_curation_enabled():
                     curation_block, _record = self.skill_curation.curate_for_flash(step_name)
+                    if curation_block:
+                        extra_blocks.append(curation_block)
+                    prompt_skills = []
+                elif skill_mode == "llm_select_then_code":
+                    curation_block, _sel_record = self.skill_curation.select_then_code_for_flash(
+                        step_name
+                    )
                     if curation_block:
                         extra_blocks.append(curation_block)
                     prompt_skills = []
@@ -6068,7 +6784,7 @@ class C2HLSOrchestrator:
 
         if additional_guidance:
             extra_blocks.append(additional_guidance)
-        if extra_blocks:
+        if extra_blocks and not (step_name == "flash" and _one_shot_enabled()):
             prompt = prompt + "\n\n" + "\n\n".join(extra_blocks)
 
         if step_name == "flash" and _scrape_enabled_for("flashopt"):
@@ -6092,14 +6808,8 @@ class C2HLSOrchestrator:
         self.messages = llm_messages(system=system_instruction, user=prompt)
 
         self._append_history("user", f"[Step: {step_name}] {prompt}")
-        max_tokens = (
-            _flash_max_completion_tokens(self.max_completion_tokens)
-            if step_name == "flash"
-            else self.max_completion_tokens
-        )
-        new_code = self._call_llm_for_complete_cpp(
+        new_code = self._call_llm_until_closed_cpp(
             self.messages,
-            max_tokens=max_tokens,
             baseline_chars=len(self.hls_code or ""),
         )
         if not new_code:
@@ -6188,11 +6898,52 @@ class C2HLSOrchestrator:
                             "repair",
                             f"{err[:2000]}\n{(new_code or '')[:4000]}",
                         )
-                    self.messages.append({"role": "user", "content": fix_prompt})
-                    reply = self._call_llm(self.messages)
-                    self.messages.append({"role": "assistant", "content": reply})
-                    self._append_history("assistant", reply)
-                    fixed = extract_cpp_code(reply)
+                    fixed = self._request_closed_cpp_repair(fix_prompt, baseline_code=new_code)
+                    if fixed:
+                        new_code = fixed
+                continue
+
+            fused_reject = flash_fused_ab_reject_error(step_name, new_code)
+            if fused_reject:
+                logging.warning(
+                    "[Step: %s] fused A+B reject on attempt %d: %s",
+                    step_name, turn, fused_reject[:300],
+                )
+                attempt_results.append({
+                    "attempt_index": turn,
+                    "candidate_index": candidate_index,
+                    "candidate_count": candidate_count,
+                    "success": False,
+                    "stage": "fused_ab",
+                    "error": fused_reject,
+                })
+                step_turn_records.append({
+                    "turn": turn, "phase": "B",
+                    "success": False, "error": fused_reject,
+                })
+                if not _skip_failure_repair(turn, attempt_limit):
+                    fix_prompt = hls_flash_fused_ab_fix.format(
+                        reject_reason=fused_reject,
+                        hls_code=new_code,
+                        header_code=self.header_code,
+                        attempt_history=_format_attempt_history(
+                            step_turn_records, "B",
+                        ),
+                    )
+                    if _scrape_enabled_for("repair"):
+                        scrape = _scrape_docs_for_repair(
+                            lambda msgs: self._call_llm(msgs, max_tokens=400),
+                            code=new_code or "",
+                            error=fused_reject,
+                        )
+                        fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                    else:
+                        fix_prompt = _rag_append(
+                            fix_prompt,
+                            "repair",
+                            f"{fused_reject[:2000]}\n{(new_code or '')[:4000]}",
+                        )
+                    fixed = self._request_closed_cpp_repair(fix_prompt, baseline_code=new_code)
                     if fixed:
                         new_code = fixed
                 continue
@@ -6201,6 +6952,288 @@ class C2HLSOrchestrator:
             result = outcome["synth"]
 
             if result["success"]:
+                dsp_reject = flash_dsp_floor_reject_error(step_name, result.get("report"))
+                if dsp_reject:
+                    logging.warning(
+                        "[Step: %s] DSP floor reject on attempt %d: %s",
+                        step_name, turn, dsp_reject[:300],
+                    )
+                    attempt_results.append({
+                        "attempt_index": turn,
+                        "candidate_index": candidate_index,
+                        "candidate_count": candidate_count,
+                        "success": False,
+                        "stage": "dsp_floor",
+                        "report": result.get("report"),
+                        "error": dsp_reject,
+                    })
+                    step_turn_records.append({
+                        "turn": turn, "phase": "B",
+                        "success": False, "error": dsp_reject,
+                    })
+                    if not _skip_failure_repair(turn, attempt_limit):
+                        from autosa_flow_gates import (
+                            flash_dsp_redo,
+                            flash_max_dsp,
+                            flash_min_dsp,
+                        )
+
+                        min_dsp = flash_min_dsp() or 0
+                        report = result.get("report") or {}
+                        history = _format_attempt_history(step_turn_records, "B")
+                        if flash_dsp_redo():
+                            fix_prompt = hls_flash_dsp_redo_floor_fix.format(
+                                min_dsp=min_dsp,
+                                max_dsp=flash_max_dsp() or 9024,
+                                dsp=report.get("dsp", "missing"),
+                                latency_cycles=report.get(
+                                    "latency_cycles", "unknown"
+                                ),
+                                reject_reason=dsp_reject,
+                                hls_code=new_code,
+                                header_code=self.header_code,
+                                attempt_history=history,
+                            )
+                        else:
+                            fix_prompt = hls_flash_dsp_floor_fix.format(
+                                min_dsp=min_dsp,
+                                dsp=report.get("dsp", "missing"),
+                                latency_cycles=report.get(
+                                    "latency_cycles", "unknown"
+                                ),
+                                reject_reason=dsp_reject,
+                                hls_code=new_code,
+                                header_code=self.header_code,
+                                attempt_history=history,
+                            )
+                        if _scrape_enabled_for("repair"):
+                            scrape = _scrape_docs_for_repair(
+                                lambda msgs: self._call_llm(msgs, max_tokens=400),
+                                code=new_code or "",
+                                error=dsp_reject,
+                            )
+                            fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                        else:
+                            fix_prompt = _rag_append(
+                                fix_prompt,
+                                "repair",
+                                f"{dsp_reject[:2000]}\n{(new_code or '')[:4000]}",
+                            )
+                        fixed = self._request_closed_cpp_repair(fix_prompt, baseline_code=new_code)
+                        if fixed:
+                            new_code = fixed
+                    continue
+
+                dsp_ceil = flash_dsp_ceiling_reject_error(step_name, result.get("report"))
+                if dsp_ceil:
+                    logging.warning(
+                        "[Step: %s] DSP ceiling reject on attempt %d: %s",
+                        step_name, turn, dsp_ceil[:300],
+                    )
+                    attempt_results.append({
+                        "attempt_index": turn,
+                        "candidate_index": candidate_index,
+                        "candidate_count": candidate_count,
+                        "success": False,
+                        "stage": "dsp_ceiling",
+                        "report": result.get("report"),
+                        "error": dsp_ceil,
+                    })
+                    step_turn_records.append({
+                        "turn": turn, "phase": "B",
+                        "success": False, "error": dsp_ceil,
+                    })
+                    if not _skip_failure_repair(turn, attempt_limit):
+                        from autosa_flow_gates import flash_max_dsp
+
+                        max_dsp = flash_max_dsp() or 9024
+                        report = result.get("report") or {}
+                        fix_prompt = hls_flash_dsp_ceiling_fix.format(
+                            max_dsp=max_dsp,
+                            dsp=report.get("dsp", "missing"),
+                            latency_cycles=report.get("latency_cycles", "unknown"),
+                            reject_reason=dsp_ceil,
+                            hls_code=new_code,
+                            header_code=self.header_code,
+                            attempt_history=_format_attempt_history(
+                                step_turn_records, "B",
+                            ),
+                        )
+                        if _scrape_enabled_for("repair"):
+                            scrape = _scrape_docs_for_repair(
+                                lambda msgs: self._call_llm(msgs, max_tokens=400),
+                                code=new_code or "",
+                                error=dsp_ceil,
+                            )
+                            fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                        else:
+                            fix_prompt = _rag_append(
+                                fix_prompt,
+                                "repair",
+                                f"{dsp_ceil[:2000]}\n{(new_code or '')[:4000]}",
+                            )
+                        fixed = self._request_closed_cpp_repair(fix_prompt, baseline_code=new_code)
+                        if fixed:
+                            new_code = fixed
+                    continue
+
+                cap_reject = flash_resource_cap_reject_error(
+                    step_name, result.get("report")
+                )
+                if cap_reject:
+                    logging.warning(
+                        "[Step: %s] resource cap reject on attempt %d: %s",
+                        step_name, turn, cap_reject[:300],
+                    )
+                    attempt_results.append({
+                        "attempt_index": turn,
+                        "candidate_index": candidate_index,
+                        "candidate_count": candidate_count,
+                        "success": False,
+                        "stage": "resource_cap",
+                        "report": result.get("report"),
+                        "error": cap_reject,
+                    })
+                    step_turn_records.append({
+                        "turn": turn, "phase": "B",
+                        "success": False, "error": cap_reject,
+                    })
+                    if not _skip_failure_repair(turn, attempt_limit):
+                        from autosa_flow_gates import flash_max_dsp
+
+                        report = result.get("report") or {}
+                        fix_prompt = hls_flash_resource_cap_fix.format(
+                            max_dsp=flash_max_dsp() or 9024,
+                            dsp=report.get("dsp", "missing"),
+                            latency_cycles=report.get("latency_cycles", "unknown"),
+                            reject_reason=cap_reject,
+                            hls_code=new_code,
+                            header_code=self.header_code,
+                            attempt_history=_format_attempt_history(
+                                step_turn_records, "B",
+                            ),
+                        )
+                        if _scrape_enabled_for("repair"):
+                            scrape = _scrape_docs_for_repair(
+                                lambda msgs: self._call_llm(msgs, max_tokens=400),
+                                code=new_code or "",
+                                error=cap_reject,
+                            )
+                            fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                        else:
+                            fix_prompt = _rag_append(
+                                fix_prompt,
+                                "repair",
+                                f"{cap_reject[:2000]}\n{(new_code or '')[:4000]}",
+                            )
+                        fixed = self._request_closed_cpp_repair(fix_prompt, baseline_code=new_code)
+                        if fixed:
+                            new_code = fixed
+                    continue
+
+                fill_reject = flash_dsp_fill_reject_error(
+                    step_name, result.get("report")
+                )
+                if fill_reject:
+                    logging.warning(
+                        "[Step: %s] DSP fill reject on attempt %d: %s",
+                        step_name, turn, fill_reject[:300],
+                    )
+                    attempt_results.append({
+                        "attempt_index": turn,
+                        "candidate_index": candidate_index,
+                        "candidate_count": candidate_count,
+                        "success": False,
+                        "stage": "dsp_fill",
+                        "report": result.get("report"),
+                        "error": fill_reject,
+                    })
+                    step_turn_records.append({
+                        "turn": turn, "phase": "B",
+                        "success": False, "error": fill_reject,
+                    })
+                    if not _skip_failure_repair(turn, attempt_limit):
+                        from autosa_flow_gates import flash_dsp_fill_pct, flash_max_dsp
+
+                        report = result.get("report") or {}
+                        fix_prompt = hls_flash_dsp_fill_fix.format(
+                            max_dsp=flash_max_dsp() or 9024,
+                            fill_pct=int(round(flash_dsp_fill_pct() * 100)),
+                            dsp=report.get("dsp", "missing"),
+                            latency_cycles=report.get("latency_cycles", "unknown"),
+                            reject_reason=fill_reject,
+                            hls_code=new_code,
+                            header_code=self.header_code,
+                            attempt_history=_format_attempt_history(
+                                step_turn_records, "B",
+                            ),
+                        )
+                        if _scrape_enabled_for("repair"):
+                            scrape = _scrape_docs_for_repair(
+                                lambda msgs: self._call_llm(msgs, max_tokens=400),
+                                code=new_code or "",
+                                error=fill_reject,
+                            )
+                            fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                        else:
+                            fix_prompt = _rag_append(
+                                fix_prompt,
+                                "repair",
+                                f"{fill_reject[:2000]}\n{(new_code or '')[:4000]}",
+                            )
+                        fixed = self._request_closed_cpp_repair(fix_prompt, baseline_code=new_code)
+                        if fixed:
+                            new_code = fixed
+                    continue
+
+                fused_reject = flash_fused_ab_reject_error(
+                    step_name, new_code, result.get("report"),
+                )
+                if fused_reject:
+                    logging.warning(
+                        "[Step: %s] fused A+B reject after csynth on attempt %d: %s",
+                        step_name, turn, fused_reject[:300],
+                    )
+                    attempt_results.append({
+                        "attempt_index": turn,
+                        "candidate_index": candidate_index,
+                        "candidate_count": candidate_count,
+                        "success": False,
+                        "stage": "fused_ab",
+                        "report": result.get("report"),
+                        "error": fused_reject,
+                    })
+                    step_turn_records.append({
+                        "turn": turn, "phase": "B",
+                        "success": False, "error": fused_reject,
+                    })
+                    if not _skip_failure_repair(turn, attempt_limit):
+                        fix_prompt = hls_flash_fused_ab_fix.format(
+                            reject_reason=fused_reject,
+                            hls_code=new_code,
+                            header_code=self.header_code,
+                            attempt_history=_format_attempt_history(
+                                step_turn_records, "B",
+                            ),
+                        )
+                        if _scrape_enabled_for("repair"):
+                            scrape = _scrape_docs_for_repair(
+                                lambda msgs: self._call_llm(msgs, max_tokens=400),
+                                code=new_code or "",
+                                error=fused_reject,
+                            )
+                            fix_prompt = _prepend_scrape(fix_prompt, scrape)
+                        else:
+                            fix_prompt = _rag_append(
+                                fix_prompt,
+                                "repair",
+                                f"{fused_reject[:2000]}\n{(new_code or '')[:4000]}",
+                            )
+                        fixed = self._request_closed_cpp_repair(fix_prompt, baseline_code=new_code)
+                        if fixed:
+                            new_code = fixed
+                    continue
+
                 logging.info("[Step: %s] Synthesis SUCCESS!\n%s",
                              step_name, format_report_summary(result["report"]))
 
@@ -6317,11 +7350,7 @@ class C2HLSOrchestrator:
                             "repair",
                             f"{gate_error[:2000]}\n{(new_code or '')[:4000]}",
                         )
-                    self.messages.append({"role": "user", "content": fix_prompt})
-                    reply = self._call_llm(self.messages)
-                    self.messages.append({"role": "assistant", "content": reply})
-                    self._append_history("assistant", reply)
-                    fixed = extract_cpp_code(reply)
+                    fixed = self._request_closed_cpp_repair(fix_prompt, baseline_code=new_code)
                     if fixed:
                         new_code = fixed
                     continue
@@ -6350,11 +7379,9 @@ class C2HLSOrchestrator:
                     result["report"],
                     new_code,
                 )
-                self.messages.append({"role": "user", "content": improve_prompt})
-                reply = self._call_llm(self.messages)
-                self.messages.append({"role": "assistant", "content": reply})
-                self._append_history("assistant", reply)
-                improved = extract_cpp_code(reply)
+                improved = self._request_closed_cpp_repair(
+                    improve_prompt, baseline_code=new_code,
+                )
                 if not improved:
                     attempt_results.append({
                         "attempt_index": turn + 1,
@@ -6423,19 +7450,27 @@ class C2HLSOrchestrator:
                         "repair",
                         f"{result['error'][:2000]}\n{(new_code or '')[:4000]}",
                     )
-                self.messages.append({"role": "user", "content": fix_prompt})
-                reply = self._call_llm(self.messages)
-                self.messages.append({"role": "assistant", "content": reply})
-                self._append_history("assistant", reply)
-                fixed = extract_cpp_code(reply)
+                fixed = self._request_closed_cpp_repair(fix_prompt, baseline_code=new_code)
                 if fixed:
                     new_code = fixed
 
         if exhaustive and successful_attempts:
-            chosen = min(
-                successful_attempts,
-                key=lambda a: self._best_so_far_score(a.get("report") or {}),
-            )
+            from autosa_flow_gates import flash_dsp_redo, select_flash_dsp_redo_winner
+
+            if flash_dsp_redo() and step_name == "flash":
+                chosen = select_flash_dsp_redo_winner(
+                    successful_attempts, part=getattr(self, "part", None)
+                )
+                if chosen is None:
+                    chosen = min(
+                        successful_attempts,
+                        key=lambda a: self._best_so_far_score(a.get("report") or {}),
+                    )
+            else:
+                chosen = min(
+                    successful_attempts,
+                    key=lambda a: self._best_so_far_score(a.get("report") or {}),
+                )
             chosen["attempt_selected"] = True
             chosen["selected_attempt_index"] = chosen.get("attempt_index")
             chosen["attempt_results"] = [
@@ -7062,6 +8097,12 @@ class C2HLSOrchestrator:
         # it and overwrite final_report / hls_code with that snapshot.
         promotion = self._promote_best_so_far(best_so_far_history)
 
+        enforcement = None
+        if self.strategy == "flash":
+            from flash_enforcement import attach_enforcement_after_flash
+
+            enforcement = attach_enforcement_after_flash(self)
+
         final_csim = self.generated_csim
         final_cosim = self.generated_cosim
         for step in reversed(step_results):
@@ -7116,6 +8157,7 @@ class C2HLSOrchestrator:
                 if self.phase_b_fast_candidate else None
             ),
             "llm_usage": self._llm_usage_summary(),
+            **({"enforcement": enforcement} if enforcement is not None else {}),
         }
 
     def _record_flow_step_skills(
@@ -7189,6 +8231,18 @@ class C2HLSOrchestrator:
                 results=results,
                 skills_context=self._flow_skills_context,
             )
+            if getattr(self, "_skill_selection_turns", None):
+                with open(os.path.join(output_dir, "skill_selection.json"), "w") as f:
+                    json.dump(
+                        {
+                            "mode": "llm_select_then_code",
+                            "turns": self._skill_selection_turns,
+                            "latest": getattr(self, "_skill_selection_record", None),
+                        },
+                        f,
+                        indent=2,
+                        default=str,
+                    )
             return
 
         step_artifacts = []
@@ -7239,12 +8293,26 @@ class C2HLSOrchestrator:
             step.pop("code", None)
         if getattr(self, "_skill_curation_record", None):
             results_save["skill_curation"] = self._skill_curation_record
+        if getattr(self, "_skill_selection_turns", None):
+            results_save["skill_selection_turns"] = self._skill_selection_turns
         with open(os.path.join(output_dir, f"{bench_name}_multistep_results.json"), "w") as f:
             json.dump(results_save, f, indent=2, default=str)
 
         if getattr(self, "_skill_curation_record", None):
             with open(os.path.join(output_dir, "skill_curation.json"), "w") as f:
                 json.dump(self._skill_curation_record, f, indent=2, default=str)
+        if getattr(self, "_skill_selection_turns", None):
+            with open(os.path.join(output_dir, "skill_selection.json"), "w") as f:
+                json.dump(
+                    {
+                        "mode": "llm_select_then_code",
+                        "turns": self._skill_selection_turns,
+                        "latest": getattr(self, "_skill_selection_record", None),
+                    },
+                    f,
+                    indent=2,
+                    default=str,
+                )
 
         history_payload = {
             "model": self.gpt_model,
@@ -7299,6 +8367,30 @@ class C2HLSOrchestrator:
             "preflight_patches": self.preflight_patches,
             "llm_usage": self._llm_usage_summary(),
         }
+
+
+def _csim_use_cosim_tb_enabled(meta: Optional[dict] = None) -> bool:
+    """Whether functional csim should use the gold-check (cosim) testbench.
+
+    Dump PolyBench TBs (`testbench.cpp`) only print and ``return 0``, so kernels
+    that forget to write back outputs (e.g. gramschmidt missing ``store_A``) still
+    "pass" csim. Cosim TBs (`testbench_cosim.cpp` + ``gold_kernel_for_cosim.cpp``)
+    compare candidate vs gold and are the real functional gate.
+
+    Env ``C2HLS_CSIM_USE_COSIM_TB``:
+      - 1/true/yes/on  → prefer cosim TB when present
+      - 0/false/no/off → force dump TB
+      - unset          → auto: use cosim TB when ``cosim_testbench_file`` exists
+    """
+    raw = os.getenv("C2HLS_CSIM_USE_COSIM_TB", "").strip().lower()
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if meta is None:
+        return True
+    cosim_tb = (meta.get("cosim_testbench_file") or "").strip()
+    return bool(cosim_tb)
 
 
 def _is_benchmarks_cosim_corpus(meta: dict) -> bool:
@@ -7413,12 +8505,31 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
                     upstream_header.read_text(), bench_dir,
                 )
 
-    testbench_code = ""
-    tb_file = meta.get("testbench_file") or ""
-    tb_path = bench_dir / tb_file if tb_file else None
-    if tb_path and tb_path.exists():
-        with open(tb_path, "r") as f:
-            testbench_code = f.read()
+    dump_tb_file = meta.get("testbench_file") or ""
+    dump_tb_path = bench_dir / dump_tb_file if dump_tb_file else None
+    dump_testbench_code = ""
+    if dump_tb_path and dump_tb_path.exists():
+        dump_testbench_code = dump_tb_path.read_text()
+
+    testbench_code = dump_testbench_code
+    testbench_mode = "dump"
+    tb_file = dump_tb_file
+    use_cosim_tb = _csim_use_cosim_tb_enabled(meta)
+    cosim_tb_file = (meta.get("cosim_testbench_file") or "").strip()
+    cosim_tb_path = bench_dir / cosim_tb_file if cosim_tb_file else None
+    if use_cosim_tb and cosim_tb_path and cosim_tb_path.is_file():
+        testbench_code = cosim_tb_path.read_text()
+        testbench_mode = "cosim_gold"
+        tb_file = cosim_tb_file
+        logging.info(
+            "[load] Using gold-check csim TB '%s' (set C2HLS_CSIM_USE_COSIM_TB=0 for dump TB)",
+            cosim_tb_file,
+        )
+    elif use_cosim_tb and cosim_tb_file:
+        logging.warning(
+            "[load] C2HLS_CSIM_USE_COSIM_TB requested but cosim TB missing (%s); using dump TB",
+            cosim_tb_file,
+        )
 
     extra_files = []
     extra_file_paths = set()
@@ -7427,6 +8538,39 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
         if file_path.exists():
             extra_files.append({"path": rel_path, "content": file_path.read_text()})
             extra_file_paths.add(rel_path)
+
+    # Gold-check csim needs the renamed gold kernel (+ its include source).
+    if testbench_mode == "cosim_gold":
+        for rel_path in meta.get("cosim_support_files") or []:
+            if not rel_path or rel_path in extra_file_paths:
+                continue
+            file_path = bench_dir / rel_path
+            if not file_path.is_file():
+                logging.warning(
+                    "[load] cosim_support_file missing for gold-check csim: %s", rel_path
+                )
+                continue
+            is_header = Path(rel_path).suffix.lower() in {".h", ".hpp", ".hh"}
+            extra_files.append(
+                {
+                    "path": rel_path,
+                    "content": file_path.read_text(encoding="utf-8", errors="ignore"),
+                    "tb": not is_header,
+                }
+            )
+            extra_file_paths.add(rel_path)
+        gold_src = meta.get("gold_hls_source_file") or "gold_hls_source.cpp"
+        if gold_src and gold_src not in extra_file_paths:
+            gold_src_path = bench_dir / gold_src
+            if gold_src_path.is_file():
+                extra_files.append(
+                    {
+                        "path": gold_src,
+                        "content": gold_src_path.read_text(),
+                        "tb": False,
+                    }
+                )
+                extra_file_paths.add(gold_src)
 
     support_dir = bench_dir / "support"
     if support_dir.exists():
@@ -7464,12 +8608,14 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
     # GT code is deliberately NOT passed here. _build_benchmark_context may
     # only look at plain C, the header, the testbench-visible signature, and
     # static policy hints — never the gold reference.
+    # Prefer dump TB for signature extraction so gold-check compare structure
+    # does not leak into LLM prompts; orch.testbench_code still uses gold TB.
     benchmark_context = _build_benchmark_context(
         meta,
         header_name,
         header_code,
         c_code,
-        testbench_code,
+        dump_testbench_code or testbench_code,
     )
 
     return {
@@ -7484,6 +8630,8 @@ def _load_benchmark_inputs(bench_dir: str) -> dict:
         "gt_variants": gt_variants,
         "gt_variant_headers": gt_variant_headers,
         "testbench_code": testbench_code,
+        "testbench_mode": testbench_mode,
+        "dump_testbench_code": dump_testbench_code,
         "extra_files": extra_files,
         "benchmark_context": benchmark_context,
     }
@@ -9141,6 +10289,59 @@ def _run_benchmark_multistep_body(
     if success:
         try:
             from c2hls_paths import BENCHMARKS_DIR
+            from post_flash_dse_v2 import dse_v2_enabled, maybe_chain_dse_v2
+            from post_flash_dse_v4 import dse_v4_enabled
+
+            if dse_v4_enabled():
+                pass
+            elif dse_v2_enabled():
+                maybe_chain_dse_v2(
+                    bench=bench_name,
+                    bench_dir=BENCHMARKS_DIR / bench_name,
+                    cell_dir=Path(output_dir),
+                    orchestrator=orchestrator,
+                    source_role="flash_final",
+                    skip_existing=True,
+                )
+        except Exception as exc:
+            logging.warning("[dse_v2] flash chain skipped for %s: %s", bench_name, exc)
+
+        try:
+            from c2hls_paths import BENCHMARKS_DIR
+            from post_flash_dse import maybe_chain_dse
+
+            maybe_chain_dse(
+                bench=bench_name,
+                bench_dir=BENCHMARKS_DIR / bench_name,
+                cell_dir=Path(output_dir),
+                orchestrator=orchestrator,
+                source_role="flash_final",
+                skip_existing=True,
+            )
+        except Exception as exc:
+            logging.warning("[dse] flash chain skipped for %s: %s", bench_name, exc)
+
+        try:
+            from c2hls_paths import BENCHMARKS_DIR
+            from post_flash_dse_v2 import dse_v2_enabled as _dse_v2_on
+            from post_flash_dse_v4 import dse_v4_enabled as _dse_v4_on
+            from post_flash_stream import maybe_chain_stream
+
+            # DSE 2.0 / v4 campaigns stop after their own sweep (no stream).
+            if not _dse_v2_on() and not _dse_v4_on():
+                maybe_chain_stream(
+                    bench=bench_name,
+                    bench_dir=BENCHMARKS_DIR / bench_name,
+                    cell_dir=Path(output_dir),
+                    orchestrator=orchestrator,
+                    source_role="flash_final",
+                    skip_existing=True,
+                )
+        except Exception as exc:
+            logging.warning("[stream] flash chain skipped for %s: %s", bench_name, exc)
+
+        try:
+            from c2hls_paths import BENCHMARKS_DIR
             from post_flash_pragma_opt import maybe_chain_pragma_opt
 
             maybe_chain_pragma_opt(
@@ -9229,6 +10430,9 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL_ID, help="LLM model ID")
     parser.add_argument("--turns", type=int, default=3, help="Max fix attempts per phase")
     parser.add_argument("--quality-repair-turns", type=int, default=DEFAULT_QUALITY_REPAIR_TURNS, help="Max post-synthesis quality repair attempts")
+    from flash_enforcement import add_enforcement_arguments
+
+    add_enforcement_arguments(parser)
     parser.add_argument("--all", action="store_true", help="Run all benchmarks")
     parser.add_argument("--multistep", action="store_true", help="Run multi-step incremental optimization instead of single-shot")
     parser.add_argument(
@@ -9358,6 +10562,9 @@ if __name__ == "__main__":
             parser.error("--scrape requires --scrape-corpus with existing files")
         if not args.scrape and not args.rag2:
             get_index(cfg)
+    from flash_enforcement import apply_enforcement_env
+
+    apply_enforcement_env(args)
     if args.strategy:
         os.environ["C2HLS_STRATEGY"] = args.strategy
     if args.no_gt_aware_revert:

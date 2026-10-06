@@ -53,6 +53,11 @@ _TIER_RANK = {TIER_HIGH: 0, TIER_MEDIUM: 1, TIER_LOW: 2, TIER_AVOID: 3}
 # load-compute-store gating and related avoid rules precede advanced recipes.
 _BASELINE_FIRST_SKILL_IDS: Tuple[str, ...] = (
     "hls-baseline-load-compute-store-gate",
+    "axi-burst-coalescing-narrow-safe",
+    "hls-doublebuffer-dataflow-stage-split",
+    "prompt-doublebuffer",
+    "hls-doublebuffer-load-compute-store",
+    "hls-tile-doublebuffer-load-compute",
     "hls-avoid-zero-pipeline-submit",
     "hls-avoid-reference-fallback-under-avoid-noise",
     "hls-multi-phase-local-pipeline",
@@ -394,6 +399,54 @@ def _baseline_first_order(skills: List[Skill]) -> List[Skill]:
     return ordered
 
 
+def _skill_prompt_order_ids() -> Optional[List[str]]:
+    """Optional pinned dump order from ``C2HLS_SKILL_PROMPT_ORDER_JSON``.
+
+    File is a JSON list of skill ids, or an object with ``ids`` / ``skill_ids``.
+    Used to replay a historical flash prompt (e.g. frozen 20260830_mmflow)
+    after later ``_BASELINE_FIRST_SKILL_IDS`` edits changed the default order.
+    """
+    raw = os.getenv("C2HLS_SKILL_PROMPT_ORDER_JSON", "").strip()
+    if not raw:
+        return None
+    path = Path(raw)
+    if not path.is_file():
+        logging.warning("C2HLS_SKILL_PROMPT_ORDER_JSON missing (%s); using default order", path)
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logging.warning("C2HLS_SKILL_PROMPT_ORDER_JSON load failed (%s); using default order", exc)
+        return None
+    if isinstance(data, list):
+        ids = data
+    elif isinstance(data, dict):
+        ids = data.get("ids") or data.get("skill_ids") or []
+    else:
+        return None
+    out = [str(item).strip() for item in ids if str(item).strip()]
+    return out or None
+
+
+def _apply_skill_prompt_order(skills: List[Skill]) -> List[Skill]:
+    """Pin dump order when ``C2HLS_SKILL_PROMPT_ORDER_JSON`` is set."""
+    ids = _skill_prompt_order_ids()
+    if not ids:
+        return _baseline_first_order(skills)
+    by_id = {sk.id: sk for sk in skills}
+    ordered: List[Skill] = []
+    seen: set[str] = set()
+    for sid in ids:
+        sk = by_id.get(sid)
+        if sk is not None and sid not in seen:
+            ordered.append(sk)
+            seen.add(sid)
+    for sk in skills:
+        if sk.id not in seen:
+            ordered.append(sk)
+    return ordered
+
+
 def global_skills_for_prompt(
     library: SkillLibrary,
     *,
@@ -406,7 +459,8 @@ def global_skills_for_prompt(
     Positive skills (non-avoid tiers) are listed first in library rank order;
     when *include_avoids* is true, all avoid-tier skills are appended.
     Baseline-gate skills (see ``_BASELINE_FIRST_SKILL_IDS``) are always moved
-    to the front so load-compute-store rules precede advanced optimizations.
+    to the front so load-compute-store rules precede advanced optimizations
+    unless ``C2HLS_SKILL_PROMPT_ORDER_JSON`` pins a historical dump order.
     """
     positive = library.query(
         vitis_version=vitis_version,
@@ -414,7 +468,7 @@ def global_skills_for_prompt(
         include_avoid=False,
     )
     if not include_avoids:
-        return _baseline_first_order(positive)
+        return _apply_skill_prompt_order(positive)
     avoids = [
         sk for sk in library.query(
             vitis_version=vitis_version,
@@ -429,7 +483,7 @@ def global_skills_for_prompt(
         if sk.id not in seen:
             out.append(sk)
             seen.add(sk.id)
-    return _baseline_first_order(out)
+    return _apply_skill_prompt_order(out)
 
 
 # === Bootstrap from existing OPTIMIZATION_PROMPTS =========================
@@ -526,9 +580,10 @@ def _default_high_confidence_skills() -> List[Skill]:
             ),
             strategy=(
                 "keep the top-level workload signature unchanged; add AXI "
-                "burst/outstanding pragmas, stage contiguous data into local "
-                "buffers, pipeline the local compute/store loops, and preserve "
-                "scalar tail handling"
+                "burst/outstanding pragmas and max_widen_bitwidth=512; rewrite "
+                "load/store so each II=1 iteration moves LANES=16 elements "
+                "(64x64 float must not cost 4096 cycles); stage into local "
+                "buffers; pipeline compute; preserve scalar tail handling"
             ),
             template=(
                 "#pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem "
@@ -704,6 +759,39 @@ def _default_avoid_skills() -> List[Skill]:
     ]
 
 
+MSSS_STEPS = ("tiling", "pipeline", "unroll", "doublebuffer", "coalescing")
+_MSSS_SKILLS_DIR = (
+    _REPO_ROOT / "hls_full_optimization_skills_schema_1_1_package" / "multistep"
+)
+
+
+def msss_skills_dir() -> Path:
+    override = os.getenv("C2HLS_MSSS_SKILLS_DIR", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return _MSSS_SKILLS_DIR
+
+
+def msss_skills_for_step(step_name: str) -> List[Skill]:
+    """Load the Multistep per-step skills + avoids files for ``step_name``.
+
+    The compact renderer is applied later by the prompt builder. This helper
+    does not fall back to the global packaged dump.
+    """
+    if step_name not in MSSS_STEPS:
+        return []
+    root = msss_skills_dir()
+    skills = _load_packaged_skills(root / f"{step_name}_skills.json")
+    avoids = _load_packaged_skills(root / f"{step_name}_avoids.json")
+    seen = {sk.id for sk in skills}
+    out = list(skills)
+    for sk in avoids:
+        if sk.id not in seen:
+            out.append(sk)
+            seen.add(sk.id)
+    return out
+
+
 def _load_packaged_skills(path: Optional[Path] = None) -> List[Skill]:
     if path is None:
         path = _packaged_skills_path()
@@ -810,12 +898,277 @@ def render_skill_for_prompt(sk: Skill) -> str:
     return "\n".join(bullets)
 
 
+def render_skill_for_prompt_full(sk: Skill) -> str:
+    """Full-fidelity skill render (no steps/guards/template truncation).
+
+    Authored ellipses inside skill JSON templates are preserved as-is; this
+    helper does not add a second cut on top of the stored strings.
+    """
+    bullets = [
+        f"[skill {sk.id}] confidence={sk.confidence} pass={sk.sec_pass}/{sk.occurrences}",
+        f"  pattern: {sk.pattern}",
+        f"  strategy: {sk.strategy}",
+    ]
+    if sk.kind:
+        bullets.insert(1, f"  kind: {sk.kind}")
+    if sk.required_steps:
+        bullets.append("  required steps:\n" + "\n".join(
+            f"    - {item}" for item in sk.required_steps
+        ))
+    if sk.guards:
+        bullets.append("  guards:\n" + "\n".join(
+            f"    - {item}" for item in sk.guards
+        ))
+    if sk.template:
+        template_lines = sk.template.strip().splitlines()
+        bullets.append("  template/example:\n" + "\n".join(
+            f"    {line}" for line in template_lines
+        ))
+    return "\n".join(bullets)
+
+
 def render_skill_set_for_prompt(skills: Iterable[Skill],
                                  max_skills: int = 5) -> str:
     skills_list = list(skills)[:max_skills]
     if not skills_list:
         return "No matching skills in library — fall back to your own reasoning."
     return "\n".join(render_skill_for_prompt(sk) for sk in skills_list)
+
+
+def render_skill_set_for_prompt_full(skills: Iterable[Skill]) -> str:
+    """Full-fidelity render of every skill (no max_skills cap)."""
+    skills_list = list(skills)
+    if not skills_list:
+        return "No matching skills in library — fall back to your own reasoning."
+    return "\n".join(render_skill_for_prompt_full(sk) for sk in skills_list)
+
+
+_OWN_KNOWLEDGE_FIELD_MAX = 500
+_OWN_KNOWLEDGE_FURTHER_NOTES_LABEL = (
+    "further notes: model HLS knowledge here, not library skills"
+)
+
+
+def _clamp_own_knowledge_text(value: Any, *, max_chars: int = _OWN_KNOWLEDGE_FIELD_MAX) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    # Drop fenced code blocks so own_knowledge cannot inject full kernels.
+    text = re.sub(r"```.*?```", "[code omitted]", text, flags=re.DOTALL)
+    if len(text) > max_chars:
+        text = text[: max_chars - 3].rstrip() + "..."
+    return text
+
+
+def parse_skill_selection_response(raw: str) -> dict:
+    """Parse llm_select_then_code selector JSON."""
+    parsed = _extract_json_object(raw) or {}
+    own_raw = parsed.get("own_knowledge")
+    if not isinstance(own_raw, list):
+        own_raw = []
+    own_knowledge: List[dict] = []
+    for item in own_raw:
+        if not isinstance(item, dict):
+            continue
+        recommendation = item.get("recommendation")
+        if recommendation is None:
+            recommendation = item.get("solution")
+        own_knowledge.append({
+            "title": _clamp_own_knowledge_text(item.get("title"), max_chars=120),
+            "problem": _clamp_own_knowledge_text(item.get("problem")),
+            "recommendation": _clamp_own_knowledge_text(recommendation),
+        })
+    return {
+        "selected_skill_ids": [
+            str(x) for x in (parsed.get("selected_skill_ids") or []) if x
+        ],
+        "avoid_skill_ids": [
+            str(x) for x in (parsed.get("avoid_skill_ids") or []) if x
+        ],
+        "own_knowledge": own_knowledge,
+        "analysis": parsed.get("analysis") if isinstance(parsed.get("analysis"), dict) else {},
+        "salvaged_from_truncation": False,
+    }
+
+
+_SKILL_ID_TOKEN_RE = re.compile(
+    r'"(?P<id>(?:hls-|avoid-|ii-|axi-|prompt-|local-|partition-)[^"]+)"'
+)
+
+
+def _repair_truncated_json_object(text: str) -> Optional[str]:
+    """Close a truncated JSON object after the last complete quoted string."""
+    start = text.find("{")
+    if start < 0:
+        return None
+    chunk = text[start:]
+    matches = list(re.finditer(r'"([^"\\]|\\.)*"', chunk))
+    if not matches:
+        return None
+    chunk = chunk[: matches[-1].end()]
+    chunk = re.sub(r",\s*$", "", chunk)
+    open_sq = chunk.count("[") - chunk.count("]")
+    open_br = chunk.count("{") - chunk.count("}")
+    if open_sq < 0 or open_br < 0:
+        return None
+    chunk += "]" * open_sq
+    chunk += "}" * open_br
+    return chunk
+
+
+def _regex_salvage_skill_id_lists(text: str) -> tuple[List[str], List[str]]:
+    """Pull skill-id-like strings from selected/avoid sections of truncated JSON."""
+    avoid_at = re.search(r'"avoid_skill_ids"\s*:', text)
+    sel_region = text[: avoid_at.start()] if avoid_at else text
+    av_region = text[avoid_at.start() :] if avoid_at else ""
+
+    def _ids_after(region: str, key: str) -> List[str]:
+        km = re.search(rf'"{re.escape(key)}"\s*:\s*\[', region)
+        if not km:
+            return []
+        body = region[km.end() :]
+        out: List[str] = []
+        seen = set()
+        for m in _SKILL_ID_TOKEN_RE.finditer(body):
+            sid = m.group("id")
+            if sid in seen:
+                continue
+            seen.add(sid)
+            out.append(sid)
+        return out
+
+    return (
+        _ids_after(sel_region, "selected_skill_ids"),
+        _ids_after(av_region, "avoid_skill_ids") if av_region else [],
+    )
+
+
+def salvage_skill_selection_from_truncated_reply(raw: str) -> dict:
+    """Recover selection ids when selector JSON is truncated or malformed.
+
+    Returns the same shape as ``parse_skill_selection_response``, with
+    ``salvaged_from_truncation=True`` when recovery produced ids.
+    """
+    empty = {
+        "selected_skill_ids": [],
+        "avoid_skill_ids": [],
+        "own_knowledge": [],
+        "analysis": {},
+        "salvaged_from_truncation": False,
+    }
+    text = (raw or "").strip()
+    if not text:
+        return empty
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text).strip()
+
+    repaired = _repair_truncated_json_object(text)
+    if repaired:
+        try:
+            obj = json.loads(repaired)
+        except json.JSONDecodeError:
+            obj = None
+        if isinstance(obj, dict):
+            parsed = parse_skill_selection_response(json.dumps(obj))
+            if parsed["selected_skill_ids"] or parsed["avoid_skill_ids"]:
+                parsed["salvaged_from_truncation"] = True
+                return parsed
+
+    sel_ids, av_ids = _regex_salvage_skill_id_lists(text)
+    if not sel_ids and not av_ids:
+        return empty
+    return {
+        "selected_skill_ids": sel_ids,
+        "avoid_skill_ids": av_ids,
+        "own_knowledge": [],
+        "analysis": {},
+        "salvaged_from_truncation": True,
+    }
+
+
+def resolve_skill_selection(
+    parsed: dict,
+    library: SkillLibrary,
+    *,
+    include_avoids: bool = True,
+) -> dict:
+    """Resolve selector ids against the library; drop unknowns (uncapped)."""
+    selected: List[Skill] = []
+    avoids: List[Skill] = []
+    unknown: List[str] = []
+    seen: set = set()
+    for sid in parsed.get("selected_skill_ids") or []:
+        sk = library.get(sid)
+        if sk is None:
+            unknown.append(sid)
+            continue
+        if sid in seen:
+            continue
+        selected.append(sk)
+        seen.add(sid)
+    if include_avoids:
+        for sid in parsed.get("avoid_skill_ids") or []:
+            sk = library.get(sid)
+            if sk is None:
+                unknown.append(sid)
+                continue
+            if sid in seen:
+                continue
+            avoids.append(sk)
+            seen.add(sid)
+    return {
+        "selected_skills": selected,
+        "avoid_skills": avoids,
+        "own_knowledge": list(parsed.get("own_knowledge") or []),
+        "unknown_skill_ids": unknown,
+        "analysis": parsed.get("analysis") or {},
+    }
+
+
+def build_select_then_code_prompt_block(
+    *,
+    selected_skills: Iterable[Skill],
+    avoid_skills: Iterable[Skill],
+    own_knowledge: Optional[List[dict]] = None,
+    step_name: str,
+    used_fallback: bool = False,
+) -> str:
+    """Coder-facing block: full selected skills + optional further notes."""
+    selected = list(selected_skills)
+    avoids = [sk for sk in avoid_skills if sk not in selected]
+    all_skills = selected + avoids
+    parts: List[str] = []
+    header = (
+        "LLM-SELECTED SKILL GUIDANCE"
+        + (
+            " (fallback: aav_n full library — all skills+avoids)"
+            if used_fallback
+            else ""
+        )
+        + f" for `{step_name}` step.\n"
+        "Prefer implementing the selected library skills first.\n\n"
+    )
+    if all_skills:
+        body = render_skill_set_for_prompt_full(all_skills)
+        if body and "No matching skills" not in body:
+            parts.append(header + body)
+    elif not (own_knowledge or []):
+        return ""
+
+    notes = list(own_knowledge or [])
+    if notes:
+        if not parts:
+            parts.append(header)
+        parts.append(_OWN_KNOWLEDGE_FURTHER_NOTES_LABEL)
+        for idx, item in enumerate(notes, 1):
+            title = (item.get("title") or f"Note {idx}").strip() or f"Note {idx}"
+            parts.append(f"\n### {title}")
+            if item.get("problem"):
+                parts.append(f"Problem: {item['problem']}")
+            if item.get("recommendation"):
+                parts.append(f"Recommendation: {item['recommendation']}")
+    return "\n".join(parts)
 
 
 def render_skill_catalog_for_curation(

@@ -1,0 +1,258 @@
+{
+  "schema": "1.1",
+  "description": "Distilled generic HLS flash pack. Kernel-independent. Not the 90-skill dump. No PE_BLK, no 64x64 GEMM ping-pong, not AutoSA.",
+  "skills": [
+    {
+      "id": "hls-generic-pipeline-hot-ii1",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "generic_hls_bin",
+      "pattern": "hot loop has no PIPELINE, or PIPELINE sits on a parent that still has a sequential child",
+      "strategy": "PIPELINE II=1 the true hot loop after inner independent loops are UNROLL. If Final II>1, fix addresses and recurrences first; do not leave II>1.",
+      "required_steps": [
+        "identify the loop that dominates latency",
+        "UNROLL independent inner loops, then PIPELINE the remaining trip",
+        "do not PIPELINE a nest that still has a non-unrolled child"
+      ],
+      "guards": [
+        "pragma-only PIPELINE on a carried FP add stays II=4",
+        "this pack does not set PE_BLK"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "non_pipelined_hot_loop",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "generic",
+        "flash",
+        "pipeline"
+      ]
+    },
+    {
+      "id": "hls-generic-unroll-match-partition",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "generic_hls_bin",
+      "pattern": "UNROLL without matching ARRAY_PARTITION, so ports serialize",
+      "strategy": "Partition local arrays to the parallel accesses. Never partition top m_axi ports. Do not complete-partition huge buffers.",
+      "required_steps": [
+        "ARRAY_PARTITION cyclic or complete only on locals that the UNROLL actually touches",
+        "if util explodes, drop complete and use cyclic factor equal to the unroll",
+        "never ARRAY_PARTITION the top INTERFACE arrays"
+      ],
+      "guards": [
+        "complete-partition of a large DRAM-sized array is illegal",
+        "this is not a 64x64 GEMM rule"
+      ],
+      "bottleneck_kinds": [
+        "port_conflict",
+        "ii_target_miss"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "generic",
+        "flash",
+        "array-partition"
+      ]
+    },
+    {
+      "id": "hls-generic-axi-512-separate-bundles",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "generic_hls_bin",
+      "pattern": "independent arrays share bundle=gmem, or load/store walks one element per cycle",
+      "strategy": "Distinct bundles per independent array. max_widen_bitwidth=512. LANES = 512 / element_bits. Burst 64, outstanding 16. Keep the header pointer types.",
+      "required_steps": [
+        "m_axi each independent array on its own bundle",
+        "load/store inner loop steps by LANES with UNROLL",
+        "do not change top pointer types to ap_uint<512>"
+      ],
+      "guards": [
+        "LANES is AXI packing, not a PE count",
+        "narrow ABI stays"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "global_memory_latency"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "generic",
+        "flash",
+        "axi"
+      ]
+    },
+    {
+      "id": "hls-generic-stage-when-fits-lcst",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "generic_hls_bin",
+      "pattern": "compute still reads m_axi on every trip even though the working set fits on-chip",
+      "strategy": "If the kernel working set fits, copy into locals, compute locally, store once. Compute never touches m_axi.",
+      "required_steps": [
+        "estimate bytes at compile-time sizes",
+        "if they fit, stage fully before compute",
+        "if they do not fit, tile; do not complete-partition the full DRAM arrays"
+      ],
+      "guards": [
+        "fits is a size check, not a 64x64 assumption",
+        "this pack is not a systolic PE array"
+      ],
+      "bottleneck_kinds": [
+        "global_memory_latency",
+        "repeated_global_access"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "generic",
+        "flash",
+        "lcst"
+      ]
+    },
+    {
+      "id": "hls-generic-no-rmw-m-axi",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "generic_hls_bin",
+      "pattern": "output += ... or other RMW directly on an m_axi array inside a pipelined loop",
+      "strategy": "Accumulate in a local, write DRAM once. Gold from zero means skip load of the output when the spec is write-only.",
+      "required_steps": [
+        "no m_axi read-modify-write in the hot loop",
+        "local acc then one store stream",
+        "keep the kernel.h top name and ranks"
+      ],
+      "guards": [
+        "DEPENDENCE inter false is not a substitute for removing RMW"
+      ],
+      "bottleneck_kinds": [
+        "array_read_modify_write",
+        "ii_target_miss"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "generic",
+        "flash",
+        "rmw"
+      ]
+    },
+    {
+      "id": "hls-generic-write-once-affine",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "generic_hls_bin",
+      "pattern": "linearized g with shifts/masks so HLS cannot prove write-once and holds Final II=4",
+      "strategy": "Nested affine indices. Assign the local output once. No old=local; local=old+dot.",
+      "required_steps": [
+        "use row and column loops, not a linearized g",
+        "write-once locals",
+        "PIPELINE II=1 only after addresses are affine"
+      ],
+      "guards": [
+        "II=4 with a handful of DSP is this bug"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "true_loop_carried_dep"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "generic",
+        "flash",
+        "write-once"
+      ]
+    },
+    {
+      "id": "avoid-generic-pragma-only",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "generic_hls_bin",
+      "pattern": "adding PIPELINE/UNROLL/ARRAY_PARTITION on the original nest with no staging or address rewrite",
+      "strategy": "Reject pragma-only. Rewrite the nest so II=1 is legal.",
+      "required_steps": [
+        "scan for PIPELINE on a loop that still does m_axi RMW \u2014 reject",
+        "require a real load/compute/store or tiled equivalent"
+      ],
+      "guards": [
+        "skills are not a checklist of pragmas"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "generic",
+        "flash"
+      ],
+      "template": "// BAD: PIPELINE on the original DRAM RMW nest\n// GOOD: stage locals, affine write-once, PIPELINE the proven-independent loop."
+    },
+    {
+      "id": "avoid-generic-dataflow-as-magic",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "generic_hls_bin",
+      "pattern": "pragma DATAFLOW on a single function body that is still load then compute then store of the same arrays",
+      "strategy": "DATAFLOW only when INLINE-off tasks have real producer/consumer streams or ping-pong declared inside the DATAFLOW loop. Otherwise LCST is correct.",
+      "required_steps": [
+        "do not emit DATAFLOW unless there are separate tasks",
+        "do not treat DATAFLOW as a latency hide by itself"
+      ],
+      "guards": [
+        "this pack is not the systolic I/O pack"
+      ],
+      "bottleneck_kinds": [
+        "dataflow"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "generic",
+        "flash",
+        "dataflow"
+      ],
+      "template": "// LCST without DATAFLOW is legal generic HLS.\n// DATAFLOW needs INLINE-off tasks + streams, not a pragma on one nest."
+    }
+  ]
+}

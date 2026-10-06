@@ -1,0 +1,419 @@
+{
+  "schema": "1.1",
+  "description": "Distilled 940-class on-chip GEMM pack. Load as C2HLS_PACKAGED_SKILLS_JSON with PACKAGED_SKILLS_ONLY=1. Not mixed into the 90-skill dump or frozen 20260830_mmflow. Fires only when A, B, C fit on-chip. Not AutoSA / not systolic. ABI is kernel.h, not a hardcoded autosa_mm-only top.",
+  "skills": [
+    {
+      "id": "hls-onchip-stage-when-fits",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "flash_pe16_940",
+      "pattern": "static-bound GEMM whose A, B, and C working set fits on-chip BRAM/URAM, but compute still reads m_axi or only stages a slice",
+      "strategy": "Copy all of A and B into local arrays, compute into C_local, store C once. Compute never touches m_axi. If the three matrices do not fit, refuse this pack and keep tiles.",
+      "required_steps": [
+        "estimate bytes of A, B, C at compile-time sizes",
+        "if they fit, allocate A_local, B_local, C_local and load A then B in separate loops before compute",
+        "do not load DRAM C when gold is C=A\u00b7B from zero",
+        "if they do not fit, do not complete-partition full matrices"
+      ],
+      "guards": [
+        "64x64x64 float fits on U280; 256^3 usually does not",
+        "this pack is not a systolic PE array"
+      ],
+      "bottleneck_kinds": [
+        "global_memory_latency",
+        "memory_bandwidth",
+        "repeated_global_access"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "onchip",
+        "flash",
+        "gemm",
+        "lcst"
+      ]
+    },
+    {
+      "id": "hls-onchip-axi-512-three-bundles",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "flash_pe16_940",
+      "pattern": "on-chip GEMM load/store still walks one float per cycle, or A/B/C share bundle=gmem",
+      "strategy": "Distinct gmem0/gmem1/gmem2. max_widen_bitwidth=512. LANES=16 for 32-bit. Burst 64, outstanding 16. Keep the narrow data_t* ABI.",
+      "required_steps": [
+        "m_axi A bundle=gmem0, B gmem1, C gmem2, each max_widen_bitwidth=512",
+        "TWO loops: load_A then load_B; never load_A_B / never zip A and B in one pipeline",
+        "load/store inner loop steps by LANES=16 with UNROLL",
+        "target load/store trip \u2248 (rows*cols)/16 (~256 for 64x64), not 4096"
+      ],
+      "guards": [
+        "LANES is AXI packing, not PE_BLK",
+        "do not change top pointer types to ap_uint<512>"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "global_memory_latency"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "onchip",
+        "flash",
+        "axi",
+        "coalescing"
+      ]
+    },
+    {
+      "id": "hls-onchip-write-once-affine-c",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "flash_pe16_940",
+      "pattern": "C_local RMW or linearized g with i=g>>k / jbase=(g&mask)<<k so HLS cannot prove write-once and holds Final II=4",
+      "strategy": "Nested affine i / j+=PE_BLK. Assign C_local[row][j0+p] = dot. No old=C_local; C_local=old+dot. No g>>k.",
+      "required_steps": [
+        "compute loop uses row and j0, not a linearized g",
+        "write C_local[row][j0+p] = dot once per output",
+        "skip load_C",
+        "PIPELINE II=1 only after addresses are affine and independent"
+      ],
+      "guards": [
+        "II=4 with DSP~636 is this bug, not missing PE_BLK",
+        "DEPENDENCE inter false is a last resort, not the fix"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "array_read_modify_write",
+        "true_loop_carried_dep"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "onchip",
+        "flash",
+        "write-once",
+        "ii"
+      ]
+    },
+    {
+      "id": "hls-onchip-flatten-c-output-groups",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "flash_pe16_940",
+      "pattern": "PIPELINE only on inner j under sequential i, or PE_BLK=8 so trip stays 512",
+      "strategy": "One II=1 pipeline over C output groups. Trip = I * (J / PE_BLK). PE_BLK is 16, 32, or 64 after II=1. Budget U280 9024 DSP.",
+      "required_steps": [
+        "for (tile = 0; tile < I * (J / PE_BLK); ++tile) PIPELINE II=1",
+        "row = tile / (J/PE_BLK); j0 = (tile % (J/PE_BLK)) * PE_BLK",
+        "UNROLL p = 0..PE_BLK-1 independent columns",
+        "do not use PE_BLK=8"
+      ],
+      "guards": [
+        "widening PE_BLK under II=4 does not help",
+        "PE_BLK is compute width, not AXI LANES"
+      ],
+      "bottleneck_kinds": [
+        "nested_loop",
+        "latency_high",
+        "non_pipelined_hot_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "onchip",
+        "flash",
+        "pe-blk",
+        "flatten"
+      ]
+    },
+    {
+      "id": "hls-onchip-full-k-unroll-adder-tree",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "flash_pe16_940",
+      "pattern": "K sequential or one float acc += a*b under a claimed II=1 C-output pipeline",
+      "strategy": "Fully UNROLL k into independent partial sums, then a tree. Do not fold k-slices into one `acc[p] += (a0*b0)+...+(a7*b7)` \u2014 that serial FP chain made autosa_mm_hcl_intel 1032/5120 instead of 938/5344.",
+      "required_steps": [
+        "for each PE column, acc0..acc7 over k+=8, UNROLL, then dot=tree(acc0..acc7)",
+        "write-once C_local[row][j0+p] = dot",
+        "if Final II >> 1 from one dadd, split more independent accs, do not deepen one acc"
+      ],
+      "guards": [
+        "full K unroll without a tree still II>>1",
+        "acc[p] += eight products in one statement is the 1032-class failure",
+        "DSP will be thousands; that is intended for this pack, but never above 9024"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "compute_bound",
+        "arithmetic_throughput_limited"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "onchip",
+        "flash",
+        "simd",
+        "adder-tree"
+      ]
+    },
+    {
+      "id": "hls-onchip-partition-match-unroll",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "flash_pe16_940",
+      "pattern": "unrolled K and PE_BLK without matching ARRAY_PARTITION, so ports serialize",
+      "strategy": "A_local complete on K. B_local complete (or enough rows for PE_BLK). C_local complete on J for the write group.",
+      "required_steps": [
+        "ARRAY_PARTITION variable=A_local complete dim=2",
+        "ARRAY_PARTITION variable=B_local complete dim=0 if budget allows",
+        "ARRAY_PARTITION variable=C_local complete dim=2",
+        "if util explodes, cyclic factor = PE_BLK / SIMD instead of complete on B"
+      ],
+      "guards": [
+        "complete 64x64 is a size guard, not a universal rule",
+        "never partition the top m_axi ports"
+      ],
+      "bottleneck_kinds": [
+        "port_conflict",
+        "ii_target_miss"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "onchip",
+        "flash",
+        "array-partition"
+      ]
+    },
+    {
+      "id": "avoid-onchip-dataflow-when-io-matches-compute",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_pe16_940",
+      "pattern": "DATAFLOW or tile ping-pong on a full-workspace on-chip GEMM whose compute is already \u2248 the 512-bit load window",
+      "strategy": "Reject ping-pong/DATAFLOW for this pack. LCST with overlapping A/B loads is enough. 940 = max(loadA,loadB)+compute+store. Manual 2-tile ping-pong was 1074.",
+      "required_steps": [
+        "do not emit #pragma HLS DATAFLOW",
+        "do not split the 256-trip compute to hide 260-cycle store",
+        "keep four sequential pipelines: load A, load B, compute, store C"
+      ],
+      "guards": [
+        "prompt item 5 ping-pong does not apply to this pack",
+        "not AutoSA L1/L2 or mm_pe FIFOs"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "latency_high"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "onchip",
+        "flash",
+        "dataflow"
+      ],
+      "template": "// GOOD for this pack (no DATAFLOW):\nload_A; load_B; compute_blocks II=1; store_C;\n// BAD: tile_loop DATAFLOW load(t+1)/compute(t)/store(t-1) on a 64^3 that already fits."
+    },
+    {
+      "id": "avoid-onchip-fused-ab-lockstep",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_pe16_940",
+      "pattern": "one load_A_B / load_AB loop that writes A_loc and B_loc together so csynth prices lockstep II=1 but RTL stalls on either AXI",
+      "strategy": "Two independent modules: load_A then load_B (nested i / j += LANES). HLS can overlap them. Do not fuse A+B into one trip. The 871/906 fused design is a failure mode, not a target.",
+      "required_steps": [
+        "separate load_A and load_B loops",
+        "never name a loop load_A_B or load_AB",
+        "never assign A_loc=A[...] and B_loc=B[...] in the same pipeline body"
+      ],
+      "guards": [
+        "distinct gmem0/gmem1 bundles are not enough if the loads share one loop",
+        "csynth of fused A+B can look cheaper than overlapping A/B; do not target that number"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "global_memory_latency",
+        "latency_high"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "onchip",
+        "flash",
+        "fused-ab"
+      ],
+      "template": "// GOOD: load_A_rows / load_A_cols; load_B_rows / load_B_cols; then compute.\n// BAD: load_A_B: for (word) { A_loc[...]=A[...]; B_loc[...]=B[...]; }"
+    },
+    {
+      "id": "avoid-onchip-kernel0-systolic",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_pe16_940",
+      "pattern": "on-chip flash rewrite that emits void kernel0, A_t16 host-serialize, L2/L1 FIFOs, or a 16x4 systolic mm_pe chain",
+      "strategy": "Keep this kernel's ABI from kernel.h (autosa_mm is the 64^3 float example). This pack is a one-shot on-chip GEMM, not AutoSA Design 1/4/5. Do not emit kernel0.",
+      "required_steps": [
+        "top remains the kernel.h extern C name and parameter list",
+        "zero kernel0 / A_IO_L2_in / mm_pe fifo_B chain",
+        "no K-tiles when A, B, C fit"
+      ],
+      "guards": [
+        "iso-compute 320 DSP systolic is a different pack",
+        "candidate 9 2D mesh is a different pack"
+      ],
+      "bottleneck_kinds": [
+        "dataflow"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "onchip",
+        "flash",
+        "autosa"
+      ],
+      "template": "// Keep kernel.h ABI, e.g. autosa_mm(A[I][K], B[J][K], C[I][J]). Do not emit kernel0."
+    },
+    {
+      "id": "avoid-onchip-dsp-over-u280",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_pe16_940",
+      "pattern": "csynth DSP above 9024 (small CNN fully unrolled O*I*K*K, or PE_BLK*K on a large GEMM)",
+      "strategy": "Hard cap 9024. Small CNN: unroll 8 of 16 output channels (~5760 DSP), not all 16 (~11520). Large GEMM: K_TILE so PE_BLK*K_TILE*dsp_per_mac is in [5000, 9024]. 11520/12288/10752 are illegal U280 points.",
+      "required_steps": [
+        "count parallel MACs * dsp_per_mac before emitting UNROLL",
+        "if the product would exceed 9024, tile K or unroll a subset of outputs",
+        "never complete-partition a reduction that already overshoots the device"
+      ],
+      "guards": [
+        "U280 has 9024 DSP; a csynth number above that cannot place",
+        "float ~5 DSP/MAC, uint16 ~1, uint32/int ~3"
+      ],
+      "bottleneck_kinds": [
+        "compute_bound",
+        "resource_overuse"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "onchip",
+        "flash",
+        "dsp-cap"
+      ],
+      "template": "// GOOD CNN: unroll oc+=8 of O=16 (~5760 DSP). BAD: unroll all O=16 (~11520).\n// GOOD large GEMM: K_TILE=128, PE_BLK=16 int ~6144 DSP. BAD: unroll K=256 complete (~12288)."
+    },
+    {
+      "id": "hls-onchip-row-uf-low-mac-dsp",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "flash_int16_1024",
+      "pattern": "uint16 / low-DSP-per-MAC GEMM with PE_BLK=16 and K=64 so csynth DSP stays ~1024, under 5000",
+      "strategy": "UNROLL ROW_UF output rows in the same II=1 beat. uint16: ROW_UF=8, PE_BLK=16, K=64 \u2192 ~8192 DSP. Trip=(I/ROW_UF)*(J/PE_BLK). Do not leave ROW_UF=1.",
+      "required_steps": [
+        "const int ROW_UF = 8 (or the prompt's ROW_UF)",
+        "for (tile = 0; tile < (I/ROW_UF)*(J/PE_BLK); ++tile) PIPELINE II=1",
+        "UNROLL r=0..ROW_UF-1 and p=0..PE_BLK-1 independent dots with full-K adder tree"
+      ],
+      "guards": [
+        "PE_BLK=16 times K=64 uint16 is only ~1024 DSP \u2014 that is the failure mode",
+        "ROW_UF * PE_BLK * K * 1 must stay <= 9024"
+      ],
+      "bottleneck_kinds": [
+        "compute_bound",
+        "latency_high"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "onchip",
+        "flash",
+        "row-uf",
+        "int16"
+      ],
+      "template": "const int ROW_UF = 8;\nconst int PE_BLK = 16;\ncompute_groups:\nfor (int tile = 0; tile < (I / ROW_UF) * (J / PE_BLK); ++tile) {\n#pragma HLS PIPELINE II=1\n  int r0 = (tile / (J / PE_BLK)) * ROW_UF;\n  int j0 = (tile % (J / PE_BLK)) * PE_BLK;\n  for (int r = 0; r < ROW_UF; ++r) {\n#pragma HLS UNROLL\n    for (int p = 0; p < PE_BLK; ++p) {\n#pragma HLS UNROLL\n      C_local[r0 + r][j0 + p] = adder_tree_dot(A_local[r0 + r], B_local[j0 + p]);\n    }\n  }\n}"
+    },
+    {
+      "id": "hls-onchip-tile-k-under-dsp-cap",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "flash_large_mm_12288",
+      "pattern": "K>64 or matrices that do not fit, but the kernel still complete-partitions A[I][K]/B[J][K] and unrolls all of K",
+      "strategy": "Local buffers cover one K_TILE (64 or 128) times PE_BLK, not the full GEMM. Walk k0 += K_TILE. Accumulate into C_acc. DSP = PE_BLK * K_TILE * dsp_per_mac in [5000, 9024]. Never complete-partition 1024\u00b3 arrays (that also empties the LLM: 'no code in translate response').",
+      "required_steps": [
+        "allocate A_tile[I_TILE][K_TILE], B_tile[PE_BLK][K_TILE], C_acc[I_TILE][PE_BLK] only",
+        "two loops: load_A_tile then load_B_tile, never fused",
+        "k0 += K_TILE; adder-tree over K_TILE; add into C_acc; store C tile after k done",
+        "ARRAY_PARTITION complete only the tile, not A[I][K]"
+      ],
+      "guards": [
+        "64\u00b3 float may keep full K; 208x512x256 int must tile K",
+        "do not emit DATAFLOW ping-pong on a 64\u00b3 that already fits"
+      ],
+      "bottleneck_kinds": [
+        "resource_overuse",
+        "compute_bound",
+        "memory_bandwidth"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "onchip",
+        "flash",
+        "tile",
+        "k-tile"
+      ],
+      "template": "const int K_TILE = 128;\nconst int PE_BLK = 16;\ndata_t A_tile[16][K_TILE];\ndata_t B_tile[PE_BLK][K_TILE];\n// GOOD: partition the tile. BAD: ARRAY_PARTITION complete A_loc[I][K] when K>=256."
+    }
+  ]
+}

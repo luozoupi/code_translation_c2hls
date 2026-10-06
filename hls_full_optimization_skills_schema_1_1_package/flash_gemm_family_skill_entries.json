@@ -1,0 +1,254 @@
+{
+  "schema": "1.1",
+  "description": "Distilled GEMM-family flash pack. B is JxK. Gold C from zero. Sizes come from kernel.h (I/J/K or I_P/J_P/K_P). Not the 90-skill dump, not PE_BLK-16-only, not 64x64 ping-pong, not AutoSA netlist clone.",
+  "skills": [
+    {
+      "id": "hls-gemm-b-is-j-by-k",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "gemm_family_bin",
+      "pattern": "GEMM rewrite that indexes B as B[k][j] or C += A[k][i]*B[k][j] when the header is B[J][K]",
+      "strategy": "Keep kernel.h ranks. A is I x K, B is J x K, C is I x J (catapult: I_P/J_P/K_P). MAC is A[i][k]*B[j][k].",
+      "required_steps": [
+        "index B[j][k] not B[k][j] unless the header says otherwise",
+        "do not transpose in place",
+        "keep the exact extern C top from kernel.h"
+      ],
+      "guards": [
+        "mm-family gold is C=A*B with B stored J x K"
+      ],
+      "bottleneck_kinds": [
+        "wrong_algorithm"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "gemm",
+        "flash",
+        "abi"
+      ]
+    },
+    {
+      "id": "hls-gemm-gold-from-zero",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "gemm_family_bin",
+      "pattern": "kernel loads DRAM C and accumulates into it, or leaves C uninitialized",
+      "strategy": "C is write-only. Init C_local to 0 or assign the full dot. Do not read host C.",
+      "required_steps": [
+        "skip load_C",
+        "C_local starts at 0 or is assigned the complete product",
+        "store C once"
+      ],
+      "guards": [
+        "testbench gold is from zero"
+      ],
+      "bottleneck_kinds": [
+        "wrong_algorithm"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "gemm",
+        "flash",
+        "gold"
+      ]
+    },
+    {
+      "id": "hls-gemm-stage-when-fits",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "gemm_family_bin",
+      "pattern": "64-class GEMM still computes from m_axi, or a large GEMM complete-partitions full A/B/C",
+      "strategy": "If A,B,C fit, stage all three. If not, tile K and/or J. Never complete-partition a 1024^3 workspace.",
+      "required_steps": [
+        "bytes = (I*K + J*K + I*J) * sizeof(data_t) using header macros",
+        "if they fit, A_local/B_local/C_local then LCST",
+        "if they do not, keep tiles on-chip only"
+      ],
+      "guards": [
+        "64x64x64 float fits; 1024^3 float usually does not"
+      ],
+      "bottleneck_kinds": [
+        "global_memory_latency",
+        "repeated_global_access"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "gemm",
+        "flash",
+        "lcst"
+      ]
+    },
+    {
+      "id": "hls-gemm-write-once-affine-c",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "gemm_family_bin",
+      "pattern": "C_local RMW or linearized g so Final II=4",
+      "strategy": "Nested i / j. Assign C_local[row][col] = dot. No old+dot. No g shifts.",
+      "required_steps": [
+        "affine i and j",
+        "write-once C_local",
+        "skip load_C"
+      ],
+      "guards": [
+        "II=4 with DSP around 636 is this bug, not missing PE width"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "array_read_modify_write"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "gemm",
+        "flash",
+        "write-once"
+      ]
+    },
+    {
+      "id": "hls-gemm-k-unroll-adder-tree",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "gemm_family_bin",
+      "pattern": "K sequential or one float acc += a*b under a claimed II=1 C pipeline",
+      "strategy": "UNROLL k into partial sums / adder tree. Not a serial FP accumulator.",
+      "required_steps": [
+        "UNROLL k (or k tiles of 8 then reduce)",
+        "dot = tree of products; write-once C_local",
+        "if Final II>>1 from one dadd, split more lanes"
+      ],
+      "guards": [
+        "full K unroll without a tree still II>>1"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "compute_bound"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "gemm",
+        "flash",
+        "simd"
+      ]
+    },
+    {
+      "id": "hls-gemm-three-axi-bundles",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "gemm_family_bin",
+      "pattern": "A/B/C share bundle=gmem or load/store is one float per cycle",
+      "strategy": "gmem0/gmem1/gmem2, max_widen_bitwidth=512, LANES=512/element_bits.",
+      "required_steps": [
+        "m_axi A bundle=gmem0, B gmem1, C gmem2",
+        "load/store step by LANES",
+        "keep narrow data_t ABI"
+      ],
+      "guards": [
+        "LANES is AXI packing"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "gemm",
+        "flash",
+        "axi"
+      ]
+    },
+    {
+      "id": "avoid-gemm-fused-ab-lockstep",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "gemm_family_bin",
+      "pattern": "one loop that issues A and B AXI in lockstep so csynth prices II=1 but RTL stalls on either port",
+      "strategy": "Load A and load B as separate pipelines that may overlap. Do not fuse A+B into one trip. The 871-cycle fused design is a failure mode.",
+      "required_steps": [
+        "separate load_A and load_B loops or tasks",
+        "do not put A[i][k] and B[j][k] reads in the same II=1 body as the only DRAM schedule"
+      ],
+      "guards": [
+        "csynth of fused A+B can look faster than RTL; do not target that number"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "dataflow"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "gemm",
+        "flash",
+        "fused-ab"
+      ],
+      "template": "// GOOD: load_A pipeline; load_B pipeline; then compute.\n// BAD: for (t) { a = A[...]; b = B[...]; } as the only DRAM schedule."
+    },
+    {
+      "id": "avoid-gemm-autosa-netlist-clone",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "gemm_family_bin",
+      "pattern": "rewrite emits a stripped AutoSA interconnect, A_t16 host-serialize, L2/L1 FIFOs, or a 16x4 mm_pe chain copied from rank-1",
+      "strategy": "Keep the kernel.h top. Reverse-engineering AutoSA then asking the model to emit it is not this bin. Systolic I/O is a different pack.",
+      "required_steps": [
+        "top remains the kernel.h name and parameter list",
+        "zero AutoSA interconnect names",
+        "no K-tiles unless the working set does not fit"
+      ],
+      "guards": [
+        "iso-compute 320 DSP systolic is the systolic I/O pack",
+        "spend-DSP on-chip is a different pack"
+      ],
+      "bottleneck_kinds": [
+        "dataflow"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "gemm",
+        "flash",
+        "autosa"
+      ],
+      "template": "// Keep autosa_mm_hcl(A[I][K], B[J][K], C[I][J]) or the kernel.h equivalent.\n// Do not emit an AutoSA host-serialize netlist."
+    }
+  ]
+}

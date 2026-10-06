@@ -1,0 +1,140 @@
+{
+  "schema": "1.1",
+  "description": "C2HLS_ENFORCEMENT overlay only. Wrap the accepted flash kernel with tile DATAFLOW. Do not replace flash 512-bit LANES=16 loads or the flash compute nest. Not mixed into the flash 90-skill dump. Not the post-flash DSE PE pack or the stream FIFO pack.",
+  "skills": [
+    {
+      "id": "hls-enforcement-keep-flash-wide-load",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_enforcement_keep_flash",
+      "pattern": "flash already loads/stores 64x64 float in ~256 cycles via LANES=16 (k0 += LANES, UNROLL u, max_widen_bitwidth=512). Enforcement rewrites those loops to scalar PIPELINE II=1 over j,k and load_B becomes ~4096.",
+      "strategy": "Copy the flash load/store bodies. Keep LANES=16. Keep max_widen_bitwidth=512. Keep the UNROLLed lane loop. For tiles, only shrink the outer trip (TI rows) — the inner walk is still k0 += LANES. A 64x64 scalar II=1 copy is a defect even if Vitis later reports 512-bit widening.",
+      "required_steps": [
+        "keep `const int LANES = 16` (or equivalent 512/element_bits)",
+        "keep inner index `k0 += LANES` / `j0 += LANES` with `#pragma HLS UNROLL` on the lane loop",
+        "keep distinct gmem0/gmem1/gmem2 and max_widen_bitwidth=512",
+        "if tiling A/C, copy the same LANES walk onto A_buf[TI][K] / C_buf[TI][J]",
+        "load_B once with the flash 512-bit body (~256 cycles), never a 64x64 scalar walk"
+      ],
+      "guards": [
+        "automatic m_axi widening does not shrink a C loop that still stores one float per cycle",
+        "csynth load_B ~4171 after flash load_B ~259 means this skill was ignored",
+        "do not emit memcpy_wide_bus_* or change top pointer types"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "underutilized_wide_memory",
+        "interval_exceeds_latency"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["enforcement", "lanes", "512-bit", "keep-flash"],
+      "template": "const int LANES = 16;\nload_b_rows: for (int j = 0; j < J; ++j) {\n  load_b_chunks: for (int k0 = 0; k0 < K; k0 += LANES) {\n#pragma HLS PIPELINE II=1\n    load_b_lanes: for (int u = 0; u < LANES; ++u) {\n#pragma HLS UNROLL\n      B_local[j][k0 + u] = B[j][k0 + u];\n    }\n  }\n}\n// Tile A the same way: outer i < TI, inner k0 += LANES. Never for (k=0;k<K;++k) B_local[j][k]=B[j][k];"
+    },
+    {
+      "id": "hls-enforcement-keep-flash-compute-nest",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "flash_enforcement_keep_flash",
+      "pattern": "flash compute is already iso-compute (~320 DSP): full-K adder tree (dot64) or PE×SIMD with affine write-once C. Enforcement replaces it with a weaker nest or keeps DSP but serializes K.",
+      "strategy": "Copy the flash compute function body into compute_tile. Only change the i range to the tile (TI or PE rows). Keep ARRAY_PARTITION, UNROLL K or SIMD, PIPELINE II=1 on the independent j loop, write-once C_buf. Do not invent a new MAC schedule.",
+      "required_steps": [
+        "paste flash compute (dot64 / PE nest) into compute_tile",
+        "keep the same UNROLL / ARRAY_PARTITION / write-once C assignment",
+        "csynth DSP must stay within 15% of flash DSP",
+        "do not pipeline a k-recurrence on one C[i][j]"
+      ],
+      "guards": [
+        "dropping DSP from ~318 to tens means the compute nest was deleted",
+        "this is not the stream mm_pe FIFO pack"
+      ],
+      "bottleneck_kinds": [
+        "compute_bound",
+        "nested_loop",
+        "ii_target_miss"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["enforcement", "compute", "keep-flash"],
+      "template": "// If flash had dot64 + compute_i/compute_j, keep it on the tile:\ncompute_tile_rows: for (int i = 0; i < TI; ++i) {\n  compute_tile_cols: for (int j = 0; j < J; ++j) {\n#pragma HLS PIPELINE II=1\n    C_buf[i][j] = dot64(A_buf[i], B_local[j]);\n  }\n}\n// If flash already had PE/SIMD, copy that nest and only limit i0 to the tile."
+    },
+    {
+      "id": "hls-enforcement-wrap-flash-with-tile-dataflow",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_enforcement_keep_flash",
+      "pattern": "flash is sequential local-A/B/C (good LCST, ~4808) with no tile DATAFLOW. Judge wants load(t+1)/compute(t)/store(t-1) overlap without throwing away the flash rooms.",
+      "strategy": "Keep flash load_B (full B, LANES=16). Split flash load_A / compute / store_C onto NT=2 row tiles. `#pragma HLS DATAFLOW` inside `for (t < NT)`. Declare A_buf/C_buf **inside** that loop. INLINE-off the three tasks. Target kernel ≤ flash latency: load_B ~256 + parent ≈ NT*max(tile_load, tile_compute, tile_store).",
+      "required_steps": [
+        "start from the flash kernel in the prompt, do not start from a scalar skeleton",
+        "NT=2 (or 4) large tiles, not 64 one-row tiles",
+        "declare tile arrays inside the DATAFLOW loop (HLS 214-397 if outside)",
+        "keep flash LANES loads and flash compute",
+        "one-call latency must not exceed flash × 1.10"
+      ],
+      "guards": [
+        "DATAFLOW around one full-matrix load/compute/store is the 12893 fail",
+        "interval < latency is the next kernel launch, not in-GEMM overlap",
+        "do not emit mm_pe / C_ring / packed FIFO systolic I/O"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "interval_exceeds_latency"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["enforcement", "dataflow", "ping-pong", "keep-flash"],
+      "template": "load_B(B, B_local); // flash LANES=16 body\ntile_loop: for (int t = 0; t < NT; ++t) {\n#pragma HLS DATAFLOW\n  data_t A_buf[TI][K];\n  data_t C_buf[TI][J];\n  load_A_tile(A, A_buf, t);      // flash LANES walk, TI rows only\n  compute_tile(A_buf, B_local, C_buf); // flash compute body\n  store_C_tile(C_buf, C, t);    // flash LANES walk, TI rows only\n}"
+    },
+    {
+      "id": "avoid-enforcement-scalar-axi-copy",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_enforcement_keep_flash",
+      "pattern": "repair emits `for (j) for (k) { #pragma HLS PIPELINE II=1; B_local[j][k] = B[j][k]; }` after flash already had LANES=16",
+      "strategy": "Reject the scalar copy. Restore the flash LANES walk. Csynth load ~4096 after flash ~259 is this anti-pattern.",
+      "required_steps": [
+        "detect inner k++ / j++ scalar AXI copy under PIPELINE II=1",
+        "replace with k0 += LANES and UNROLL u < LANES",
+        "do not keep both; the scalar loop wins in HLS"
+      ],
+      "guards": [
+        "Vitis may still print BURST_VERBOSE_WIDEN_PASSED on a scalar loop; latency stays ~4096",
+        "canonical fail: 20260909 enforcement 12642 after flash 4808"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "underutilized_wide_memory"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "enforcement", "keep-flash"],
+      "template": "// BAD (dropped flash widening):\nfor (int j = 0; j < J; ++j)\n  for (int k = 0; k < K; ++k) {\n#pragma HLS PIPELINE II=1\n    B_local[j][k] = B[j][k];\n  }\n// GOOD: keep flash LANES=16 body (k0 += LANES, UNROLL u)."
+    },
+    {
+      "id": "avoid-enforcement-worse-than-flash",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_enforcement_keep_flash",
+      "pattern": "legal tile DATAFLOW whose one-call latency is worse than the flash kernel (12642 vs 4808). Overlap of three ~2100-cycle rooms plus a 4171 load_B prefix.",
+      "strategy": "If ping-pong cannot beat or match flash within 10%, do not submit. Restore flash loads (so tile I/O is ~128 not ~2100) and keep flash compute. Judge fails kernel > flash×1.10 even if rooms overlap.",
+      "required_steps": [
+        "compare candidate latency_cycles to the flash baseline in the prompt",
+        "if candidate > flash×1.10, rewrite from the flash kernel, not from the last attempt",
+        "tile I/O must stay LANES-wide so it is shorter than compute"
+      ],
+      "guards": [
+        "parent < 0.85×N×sum is not enough if the kernel is slower than flash",
+        "do not treat interval as the result"
+      ],
+      "bottleneck_kinds": [
+        "interval_exceeds_latency",
+        "dataflow"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "enforcement", "keep-flash"],
+      "template": "// FAIL: flash 4808, candidate 12642 (load_B 4171 + parent 8467).\n// PASS: flash 4808, candidate <= ~5288, with load_B ~256 and tile rooms overlapping."
+    }
+  ]
+}

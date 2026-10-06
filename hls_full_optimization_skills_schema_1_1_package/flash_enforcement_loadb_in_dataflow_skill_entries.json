@@ -1,0 +1,59 @@
+{
+  "schema": "1.1",
+  "description": "Opt-in C2HLS_PP_LOAD_B_IN_DF overlay. Keep-flash ping-pong but load_B is an INLINE-off DATAFLOW task inside the tile loop (B_local is a channel). Default keep-flash still loads B once outside. Do not mix into the flash 90-skill dump.",
+  "skills": [
+    {
+      "id": "hls-enforcement-loadb-in-tile-dataflow",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_enforcement_loadb_in_dataflow",
+      "pattern": "keep-flash wrap stages full B once before the tile DATAFLOW (prefix ~331). That prefix cannot overlap compute. Putting LANES=16 load_B inside the tile DATAFLOW as its own INLINE-off task lets it share the issue slot with load_A_tile (gmem1 vs gmem0) while compute uses the B channel.",
+      "strategy": "Keep flash LANES=16 load_B body. Call it INSIDE `for (t < NT) { #pragma HLS DATAFLOW }`. Declare B_local inside that region (HLS channel). Keep A_buf[2]/C_buf[2] + t&1. Do not drop k0 += LANES. Do not fuse load_A and load_B.",
+      "required_steps": [
+        "keep `const int LANES = 16` and k0 += LANES / UNROLL u on load_B",
+        "move load_B(B, B_local) into the tile DATAFLOW body",
+        "declare data_t B_local[J][K] inside the DATAFLOW loop (not a prefix RAM)",
+        "keep A_buf[2] / C_buf[2] (or C_pre[2]) indexed with t&1",
+        "INLINE-off load_B, load_A_tile, compute_tile, store_C_tile",
+        "do not scalar-walk B; do not emit mm_pe FIFOs"
+      ],
+      "guards": [
+        "B_local declared outside + load_B inside is HLS 200-976",
+        "load_B without LANES is the 4171 fail",
+        "DATAFLOW around one full-matrix load/compute/store is still 12893"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "interval_exceeds_latency",
+        "memory_bandwidth"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["enforcement", "dataflow", "ping-pong", "load_B"],
+      "template": "tile_loop: for (int t = 0; t < NT; ++t) {\n#pragma HLS DATAFLOW\n  data_t B_local[J][K];\n  data_t A_buf[2][TI][K];\n  data_t C_buf[2][TI][J];\n  load_B(B, B_local);                 // flash LANES=16, every tile, overlapped\n  load_A_tile(A, A_buf, t & 1, t);\n  compute_tile(A_buf, t & 1, B_local, C_buf, t & 1);\n  store_C_tile(C_buf, t & 1, C, t);\n}"
+    },
+    {
+      "id": "avoid-enforcement-loadb-prefix-when-df-opt-in",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_enforcement_loadb_in_dataflow",
+      "pattern": "C2HLS_PP_LOAD_B_IN_DF is on but the wrap still does load_B(B, B_local) before the tile loop",
+      "strategy": "Move that call into the DATAFLOW tile body and declare B_local there. Keep the LANES=16 walk.",
+      "required_steps": [
+        "detect load_B before tile_loop",
+        "move it next to load_A_tile under #pragma HLS DATAFLOW",
+        "keep buf[2] + t&1 on A/C"
+      ],
+      "guards": [
+        "this overlay does not relax keep-flash latency cap flash x 1.10"
+      ],
+      "bottleneck_kinds": [
+        "dataflow"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "enforcement", "load_B"],
+      "template": "// BAD (prefix, this overlay):\nload_B(B, B_local);\nfor (int t = 0; t < NT; ++t) { #pragma HLS DATAFLOW ... }\n// GOOD: load_B inside the DATAFLOW tile body, B_local declared there."
+    }
+  ]
+}

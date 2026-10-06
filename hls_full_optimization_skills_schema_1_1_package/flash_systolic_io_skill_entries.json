@@ -1,0 +1,196 @@
+{
+  "schema": "1.1",
+  "description": "Distilled systolic I/O flash pack: hide load-store with PE streams. Recipe-driven PE/SIMD. Not spend-DSP, not the 90-skill dump, not an AutoSA netlist clone.",
+  "skills": [
+    {
+      "id": "hls-sysio-dataflow-pe-tasks",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "systolic_io_bin",
+      "pattern": "working GEMM still uses bulk local_A/local_B then sequential compute then store, so one-call latency is load+compute+store",
+      "strategy": "INLINE-off load_A, load_B, mm_pe, drain_B, store_C under DATAFLOW. Instantiated PE_NUM mm_pe calls. Goal is hide load-store, not fill 9024 DSP.",
+      "required_steps": [
+        "keep kernel.h ABI and INTERFACE lines",
+        "DATAFLOW region is only function calls and stream declarations",
+        "PE_NUM explicit mm_pe() calls from the recipe (16 default float 64^3, 32 for intel/getting_started/hcl/int16, 8 for catapult)"
+      ],
+      "guards": [
+        "DATAFLOW on one LCST body is not hide load-store",
+        "do not name a function PE if a PE macro exists"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "memory_bandwidth",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "systolic",
+        "flash",
+        "dataflow",
+        "pe"
+      ]
+    },
+    {
+      "id": "hls-sysio-packed-streams",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "systolic_io_bin",
+      "pattern": "SIMD moved as struct-of-floats or scalar fifo.read() inside the MAC loop, forcing II>=4",
+      "strategy": "Stream SIMD as ap_uint<pack_bits>. Float union only for data_t float. Integer types use bit slices.",
+      "required_steps": [
+        "typedef ap_uint<pack_bits> vec_bits",
+        "one fifo.read() of packed bits per PE beat, then unpack to scalars",
+        "never stream a struct of floats"
+      ],
+      "guards": [
+        "pack_bits follows the recipe: 128 for 4xfloat, 64 for 2xfloat, 32 for 2xu16"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "dataflow"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "systolic",
+        "flash",
+        "ap_uint"
+      ]
+    },
+    {
+      "id": "hls-sysio-crow-ram-2p-flatten",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "systolic_io_bin",
+      "pattern": "Crow complete-partition mux_case_0 II=4, or nested pe_k0/compute_j with LOOP_FLATTEN off restarting the pipeline",
+      "strategy": "Crow[J] ram_2p BRAM. One pe_kj pipeline of (K/SIMD)*J beats. Fuse init/drain. No DEPENDENCE inter false.",
+      "required_steps": [
+        "BIND_STORAGE Crow ram_2p bram; never ARRAY_PARTITION Crow complete",
+        "pe_kj trip (K/SIMD)*J, PIPELINE II=1",
+        "do not LOOP_FLATTEN off"
+      ],
+      "guards": [
+        "DSP near recipe (float PE*SIMD*5, uint16 PE*SIMD, uint32 ~PE*SIMD*3)"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "systolic",
+        "flash",
+        "flatten"
+      ]
+    },
+    {
+      "id": "hls-sysio-b-forward-hide-dram",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "systolic_io_bin",
+      "pattern": "B is fully buffered on-chip and broadcast, or DRAM load is outside DATAFLOW so compute waits for a full memcpy",
+      "strategy": "Stream packed B along a PE chain. Always forward; drain_B consumes the last fifo. Loaders are DATAFLOW tasks; compute never touches m_axi.",
+      "required_steps": [
+        "load_A / load_B / store_C are INLINE-off tasks",
+        "fifo_B[PE_NUM+1] complete-partitioned; always forward",
+        "A/B/C on gmem0/gmem1/gmem2"
+      ],
+      "guards": [
+        "mismatched load vs PE trip deadlocks streams",
+        "B layout is B[J][K]"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "memory_bandwidth"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "systolic",
+        "flash",
+        "io"
+      ]
+    },
+    {
+      "id": "hls-sysio-tile-around-dataflow-when-needed",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "systolic_io_bin",
+      "pattern": "PE_NUM does not cover I, but the i-tile loop sits inside mm_pe so two pe_kj trips serialize in one DATAFLOW firing",
+      "strategy": "When I/PE_NUM>1, wrap DATAFLOW in the top i0 += PE_NUM loop. Tasks see one tile. STREAM depth >= 8.",
+      "required_steps": [
+        "top: for i0 += PE_NUM { DATAFLOW load/compute/store of that tile }",
+        "mm_pe / load_B / drain_B have no inner i-tile loop",
+        "do not dual-MAC two rows in one beat as a substitute"
+      ],
+      "guards": [
+        "getting_started rank-1 is two DATAFLOW tiles, not a 2x serialized pe_kj"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "systolic",
+        "flash",
+        "tile"
+      ]
+    },
+    {
+      "id": "avoid-sysio-shared-local-abc",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "systolic_io_bin",
+      "pattern": "DATAFLOW on shared local_A/B/C; AutoSA netlist clone; struct-of-floats FIFOs; complete-partition Crow",
+      "strategy": "Reject shared on-chip A/B/C across DATAFLOW tasks. Reject AutoSA interconnect clone. Reject complete-partition Crow.",
+      "required_steps": [
+        "scan for local_A used by more than one task \u2014 reject",
+        "scan for ARRAY_PARTITION Crow complete \u2014 reject",
+        "scan for AutoSA interconnect names \u2014 reject"
+      ],
+      "guards": [
+        "this pack is hide load-store, not spend 5000 DSP"
+      ],
+      "bottleneck_kinds": [
+        "dataflow"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "systolic",
+        "flash"
+      ],
+      "template": "// BAD: DATAFLOW on shared local_A[I][K].\n// GOOD: streams + ram_2p Crow + pe_kj; keep kernel.h ABI."
+    }
+  ]
+}

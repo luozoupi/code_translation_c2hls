@@ -24,21 +24,16 @@ Resources: LUT / DSP / BRAM / FF from the same report as that stage.
 
 Companion CSV: [`2026-07-20-u280-all-campaigns-stage-inventory.csv`](2026-07-20-u280-all-campaigns-stage-inventory.csv).
 
-## Completed: ChatHLS U280 DeepSeek machsuite + Tier-A
+## REJECTED: ChatHLS U280 DeepSeek machsuite + Tier-A (68)
 
-Finished aggregate as of **2026-07-21 10:12 UTC** (DeepSeek hybrid, U280 @ 3.33 ns):
+**Do not trust / do not use for comparisons.** Session finished, but quality audit failed.
 
 - **Session:** `/scratch/hpc-prf-llmfpga/asa582/projects/test-chathls/ChatHLS-ACL-26/artifacts/pc2/sessions/hybrid-u280-machsuite-tierA-20260721-012940`
-- **Results:** **64 / 68** benches with `final_latency_csynth.csv` / `final_resources_csynth.csv`
-- **Missing (4):** `machsuite_bfs_queue`, `machsuite_nw`, `machsuite_sort_merge`, `machsuite_spmv_crs`
-- **Suites present:** 24 forgebench + 16 hp_fft + 14 machsuite + 10 spector_hls
-- **`passed_optimization=True`:** 15 / 64
-- **Cosim:** CSV marks `cosim_status=passed` for all 64, but **no `cosim_latency_cycles`** recorded (same pattern as native session in-session skip of measured cycles)
-- **Over-device resources:** none
-- **Slurm:** GPU `2030684`, gate `2030685`, array `2030686`
-- **Spector/ChatHLS fix (2026-07-21 11:36 UTC):** cleared unbound `spector_hls_dct` and stub `spector_hls_template_matching`. Speedups prefer **cosim over csynth** when available.
-- **Baseline = gold HLS (2026-07-21 11:12 UTC):** `baseline_*` from c2hls `reference_validation.json` (`report.latency_cycles` / resources), scanned across artifacts. **`phase_b` is translator output, not gold.** ChatHLS shared-bench baselines use the same gold.
-- **Re-aggregate:** `python3 scripts/pc2/aggregate_chathls_u280_session_csvs.py --session-dir <session>`
+- **Raw CSVs exist (64/68)** but ChatHLS summary `passed_optimization` / `passed_validation` **disagree with** `validation-attempt-1.json` / `optimization-round-1.json`.
+- **Strict trusted useful speedups: 0.** Only `forgebench_mult_op_p2` has baseline+final>0 with opt-round pass — and that is **no improvement** (68→68). `forgebench_mult_op_p3` is a regression (228→276).
+- **Failure modes:** missing baselines (validation csynth failed), final latency `0` (hp_fft), huge regressions (e.g. forgebench_conv_A 5492→~29.8M), summary flags claiming pass when rounds failed.
+- **Missing summaries (4):** `machsuite_bfs_queue`, `machsuite_nw`, `machsuite_sort_merge`, `machsuite_spmv_crs`
+- **Audit (authoritative):** session `QUALITY_REJECT.md` + `quality_audit.csv` — prefer over `final_latency_csynth.csv`.
 
 
 ## Quick map (architectures × models with data)

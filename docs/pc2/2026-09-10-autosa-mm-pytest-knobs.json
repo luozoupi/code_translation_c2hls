@@ -1,0 +1,629 @@
+[
+  {
+    "file": "tests/test_flash_cosim_repair_multiloop_smoke.py",
+    "aim": "Smoke tests for multi-loop cosim repair (offline, no LLM/Vitis).",
+    "n_tests": 9,
+    "tests": [
+      "test_default_max_loops_is_one",
+      "test_loop_dir_and_repair_loop_out_dir",
+      "test_validation_error_text_prefers_cosim",
+      "test_followup_prompts_include_loop_metadata",
+      "test_multiloop_stops_early_on_cosim_pass",
+      "test_multiloop_runs_all_loops_when_still_failing",
+      "test_single_loop_result_schema_unchanged",
+      "test_run_repair_batch_dry_run_includes_max_loops",
+      "test_multiloop_start_script_exists"
+    ],
+    "env_knobs": []
+  },
+  {
+    "file": "tests/test_flash_dataflow_ranking.py",
+    "aim": "Generic flash may use DATAFLOW when it is simple; it must not mandate GEMM ping-pong.",
+    "n_tests": 3,
+    "tests": [
+      "test_flash_prompt_keeps_dataflow_optional",
+      "test_lcst_skill_establishes_baseline_before_dataflow",
+      "test_dataflow_stage_split_is_baseline_first"
+    ],
+    "env_knobs": []
+  },
+  {
+    "file": "tests/test_flash_defer_cosim.py",
+    "aim": "Tests for C2HLS_FLASH_DEFER_COSIM support in batch_parallel_bench.",
+    "n_tests": 0,
+    "tests": [],
+    "env_knobs": [
+      "C2HLS_FLASH_DEFER_COSIM"
+    ]
+  },
+  {
+    "file": "tests/test_flash_df_candidate_rank.py",
+    "aim": "Unit tests for flash/dataflow candidate ranking.",
+    "n_tests": 9,
+    "tests": [
+      "test_lat_opt_improved_strict",
+      "test_flash_seed_wins_when_lat_opt_worse",
+      "test_flash_lat_opt_wins_when_better",
+      "test_flash_collects_accepted_lat_opt_rounds",
+      "test_rank_uses_worst_case_not_best_case",
+      "test_dataflow_pool_and_promote",
+      "test_flash_seed_not_stolen_when_selected_is_lat_opt",
+      "test_flash_seed_preserved_file_preferred",
+      "test_flash_seed_included_when_latency_unknown"
+    ],
+    "env_knobs": []
+  },
+  {
+    "file": "tests/test_flash_dsp_floor.py",
+    "aim": "Flash DSP floor: reject csynth DSP below cutoff and tell the LLM why.",
+    "n_tests": 10,
+    "tests": [
+      "test_flash_min_dsp_off_by_default",
+      "test_flash_dsp_floor_rejects_flash_leftover",
+      "test_flash_dsp_floor_repair_prompt_leads_with_cutoff_and_reason",
+      "test_flash_dsp_floor_initial_guidance_mentions_cutoff",
+      "test_c2hls_helper_only_gates_flash_step",
+      "test_flash_dsp_ceiling_rejects_over_device",
+      "test_flash_dsp_ceiling_repair_prompt_leads_with_cap",
+      "test_c2hls_helper_ceiling_only_gates_flash_step",
+      "test_campaign_restores_flash_min_dsp",
+      "test_campaign_restores_flash_max_dsp"
+    ],
+    "env_knobs": [
+      "C2HLS_FLASH_MAX_DSP",
+      "C2HLS_FLASH_MIN_DSP"
+    ]
+  },
+  {
+    "file": "tests/test_flash_enforcement.py",
+    "aim": "Flash overlap enforcement: ping-pong + DATAFLOW judged on code and csynth.",
+    "n_tests": 44,
+    "tests": [
+      "test_enforcement_off_by_default",
+      "test_enforcement_enabled_from_env",
+      "test_enforcement_skipped_when_autosa_flow",
+      "test_enforcement_stays_on_when_autosa_flow_unset",
+      "test_enforcement_rounds_default_20",
+      "test_enforcement_rounds_from_env",
+      "test_cli_enforcement_and_underscore_rounds",
+      "test_cli_hyphen_rounds_alias",
+      "test_apply_cli_sets_env",
+      "test_code_intent_rejects_sequential_lcst",
+      "test_code_intent_rejects_101836_arrays_inside_as_ping_pong",
+      "test_code_intent_accepts_pingpong_dataflow",
+      "test_code_intent_rejects_bulk_dataflow_and_outside_arrays",
+      "test_csynth_rejects_interval_equal_latency",
+      "test_csynth_rejects_weak_handshake_overlap",
+      "test_csynth_rejects_interval_much_less_than_latency_without_modules",
+      "test_csynth_rejects_enforcement_lcst_sum",
+      "test_csynth_accepts_pe_pp_plus_overlap",
+      "test_static_verdict_fails_flash_mm",
+      "test_static_verdict_rejects_enforcement_12893",
+      "test_static_verdict_passes_legal_overlap",
+      "test_parse_llm_judge_json",
+      "test_repair_prompt_formats_with_skeleton",
+      "test_combine_llm_pass_vetoed_by_sequential_csynth",
+      "test_combine_static_pass_not_vetoed_by_llm",
+      "test_combine_static_structure_not_vetoed_by_llm",
+      "test_enforcement_does_not_pass_structure_without_overlap",
+      "test_repair_loop_stops_when_judge_passes",
+      "test_repair_loop_exhausts_rounds_without_pass",
+      "test_maybe_run_skips_when_disabled",
+      "test_apply_enforcement_from_campaign_sets_env",
+      "test_enforcement_enabled_from_campaign_json_without_env",
+      "test_maybe_run_does_not_skip_when_campaign_enforcement_true",
+      "test_maybe_run_commits_kernel_when_judge_passes",
+      "test_maybe_run_does_not_pass_structure_without_overlap",
+      "test_format_report_includes_resources_and_cycles",
+      "test_attach_enforcement_is_idempotent",
+      "test_autosa_and_tier_a_flash_paths_call_attach",
+      "test_static_verdict_rejects_12642_that_dropped_flash_wide_loads",
+      "test_static_verdict_still_fails_flash_4808_for_missing_dataflow",
+      "test_static_verdict_passes_wide_pingpong_better_than_flash",
+      "test_repair_prompt_keeps_flash_lanes_and_forbids_scalar_copy",
+      "test_repair_loop_does_not_commit_12642_over_flash",
+      "test_enforcement_keep_flash_skills_file_is_valid"
+    ],
+    "env_knobs": [
+      "C2HLS_AUTOSA_FLOW",
+      "C2HLS_ENFORCEMENT",
+      "C2HLS_ENFORCEMENT_ROUNDS"
+    ]
+  },
+  {
+    "file": "tests/test_flash_fused_ab.py",
+    "aim": "On-chip flash must reject fused A+B loads (run-1 / 871 failure mode).",
+    "n_tests": 8,
+    "tests": [
+      "test_detects_run1_fused_label_and_zipped_body",
+      "test_detects_zip_without_fused_label",
+      "test_detects_fused_module_in_csynth_report",
+      "test_fused_ab_error_text",
+      "test_onchip_guidance_forbids_fused_ab",
+      "test_onchip_pack_has_fused_ab_avoid",
+      "test_c2hls_helper_only_when_onchip_flash",
+      "test_fused_ab_repair_prompt"
+    ],
+    "env_knobs": [
+      "C2HLS_FLASH_ONCHIP"
+    ]
+  },
+  {
+    "file": "tests/test_flash_generic_uncontaminated.py",
+    "aim": "Default flash 90-skills and FLASH MODE must stay kernel-independent. AutoSA mm recipes (LANES=16 / PE_BLK / 64x64 ping-pong) belong in gemm_family, systolic_io, onchip, or C2HLS_FLASH_* knobs \u2014 not in the generic dump or q_optimize_flash. Frozen mmflow flash 139484/10 used these payloads.",
+    "n_tests": 4,
+    "tests": [
+      "test_flash_prompt_is_modest_generic_hls",
+      "test_baseline_lcst_is_scalar_then_advanced",
+      "test_mandatory_load_store_is_pipeline_only",
+      "test_autosa_bins_stay_out_of_90_dump"
+    ],
+    "env_knobs": [
+      "C2HLS_FLASH_"
+    ]
+  },
+  {
+    "file": "tests/test_flash_gmem_bundles.py",
+    "aim": "Flash flow must assign distinct gmemN bundles per m_axi pointer port.",
+    "n_tests": 0,
+    "tests": [],
+    "env_knobs": []
+  },
+  {
+    "file": "tests/test_flash_no_RMW_m_axi_skills.py",
+    "aim": "Tests for flash standalone overlay on packaged 90-skills base.",
+    "n_tests": 0,
+    "tests": [],
+    "env_knobs": [
+      "C2HLS_FLASH_SKILL_ENTRIES_JSON",
+      "C2HLS_PACKAGED_SKILLS_JSON",
+      "C2HLS_PACKAGED_SKILLS_ONLY"
+    ]
+  },
+  {
+    "file": "tests/test_flash_onchip_gemm.py",
+    "aim": "Distilled on-chip GEMM flash pack (940-class), not the 90-skill dump.",
+    "n_tests": 7,
+    "tests": [
+      "test_onchip_pack_is_short_and_not_autosa",
+      "test_flash_onchip_off_by_default",
+      "test_flash_onchip_guidance_rejects_dataflow_and_kernel0",
+      "test_onchip_configure_uses_only_distilled_pack",
+      "test_onchip_variant_is_valid_and_tagged",
+      "test_campaign_restores_flash_onchip",
+      "test_onchip_launcher_distilled_pack_flash_only"
+    ],
+    "env_knobs": [
+      "C2HLS_FLASH_MIN_DSP",
+      "C2HLS_FLASH_ONCHIP",
+      "C2HLS_FLASH_ONLY",
+      "C2HLS_FLASH_PE_BLK",
+      "C2HLS_FLASH_SKILL_ENTRIES_JSON",
+      "C2HLS_FORCE_SKILL_PROMPTS",
+      "C2HLS_PACKAGED_SKILLS_JSON",
+      "C2HLS_PACKAGED_SKILLS_ONLY",
+      "C2HLS_POST_FLASH_STREAM",
+      "C2HLS_SKILL_MODE",
+      "C2HLS_SKILL_PROMPT_MODE",
+      "C2HLS_TMP_ROOT"
+    ]
+  },
+  {
+    "file": "tests/test_flash_pe_blk.py",
+    "aim": "Flash PE_BLK prompt knob: 16 / 32 / 64 on the full U280 DSP budget.",
+    "n_tests": 5,
+    "tests": [
+      "test_flash_pe_blk_off_by_default",
+      "test_flash_pe_blk_guidance_pins_width_and_full_chip_dsp",
+      "test_default_flash_prompt_does_not_pin_pe_blk",
+      "test_campaign_restores_flash_pe_blk",
+      "test_pe_blk_launcher_rejects_eight"
+    ],
+    "env_knobs": [
+      "C2HLS_FLASH_ONLY",
+      "C2HLS_FLASH_PE_BLK"
+    ]
+  },
+  {
+    "file": "tests/test_flash_pipelined_finalize_chain.py",
+    "aim": "Flash pipelined finalize should chain dse + stream + pragma_opt + latency_opt like c2hls.py.",
+    "n_tests": 0,
+    "tests": [],
+    "env_knobs": []
+  },
+  {
+    "file": "tests/test_flash_pipelined_queue.py",
+    "aim": "Tests for pipelined flash queue.",
+    "n_tests": 0,
+    "tests": [],
+    "env_knobs": []
+  },
+  {
+    "file": "tests/test_flash_row_uf.py",
+    "aim": "Flash ROW_UF prompt knob: tell the model to cover I in one tile.",
+    "n_tests": 4,
+    "tests": [
+      "test_flash_row_uf_off_by_default",
+      "test_flash_row_uf_initial_guidance_unrolls_rows",
+      "test_campaign_restores_flash_row_uf",
+      "test_row_uf_launcher_sets_env_and_flash_only"
+    ],
+    "env_knobs": [
+      "C2HLS_FLASH_ONLY",
+      "C2HLS_FLASH_ROW_UF"
+    ]
+  },
+  {
+    "file": "tests/test_flash_skill_bins.py",
+    "aim": "Curated flash skill bins for AutoSA kernels other than frozen autosa_mm.",
+    "n_tests": 15,
+    "tests": [
+      "test_90_pack_is_not_contaminated_and_curated_packs_stay_separate",
+      "test_generic_pack_has_no_pe_blk_and_no_64x64_pong",
+      "test_gemm_family_keeps_b_layout_and_rejects_fused_ab",
+      "test_systolic_io_is_hide_load_store_not_spend_chip",
+      "test_inventory_skips_mm_and_orders_hcl_first",
+      "test_normalize_and_prepare_ids",
+      "test_apply_onchip_and_generic",
+      "test_campaign_restores_skill_bin",
+      "test_dispatch_accepts_new_variants",
+      "test_guidance_bins",
+      "test_kernel_launcher_is_flash_only_and_not_mmflow",
+      "test_write_kernel_flash_config_one_bench",
+      "test_kernels_for_wave_skips_frozen_mm",
+      "test_parallel_launcher_uses_per_kernel_proxies",
+      "test_inventory_file_covers_all_autosa_ready_dirs"
+    ],
+    "env_knobs": [
+      "C2HLS_FLASH_K_TILE",
+      "C2HLS_FLASH_MAX_DSP",
+      "C2HLS_FLASH_MIN_DSP",
+      "C2HLS_FLASH_ONCHIP",
+      "C2HLS_FLASH_ONCHIP_TILE",
+      "C2HLS_FLASH_ONLY",
+      "C2HLS_FLASH_OPT_PROMPT_MODE",
+      "C2HLS_FLASH_PE_BLK",
+      "C2HLS_FLASH_RETRY_TAG",
+      "C2HLS_FLASH_SKILL_BIN",
+      "C2HLS_FLASH_SKILL_ENTRIES_JSON",
+      "C2HLS_FORCE_SKILL_PROMPTS",
+      "C2HLS_PACKAGED_SKILLS_JSON",
+      "C2HLS_PACKAGED_SKILLS_ONLY",
+      "C2HLS_POST_FLASH_NO_SKILLS",
+      "C2HLS_POST_FLASH_STREAM",
+      "C2HLS_SKILL_MODE",
+      "C2HLS_SKILL_PROMPT_MODE",
+      "C2HLS_SKIP_PHASE_B",
+      "C2HLS_TMP_ROOT"
+    ]
+  },
+  {
+    "file": "tests/test_flash_skip_seed.py",
+    "aim": "Skip-flash seed: enforcement starts from an existing flash_opt, not a new LLM.",
+    "n_tests": 8,
+    "tests": [
+      "test_load_flash_seed_reads_opt_not_selected",
+      "test_load_flash_seed_disabled_without_flag",
+      "test_apply_flash_seed_sets_baseline_and_copies",
+      "test_init_campaign_json_records_skip_flash",
+      "test_apply_campaign_restores_skip_flash_env",
+      "test_tier_a_synth_flash_accepts_seed_without_csynth",
+      "test_pipelined_codegen_skips_llm",
+      "test_launchers_mention_skip_flash"
+    ],
+    "env_knobs": [
+      "C2HLS_AUTOSA_FLOW",
+      "C2HLS_ENFORCEMENT",
+      "C2HLS_ENFORCEMENT_ROUNDS",
+      "C2HLS_FLASH_SEED_DIR",
+      "C2HLS_SKIP_FLASH",
+      "C2HLS_SKIP_PHASE_B"
+    ]
+  },
+  {
+    "file": "tests/test_flash_tile_pp.py",
+    "aim": "Flash in-GEMM tile ping-pong knob (C2HLS_FLASH_TILE_PP).",
+    "n_tests": 6,
+    "tests": [
+      "test_flash_tile_pp_off_by_default",
+      "test_flash_tile_pp_guidance_rejects_bulk_dataflow",
+      "test_default_flash_prompt_does_not_mandate_tile_ping_pong",
+      "test_default_lcst_does_not_require_tile_loop",
+      "test_campaign_restores_flash_tile_pp",
+      "test_tile_pp_launcher_forces_pe16_and_prefix"
+    ],
+    "env_knobs": [
+      "C2HLS_FLASH_ONLY",
+      "C2HLS_FLASH_PE_BLK",
+      "C2HLS_FLASH_TILE_PP"
+    ]
+  },
+  {
+    "file": "tests/test_flash_wide_io.py",
+    "aim": "Wide AXI is opt-in. Default 90-skills stay generic LCST.",
+    "n_tests": 5,
+    "tests": [
+      "test_default_flash_prompt_does_not_mandate_lanes_64x64",
+      "test_lcst_template_is_scalar_copy_not_lanes",
+      "test_mandatory_load_store_pipeline_is_pragma_only",
+      "test_coalescing_skill_keeps_narrow_abi_and_compute_lanes",
+      "test_wide_io_coalescing_is_baseline_first"
+    ],
+    "env_knobs": []
+  },
+  {
+    "file": "tests/test_autosa_flow_gates.py",
+    "aim": "",
+    "n_tests": 22,
+    "tests": [
+      "test_compute_pass_dsp_even_if_kernel_still_serial_io",
+      "test_compute_fail_flash_leftover_dsp",
+      "test_overlap_fail_enforcement_lcst",
+      "test_overlap_pass_rank1_like",
+      "test_overlap_pass_locked_stream",
+      "test_rank1_success_gate",
+      "test_explicit_pingpong_required_not_arrays_inside",
+      "test_flash_serial_lcst_still_fails_overlap",
+      "test_parse_csynth_12893_instance_sum",
+      "test_csynth_rejects_12893_sum_not_overlap",
+      "test_csynth_accepts_pe_pp_plus_overlap",
+      "test_csynth_pe_pp_9640_still_overlaps_tiles",
+      "test_interval_below_latency_is_not_enough",
+      "test_real_enforcement_selected_cpp_fails_new_judge",
+      "test_tile_pp_guidance_mentions_explicit_buf2",
+      "test_real_pe_pp_plus_channel_only_is_not_explicit_ping_pong",
+      "test_real_tile_pp2_channel_only_is_not_explicit_ping_pong",
+      "test_wide_axi_copy_detects_lanes_step",
+      "test_keep_flash_rejects_dropped_lanes_and_latency_regression",
+      "test_keep_flash_accepts_wide_pingpong_not_worse_than_flash",
+      "test_keep_flash_skips_when_still_the_flash_kernel",
+      "test_keep_flash_139k_does_not_demand_lanes"
+    ],
+    "env_knobs": []
+  },
+  {
+    "file": "tests/test_autosa_mm_flow_flavors.py",
+    "aim": "autosa_mm flow flavors: zero-shot and no-skills vs frozen with-skills.",
+    "n_tests": 0,
+    "tests": [],
+    "env_knobs": [
+      "C2HLS_CPP_CONTINUATIONS",
+      "C2HLS_DSE_CHAIN_FLASH",
+      "C2HLS_DSE_SKILL_ENTRIES_JSON",
+      "C2HLS_FLASH_MAX_TOKENS",
+      "C2HLS_FLASH_OPT_PROMPT_MODE",
+      "C2HLS_FLASH_SKILL_ENTRIES_JSON",
+      "C2HLS_FORCE_SKILL_PROMPTS",
+      "C2HLS_MM_FLOW_FLAVOR",
+      "C2HLS_PACKAGED_SKILLS_JSON",
+      "C2HLS_PACKAGED_SKILLS_ONLY",
+      "C2HLS_PE_RECIPE",
+      "C2HLS_POST_FLASH_DSE",
+      "C2HLS_POST_FLASH_NO_SKILLS",
+      "C2HLS_POST_FLASH_STREAM",
+      "C2HLS_SKILL_MODE",
+      "C2HLS_SKILL_PROMPT_MODE",
+      "C2HLS_SKIP_PHASE_B",
+      "C2HLS_STREAM_CHAIN_FLASH",
+      "C2HLS_STREAM_SKILL_ENTRIES_JSON",
+      "C2HLS_TURNS"
+    ]
+  },
+  {
+    "file": "tests/test_post_flash_dataflow.py",
+    "aim": "Tests for post-flash DATAFLOW helpers.",
+    "n_tests": 17,
+    "tests": [
+      "test_extract_kernel_block",
+      "test_extract_kernel_block_labeled_include",
+      "test_sanitize_kernel_source",
+      "test_extract_kernel_block_generic_fence",
+      "test_prepare_recovered_kernel_strips_workload_and_moves_pragmas",
+      "test_dataflow_prompt_covers_hls_failure_modes",
+      "test_prompt_policy_system_skills_layout",
+      "test_prompt_policy_user_skills_layout",
+      "test_format_results_root_name_includes_policy",
+      "test_resolve_prompt_policy_rejects_unknown",
+      "test_dataflow_skills_header_mandates_dataflow",
+      "test_dataflow_prompt_is_kernel_blind",
+      "test_dataflow_skills_load_from_flash_overlay",
+      "test_prompt_text_includes_contract_prompts",
+      "test_is_empty_llm_reply",
+      "test_call_llm_reject_empty_retries_then_returns_nonempty",
+      "test_call_llm_reject_empty_exhausts_retries_without_raising"
+    ],
+    "env_knobs": []
+  },
+  {
+    "file": "tests/test_post_flash_dse.py",
+    "aim": "Tests for the post-flash DSE step (multi-PE GEMM nest rewrite).",
+    "n_tests": 20,
+    "tests": [
+      "test_dse_skills_file_is_valid_schema_11",
+      "test_dse_skills_require_pe_simd_and_reject_k_recurrence",
+      "test_full_skill_render_keeps_pe_template_not_truncated",
+      "test_prompts_require_nest_rewrite_not_pragma_only",
+      "test_artifact_paths_are_dse_named",
+      "test_enabled_default_off",
+      "test_chain_after_flash_follows_enabled",
+      "test_architecture_ok_requires_multi_pe_dsp",
+      "test_maybe_chain_dse_skipped_when_disabled",
+      "test_discover_cells_walks_selected_cpp",
+      "test_promote_dse_as_selected_preserves_flash_seed",
+      "test_should_promote_requires_better_latency_and_dsp",
+      "test_run_dse_for_cell_writes_artifacts_and_promotes",
+      "test_dse_max_tokens_default_is_above_flash_empty_budget",
+      "test_repair_prompt_omits_skill_dump",
+      "test_call_dse_llm_retries_empty_and_passes_max_tokens",
+      "test_baseline_source_role_and_prompt",
+      "test_run_dse_for_cell_from_baseline_uses_hls_baseline",
+      "test_resolve_baseline_kernel_prefers_cell_then_hls_baseline",
+      "test_run_dse_rejects_unknown_source_role"
+    ],
+    "env_knobs": [
+      "C2HLS_DSE_CHAIN_FLASH",
+      "C2HLS_DSE_MAX_TOKENS",
+      "C2HLS_DSE_SOURCE_ROLE",
+      "C2HLS_FLASH_MAX_TOKENS",
+      "C2HLS_LLM_EMPTY_RETRIES",
+      "C2HLS_LLM_MAX_TOKENS",
+      "C2HLS_POST_FLASH_DSE"
+    ]
+  },
+  {
+    "file": "tests/test_post_flash_latency_opt.py",
+    "aim": "",
+    "n_tests": 28,
+    "tests": [
+      "test_enabled_default_off",
+      "test_enabled_on",
+      "test_rounds_defaults",
+      "test_under_budget_u280",
+      "test_should_accept_interval_improvement",
+      "test_dataflow_process_scopes_hot_first",
+      "test_render_pack_ranks_dataflow_processes",
+      "test_maybe_chain_forced_by_enforcement",
+      "test_maybe_chain_skips_when_enforcement_does_not_request",
+      "test_should_accept_candidate",
+      "test_should_accept_legalization_when_no_best",
+      "test_render_analysis_pack_includes_scopes_and_templates",
+      "test_template_actions_resource_pressure",
+      "test_plan_and_modify_prompts_structure",
+      "test_plan_mentions_scope",
+      "test_artifact_paths",
+      "test_trajectory_helpers",
+      "test_resolve_prefers_latency_opt",
+      "test_resolve_include_post_passes_false_returns_selected",
+      "test_resolve_latency_source_kernel_flash_final_ignores_own_output",
+      "test_resolve_latency_source_kernel_flash_final_prefers_pragma_opt",
+      "test_resolve_latency_source_kernel_dataflow_prefers_dataflow_pragma_opt",
+      "test_resolve_latency_source_kernel_dataflow_falls_back_to_dataflow_cpp",
+      "test_run_latency_opt_for_cell_accepts_lower_latency",
+      "test_run_latency_opt_persists_each_accepted_round",
+      "test_run_latency_opt_for_cell_rejects_over_budget_candidate",
+      "test_promote_latency_opt_flash_updates_selected",
+      "test_promote_latency_opt_dataflow_updates_result"
+    ],
+    "env_knobs": [
+      "C2HLS_LATENCY_OPT_CHAIN_FLASH",
+      "C2HLS_LATENCY_OPT_REPAIR_ROUNDS",
+      "C2HLS_LATENCY_OPT_ROUNDS",
+      "C2HLS_POST_FLASH_LATENCY_OPT"
+    ]
+  },
+  {
+    "file": "tests/test_post_flash_mem_parallel.py",
+    "aim": "Tests for post-flash memory parallelism helpers.",
+    "n_tests": 10,
+    "tests": [
+      "test_extract_labeled_cpp_blocks",
+      "test_extract_labeled_kernel_only",
+      "test_resolve_selected_kernel_prefers_selected",
+      "test_resolve_prefers_latency_opt",
+      "test_resolve_include_post_passes_false_returns_selected",
+      "test_resolve_prefers_pragma_opt_over_base",
+      "test_resolve_ignores_failed_latency_opt_result",
+      "test_resolve_prefers_dataflow_latency_opt_when_better",
+      "test_resolve_prefers_lower_flash_latency_opt",
+      "test_discover_matrix_cells_from_json"
+    ],
+    "env_knobs": []
+  },
+  {
+    "file": "tests/test_post_flash_overlap.py",
+    "aim": "Overlap ablation: PE array + fuse + ping-pong DATAFLOW, not the stream FIFO pack.",
+    "n_tests": 5,
+    "tests": [
+      "test_overlap_skills_file_is_valid",
+      "test_overlap_skill_count_and_prompt",
+      "test_rejects_stream_pe_fifo_pack",
+      "test_artifact_tag_is_overlap",
+      "test_overlap_launcher_supports_mm_only"
+    ],
+    "env_knobs": [
+      "C2HLS_MM_MATRIX_ROOT"
+    ]
+  },
+  {
+    "file": "tests/test_post_flash_pe_recipe.py",
+    "aim": "Per-kernel PE recipes for AutoSA 64^3 GEMM DSE/stream.",
+    "n_tests": 11,
+    "tests": [
+      "test_mm_default_is_16x4_float",
+      "test_pe_recipe_mesh_fields_default_to_chain",
+      "test_mm_32x8_is_separate_recipe",
+      "test_pe_recipe_env_overrides_autosa_mm_bench",
+      "test_unknown_pe_recipe_env_falls_back_to_bench",
+      "test_getting_started_and_intel_need_32x4",
+      "test_int16_is_32x2_uint16_not_float_pack",
+      "test_catapult_uses_i_p_and_pe8",
+      "test_hcl_is_32x2_float",
+      "test_unknown_bench_falls_back_to_mm",
+      "test_flow_launcher_accepts_32x8_pe_recipe"
+    ],
+    "env_knobs": [
+      "C2HLS_PE_RECIPE"
+    ]
+  },
+  {
+    "file": "tests/test_post_flash_pragma_opt.py",
+    "aim": "Tests for post-flash pragma optimization helpers.",
+    "n_tests": 4,
+    "tests": [
+      "test_pragma_guide_loads",
+      "test_prompts_require_core_pragmas",
+      "test_artifact_paths_by_source",
+      "test_summarize_synth_report_empty"
+    ],
+    "env_knobs": []
+  },
+  {
+    "file": "tests/test_post_flash_stream.py",
+    "aim": "Tests for the post-DSE stream/I/O step (PE modules + hls::stream DATAFLOW).",
+    "n_tests": 15,
+    "tests": [
+      "test_stream_skills_file_is_valid_schema_11",
+      "test_stream_skills_require_pe_streams_and_reject_shared_locals",
+      "test_full_skill_render_keeps_pe_stream_template_not_truncated",
+      "test_prompts_require_stream_rewrite_not_dataflow_on_lcst",
+      "test_artifact_paths_are_stream_named",
+      "test_enabled_default_off",
+      "test_chain_after_flash_follows_enabled",
+      "test_architecture_ok_requires_packed_streams_dsp_and_ii1",
+      "test_architecture_ok_requires_dram_compute_overlap",
+      "test_maybe_chain_stream_skipped_when_disabled",
+      "test_resolve_stream_source_prefers_dse_kernel",
+      "test_promote_stream_as_selected_preserves_dse_kernel",
+      "test_should_promote_requires_better_latency_and_streams",
+      "test_run_stream_for_cell_writes_artifacts_and_promotes",
+      "test_stream_max_tokens_default_is_above_flash_empty_budget"
+    ],
+    "env_knobs": [
+      "C2HLS_DSE_MAX_TOKENS",
+      "C2HLS_FLASH_MAX_TOKENS",
+      "C2HLS_LLM_MAX_TOKENS",
+      "C2HLS_POST_FLASH_STREAM",
+      "C2HLS_STREAM_CHAIN_FLASH",
+      "C2HLS_STREAM_MAX_TOKENS"
+    ]
+  },
+  {
+    "file": "tests/test_autosa_seed_synth.py",
+    "aim": "Gold-gate seed synth path for AutoSA-ready kernels (no LLM, no flash).",
+    "n_tests": 5,
+    "tests": [
+      "test_seed_config_is_gold_not_flash",
+      "test_gold_workflow_dispatch_and_seed",
+      "test_seed_launcher_has_no_llm_and_skips_frozen_mm",
+      "test_seed_parallel_has_no_proxies_and_all_wave",
+      "test_configure_gold_strips_onchip"
+    ],
+    "env_knobs": [
+      "C2HLS_FLASH_ONCHIP",
+      "C2HLS_FLASH_ONLY",
+      "C2HLS_PACKAGED_SKILLS_JSON",
+      "C2HLS_REFERENCE_ONLY",
+      "C2HLS_TMP_ROOT"
+    ]
+  }
+]

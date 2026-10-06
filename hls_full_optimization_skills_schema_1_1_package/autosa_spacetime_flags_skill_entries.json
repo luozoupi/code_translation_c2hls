@@ -1,0 +1,68 @@
+{
+  "schema": "1.1",
+  "description": "AutoSA space-time choice and the manual flags. Reads sa_sizes and the compiler command. Does not rewrite a GEMM netlist.",
+  "derived_from": [
+    "autosa_concept_crosswalk.csv"
+  ],
+  "skills": [
+    {
+      "id": "autosa-paper-designs-1-4-5",
+      "kind": "compound_transformation",
+      "confidence": "medium",
+      "origin": "paper",
+      "pattern": "a matrix-multiply search is running all six space-times as if the paper reported all of them",
+      "strategy": "Designs 1-6 are space-time 0-5 in order: i, j, k, (i,j), (i,k), (j,k). The paper's MM case study reports designs 1, 4, and 5 only, which are space-time 0, 3, and 4, on 1024^3 float.",
+      "required_steps": [
+        "map design 1 to space_time 0, design 4 to space_time 3, design 5 to space_time 4",
+        "treat space-time 1 as the symmetric partner of 0, and space-time 5 as the symmetric partner of 4",
+        "keep a separate campaign row for any space-time outside 0, 3, and 4"
+      ],
+      "guards": [
+        "do not describe space-time 2 or 5 as one of the three reported MM designs",
+        "the exact 13x16x8 and 13x12x8 tilings were not in the earlier 1024^3 HLS set"
+      ],
+      "bottleneck_kinds": ["design_space"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "space_time", "paper"]
+    },
+    {
+      "id": "autosa-reduction-space-flags",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "manual",
+      "pattern": "space-time 2, 4, or 5 is generated without the reduction flags and codegen stops or emits the wrong reduction",
+      "strategy": "When k is a space loop, pass --local-reduce --reduce-op=+ --simd-touch-space. Those are space-time 2, 4, and 5. dse_config.autosa_flags_for_space_time appends them from reduction_space_times.",
+      "required_steps": [
+        "add --local-reduce --reduce-op=+ --simd-touch-space for space-time 2, 4, and 5",
+        "leave those flags off for space-time 0, 1, and 3"
+      ],
+      "guards": [
+        "do not put the reduction flags on an output-stationary array"
+      ],
+      "bottleneck_kinds": ["design_space"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "space_time", "flags"]
+    },
+    {
+      "id": "avoid-autosa-array-contraction-on-output-stationary",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "manual",
+      "pattern": "--array-contraction is applied to space-time 0 or 3, or it is omitted on space-time 2, 4, or 5",
+      "strategy": "The manual adds --array-contraction only for Arrays 3, 5, and 6. It contracts local_C when the time loops are parallel. Output-stationary arrays keep the local C buffer and drain it.",
+      "required_steps": [
+        "pass --array-contraction only for space-time 2, 4, and 5",
+        "do not pass --array-contraction for space-time 0, 1, or 3"
+      ],
+      "guards": [
+        "space-time 0 and 3 generate C_drain_IO modules; space-time 4 and 5 generate C_IO modules"
+      ],
+      "bottleneck_kinds": ["design_space"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "avoid", "array-contraction"]
+    }
+  ]
+}

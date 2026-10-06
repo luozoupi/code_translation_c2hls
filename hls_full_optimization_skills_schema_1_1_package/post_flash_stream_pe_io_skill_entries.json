@@ -1,0 +1,239 @@
+{
+  "schema": "1.1",
+  "description": "Post-DSE stream/I/O overlay. Packed SIMD streams, Crow ram_2p, flattened pe_kj. PE_NUM/SIMD/pack_bits come from the per-kernel recipe (16x4 ap_uint<128> is only autosa_mm). Not mixed into flash or DSE skills.",
+  "skills": [
+    {
+      "id": "hls-stream-pe-array-dataflow",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "post_flash_stream",
+      "pattern": "working multi-PE x SIMD GEMM still uses bulk local_A[I][K] with sequential load then compute then store. Or a stream PE whose compute_j is II=4 because Crow[J] was complete-partitioned (mux_case_0). Or a stream PE at II=1 but ~7k cycles because LOOP_FLATTEN off restarts compute_j 16 times.",
+      "strategy": "Keep the autosa_mm ABI. Replace full-matrix locals with PE_NUM mm_pe tasks (16 for locked mm, 32 for 32x8/getting_started/intel) plus loaders under DATAFLOW. Stream SIMD as ap_uint<pack_bits> from the recipe (128 default, 256 for 32x8). Crow[J] MUST be ram_2p BRAM (do not complete-partition Crow). Unpack SIMD to scalars. Flatten k\u00d7j into one pe_kj pipeline of (K/SIMD)*J beats; do not use LOOP_FLATTEN off. Do not DEPENDENCE inter false. Fuse init/drain into pe_kj. Name the PE function mm_pe not PE.",
+      "required_steps": [
+        "keep the exact extern C top name, parameter list, array ranks/shapes, and all existing #pragma HLS INTERFACE lines",
+        "include <hls_stream.h> and <ap_int.h>; typedef ap_uint<pack_bits> (128 for 16x4, ap_uint<256> for 32x8)",
+        "pack/unpack SIMD floats with ap_uint bit slices into scalars; never stream a struct of floats",
+        "declare static task functions with INLINE off: load_A, load_B, mm_pe, drain_B, store_C",
+        "DATAFLOW region contains only function calls and stream declarations",
+        "instantiate PE_NUM explicit mm_pe() calls (16 for mm/hcl_intel, 32 for 32x8/getting_started/intel/hcl/int16, 8 for catapult) plus load_A, load_B, drain_B, store_C",
+        "each mm_pe has private Crow[J] with BIND_STORAGE ram_2p bram; NEVER ARRAY_PARTITION Crow complete",
+        "one pe_kj loop of (K/SIMD)*J beats (1024 at SIMD=4 J=64, 512 at SIMD=8, 2048 at SIMD=2), PIPELINE II=1; do not use LOOP_FLATTEN off; do not DEPENDENCE inter false",
+        "fuse init/drain: first k-tile acc=partial, last k-tile fifo_C.write(acc); do not flatten pe_i0 when tile_loop=inside_tasks",
+        "if recipe tile_loop=around_dataflow (I/PE_NUM>1): pe_i0 wraps DATAFLOW in the TOP; mm_pe/load_B/drain_B have only pe_kj",
+        "PE_NUM and SIMD come from the recipe; do not name a function PE if a PE macro exists"
+      ],
+      "guards": [
+        "ARRAY_PARTITION complete on Crow[J] muxes Crow[j] into mux_case_0 \u2192 II=4, DSP=5 per PE",
+        "struct-of-floats or four fifo.read() of data_t inside the MAC loop also forces II>=4",
+        "LOOP_FLATTEN off on nested pe_k0/compute_j restarts a depth-35 pipeline 16 times \u2192 ~7070 PE cycles vs rank1 4228",
+        "DEPENDENCE inter false on flattened Crow is a lie (true dep at distance 64) and can mis-schedule",
+        "array of hls::stream must be ARRAY_PARTITION complete",
+        "do not clone AutoSA's 1000+ line PE/IO interconnect",
+        "DSP after csynth must stay near the recipe (float PE*SIMD*5, uint16 PE*SIMD, uint32 ~PE*SIMD*3). DSP~80 with PE=16 float means compute_j II=4 \u2014 revise",
+        "I/PE_NUM=2 with the i-tile loop inside mm_pe/load_B serializes two pe_kj trips (~4307 cycles). Rank1 ~2194 is ping-pong around DATAFLOW, not dual-MAC"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "dataflow",
+        "compute_bound",
+        "nested_loop",
+        "ii_target_miss"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "stream",
+        "dataflow",
+        "pe",
+        "gemm",
+        "post-dse",
+        "ap_uint",
+        "ram_2p",
+        "flatten"
+      ],
+      "template": "// Copy-paste compact PE+stream packaging. Default PE=16 SIMD=4 for autosa_mm. For 32x8: PE_NUM=32 SIMD=8 ap_uint<256> pack8, pe_kj=512, wrap DATAFLOW.\n// Keep autosa_mm(A[I][K], B[J][K], C[I][J]). Do not emit AutoSA kernel0 / A_t16 netlist.\n// When I/PE_NUM>1 (getting_started/intel): wrap DATAFLOW with pe_i0 in the TOP. Do not loop tiles inside mm_pe.\n// CRITICAL: stream type MUST be packed ap_uint (128 for 16x4, 256 for 32x8). struct-of-floats serializes to II=4.\n// CRITICAL: do not complete-partition Crow. That muxes Crow[j] into mux_case_0 \u2192 II=4 FP-add.\n// CRITICAL: flatten k\u00d7j into ONE pe_kj pipeline of 1024 beats. Do not use LOOP_FLATTEN off.\n// Do not DEPENDENCE inter false: Crow[j] reuse distance is J=64; ram_2p allows II=1.\n#include \"kernel.h\"\n#include <hls_stream.h>\n#include <ap_int.h>\n\n#define PE_NUM 16\n#define SIMD 4\ntypedef ap_uint<128> vec4_bits;\n\nstatic vec4_bits pack4(data_t v0, data_t v1, data_t v2, data_t v3) {\n#pragma HLS INLINE\n  union { unsigned u; float f; } c0, c1, c2, c3;\n  c0.f = (float)v0; c1.f = (float)v1; c2.f = (float)v2; c3.f = (float)v3;\n  return (ap_uint<32>(c3.u), ap_uint<32>(c2.u), ap_uint<32>(c1.u), ap_uint<32>(c0.u));\n}\n\nstatic void unpack4(vec4_bits w, data_t &v0, data_t &v1, data_t &v2, data_t &v3) {\n#pragma HLS INLINE\n  union { unsigned u; float f; } c0, c1, c2, c3;\n  c0.u = (unsigned)w(31, 0);\n  c1.u = (unsigned)w(63, 32);\n  c2.u = (unsigned)w(95, 64);\n  c3.u = (unsigned)w(127, 96);\n  v0 = (data_t)c0.f; v1 = (data_t)c1.f; v2 = (data_t)c2.f; v3 = (data_t)c3.f;\n}\n\nstatic void load_A(data_t A[I][K], hls::stream<vec4_bits> fifo_A[PE_NUM]) {\n#pragma HLS INLINE off\n  load_i0: for (int i0 = 0; i0 < I; i0 += PE_NUM) {\n    load_k0: for (int k0 = 0; k0 < K; k0 += SIMD) {\n      load_p: for (int p = 0; p < PE_NUM; ++p) {\n#pragma HLS PIPELINE II=1\n        fifo_A[p].write(pack4(A[i0 + p][k0 + 0], A[i0 + p][k0 + 1], A[i0 + p][k0 + 2], A[i0 + p][k0 + 3]));\n      }\n    }\n  }\n}\n\nstatic void load_B(data_t B[J][K], hls::stream<vec4_bits> &fifo_B) {\n#pragma HLS INLINE off\n  load_i0: for (int i0 = 0; i0 < I; i0 += PE_NUM) {\n    load_k0: for (int k0 = 0; k0 < K; k0 += SIMD) {\n      load_j: for (int j = 0; j < J; ++j) {\n#pragma HLS PIPELINE II=1\n        fifo_B.write(pack4(B[j][k0 + 0], B[j][k0 + 1], B[j][k0 + 2], B[j][k0 + 3]));\n      }\n    }\n  }\n}\n\nstatic void mm_pe(\n    hls::stream<vec4_bits> &fifo_A,\n    hls::stream<vec4_bits> &fifo_B_in,\n    hls::stream<vec4_bits> &fifo_B_out,\n    hls::stream<data_t> &fifo_C) {\n#pragma HLS INLINE off\n  data_t Crow[J];\n#pragma HLS BIND_STORAGE variable=Crow type=ram_2p impl=bram\n  pe_i0: for (int i0 = 0; i0 < I; i0 += PE_NUM) {\n    // Do not flatten pe_i0: Crow holds one output row.\n    data_t a0, a1, a2, a3;\n    pe_kj: for (int t = 0; t < (K / SIMD) * J; ++t) {\n#pragma HLS PIPELINE II=1\n      const int k_tile = t / J;\n      const int j = t - k_tile * J;\n      if (j == 0) {\n        unpack4(fifo_A.read(), a0, a1, a2, a3);\n      }\n      vec4_bits bw = fifo_B_in.read();\n      fifo_B_out.write(bw);\n      data_t b0, b1, b2, b3;\n      unpack4(bw, b0, b1, b2, b3);\n      data_t partial = a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3;\n      data_t acc = (k_tile == 0) ? partial : (Crow[j] + partial);\n      Crow[j] = acc;\n      if (k_tile == (K / SIMD) - 1) {\n        fifo_C.write(acc);\n      }\n    }\n  }\n}\n\nstatic void drain_B(hls::stream<vec4_bits> &fifo_B) {\n#pragma HLS INLINE off\n  drain_i0: for (int i0 = 0; i0 < I; i0 += PE_NUM) {\n    drain_k0: for (int k0 = 0; k0 < K; k0 += SIMD) {\n      drain_j: for (int j = 0; j < J; ++j) {\n#pragma HLS PIPELINE II=1\n        (void)fifo_B.read();\n      }\n    }\n  }\n}\n\nstatic void store_C(data_t C[I][J], hls::stream<data_t> fifo_C[PE_NUM]) {\n#pragma HLS INLINE off\n  store_i0: for (int i0 = 0; i0 < I; i0 += PE_NUM) {\n    store_p: for (int p = 0; p < PE_NUM; ++p) {\n      store_j: for (int j = 0; j < J; ++j) {\n#pragma HLS PIPELINE II=1\n        C[i0 + p][j] = fifo_C[p].read();\n      }\n    }\n  }\n}\n\n// Top: keep INTERFACE pragmas, then streams + DATAFLOW + 16 mm_pe() calls.\n// Name the PE function mm_pe (NOT PE).\n// hls::stream<vec4_bits> fifo_A[PE_NUM];\n// hls::stream<vec4_bits> fifo_B[PE_NUM + 1];\n// hls::stream<data_t> fifo_C[PE_NUM];\n// #pragma HLS DATAFLOW\n"
+    },
+    {
+      "id": "hls-stream-io-overlap-dram",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "post_flash_stream",
+      "pattern": "bulk memcpy of A/B/C into on-chip arrays then compute; or m_axi RMW of C inside the PE loop.",
+      "strategy": "Make DRAM access DATAFLOW tasks that burst into packed ap_uint<128> FIFOs. Keep A gmem0, B gmem1, C gmem2. Compute never touches m_axi.",
+      "required_steps": [
+        "load_A and load_B are INLINE-off tasks that only pack and write streams",
+        "store_C only reads fifo_C and writes C[][]",
+        "do not allocate local_A[I][K] or local_B[J][K] in the top kernel",
+        "keep existing m_axi bundles so A/B/C can move in parallel",
+        "STREAM depth on fifo_C at least J (64); A/B depth >= 8"
+      ],
+      "guards": [
+        "ping-pong of a full local_A[I][K] inside one kernel call does not overlap DRAM with the same compute",
+        "do not read C from DRAM; autosa_mm gold is C=sum A*B from 0",
+        "never ARRAY_PARTITION the top-level m_axi ports"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "dataflow"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "stream",
+        "io",
+        "dram",
+        "post-dse"
+      ],
+      "template": "// DRAM loaders pack 4 floats into ap_uint<128> then write one stream beat.\nload_A(A, fifo_A);\nload_B(B, fifo_B[0]);\nstore_C(C, fifo_C);\n"
+    },
+    {
+      "id": "hls-stream-b-systolic-forward",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "post_flash_stream",
+      "pattern": "B is fully buffered on-chip and broadcast to an unrolled PE loop inside one function.",
+      "strategy": "Stream packed vec4_bits along a PE chain. Always forward; drain_B consumes fifo_B[PE_NUM]. Replay B across i0 tiles.",
+      "required_steps": [
+        "hls::stream<vec4_bits> fifo_B[PE_NUM+1] complete-partitioned",
+        "load_B writes fifo_B[0] with schedule i0, k0, j matching every PE compute_j",
+        "each mm_pe forwards every B beat; last forwards to drain_B",
+        "do not broadcast B through a shared local_B[J][K]",
+        "A schedule is i0, k0, p (no j); mm_pe reuses the A vec across compute_j"
+      ],
+      "guards": [
+        "mismatched load vs PE trip counts deadlock DATAFLOW streams",
+        "always forward and always drain",
+        "B layout is B[J][K]"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "memory_bandwidth",
+        "port_conflict"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "stream",
+        "systolic",
+        "pe",
+        "post-dse"
+      ],
+      "template": "mm_pe(fifo_A[0],  fifo_B[0],  fifo_B[1],  fifo_C[0]);\nmm_pe(fifo_A[1],  fifo_B[1],  fifo_B[2],  fifo_C[1]);\n// ... 16 explicit mm_pe calls ...\nmm_pe(fifo_A[15], fifo_B[15], fifo_B[16], fifo_C[15]);\ndrain_B(fifo_B[16]);\n"
+    },
+    {
+      "id": "avoid-stream-shared-local-abc",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "post_flash_stream",
+      "pattern": "DATAFLOW on shared local_A/B/C; AutoSA clone; struct-of-floats SIMD FIFOs; Crow[J] ARRAY_PARTITION complete causing mux_case_0 II=4; or LOOP_FLATTEN off on pe_k0 causing 16 pipeline refills (~7k cycles).",
+      "strategy": "Reject shared on-chip A/B/C across DATAFLOW tasks. Reject AutoSA netlist clone. Reject struct-of-floats SIMD FIFOs. Reject complete-partition of Crow on the pipelined J index. Reject LOOP_FLATTEN off on nested k/j. If DSP is ~80 or II>1 with mux_case_0, Crow was muxed \u2014 use ram_2p. If PE is ~7k with II=1, k/j was not flattened \u2014 use pe_kj of 1024 beats.",
+      "required_steps": [
+        "scan for local_A[I][K] used by more than one task \u2014 reject",
+        "scan for ARRAY_PARTITION variable=Crow complete \u2014 reject",
+        "scan for #pragma HLS LOOP_FLATTEN off \u2014 reject",
+        "scan for DEPENDENCE variable=Crow inter false \u2014 reject on flattened k\u00d7j",
+        "scan for hls::stream of a struct of four floats \u2014 reject",
+        "scan for kernel0, A_t16, B_t16 netlist clone \u2014 reject",
+        "require PE_NUM mm_pe() calls from the recipe, pe_kj II=1, DSP at recipe min_dsp (not a blanket DSP>>80 — that rejects int16 DSP=64 and catapult DSP=96)"
+      ],
+      "guards": [
+        "DATAFLOW on LCST body is not streamifying",
+        "do not complete-partition Crow on the pipelined J index",
+        "do not use LOOP_FLATTEN off; flatten k\u00d7j instead",
+        "struct-of-floats on the MAC loop is a separate II=4 failure mode",
+        "do not emit AutoSA 1600-line hls_baseline.cpp"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "memory_bandwidth",
+        "ii_target_miss"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "stream",
+        "dataflow",
+        "post-dse"
+      ],
+      "template": "// BAD: complete-partition Crow on the pipelined J index.\n// HLS muxes Crow[j] into mux_case_0; false carried FP-add dep \u2192 II=4, DSP=5/PE.\ndata_t Crow[J];\n#pragma HLS ARRAY_PARTITION variable=Crow complete  // DO NOT DO THIS\n// BAD: LOOP_FLATTEN off on nested pe_k0/compute_j.\n// Restarts a depth-35 pipeline 16 times \u2192 ~7070 cycles vs rank1 4228.\n// GOOD: ram_2p Crow; one pe_kj of 1024 beats; fuse init/drain; do not DEPENDENCE inter false.\n// Also BAD: struct-of-floats SIMD FIFOs; DATAFLOW on DSE LCST; AutoSA kernel0; function named PE if #define PE.\n"
+    },
+    {
+      "id": "hls-stream-match-pe-pack-to-data-t",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "post_flash_stream",
+      "pattern": "stream step that always emits PE_NUM=16, SIMD=4, ap_uint<128> float union pack, or gates success on DSP>=200. Wrong for int16 (DSP~64, pack 2xu16), catapult (PE=8, I_P, unsigned int), getting_started/intel (need 32 mm_pe calls, DSP~640), and the autosa_mm_32x8 overlay (PE=32 SIMD=8, ap_uint<256>, DSP~1280).",
+      "strategy": "Follow the mandatory PE recipe. Pack SIMD as ap_uint<pack_bits> with raw element bits. Float union is only for data_t float. pe_kj trip=(K/SIMD)*J. Instantiate PE_NUM explicit mm_pe calls. Architecture DSP floor is recipe min_dsp, not 200.",
+      "required_steps": [
+        "typedef ap_uint<pack_bits> vec_bits where pack_bits is 256 (8xfloat 32x8), 128 (4xfloat or 4xu32), 64 (2xfloat), or 32 (2xu16)",
+        "integer pack: shift/mask data_t bits; never union {float f; unsigned u}",
+        "PE_NUM mm_pe() calls: 32 for 32x8/getting_started/intel/hcl/int16, 16 for mm/hcl_intel, 8 for catapult",
+        "pe_kj trip 512 at SIMD=8, 1024 at SIMD=4, or 2048 at SIMD=2 for J=64",
+        "if seed has bundle=gmem on A,B,C split to gmem0/gmem1/gmem2 so load_A/load_B/store_C can overlap",
+        "catapult loops and array ranks use I_P/J_P/K_P"
+      ],
+      "guards": [
+        "DSP>=200 as a universal stream gate rejects a correct int16 (64) or catapult (96) kernel",
+        "32 PE with 16 mm_pe() calls is still the 16x4 design",
+        "float pack on unsigned short fails csim",
+        "I/J/K on catapult does not compile"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "memory_bandwidth",
+        "compute_bound"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["stream", "pack", "pe", "recipe", "post-dse"],
+      "template": "// Integer SIMD pack (uint16 SIMD=2 -> ap_uint<32>). Do not use float union.\nstatic ap_uint<32> pack2_u16(data_t v0, data_t v1) {\n#pragma HLS INLINE\n  ap_uint<32> w = 0;\n  w.range(15, 0) = (unsigned short)v0;\n  w.range(31, 16) = (unsigned short)v1;\n  return w;\n}\n// uint32 SIMD=4 -> ap_uint<128> from four unsigned ints (raw bits).\n// float SIMD=4 stays ap_uint<128> with the existing pack4.\n// float SIMD=8 (32x8 overlay) -> ap_uint<256> pack8 of eight floats.\n// Top: #define PE_NUM 32  (or 16 / 8 from recipe)\n// mm_pe(fifo_A[0], fifo_B[0], fifo_B[1], fifo_C[0]); ... through PE_NUM-1\n"
+    },
+    {
+      "id": "hls-stream-tile-loop-around-dataflow",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "post_flash_stream",
+      "pattern": "PE_NUM=32 so I/PE=2, but the i-tile / ROWS_PER_PE loop is inside load_A, load_B, mm_pe, drain_B, store_C. Each DATAFLOW firing then does 2*pe_kj beats (~2048) and latency sticks at ~4307. Rank1 getting_started is ~2194; intel ~4178 is the same 32x4 class and is also hurt by inner-tile serialization.",
+      "strategy": "When the recipe says tile_loop=around_dataflow, wrap #pragma HLS DATAFLOW in the top i-tile loop (i0 += PE_NUM). Pass i0 into load_A/store_C. mm_pe, load_B, and drain_B have NO tile/i0/ROWS_PER_PE loop — one pe_kj of (K/SIMD)*J beats per firing. STREAM depth>=8 so the two tiles ping-pong. Dual-MAC two rows in one beat is not 32x8 (32x8 is SIMD=8 / ap_uint<256> / DSP~1280).",
+      "required_steps": [
+        "top: for (int i0 = 0; i0 < I; i0 += PE_NUM) { #pragma HLS DATAFLOW ... }",
+        "load_A(A, fifo_A, i0) loads only rows i0..i0+PE_NUM-1; store_C writes the same rows",
+        "mm_pe / load_B / drain_B contain only pe_kj (or KTILES*J) — delete for tile < ROWS_PER_PE and for i0 += PE_NUM inside those tasks",
+        "STREAM depth fifo_B>=8, fifo_A>=KTILES, fifo_C>=J so ping-pong can overlap the two tiles",
+        "keep PE_NUM explicit mm_pe() calls and SIMD from the recipe (SIMD=4 pe_kj=1024, or SIMD=8 pe_kj=512 / ap_uint<256> for 32x8)"
+      ],
+      "guards": [
+        "tile loop inside tasks: II=1 at 640 DSP but latency ~4307 because two pe_kj trips are serialized in one DATAFLOW firing",
+        "two rows per beat at II=1 uses ~1280 DSP on a 32x4 design — that is dual-MAC, not the 32x8 overlay. 32x8 DSP~1280 is SIMD=8, not dual-MAC",
+        "DATAFLOW must be inside the i-tile loop; a DATAFLOW at function scope with inner tile loops is the miss",
+        "do not also keep pe_i0 inside mm_pe after wrapping DATAFLOW — that would replay 2x2 tiles"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "nested_loop",
+        "latency"
+      ],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["stream", "dataflow", "tile", "ping-pong", "post-dse"],
+      "template": "// I/PE_NUM=2: wrap DATAFLOW. Tasks see ONE tile (pe_kj=1024). Depth>=8 ping-pong.\n// BAD: for (tile < ROWS_PER_PE) inside mm_pe/load_B \u2192 2048 beats / firing \u2192 ~4307 cycles.\nextern \"C\" void autosa_mm_getting_started(data_t A[I][K], data_t B[J][K], data_t C[I][J]) {\n  // keep existing INTERFACE pragmas\n  hls::stream<ap_uint<128> > fifo_A[PE_NUM];\n  hls::stream<ap_uint<128> > fifo_B[PE_NUM + 1];\n  hls::stream<data_t> fifo_C[PE_NUM];\n#pragma HLS STREAM variable=fifo_A depth=16\n#pragma HLS STREAM variable=fifo_B depth=8\n#pragma HLS STREAM variable=fifo_C depth=64\n#pragma HLS ARRAY_PARTITION variable=fifo_A complete\n#pragma HLS ARRAY_PARTITION variable=fifo_B complete\n#pragma HLS ARRAY_PARTITION variable=fifo_C complete\n  tile_i0: for (int i0 = 0; i0 < I; i0 += PE_NUM) {\n#pragma HLS DATAFLOW\n    load_A(A, fifo_A, i0);          // rows i0..i0+31 only; no tile loop inside\n    load_B(B, fifo_B[0]);           // one pe_kj=1024, no i0 loop\n    mm_pe(fifo_A[0], fifo_B[0], fifo_B[1], fifo_C[0]); // 32 explicit calls; pe_kj only\n    drain_B(fifo_B[PE_NUM]);\n    store_C(C, fifo_C, i0);\n  }\n}\n// mm_pe: Crow ram_2p; pe_kj of (K/SIMD)*J; NO for (tile) / NO i0 += PE_NUM.\n"
+    }
+  ]
+}

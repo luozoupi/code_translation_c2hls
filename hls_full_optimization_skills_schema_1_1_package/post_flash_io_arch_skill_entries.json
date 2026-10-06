@@ -1,0 +1,30 @@
+{
+  "schema": "1.1",
+  "description": "AutoSA Design-1 A I/O (paper Fig. 11a §6): L2 unique DRAM fill and L1 replay along j as separate DATAFLOW tasks. Overlay on stream/overlap; do not mix into frozen 20260830_mmflow launchers unless asked.",
+  "skills": [
+    {
+      "id": "hls-io-a-l2-unique-not-times-j",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "post_flash_io_arch",
+      "pattern": "load_A pipelines PE index p and/or j inside one II=1 trip so DRAM A is read 16*64 times per k-group (trip ~65536) or fill+replay are sequential in one function (~5513).",
+      "strategy": "Split AutoSA Design-1 A I/O into two INLINE-off DATAFLOW tasks. A_L2_in reads each A[i][k] once (1024 A_t4 for 64^3 / SIMD4 / 16 PE). A_L1_replay (or PE j==0) reuses that vector for all 64 j. Never put j in the DRAM A trip. Do not clone kernel0 names.",
+      "required_steps": [
+        "A_L2_in: loops ti, tk, kg, p only; PIPELINE II=1; write fifo_l2[p]; trip 1024 if p is in the trip",
+        "A_L1_replay: 4096-beat pipeline, p UNROLL, if (j==0) read fifo_l2 else reuse a_reg, write fifo_pe every beat",
+        "or fold replay into mm_pe: if (j==0) fifo_A.read()",
+        "top DATAFLOW contains A_L2_in and A_L1_replay as separate calls, not one load_A that fills then replays",
+        "keep autosa_mm ABI; do not emit void kernel0"
+      ],
+      "guards": [
+        "fill then replay inside one function is still serial (8*(170+515)=5513)",
+        "p inside the DRAM pipeline without UNROLL makes A trip 65536",
+        "this is Design 1 (1D along i), not Design 4/5 2D mesh"
+      ],
+      "bottleneck_kinds": ["memory_bandwidth", "dataflow"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["io", "l1", "l2", "autosa-design1", "post-flash"]
+    }
+  ]
+}

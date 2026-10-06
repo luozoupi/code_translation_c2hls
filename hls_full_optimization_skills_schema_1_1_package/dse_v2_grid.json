@@ -1,0 +1,26 @@
+{
+  "schema": "dse_v2_grid_v1",
+  "description": "DSE 2.0 PE×SIMD sweep for post-flash compute rewrite. No locked 16×4 recipe; expand pow2 ranges (SIMD from 1), filter by I/K divisibility and DSP bounds, then run one LLM call per surviving trial.",
+  "pe": {
+    "min": 8,
+    "max": 128,
+    "pow2": true
+  },
+  "simd": {
+    "min": 1,
+    "max": 32,
+    "pow2": true
+  },
+  "min_dsp": 300,
+  "max_dsp": 9024,
+  "dsp_mul_float": 5,
+  "dsp_mul_uint16": 1,
+  "dsp_mul_uint32": 3,
+  "require_pe_divides_I": true,
+  "require_simd_divides_K": true,
+  "data_kind_default": "float",
+  "workers": {
+    "llm": 2,
+    "csynth": 4
+  }
+}

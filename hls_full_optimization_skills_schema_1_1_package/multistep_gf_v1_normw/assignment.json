@@ -1,0 +1,53 @@
+{
+  "saved_at": "2026-09-29T01:56:55Z",
+  "schema": "1.1",
+  "flow": "multistep",
+  "derived_from": [
+    "skills_ii_target_miss_solutions_added(90skills)_gemm_flatten_v1.json",
+    "flash_no_RMW_m_axi_skill_entries.json"
+  ],
+  "merge_rule": "Union of gemm_flatten_v1 and flash_no_RMW overlay. On id conflicts, the no-RMW overlay replaces the v1 entry.",
+  "source_counts": {
+    "gemm_flatten_v1": 96,
+    "no_rmw_overlay": 33
+  },
+  "union": 129,
+  "placed": 180,
+  "missing_from_union": [
+    "pipeline/avoids/avoid-fp-mac-recurrence-single-acc",
+    "pipeline/avoids/avoid-switch-k-mod-named-acc-banks",
+    "pipeline/skills/hls-fp-mac-k-step-independent-acc-banks",
+    "unroll/avoids/avoid-fp-mac-recurrence-single-acc",
+    "unroll/avoids/avoid-switch-k-mod-named-acc-banks",
+    "unroll/skills/hls-fp-mac-k-step-independent-acc-banks",
+    "coalescing/avoids/avoid-axi-widen-512-with-narrow-unroll",
+    "coalescing/skills/hls-axi-load-step-matches-widen-lanes"
+  ],
+  "steps": {
+    "tiling": {
+      "focus": "Local staging, tiling, reuse, and load-compute-store. Keep compute off m_axi.",
+      "skills": 22,
+      "avoids": 14
+    },
+    "pipeline": {
+      "focus": "Pipeline the hot local loops, hit a legal II, and fix false or true recurrences.",
+      "skills": 30,
+      "avoids": 19
+    },
+    "unroll": {
+      "focus": "Unroll independent or reduction loops and match array partition to the factor.",
+      "skills": 25,
+      "avoids": 13
+    },
+    "coalescing": {
+      "focus": "Burst-friendly m_axi access, 512-bit widening, and matching lane-wide compute.",
+      "skills": 16,
+      "avoids": 11
+    },
+    "doublebuffer": {
+      "focus": "Overlap load and compute with ping-pong buffers or a canonical dataflow schedule.",
+      "skills": 17,
+      "avoids": 13
+    }
+  }
+}

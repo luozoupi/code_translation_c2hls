@@ -1,0 +1,70 @@
+{
+  "schema": "1.1",
+  "description": "How AutoSA sa_sizes factors become a PE by SIMD array. A published array size is not one config.",
+  "derived_from": [
+    "autosa_concept_crosswalk.csv",
+    "mm1024_paper_vs_previous.csv"
+  ],
+  "skills": [
+    {
+      "id": "autosa-sa-sizes-factors",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "manual",
+      "pattern": "array_part, latency, and simd are treated as one tile size or as HLS pragmas",
+      "strategy": "array_part is the outer tile of (i, j, k). latency is the per-PE tile on the space loops, so the PE grid is array_part/latency on those loops. simd vectorizes k. The optimizer stores the whole string in sa_sizes.",
+      "required_steps": [
+        "record space_time, array_part, latency, and simd as separate fields",
+        "compute the PE grid from array_part and latency before comparing two designs"
+      ],
+      "guards": [
+        "generic HLS unroll and partition skills do not set these factors"
+      ],
+      "bottleneck_kinds": ["design_space"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "sa_sizes", "tiling"]
+    },
+    {
+      "id": "autosa-pe-shape-from-sa-sizes",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "manual",
+      "pattern": "the paper array 128x8 or 13x16x8 is compared to array_part as if those numbers were the tile",
+      "strategy": "Space-time 0: PEs = array_part[i]/latency[0], SIMD = simd. The manual's [32,32,32]/[8,8]/simd 2 is a 1x4 array, and the paper's design 1 is 128 PEs by SIMD 8. Space-time 3: PEs = array_part[i]/latency[0] by array_part[j]/latency[1]. [260,256,512]/[20,16]/simd 8 is 13x16x8. Space-time 4: space loops are i and k, so PEs = array_part[i]/latency[0] by array_part[k]/latency[1]. The manual's [32,4,32]/[16,16]/simd 2 is 2x2.",
+      "required_steps": [
+        "divide only the space-loop dimensions by the latency factors, in space-loop order",
+        "keep j as the time tile on space-time 4; the second latency factor divides k",
+        "write the paper array as PEs by SIMD, not as array_part"
+      ],
+      "guards": [
+        "no earlier 1024^3 row is 13x16x8 or 13x12x8",
+        "earlier space-time 3 rows are 16x16x8 or 16x8x8"
+      ],
+      "bottleneck_kinds": ["design_space"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "sa_sizes", "pe"]
+    },
+    {
+      "id": "avoid-autosa-shape-is-one-config",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "agent",
+      "pattern": "two designs are called the same because both are 128 PEs by SIMD 8",
+      "strategy": "A PE by SIMD shape is not one sa_sizes. The earlier mm1024 space-time 0 set has nine 128x8 tilings. Candidates 17, 20, 23, and 26 are within 10% of the model on HLS kernel min. Candidates 15, 25, 28, 31, and 32 are not. Candidate 15 is just outside 10%. Candidate 32 is several times the model.",
+      "required_steps": [
+        "compare model latency to HLS kernel min per sa_sizes, not per PE by SIMD shape",
+        "keep array_part j and k in the row even when the PE count matches"
+      ],
+      "guards": [
+        "do not mark every 128x8 row within 10%",
+        "within 10% here means abs(HLS kernel min - model) / model <= 0.10"
+      ],
+      "bottleneck_kinds": ["latency"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "avoid", "sa_sizes"]
+    }
+  ]
+}

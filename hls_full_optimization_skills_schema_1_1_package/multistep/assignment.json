@@ -1,0 +1,2185 @@
+{
+  "saved_at": "2026-09-26T08:13:54Z",
+  "schema": "1.1",
+  "flow": "multistep",
+  "source_counts": {
+    "skills_90": 123,
+    "gemm_flatten_v2": 104,
+    "union": 134
+  },
+  "steps": {
+    "tiling": {
+      "focus": "Local staging, tiling, reuse, and load-compute-store. Keep compute off m_axi.",
+      "files": {
+        "skills": {
+          "path": "multistep/tiling_skills.json",
+          "skill_count": 22,
+          "primary": [
+            "prompt-tiling",
+            "hls-tile-1d-reuse-and-compute-restructure",
+            "hls-tile-2d-locality-and-halo",
+            "hls-baseline-load-compute-store-gate",
+            "hls-load-compute-store-no-rmw-m_axi",
+            "hls-fixed-tile-bound-not-runtime-tile-size",
+            "hls-prefer-full-workspace-staging-when-fits",
+            "hls-neighbor-access-requires-local-window",
+            "hls-iterative-stencil-timestep-local-volume",
+            "ii-stencil-linebuffer-window-shift",
+            "hls-chain-intermediate-results-locally",
+            "hls-chained-gemm-local-temporary",
+            "hls-gemm-chain-local-reuse",
+            "hls-single-load-dual-local-layout",
+            "hls-multi-pass-stats-local-staging",
+            "local-axi-staging-for-ii"
+          ],
+          "overlap": [
+            "hls-tile-partition-local-buffers",
+            "hls-multi-phase-local-pipeline",
+            "hls-pipeline-stage-global-memory",
+            "hls-rewrite-variable-trip-fixed-bound-guard",
+            "hls-distinct-gmem-bundle-per-port",
+            "ii-loop-order-contiguous-and-banked-inner-loop"
+          ]
+        },
+        "avoids": {
+          "path": "multistep/tiling_avoids.json",
+          "skill_count": 14,
+          "primary": [
+            "hls-avoid-superficial-tiling",
+            "hls-avoid-tiling-without-reuse",
+            "hls-avoid-micro-tile-complete-partition-nest",
+            "hls-avoid-iterative-spatial-tile-global-roundtrip",
+            "hls-avoid-partial-staging-global-in-compute",
+            "hls-avoid-global-intermediate-between-phases",
+            "hls-avoid-global-reload-in-blocking-loop",
+            "avoid-m_axi-accumulate-in-tiled-phase",
+            "avoid-no-rmw-m_axi-direct",
+            "hls-avoid-reference-port-global-compute",
+            "ii-avoid-complete-partition-large-buffer-ff-explosion"
+          ],
+          "overlap": [
+            "avoid-manual-loop-interchange-on-perfect-nest",
+            "hls-avoid-benchmark-provenance-assumption",
+            "hls-avoid-reference-fallback-under-avoid-noise"
+          ]
+        }
+      }
+    },
+    "pipeline": {
+      "focus": "Pipeline the hot local loops, hit a legal II, and fix false or true recurrences.",
+      "files": {
+        "skills": {
+          "path": "multistep/pipeline_skills.json",
+          "skill_count": 31,
+          "primary": [
+            "prompt-pipeline",
+            "hls-pipeline-hot-loop-achieve-ii",
+            "hls-pipeline-local-compute-after-tiling",
+            "hls-pipeline-bank-local-buffers",
+            "hls-pipeline-resolve-false-dependence",
+            "hls-pipeline-handle-true-recurrence",
+            "hls-pipeline-realistic-ii-selection",
+            "hls-pipeline-recurrence-with-shift-register",
+            "hls-pipeline-innermost-memory-copy-loop",
+            "hls-mandatory-pipeline-load-store-loops",
+            "dependence-inter-false-on-accum",
+            "loop-tripcount-when-bound-runtime",
+            "ii-false-dependence-index-rewrite-then-pragma",
+            "ii-resource-limited-operator-restructure",
+            "hls-fp-mac-k-step-independent-acc-banks",
+            "hls-gemm-static-nest-flatten-and-k-partition",
+            "ii-stencil-wavefront-loop-skew",
+            "hls-loop-structure-audit-flash",
+            "ii-rmw-scalarize-repeated-same-element"
+          ],
+          "overlap": [
+            "hls-pipeline-stage-global-memory",
+            "hls-pipeline-unroll-small-inner-loops",
+            "hls-rewrite-variable-trip-fixed-bound-guard",
+            "local-axi-staging-for-ii",
+            "ii-stencil-linebuffer-window-shift",
+            "hls-gemm-chain-local-reuse",
+            "hls-multi-phase-local-pipeline",
+            "partition-cyclic-on-port-conflict",
+            "ii-memory-port-bank-to-two-accesses-per-bram",
+            "hls-fp-reduction-partial-accumulators",
+            "hls-syr2k-triangle-flatten-k-unroll",
+            "ii-raw-dependency-pingpong-old-new-buffers"
+          ]
+        },
+        "avoids": {
+          "path": "multistep/pipeline_avoids.json",
+          "skill_count": 21,
+          "primary": [
+            "hls-avoid-pipeline-pragma-only",
+            "hls-avoid-pipeline-innermost-only-goal-on-gemm",
+            "hls-avoid-outer-sequential-gemm-after-inner-pipeline",
+            "avoid-pipeline-parent-with-nested-child-loop",
+            "avoid-outer-memory-loop-pipeline-over-row",
+            "avoid-fused-multi-array-load-outer-pipeline",
+            "avoid-manual-cse-inside-pipelined-loop",
+            "ii-avoid-false-dependence-pragma-on-true-rmw",
+            "hls-avoid-zero-pipeline-submit",
+            "avoid-fp-scalar-recurrence-in-pipelined-loop",
+            "avoid-fp-mac-recurrence-single-acc",
+            "avoid-switch-k-mod-named-acc-banks",
+            "avoid-loop-tripcount-flatten-variable-bounds",
+            "hls-avoid-serial-fp-acc-under-full-k-unroll"
+          ],
+          "overlap": [
+            "avoid-manual-loop-interchange-on-perfect-nest",
+            "avoid-local-output-rmw-in-pipelined-unroll",
+            "avoid-no-rmw-m_axi-direct",
+            "hls-avoid-partial-staging-global-in-compute",
+            "hls-avoid-reference-port-global-compute",
+            "hls-avoid-benchmark-provenance-assumption",
+            "hls-avoid-reference-fallback-under-avoid-noise"
+          ]
+        }
+      }
+    },
+    "unroll": {
+      "focus": "Unroll independent or reduction loops and match array partition to the factor.",
+      "files": {
+        "skills": {
+          "path": "multistep/unroll_skills.json",
+          "skill_count": 26,
+          "primary": [
+            "prompt-unroll",
+            "hls-unroll-independent-loop",
+            "hls-unroll-with-array-partition",
+            "hls-unroll-reduction-partial-sums",
+            "hls-unroll-independent-tasks-processing-elements",
+            "hls-array-partition-match-unroll-factor",
+            "hls-unroll-column-partition-matrix-vector",
+            "hls-partition-select-complete-cyclic-block",
+            "hls-tile-compute-inner-parallelism",
+            "hls-tile-partition-local-buffers",
+            "partition-cyclic-on-port-conflict",
+            "ii-memory-port-complete-partition-small-ff",
+            "ii-memory-port-bank-to-two-accesses-per-bram",
+            "ii-memory-port-readonly-replication-per-lane",
+            "ii-reduction-lane-partial-tree",
+            "ii-rmw-privatize-partial-merge",
+            "hls-fp-reduction-partial-accumulators",
+            "hls-syr2k-triangle-flatten-k-unroll"
+          ],
+          "overlap": [
+            "hls-pipeline-unroll-small-inner-loops",
+            "hls-pipeline-bank-local-buffers",
+            "ii-rmw-scalarize-repeated-same-element",
+            "ii-resource-limited-shared-to-lane-local-state",
+            "hls-fp-mac-k-step-independent-acc-banks",
+            "hls-gemm-static-nest-flatten-and-k-partition",
+            "hls-dataflow-performance-partition-unroll",
+            "hls-coalescing-partition-lane-buffers"
+          ]
+        },
+        "avoids": {
+          "path": "multistep/unroll_avoids.json",
+          "skill_count": 15,
+          "primary": [
+            "hls-avoid-unroll-memory-bound-loop",
+            "hls-avoid-unroll-resource-explosion",
+            "hls-avoid-tiny-partial-unroll-on-small-static",
+            "avoid-over-unroll-axi-dep",
+            "avoid-local-output-rmw-in-pipelined-unroll",
+            "hls-avoid-serial-fp-acc-under-full-k-unroll",
+            "ii-avoid-complete-partition-large-buffer-ff-explosion",
+            "hls-avoid-micro-tile-complete-partition-nest"
+          ],
+          "overlap": [
+            "ii-avoid-false-dependence-pragma-on-true-rmw",
+            "avoid-fp-scalar-recurrence-in-pipelined-loop",
+            "avoid-fp-mac-recurrence-single-acc",
+            "avoid-switch-k-mod-named-acc-banks",
+            "avoid-no-rmw-m_axi-direct",
+            "hls-avoid-benchmark-provenance-assumption",
+            "hls-avoid-reference-fallback-under-avoid-noise"
+          ]
+        }
+      }
+    },
+    "doublebuffer": {
+      "focus": "Overlap load and compute with ping-pong buffers or a canonical dataflow schedule.",
+      "files": {
+        "skills": {
+          "path": "multistep/doublebuffer_skills.json",
+          "skill_count": 17,
+          "primary": [
+            "prompt-doublebuffer",
+            "hls-doublebuffer-load-compute-store",
+            "hls-doublebuffer-pingpong-local-buffers",
+            "hls-doublebuffer-dataflow-stage-split",
+            "hls-doublebuffer-first-last-guards",
+            "hls-tile-doublebuffer-load-compute",
+            "hls-canonical-dataflow-lcs-functions",
+            "hls-dataflow-fused-compute-phases",
+            "hls-dataflow-merge-parallel-consumers",
+            "hls-dataflow-one-writer-one-reader-local",
+            "hls-dataflow-ping-pong-gate-flash",
+            "hls-dual-layout-fused-load-dataflow",
+            "ii-dataflow-variable-latency-decoupling",
+            "ii-raw-dependency-pingpong-old-new-buffers"
+          ],
+          "overlap": [
+            "hls-dataflow-performance-partition-unroll",
+            "ii-gmem-stage-request-response-decouple",
+            "hls-distinct-gmem-bundle-per-port"
+          ]
+        },
+        "avoids": {
+          "path": "multistep/doublebuffer_avoids.json",
+          "skill_count": 13,
+          "primary": [
+            "hls-avoid-doublebuffer-memory-overuse",
+            "hls-avoid-doublebuffer-without-overlap",
+            "avoid-fake-ping-pong-without-tile-overlap",
+            "avoid-ping-pong-cross-tile-deps-triangular",
+            "avoid-dataflow-nonunit-tile-loop",
+            "avoid-dataflow-temporal-loop-as-parallel-tasks",
+            "avoid-dataflow-without-stream-or-overlap-proof",
+            "avoid-m_axi-read-inside-dataflow-outer-loop",
+            "avoid-noncanonical-dataflow-region"
+          ],
+          "overlap": [
+            "avoid-no-rmw-m_axi-direct",
+            "hls-avoid-global-intermediate-between-phases",
+            "hls-avoid-benchmark-provenance-assumption",
+            "hls-avoid-reference-fallback-under-avoid-noise"
+          ]
+        }
+      }
+    },
+    "coalescing": {
+      "focus": "Burst-friendly m_axi access, 512-bit widening, and matching lane-wide compute.",
+      "files": {
+        "skills": {
+          "path": "multistep/coalescing_skills.json",
+          "skill_count": 17,
+          "primary": [
+            "prompt-coalescing",
+            "axi-burst-coalescing-narrow-safe",
+            "axi-burst-widening-512",
+            "hls-coalescing-512-compound-transform",
+            "hls-coalescing-compute-lane-parallelism",
+            "hls-coalescing-contiguous-access-rewrite",
+            "hls-coalescing-lane-parallel-reduction",
+            "hls-coalescing-partition-lane-buffers",
+            "hls-axi-load-step-matches-widen-lanes",
+            "hls-multibank-balance-memory-traffic",
+            "hls-multibank-separate-independent-arrays",
+            "hls-distinct-gmem-bundle-per-port",
+            "ii-axi-burst-outstanding-prefetch-queue",
+            "ii-gmem-stage-request-response-decouple",
+            "ii-loop-order-contiguous-and-banked-inner-loop"
+          ],
+          "overlap": [
+            "ii-reduction-lane-partial-tree",
+            "hls-array-partition-match-unroll-factor"
+          ]
+        },
+        "avoids": {
+          "path": "multistep/coalescing_avoids.json",
+          "skill_count": 12,
+          "primary": [
+            "hls-avoid-coalescing-interface-only",
+            "avoid-axi-widen-512-with-narrow-unroll",
+            "hls-avoid-single-gmem-for-independent-streams",
+            "hls-avoid-multibank-without-host-platform-support",
+            "avoid-over-unroll-axi-dep",
+            "hls-avoid-unroll-memory-bound-loop"
+          ],
+          "overlap": [
+            "avoid-outer-memory-loop-pipeline-over-row",
+            "avoid-fused-multi-array-load-outer-pipeline",
+            "hls-avoid-partial-staging-global-in-compute",
+            "avoid-no-rmw-m_axi-direct",
+            "hls-avoid-benchmark-provenance-assumption",
+            "hls-avoid-reference-fallback-under-avoid-noise"
+          ]
+        }
+      }
+    }
+  },
+  "skills": [
+    {
+      "id": "avoid-axi-widen-512-with-narrow-unroll",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-dataflow-nonunit-tile-loop",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-dataflow-temporal-loop-as-parallel-tasks",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-dataflow-without-stream-or-overlap-proof",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-fake-ping-pong-without-tile-overlap",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-fp-mac-recurrence-single-acc",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "avoid-fp-scalar-recurrence-in-pipelined-loop",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "avoid-fused-multi-array-load-outer-pipeline",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "avoid-local-output-rmw-in-pipelined-unroll",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-loop-tripcount-flatten-variable-bounds",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-m_axi-accumulate-in-tiled-phase",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-m_axi-read-inside-dataflow-outer-loop",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-manual-cse-inside-pipelined-loop",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-manual-loop-interchange-on-perfect-nest",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "avoid-no-rmw-m_axi-direct",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "avoid-noncanonical-dataflow-region",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-outer-memory-loop-pipeline-over-row",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "avoid-over-unroll-axi-dep",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-ping-pong-cross-tile-deps-triangular",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-pipeline-parent-with-nested-child-loop",
+      "confidence": "avoid",
+      "source": "90",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "avoid-switch-k-mod-named-acc-banks",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "axi-burst-coalescing-narrow-safe",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "axi-burst-widening-512",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "dependence-inter-false-on-accum",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-array-partition-match-unroll-factor",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        },
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-benchmark-provenance-assumption",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-coalescing-interface-only",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-doublebuffer-memory-overuse",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-doublebuffer-without-overlap",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-global-intermediate-between-phases",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-global-reload-in-blocking-loop",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-iterative-spatial-tile-global-roundtrip",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-micro-tile-complete-partition-nest",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-multibank-without-host-platform-support",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-outer-sequential-gemm-after-inner-pipeline",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-partial-staging-global-in-compute",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-pipeline-innermost-only-goal-on-gemm",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-pipeline-pragma-only",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-reference-fallback-under-avoid-noise",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "doublebuffer",
+          "role": "avoids",
+          "band": "overlap"
+        },
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-reference-port-global-compute",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-serial-fp-acc-under-full-k-unroll",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-single-gmem-for-independent-streams",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-superficial-tiling",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-tiling-without-reuse",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-tiny-partial-unroll-on-small-static",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-unroll-memory-bound-loop",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "coalescing",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-unroll-resource-explosion",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-avoid-zero-pipeline-submit",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-axi-load-step-matches-widen-lanes",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-baseline-load-compute-store-gate",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-canonical-dataflow-lcs-functions",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-chain-intermediate-results-locally",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-chained-gemm-local-temporary",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-coalescing-512-compound-transform",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-coalescing-compute-lane-parallelism",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-coalescing-contiguous-access-rewrite",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-coalescing-lane-parallel-reduction",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-coalescing-partition-lane-buffers",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-dataflow-fused-compute-phases",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-dataflow-merge-parallel-consumers",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-dataflow-one-writer-one-reader-local",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-dataflow-performance-partition-unroll",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-dataflow-ping-pong-gate-flash",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-distinct-gmem-bundle-per-port",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-doublebuffer-dataflow-stage-split",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-doublebuffer-first-last-guards",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-doublebuffer-load-compute-store",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-doublebuffer-pingpong-local-buffers",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-dual-layout-fused-load-dataflow",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-fixed-tile-bound-not-runtime-tile-size",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-fp-mac-k-step-independent-acc-banks",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        },
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-fp-reduction-partial-accumulators",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-gemm-chain-local-reuse",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        },
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-gemm-static-nest-flatten-and-k-partition",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        },
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-iterative-stencil-timestep-local-volume",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-load-compute-store-no-rmw-m_axi",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-loop-structure-audit-flash",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-mandatory-pipeline-load-store-loops",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-multi-pass-stats-local-staging",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-multi-phase-local-pipeline",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-multibank-balance-memory-traffic",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-multibank-separate-independent-arrays",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-neighbor-access-requires-local-window",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-partition-select-complete-cyclic-block",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-pipeline-bank-local-buffers",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        },
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-pipeline-handle-true-recurrence",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-pipeline-hot-loop-achieve-ii",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-pipeline-innermost-memory-copy-loop",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-pipeline-local-compute-after-tiling",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-pipeline-realistic-ii-selection",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-pipeline-recurrence-with-shift-register",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-pipeline-resolve-false-dependence",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-pipeline-stage-global-memory",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-pipeline-unroll-small-inner-loops",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-prefer-full-workspace-staging-when-fits",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-rewrite-variable-trip-fixed-bound-guard",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "hls-single-load-dual-local-layout",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-syr2k-triangle-flatten-k-unroll",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-tile-1d-reuse-and-compute-restructure",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-tile-2d-locality-and-halo",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-tile-compute-inner-parallelism",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-tile-doublebuffer-load-compute",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-tile-partition-local-buffers",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-unroll-column-partition-matrix-vector",
+      "confidence": "high",
+      "source": "90",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-unroll-independent-loop",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-unroll-independent-tasks-processing-elements",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-unroll-reduction-partial-sums",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "hls-unroll-with-array-partition",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-avoid-complete-partition-large-buffer-ff-explosion",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-avoid-false-dependence-pragma-on-true-rmw",
+      "confidence": "avoid",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "avoids",
+          "band": "primary"
+        },
+        {
+          "step": "unroll",
+          "role": "avoids",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "ii-axi-burst-outstanding-prefetch-queue",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-dataflow-variable-latency-decoupling",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-false-dependence-index-rewrite-then-pragma",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-gmem-stage-request-response-decouple",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-loop-order-contiguous-and-banked-inner-loop",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-memory-port-bank-to-two-accesses-per-bram",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-memory-port-complete-partition-small-ff",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-memory-port-readonly-replication-per-lane",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-raw-dependency-pingpong-old-new-buffers",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-reduction-lane-partial-tree",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        },
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "ii-resource-limited-operator-restructure",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-resource-limited-shared-to-lane-local-state",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "ii-rmw-privatize-partial-merge",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "ii-rmw-scalarize-repeated-same-element",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        },
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "ii-stencil-linebuffer-window-shift",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        },
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "ii-stencil-wavefront-loop-skew",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "local-axi-staging-for-ii",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        },
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        }
+      ]
+    },
+    {
+      "id": "loop-tripcount-when-bound-runtime",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "partition-cyclic-on-port-conflict",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "overlap"
+        },
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "prompt-coalescing",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "coalescing",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "prompt-doublebuffer",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "doublebuffer",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "prompt-pipeline",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "pipeline",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "prompt-tiling",
+      "confidence": "medium",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "tiling",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    },
+    {
+      "id": "prompt-unroll",
+      "confidence": "high",
+      "source": "gemm_flatten_v2",
+      "placements": [
+        {
+          "step": "unroll",
+          "role": "skills",
+          "band": "primary"
+        }
+      ]
+    }
+  ]
+}

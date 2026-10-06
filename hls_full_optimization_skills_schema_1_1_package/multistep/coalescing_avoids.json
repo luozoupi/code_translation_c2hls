@@ -1,0 +1,569 @@
+{
+  "saved_at": "2026-09-26T08:13:54Z",
+  "schema": "1.1",
+  "flow": "multistep",
+  "step": "coalescing",
+  "role": "avoids",
+  "focus": "Burst-friendly m_axi access, 512-bit widening, and matching lane-wide compute.",
+  "derived_from": [
+    "skills_ii_target_miss_solutions_added(90skills).json",
+    "skills_ii_target_miss_solutions_added(90skills)_gemm_flatten_v2.json"
+  ],
+  "merge_rule": "Union of the 90-skill package and gemm_flatten_v2. On id conflicts, gemm_flatten_v2 replaces the 90-skill entry.",
+  "skill_count": 12,
+  "primary_count": 6,
+  "overlap_count": 6,
+  "assignment": [
+    {
+      "id": "hls-avoid-coalescing-interface-only",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "avoid-axi-widen-512-with-narrow-unroll",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-avoid-single-gmem-for-independent-streams",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-avoid-multibank-without-host-platform-support",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "avoid-over-unroll-axi-dep",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-avoid-unroll-memory-bound-loop",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "avoid-outer-memory-loop-pipeline-over-row",
+      "band": "overlap",
+      "source": "90"
+    },
+    {
+      "id": "avoid-fused-multi-array-load-outer-pipeline",
+      "band": "overlap",
+      "source": "90"
+    },
+    {
+      "id": "hls-avoid-partial-staging-global-in-compute",
+      "band": "overlap",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "avoid-no-rmw-m_axi-direct",
+      "band": "overlap",
+      "source": "90"
+    },
+    {
+      "id": "hls-avoid-benchmark-provenance-assumption",
+      "band": "overlap",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-avoid-reference-fallback-under-avoid-noise",
+      "band": "overlap",
+      "source": "gemm_flatten_v2"
+    }
+  ],
+  "skills": [
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_burst_failed",
+        "compute_not_scaled_after_widening"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "max_widen_bitwidth=512 can improve memory movement but does not directly parallelize computation",
+        "if compute remains one scalar element at a time, the design may underuse the widened memory interface",
+        "validate both memory report improvements and end-to-end latency improvements"
+      ],
+      "id": "hls-avoid-coalescing-interface-only",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "a proposed coalescing transformation only adds m_axi pragmas or changes interface width while leaving memory access structure and computation scalar; includes max_widen_bitwidth=512 plus k+=4 / partition factor=4 on 32-bit data_t",
+      "required_steps": [
+        "detect whether this avoid-rule pattern is present",
+        "do not apply the unsafe or superficial transformation",
+        "route to a safer skill based on the actual bottleneck",
+        "validate with synthesis and correctness feedback"
+      ],
+      "sec_pass": 0,
+      "strategy": "do not mark coalescing as complete after interface pragmas alone; require burst-friendly access rewrite and compute-side lane parallelism when legal A 4-wide load after a 512-bit pragma is still interface-only coalescing.",
+      "tags": [
+        "hls",
+        "avoid",
+        "coalescing",
+        "interface-only",
+        "lane-parallelism",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "id": "avoid-axi-widen-512-with-narrow-unroll",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "last_used_at": null,
+      "sec_pass": 0,
+      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
+      "pattern": "INTERFACE max_widen_bitwidth=512 is present, but the load/store pipeline still uses k += 2/4/8 (or UNROLL factor 2/4/8) and the consecutive-dim partition factor is smaller than LANES = 512 / element_bitwidth",
+      "strategy": "Reject that kernel as coalesced. Widening the adapter without a LANES-wide walk leaves trip at 1024 for a 64x64 float instead of 256. Rewrite the load/store body and matching partition before claiming 512-bit I/O is done.",
+      "required_steps": [
+        "detect max_widen_bitwidth=512 together with k += 4 (or factor=4) on a 32-bit ABI",
+        "do not accept INTERFACE-only widening as complete coalescing",
+        "route to hls-axi-load-step-matches-widen-lanes",
+        "re-synth and confirm load trip dropped by LANES (64x64 float: 1024 → 256)"
+      ],
+      "guards": [
+        "LANES is AXI packing, not PE_BLK / tile width",
+        "do not widen by changing the top pointer type"
+      ],
+      "bottleneck_kinds": [
+        "underutilized_wide_memory",
+        "compute_not_scaled_after_widening",
+        "memory_bandwidth"
+      ],
+      "tags": [
+        "avoid",
+        "coalescing",
+        "512-bit",
+        "preventive",
+        "gemm_flatten_v2",
+        "kernel-independent"
+      ],
+      "template": "// BAD: 512-bit pragma + 4-wide walk\n#pragma HLS INTERFACE m_axi port=A max_widen_bitwidth=512\n#pragma HLS ARRAY_PARTITION variable=A_loc cyclic factor=4 dim=2\nfor (int k = 0; k < K; k += 4) { PIPELINE II=1; UNROLL l<4; A_loc[i][k+l]=A[i][k+l]; }\n// GOOD: LANES=16 walk + factor=16 on the consecutive dim."
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "single_bundle_bottleneck",
+        "memory_bandwidth",
+        "axi_port_contention"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "single bundle may serialize or contend independent accesses",
+        "separate only when host/platform support exists",
+        "keep low-traffic or dependent ports together when separation has no benefit"
+      ],
+      "id": "hls-avoid-single-gmem-for-independent-streams",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "multiple independent high-bandwidth m_axi ports are assigned to the same bundle or memory bank, causing avoidable contention",
+      "required_steps": [
+        "detect whether this avoid-rule pattern is present",
+        "do not apply the unsafe or superficial transformation",
+        "route to a safer skill based on the actual bottleneck",
+        "validate with synthesis and correctness feedback"
+      ],
+      "sec_pass": 0,
+      "strategy": "avoid placing all high-bandwidth arrays on one gmem bundle when the platform and host flow support multiple memory banks",
+      "tags": [
+        "hls",
+        "avoid",
+        "multiddr",
+        "single-gmem",
+        "memory-bank",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "host_abi_mismatch",
+        "platform_constraint",
+        "memory_bank_mapping_missing",
+        "correctness_risk"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "preserve host ABI unless changes are explicitly allowed",
+        "verify platform memory bank availability",
+        "update host allocation and linker connectivity when required",
+        "do not expose hidden test or benchmark provenance"
+      ],
+      "id": "hls-avoid-multibank-without-host-platform-support",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "a proposed multi-bank transformation changes m_axi bundles or physical bank assignment without evidence that the host code, linker config, and target platform support the mapping",
+      "required_steps": [
+        "detect whether this avoid-rule pattern is present",
+        "do not apply the unsafe or superficial transformation",
+        "route to a safer skill based on the actual bottleneck",
+        "validate with synthesis and correctness feedback"
+      ],
+      "sec_pass": 0,
+      "strategy": "do not assume bundle changes alone are valid; require explicit platform/host/linker support for physical bank mapping",
+      "tags": [
+        "hls",
+        "avoid",
+        "multiddr",
+        "host-abi",
+        "platform-support",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_burst_failed",
+        "ii_target_miss",
+        "port_conflict",
+        "resource_explosion"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "unrolling a memory-bound loop can increase pressure without improving latency",
+        "fix burst behavior, local reuse, or memory banking before increasing arithmetic parallelism",
+        "verify the post-unroll bottleneck is not worse"
+      ],
+      "id": "avoid-over-unroll-axi-dep",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "II miss or latency is caused by AXI bandwidth, global-memory dependency, or memory-port pressure rather than insufficient arithmetic parallelism",
+      "required_steps": [
+        "detect whether this avoid-rule pattern is present",
+        "do not apply the unsafe or superficial transformation",
+        "route to a safer skill based on the actual bottleneck",
+        "validate with synthesis and correctness feedback"
+      ],
+      "sec_pass": 0,
+      "strategy": "do not respond with large UNROLL or complete partitioning first; route to coalescing, tiling/local staging, memory banking, or local partitioning depending on the true bottleneck",
+      "tags": [
+        "avoid",
+        "over-unroll",
+        "axi",
+        "memory-bound",
+        "resource-aware"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_burst_failed",
+        "no_data_reuse",
+        "over_unroll"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "unrolling cannot compensate for insufficient memory bandwidth",
+        "check whether the loop is compute-bound before increasing parallelism",
+        "avoid unroll factors that exceed memory supply"
+      ],
+      "id": "hls-avoid-unroll-memory-bound-loop",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "the loop is limited by global-memory bandwidth or AXI burst behavior, and adding arithmetic lanes would increase memory pressure without feeding the lanes",
+      "required_steps": [
+        "detect whether this avoid-rule pattern is present",
+        "do not apply the unsafe or superficial transformation",
+        "route to a safer skill based on the actual bottleneck",
+        "validate with synthesis and correctness feedback"
+      ],
+      "sec_pass": 0,
+      "strategy": "do not apply unrolling as the primary optimization; first use coalescing, memory banking, local staging, or tiling to provide enough data bandwidth",
+      "tags": [
+        "hls",
+        "avoid",
+        "unroll",
+        "memory-bound",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "port_conflict"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "pair with local buffers so inner loop touches BRAM not m_axi when possible",
+        "one element per pipeline iteration for m_axi when pipelining global access"
+      ],
+      "id": "avoid-outer-memory-loop-pipeline-over-row",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "memory load/store tile loops with #pragma HLS PIPELINE II=1 on the outer row/tile loop (for i) while an inner loop iterates all N columns per outer step",
+      "required_steps": [
+        "find load_tile/store_tile nests pipelining the outer i loop",
+        "remove PIPELINE from outer loop over tile rows",
+        "move PIPELINE II=1 to innermost j loop over contiguous elements",
+        "keep scalar row loads (b[i], y[i]) outside or after the inner pipelined j loop"
+      ],
+      "sec_pass": 0,
+      "strategy": "Pipeline the innermost contiguous memory loop only. Do not ask HLS to load or store an entire matrix row per pipeline cycle. Outer i loops should be sequential; inner j loop gets PIPELINE II=1.",
+      "tags": [
+        "avoid",
+        "memory-copy",
+        "pipeline",
+        "flash-mandatory"
+      ],
+      "template": "// BAD (asks HLS to move whole row per cycle):\nfor (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n    for (int j = 0; j < N; j++) A[i][j] = local_A[i][j];\n    y[i] = local_y[i];\n}\n// GOOD:\nfor (int i = 0; i < TILE_SIZE; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        A[i][j] = local_A[i][j];\n    }\n    y[i] = local_y[i];\n}"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "memory_bandwidth",
+        "global_memory_latency",
+        "axi_dependency",
+        "port_conflict"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "pair with hls-pipeline-innermost-memory-copy-loop for each matrix",
+        "scalar vector loads (b[i]) stay outside inner pipelined j loop",
+        "partial final tile uses TILE_SIZE bound + if guards, not runtime tile_size as loop bound"
+      ],
+      "id": "avoid-fused-multi-array-load-outer-pipeline",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "single load task pipelines the outer row loop for multiple large matrices in sequence (matrix A, then B, then C…) each with #pragma HLS PIPELINE II=1 on the outer i loop",
+      "required_steps": [
+        "detect load functions that outer-pipeline for (i) over rows for more than one large array",
+        "remove PIPELINE from outer row loops; pipeline innermost contiguous index (j or flat idx) only",
+        "prefer separate load_matrix_A / load_matrix_B helpers or one fused flat load loop",
+        "if parallel load tasks are needed, pair each with distinct gmemN bundles and DATAFLOW overlap proof",
+        "verify csynth II on hot copy loop — not inflated outer-row pipeline"
+      ],
+      "sec_pass": 0,
+      "strategy": "Split per-matrix load into its own function with innermost pipelined dimension only, or fuse into one flat index loop over all elements. Do not stack multiple outer-pipelined row loops in one task — each outer pipeline asks HLS to move an entire row per cycle and serializes memory ports.",
+      "tags": [
+        "memory-copy",
+        "pipeline",
+        "flash-mandatory"
+      ],
+      "template": "// BAD: stacked outer-pipelined row loops in one task\nvoid load_all(...) {\n    for (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n        for (int j = 0; j < N; j++) local_A[i][j] = A[...][j];\n    }\n    for (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n        for (int j = 0; j < N; j++) local_B[i][j] = B[...][j];\n    }\n}\n// GOOD: innermost pipeline per matrix or flat fused index\nfor (int i = 0; i < TILE_SIZE; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        local_A[i][j] = A[tile_i + i][j];\n    }\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "global_memory_latency",
+        "partial_staging",
+        "ii_target_miss"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "staging only inputs but leaving outputs or accumulators on global memory is incomplete",
+        "reading one operand from global inside a pipelined compute loop usually destroys II and bandwidth"
+      ],
+      "id": "hls-avoid-partial-staging-global-in-compute",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_regression_analysis",
+      "pattern": "some inputs are loaded into local buffers, but the hot compute loop still reads or writes one or more m_axi array parameters directly, such as an accumulator matrix, temporary, or output array",
+      "required_steps": [
+        "list every array indexed inside each pipelined compute loop",
+        "if any index targets a function parameter array, stage that array locally or privatize the accessed region",
+        "route to hls-baseline-load-compute-store-gate or hls-chain-intermediate-results-locally",
+        "validate that compute loops reference only local buffers"
+      ],
+      "sec_pass": 0,
+      "strategy": "do not mix local staging with global reads or writes in the same hot compute loop; stage all operands and outputs used in compute locally first",
+      "tags": [
+        "avoid",
+        "partial-staging",
+        "global-memory",
+        "gemm",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "repeated_global_access",
+        "ii_target_miss",
+        "port_conflict"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "preserve numerical semantics when staging into locals",
+        "const read-only m_axi inputs may be read once per tile into locals",
+        "in-place outputs still require local write-back buffers, not inner-loop RMW on the port"
+      ],
+      "id": "avoid-no-rmw-m_axi-direct",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "compute loops perform read-modify-write updates directly on arrays mapped to m_axi ports (e.g. A[i][j] = A[i][j] + expr, x[i] = x[i] + expr, w[i] = w[i] + expr inside nested loops)",
+      "required_steps": [
+        "scan every loop for statements that read and write the same m_axi port element",
+        "reject direct accumulation into m_axi arrays",
+        "reject repeated reads of the same output element from DRAM/HBM inside an inner loop",
+        "reject repeated writes to the same output element inside an inner loop",
+        "replace with load-compute-store using local buffers or private scalar accumulators",
+        "for reductions, accumulate in a private scalar or local array, then write back once",
+        "if the full array is too large, tile/block but still finalize each tile locally before one store"
+      ],
+      "sec_pass": 0,
+      "strategy": "Treat every m_axi argument as external DRAM/HBM. Never read and write the same external element inside an inner loop. Do not use global/m_axi arrays as temporary storage or assume HLS will cache m_axi data across iterations.",
+      "tags": [
+        "avoid",
+        "no_RMW_m_axi",
+        "m_axi",
+        "load-compute-store",
+        "flash-mandatory"
+      ],
+      "template": "// FORBIDDEN when A/x/w are m_axi ports:\n//   A[i][j] = A[i][j] + expr;\n//   x[i] = x[i] + expr;\n// GOOD: load -> local acc/buffer -> single store\n//   double acc = x_local[i];\n//   for (int j = 0; j < N; j++) acc += beta * A_local[j][i] * y_local[j];\n//   x_local[i] = acc;\n//   x[i] = x_local[i];  // one write per element"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "benchmark_leakage",
+        "hidden_test_overfitting"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "do not include source benchmark names in agent-visible prompts",
+        "do not encode baseline-to-target sequences in skill IDs",
+        "do not expose private evaluator metadata"
+      ],
+      "id": "hls-avoid-benchmark-provenance-assumption",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "agent attempts to infer or mention the source benchmark suite, hidden test design, target variant sequence, or expected optimization step from skill names or evaluation feedback",
+      "required_steps": [
+        "detect whether this avoid-rule pattern is present",
+        "do not apply the unsafe or superficial transformation",
+        "route to a safer skill based on the actual bottleneck",
+        "validate with synthesis and correctness feedback"
+      ],
+      "sec_pass": 0,
+      "strategy": "optimize only from current code, reports, constraints, and feedback; do not assume a benchmark family, stepwise target, or one-shot target",
+      "tags": [
+        "hls",
+        "avoid",
+        "benchmark-leakage",
+        "hidden-tests",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "reference_port",
+        "latency_high",
+        "non_pipelined_hot_loop"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "avoid-tier skills must not cause fallback to unoptimized reference code",
+        "when in doubt, apply hls-baseline-load-compute-store-gate rather than emitting textbook C"
+      ],
+      "id": "hls-avoid-reference-fallback-under-avoid-noise",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_regression_analysis",
+      "pattern": "the model avoids advanced transforms because of many avoid rules or uncertainty, and responds with textbook nested loops on global arrays and no compute pragmas",
+      "required_steps": [
+        "detect reference-port output despite loaded skill catalog",
+        "do not treat caution as permission to skip optimization",
+        "apply hls-baseline-load-compute-store-gate, hls-multi-phase-local-pipeline, or hls-iterative-stencil-timestep-local-volume as appropriate",
+        "ensure PIPELINE pragmas exist before submitting"
+      ],
+      "sec_pass": 0,
+      "strategy": "avoid rules forbid unsafe transforms, not all transforms; when uncertain, still apply the baseline local load-compute-store recipe instead of reference C",
+      "tags": [
+        "avoid",
+        "reference-fallback",
+        "skill-catalog",
+        "mandatory-baseline",
+        "kernel-independent"
+      ],
+      "template": ""
+    }
+  ]
+}

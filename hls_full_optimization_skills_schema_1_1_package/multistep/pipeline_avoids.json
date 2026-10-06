@@ -1,0 +1,974 @@
+{
+  "saved_at": "2026-09-26T08:13:54Z",
+  "schema": "1.1",
+  "flow": "multistep",
+  "step": "pipeline",
+  "role": "avoids",
+  "focus": "Pipeline the hot local loops, hit a legal II, and fix false or true recurrences.",
+  "derived_from": [
+    "skills_ii_target_miss_solutions_added(90skills).json",
+    "skills_ii_target_miss_solutions_added(90skills)_gemm_flatten_v2.json"
+  ],
+  "merge_rule": "Union of the 90-skill package and gemm_flatten_v2. On id conflicts, gemm_flatten_v2 replaces the 90-skill entry.",
+  "skill_count": 21,
+  "primary_count": 14,
+  "overlap_count": 7,
+  "assignment": [
+    {
+      "id": "hls-avoid-pipeline-pragma-only",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-avoid-pipeline-innermost-only-goal-on-gemm",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-avoid-outer-sequential-gemm-after-inner-pipeline",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "avoid-pipeline-parent-with-nested-child-loop",
+      "band": "primary",
+      "source": "90"
+    },
+    {
+      "id": "avoid-outer-memory-loop-pipeline-over-row",
+      "band": "primary",
+      "source": "90"
+    },
+    {
+      "id": "avoid-fused-multi-array-load-outer-pipeline",
+      "band": "primary",
+      "source": "90"
+    },
+    {
+      "id": "avoid-manual-cse-inside-pipelined-loop",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "ii-avoid-false-dependence-pragma-on-true-rmw",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-avoid-zero-pipeline-submit",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "avoid-fp-scalar-recurrence-in-pipelined-loop",
+      "band": "primary",
+      "source": "90"
+    },
+    {
+      "id": "avoid-fp-mac-recurrence-single-acc",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "avoid-switch-k-mod-named-acc-banks",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "avoid-loop-tripcount-flatten-variable-bounds",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-avoid-serial-fp-acc-under-full-k-unroll",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "avoid-manual-loop-interchange-on-perfect-nest",
+      "band": "overlap",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "avoid-local-output-rmw-in-pipelined-unroll",
+      "band": "overlap",
+      "source": "90"
+    },
+    {
+      "id": "avoid-no-rmw-m_axi-direct",
+      "band": "overlap",
+      "source": "90"
+    },
+    {
+      "id": "hls-avoid-partial-staging-global-in-compute",
+      "band": "overlap",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-avoid-reference-port-global-compute",
+      "band": "overlap",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-avoid-benchmark-provenance-assumption",
+      "band": "overlap",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-avoid-reference-fallback-under-avoid-noise",
+      "band": "overlap",
+      "source": "gemm_flatten_v2"
+    }
+  ],
+  "skills": [
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "pipeline_not_improved",
+        "pragma_only_change"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "PIPELINE is a scheduling request, not proof that the schedule improved",
+        "pragma-only changes should be rejected when the report bottleneck remains unchanged"
+      ],
+      "id": "hls-avoid-pipeline-pragma-only",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "a proposed pipeline transformation only adds a PIPELINE pragma but does not address the reported reason why II is high or scheduling is blocked",
+      "required_steps": [
+        "check achieved II, not only requested II",
+        "read scheduling warnings and dependency reports",
+        "resolve memory ports, false dependencies, AXI access, recurrences, or body latency as appropriate",
+        "do not claim success if the report still shows the same II bottleneck"
+      ],
+      "sec_pass": 0,
+      "strategy": "do not treat PIPELINE pragma insertion as complete unless achieved II or latency improves, or the actual scheduling bottleneck is addressed",
+      "tags": [
+        "hls",
+        "avoid",
+        "pipeline",
+        "pragma-only",
+        "ii",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "id": "hls-avoid-pipeline-innermost-only-goal-on-gemm",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "u280_chathls_vs_c2hls_2mm_3mm_20260721",
+      "pattern": "optimization stops because the innermost feasible loop achieved II=1, while total module latency is still dominated by a sequential outer trip over rows/columns of a static GEMM",
+      "strategy": "II on one loop is not the objective — total cycles are. For static GEMM and syr2k/syrk nests, require flatten of the (i,j) nest (with k unrolled) and validate against top latency / L1 table, not only Final II=1 on L4/j. Use hls-syr2k-triangle-flatten-k-unroll for triangular updates Total cycles require both flatten and low achieved II on the flattened region (reject serial-FP-acc II blowups via hls-avoid-serial-fp-acc-under-full-k-unroll).",
+      "required_steps": [
+        "after any PIPELINE success on an inner loop, read the parent loop table",
+        "if parent is unpipelined with large trip count, continue with flatten+partition repairs",
+        "compare sibling phases and fix any phase that did not flatten"
+      ],
+      "guards": [
+        "still prefer innermost pipeline for non-flattenable or true-recurrence cases"
+      ],
+      "bottleneck_kinds": [
+        "latency_high",
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "flash-mandatory",
+        "gemm",
+        "metrics",
+        "pipeline",
+        "syr2k",
+        "syrk"
+      ],
+      "template": ""
+    },
+    {
+      "id": "hls-avoid-outer-sequential-gemm-after-inner-pipeline",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "u280_chathls_vs_c2hls_2mm_3mm_20260721",
+      "pattern": "csynth shows L1 / compute_outer / scale outer with Trip=M, II='-', Pipelined=no while a nested L4 / j pipeline reports II=1 — including syr2k/syrk form L1{ L2; L3{ L4 PIPELINE } } where per-i cost ≈ L2 + K*N and total ≈ M*(L2+K*N)",
+      "strategy": "Treat as a latency bug. Do not stop after L4 II=1. Apply hls-gemm-static-nest-flatten-and-k-partition or hls-syr2k-triangle-flatten-k-unroll: fixed j bounds + if guards, (i,j) PIPELINE+FLATTEN, k UNROLL, matching ARRAY_PARTITION. Re-synth until L1 is no longer an unpipelined trip=M loop dominating latency. After flatten+k-unroll, if Final II ≫ 1 from a serial FP accumulator, continue with hls-avoid-serial-fp-acc-under-full-k-unroll — do not stop.",
+      "required_steps": [
+        "detect outer L1/compute with Pipelined=no and II=- next to an II=1 inner j/L4 pipeline",
+        "do not accept the design as optimized",
+        "for syr2k/syrk also reject for (j=0;j<=i) variable bounds — rewrite to j<N + if (j<=i)",
+        "route to hls-syr2k-triangle-flatten-k-unroll / hls-gemm-static-nest-flatten-and-k-partition",
+        "re-synth and confirm outer sequential L1 is gone or no longer dominates (flattened (i,j) trip)",
+        "if flattened region still has Final II ≫ 1 from serial FP reduction, route to hls-avoid-serial-fp-acc-under-full-k-unroll"
+      ],
+      "guards": [
+        "applies to static-bound full-workspace or within-tile GEMM nests, not irreducible true dependencies"
+      ],
+      "bottleneck_kinds": [
+        "latency_high",
+        "nested_loop",
+        "interval_exceeds_latency"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "2mm",
+        "3mm",
+        "avoid",
+        "flash-mandatory",
+        "flatten",
+        "gemm",
+        "outer-seq",
+        "symm",
+        "syr2k",
+        "syrk"
+      ],
+      "template": "// BAD (reject): L1 sequential, only L4 pipelined\nL1: for (int i = 0; i < N; ++i) {              // trip=N, Pipelined=no\n  L2: for (int j = 0; j < N; ++j) if (j<=i) C[i][j]*=beta;\n  L3: for (int k = 0; k < M; ++k)\n    L4: for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n      if (j<=i) C[i][j] += ...;\n    }\n}\n// GOOD: see hls-syr2k-triangle-flatten-k-unroll\n"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "interval_exceeds_latency",
+        "nested_loop"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "LOOP_FLATTEN does not substitute for full unroll when bounds are variable",
+        "validate II on the actual pipelined loop after moving pragmas"
+      ],
+      "id": "avoid-pipeline-parent-with-nested-child-loop",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "#pragma HLS PIPELINE II=1 on a parent loop whose body contains another loop that is not fully unrolled (including UNROLL factor=N partial unroll)",
+      "required_steps": [
+        "detect parent PIPELINE pragma with a nested for-loop in the body",
+        "check whether every child loop is fully unrolled or the nest is provably flattenable",
+        "if any child loop remains, move PIPELINE to innermost legal loop or fully unroll child",
+        "do not treat UNROLL factor=4 as removing the child loop"
+      ],
+      "sec_pass": 0,
+      "strategy": "Do not pipeline the parent when a child loop still exists. Partial unroll is not full unroll. Pipeline only the innermost loop, fully unroll the child, or use an explicitly flattenable nest — never assume LOOP_FLATTEN fixes a variable or partially-unrolled child.",
+      "tags": [
+        "avoid",
+        "pipeline",
+        "nested-loop",
+        "flash-mandatory"
+      ],
+      "template": "// BAD: parent pipelined, child loop remains\nfor (int i = 0; i < TILE; i++) {\n#pragma HLS PIPELINE II=1\n    for (int j = 0; j < N; j++) {  // child still exists\n        A[i][j] = local_A[i][j];\n    }\n}\n// GOOD: pipeline innermost only\nfor (int i = 0; i < TILE; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        A[i][j] = local_A[i][j];\n    }\n}"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "port_conflict"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "pair with local buffers so inner loop touches BRAM not m_axi when possible",
+        "one element per pipeline iteration for m_axi when pipelining global access"
+      ],
+      "id": "avoid-outer-memory-loop-pipeline-over-row",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "memory load/store tile loops with #pragma HLS PIPELINE II=1 on the outer row/tile loop (for i) while an inner loop iterates all N columns per outer step",
+      "required_steps": [
+        "find load_tile/store_tile nests pipelining the outer i loop",
+        "remove PIPELINE from outer loop over tile rows",
+        "move PIPELINE II=1 to innermost j loop over contiguous elements",
+        "keep scalar row loads (b[i], y[i]) outside or after the inner pipelined j loop"
+      ],
+      "sec_pass": 0,
+      "strategy": "Pipeline the innermost contiguous memory loop only. Do not ask HLS to load or store an entire matrix row per pipeline cycle. Outer i loops should be sequential; inner j loop gets PIPELINE II=1.",
+      "tags": [
+        "avoid",
+        "memory-copy",
+        "pipeline",
+        "flash-mandatory"
+      ],
+      "template": "// BAD (asks HLS to move whole row per cycle):\nfor (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n    for (int j = 0; j < N; j++) A[i][j] = local_A[i][j];\n    y[i] = local_y[i];\n}\n// GOOD:\nfor (int i = 0; i < TILE_SIZE; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        A[i][j] = local_A[i][j];\n    }\n    y[i] = local_y[i];\n}"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "memory_bandwidth",
+        "global_memory_latency",
+        "axi_dependency",
+        "port_conflict"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "pair with hls-pipeline-innermost-memory-copy-loop for each matrix",
+        "scalar vector loads (b[i]) stay outside inner pipelined j loop",
+        "partial final tile uses TILE_SIZE bound + if guards, not runtime tile_size as loop bound"
+      ],
+      "id": "avoid-fused-multi-array-load-outer-pipeline",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "single load task pipelines the outer row loop for multiple large matrices in sequence (matrix A, then B, then C…) each with #pragma HLS PIPELINE II=1 on the outer i loop",
+      "required_steps": [
+        "detect load functions that outer-pipeline for (i) over rows for more than one large array",
+        "remove PIPELINE from outer row loops; pipeline innermost contiguous index (j or flat idx) only",
+        "prefer separate load_matrix_A / load_matrix_B helpers or one fused flat load loop",
+        "if parallel load tasks are needed, pair each with distinct gmemN bundles and DATAFLOW overlap proof",
+        "verify csynth II on hot copy loop — not inflated outer-row pipeline"
+      ],
+      "sec_pass": 0,
+      "strategy": "Split per-matrix load into its own function with innermost pipelined dimension only, or fuse into one flat index loop over all elements. Do not stack multiple outer-pipelined row loops in one task — each outer pipeline asks HLS to move an entire row per cycle and serializes memory ports.",
+      "tags": [
+        "memory-copy",
+        "pipeline",
+        "flash-mandatory"
+      ],
+      "template": "// BAD: stacked outer-pipelined row loops in one task\nvoid load_all(...) {\n    for (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n        for (int j = 0; j < N; j++) local_A[i][j] = A[...][j];\n    }\n    for (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n        for (int j = 0; j < N; j++) local_B[i][j] = B[...][j];\n    }\n}\n// GOOD: innermost pipeline per matrix or flat fused index\nfor (int i = 0; i < TILE_SIZE; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        local_A[i][j] = A[tile_i + i][j];\n    }\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [
+        "2023.2",
+        "2025.2"
+      ],
+      "bottleneck_kinds": [],
+      "confidence": "avoid",
+      "guards": [
+        "do not apply the blocked transformation when this pattern is present",
+        "do not claim success from pragma insertion alone",
+        "choose an alternative skill that addresses the actual bottleneck"
+      ],
+      "id": "avoid-manual-cse-inside-pipelined-loop",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "repeated identical sub-expressions inside a pipelined loop body",
+      "required_steps": [
+        "detect whether this avoid-rule pattern is present",
+        "do not apply the unsafe or superficial transformation",
+        "route to a safer skill based on the actual bottleneck",
+        "validate with synthesis and correctness feedback"
+      ],
+      "sec_pass": 0,
+      "strategy": "manual common-subexpression elimination via temporary variables",
+      "tags": [
+        "absorbed-by-synth"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "true_loop_carried_dep",
+        "array_read_modify_write",
+        "reduction_loop",
+        "correctness_risk"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "false-dependence pragmas can silently produce incorrect hardware when applied to true hazards",
+        "do not prioritize II=1 over semantic correctness",
+        "if exact sequential order is required, algorithmic restructuring may not be legal"
+      ],
+      "id": "ii-avoid-false-dependence-pragma-on-true-rmw",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_ii_target_miss_discussion",
+      "pattern": "a proposed fix uses DEPENDENCE inter false on an array or accumulator that is truly read and written across iterations, such as a reduction, histogram, in-place update, or same-address read-modify-write",
+      "required_steps": [
+        "check whether two iterations can access the same location with at least one write",
+        "classify the dependence as reduction, scatter/RMW, stencil/in-place update, or inherent recurrence",
+        "route to partial accumulators, privatization, old/new buffering, wavefront, or best-legal-II handling",
+        "remove unsafe false-dependence pragma proposals",
+        "validate correctness before measuring II"
+      ],
+      "sec_pass": 0,
+      "strategy": "reject the false-dependence pragma and use a legal transformation instead: partial sums for reductions, privatized accumulators for RMW/scatter, old/new buffers for Jacobi-style updates, or accept the legal II for inherently serial recurrences",
+      "tags": [
+        "hls",
+        "avoid",
+        "ii-target-miss",
+        "dependence-pragma",
+        "true-dependence",
+        "correctness",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "non_pipelined_hot_loop",
+        "latency_high",
+        "global_memory_latency",
+        "reference_port"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "m_axi interface pragmas alone are not an optimized kernel",
+        "a flash output with only interface pragmas will synthesize as unpipelined scalar hardware",
+        "uncertainty about advanced optimizations does not justify skipping the baseline gate"
+      ],
+      "id": "hls-avoid-zero-pipeline-submit",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_regression_analysis",
+      "pattern": "the proposed kernel body has no #pragma HLS PIPELINE on any compute loop, or the only pragmas are m_axi or s_axilite interface pragmas",
+      "required_steps": [
+        "scan the kernel body for #pragma HLS PIPELINE on compute loops",
+        "if none are present, reject the output as a reference port",
+        "route to hls-baseline-load-compute-store-gate and hls-multi-phase-local-pipeline",
+        "add pipelined load, local compute, and store loops before resubmitting"
+      ],
+      "sec_pass": 0,
+      "strategy": "never submit a kernel whose hot loops lack PIPELINE pragmas; apply the baseline load-compute-store gate first even when avoid rules discourage advanced transforms",
+      "tags": [
+        "avoid",
+        "reference-port",
+        "pipeline",
+        "mandatory",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "dependence",
+        "fp_reduction"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "choose UF to match available DSP/budget",
+        "preserve numerics within acceptable reordering for independent partials"
+      ],
+      "id": "avoid-fp-scalar-recurrence-in-pipelined-loop",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "floating-point reduction or accumulation into one scalar inside a loop claimed II=1 (e.g. w -= a*b, sum += expr, acc = acc + expr as the only accumulation chain)",
+      "required_steps": [
+        "detect FP update statements that read and write the same scalar accumulator in the pipelined loop",
+        "allocate partial[UF] with complete partition",
+        "unroll init and per-lane updates inside pipelined fixed-bound loops",
+        "reduce partial[] after the pipelined loop"
+      ],
+      "sec_pass": 0,
+      "strategy": "Do not accumulate into a single scalar inside a pipelined loop. Use private partial accumulators with complete ARRAY_PARTITION, unrolled init/update, then a final tree or serial reduction.",
+      "tags": [
+        "avoid",
+        "fp-reduction",
+        "pipeline",
+        "flash-mandatory"
+      ],
+      "template": "// BAD:\nfor (int k = 0; k < N; k++) {\n#pragma HLS PIPELINE II=1\n    w -= a[k] * b[k];\n}\n// GOOD: partial accumulators + final reduce (see hls-fp-reduction-partial-accumulators)"
+    },
+    {
+      "id": "avoid-fp-mac-recurrence-single-acc",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "last_used_at": null,
+      "sec_pass": 0,
+      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
+      "pattern": "PIPELINE II=1 on a k-loop that does acc[i][j] += a*b (or C[i][j] +=) every k. Csynth Final II=4 from the float MAC recurrence. Spatial unroll (16x32) may already be present; DSP may already be hundreds. csim and csynth still pass",
+      "strategy": "Reject the kernel as optimized. II=4 on the reduction is not a legal endpoint. Route to hls-fp-mac-k-step-independent-acc-banks. More DSPs or a wider tile under II=4 does not close II.",
+      "required_steps": [
+        "detect red_k / compute_k PIPELINE with acc[i][j] += every k",
+        "read csynth: pipelined yes, Final II=4, HLS 200-880 carried dependence",
+        "do not accept csim+csynth success as done",
+        "rewrite with k += 4 and named acc0..acc3 updated in one iteration"
+      ],
+      "guards": [
+        "DEPENDENCE inter false is not the fix",
+        "DSP fill / PE_BLK widening under II=4 is not the fix",
+        "inherently serial integer recurrences are out of scope"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "pipeline_blocked",
+        "true_loop_carried_dep",
+        "recurrence_limited_ii"
+      ],
+      "tags": [
+        "avoid",
+        "ii",
+        "fp-mac",
+        "preventive",
+        "gemm_flatten_v2",
+        "kernel-independent"
+      ],
+      "template": "// BAD: one acc bank, k++\nred_k: for (int k = 0; k < K; ++k) {\n#pragma HLS PIPELINE II=1\n  acc[i][j] += a_frag[i] * b_frag[j];  // Final II=4\n}\n// GOOD: k += 4, acc0..acc3 all written in this iteration."
+    },
+    {
+      "id": "avoid-switch-k-mod-named-acc-banks",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "last_used_at": null,
+      "sec_pass": 0,
+      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
+      "pattern": "the rewrite splits acc0..acc3 but still uses for (k=0; k<K; ++k) PIPELINE with switch(k&3) / acc[k%4], so only one bank is written per iteration. HLS reports carried dependence distance=1 and Final II=4",
+      "strategy": "Reject switch(k&3) as the II=4 fix. Distance-4 is not visible to the scheduler in that form (observed: II=4 on acc2). Emit k += 4 and update all four named banks in the same pipeline iteration.",
+      "required_steps": [
+        "detect switch(k & 3) or acc[k%4] under a k++ PIPELINE",
+        "do not treat four named arrays as success unless k advances by 4 in the body",
+        "route to hls-fp-mac-k-step-independent-acc-banks"
+      ],
+      "guards": [
+        "named acc0..acc3 are necessary but not sufficient",
+        "do not add DEPENDENCE inter false to paper over the switch"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "pipeline_blocked",
+        "true_loop_carried_dep"
+      ],
+      "tags": [
+        "avoid",
+        "ii",
+        "fp-mac",
+        "preventive",
+        "gemm_flatten_v2",
+        "kernel-independent"
+      ],
+      "template": "// BAD: k++ plus switch — still II=4\nfor (int k = 0; k < K; ++k) {\n#pragma HLS PIPELINE II=1\n  switch (k & 3) { case 0: acc0[i][j] += ...; break; /* acc1/2/3 */ }\n}\n// GOOD: k += 4; write acc0, acc1, acc2, acc3 in this iteration."
+    },
+    {
+      "id": "avoid-loop-tripcount-flatten-variable-bounds",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "variable-trip-count loops (triangular, tile_size, k<i, k<j, j=i+1..N) fixed only with LOOP_TRIPCOUNT or LOOP_FLATTEN without rewriting to static bounds",
+      "strategy": "LOOP_TRIPCOUNT is for reporting/estimation only — it does not make a loop statically bounded, fully unrollable, or dependency-free. Do not rely on LOOP_FLATTEN or LOOP_TRIPCOUNT to legalize pipeline on variable-bound nests.",
+      "required_steps": [
+        "identify loops whose bound depends on an outer induction variable or runtime tile_size",
+        "do not add LOOP_TRIPCOUNT as a substitute for static bounds",
+        "rewrite to fixed-bound loops with if guards using N or TILE_SIZE constants",
+        "re-validate pipeline legality on the rewritten nest"
+      ],
+      "guards": [
+        "preserve original semantics with if (idx < bound) guards",
+        "use header macro constants for fixed bounds"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "loop-tripcount",
+        "loop-flatten",
+        "flash-mandatory",
+        "variable-bounds",
+        "merged-from-flash-no-RMW",
+        "gemm_flatten_v1"
+      ],
+      "template": "// BAD: variable bound, tripcount pragma only\nfor (int k = 0; k < j; k++) {\n#pragma HLS LOOP_TRIPCOUNT min=1 max=N\n#pragma HLS PIPELINE II=1\n    ...\n}\n// GOOD: fixed bound + guard\nfor (int k = 0; k < TILE_SIZE; k++) {\n#pragma HLS PIPELINE II=1\n    if (k < j) { ... }\n}"
+    },
+    {
+      "id": "hls-avoid-serial-fp-acc-under-full-k-unroll",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "u280_chathls_kernel_2mm_ii250_20260722",
+      "pattern": "static-bound GEMM/matmul (or 2mm/3mm phase) on locals with PIPELINE on (i,j) (often + LOOP_FLATTEN) and full UNROLL on reduction k, but csynth Final II remains huge (tens–hundreds) because a single float/double accumulator carries a true FP dependence and/or dmul/dadd are resource-shared down to ~1 instance — so latency ≈ trip×II stays catastrophic despite 'k fully unrolled'; also a PIPELINE on k with acc[i][j] += a*b every k (Final II=4) after spatial unroll — csim+csynth pass is not success",
+      "strategy": "Do not treat full k UNROLL or outer flatten as success when achieved II ≫ 1. Rewrite the reduction with lane/partial sums or a tree (hls-unroll-reduction-partial-sums / ii-reduction-lane-partial-tree), allocate enough FP operators for the chosen parallelism, or fall back to pipeline-on-k with modest outer/j unroll (ChatHLS-style). Re-synth until Final II is near the legal target. Also reject II=4 on a k-pipeline that updates one acc bank every k. Route to k+=4 named acc0..acc3 in one iteration, not switch(k&3), and not more PE_BLK under II=4.",
+      "required_steps": [
+        "detect full k UNROLL under (i,j) pipeline with serial sum += a*b (float/double)",
+        "read csynth Final II, accumulator dependence, and dmul/dadd binding/sharing",
+        "if Final II ≫ 1 from FP reduction or resource limit, reject the design as optimized",
+        "route to partial-sum/tree reduction + matching resources, or pipeline-on-k fallback",
+        "re-synth and confirm Final II improved; do not stop at flatten-only success",
+        "detect PIPELINE on k with a single acc[i][j] += MAC and Final II=4",
+        "reject that as optimized even if DSP is already hundreds"
+      ],
+      "guards": [
+        "still prefer flatten of sequential outer i when that is the bug (hls-avoid-outer-sequential-gemm-after-inner-pipeline)",
+        "preserve numerical tolerance expectations when reassociating FP reductions",
+        "device util ≤ 100% after allocating more operators / wider trees"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "latency_high",
+        "pipeline_body_latency",
+        "resource_limited",
+        "compute_bound"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "gemm",
+        "2mm",
+        "3mm",
+        "fp-reduction",
+        "unroll",
+        "ii",
+        "flash-mandatory",
+        "chathls-ready",
+        "gemm_flatten_v1",
+        "gemm_flatten_v2",
+        "preventive"
+      ],
+      "template": "// BAD: full k UNROLL with serial FP accumulator under (i,j) PIPELINE\nfor (int i = 0; i < M; ++i)\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    double sum = 0.0;\n    for (int k = 0; k < K; ++k) {\n#pragma HLS UNROLL\n      sum += A[i][k] * B[k][j];  // carried dep → Final II ≫ 1 if 1×dadd\n    }\n    C[i][j] = sum;\n  }\n// GOOD: partial/tree reduction (or pipeline-on-k if resources cannot parallelize)\n",
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "last_used_at": null,
+      "sec_pass": 0
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [
+        "2023.2",
+        "2025.2"
+      ],
+      "bottleneck_kinds": [],
+      "confidence": "avoid",
+      "guards": [
+        "do not apply the blocked transformation when this pattern is present",
+        "do not claim success from pragma insertion alone",
+        "choose an alternative skill that addresses the actual bottleneck"
+      ],
+      "id": "avoid-manual-loop-interchange-on-perfect-nest",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "perfectly nested loops where Vitis can interchange automatically",
+      "required_steps": [
+        "detect whether this avoid-rule pattern is present",
+        "do not apply the unsafe or superficial transformation",
+        "route to a safer skill based on the actual bottleneck",
+        "validate with synthesis and correctness feedback"
+      ],
+      "sec_pass": 0,
+      "strategy": "rewriting the loop nesting order by hand (Vitis 2022.2+ already does this)",
+      "tags": [
+        "absorbed-by-synth"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "dependence",
+        "fp_reduction",
+        "port_conflict"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "applies to local staging buffers as well as m_axi outputs — same RMW discipline",
+        "pair with hls-fp-reduction-partial-accumulators for FP dot-product chains",
+        "preserve numerical semantics when splitting partial sums"
+      ],
+      "id": "avoid-local-output-rmw-in-pipelined-unroll",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "matrix-vector or dot-product style loops that update an output accumulator array element inside a pipelined and/or unrolled loop (e.g. local_x[i] += expr under #pragma HLS PIPELINE II=1 or UNROLL over column index j+k)",
+      "required_steps": [
+        "detect local_x[i] += or equivalent in-place update inside PIPELINE II=1 or unrolled j+k loops",
+        "allocate partial[UF] per output lane or per unroll lane with #pragma HLS ARRAY_PARTITION complete",
+        "accumulate into partial[p] inside the pipelined/unrolled loop",
+        "reduce partial[] to a scalar after the loop and write local_x[i] once",
+        "do not leave loop-carried dependence on local_x[i] in the hot pipeline"
+      ],
+      "sec_pass": 0,
+      "strategy": "Never read-modify-write the same local output accumulator element inside a pipelined unrolled loop. Use private partial accumulators with complete partitioning, reduce once after the pipelined loop, then assign local_x[i] exactly once.",
+      "tags": [
+        "avoid",
+        "dot-product",
+        "matrix-vector",
+        "partial-sum",
+        "flash-mandatory"
+      ],
+      "template": "// BAD: RMW on local output inside pipelined unroll\nfor (int k = 0; k < UF; k++) {\n#pragma HLS UNROLL\n#pragma HLS PIPELINE II=1\n    local_x[i] += A[i][j + k] * y[j + k];\n}\n// GOOD: partial accumulators, single write\npartial[p] += A[i][j+p] * y[j+p];  // in pipelined loop\nlocal_x[i] = reduce(partial);        // once after loop"
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "repeated_global_access",
+        "ii_target_miss",
+        "port_conflict"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "preserve numerical semantics when staging into locals",
+        "const read-only m_axi inputs may be read once per tile into locals",
+        "in-place outputs still require local write-back buffers, not inner-loop RMW on the port"
+      ],
+      "id": "avoid-no-rmw-m_axi-direct",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "compute loops perform read-modify-write updates directly on arrays mapped to m_axi ports (e.g. A[i][j] = A[i][j] + expr, x[i] = x[i] + expr, w[i] = w[i] + expr inside nested loops)",
+      "required_steps": [
+        "scan every loop for statements that read and write the same m_axi port element",
+        "reject direct accumulation into m_axi arrays",
+        "reject repeated reads of the same output element from DRAM/HBM inside an inner loop",
+        "reject repeated writes to the same output element inside an inner loop",
+        "replace with load-compute-store using local buffers or private scalar accumulators",
+        "for reductions, accumulate in a private scalar or local array, then write back once",
+        "if the full array is too large, tile/block but still finalize each tile locally before one store"
+      ],
+      "sec_pass": 0,
+      "strategy": "Treat every m_axi argument as external DRAM/HBM. Never read and write the same external element inside an inner loop. Do not use global/m_axi arrays as temporary storage or assume HLS will cache m_axi data across iterations.",
+      "tags": [
+        "avoid",
+        "no_RMW_m_axi",
+        "m_axi",
+        "load-compute-store",
+        "flash-mandatory"
+      ],
+      "template": "// FORBIDDEN when A/x/w are m_axi ports:\n//   A[i][j] = A[i][j] + expr;\n//   x[i] = x[i] + expr;\n// GOOD: load -> local acc/buffer -> single store\n//   double acc = x_local[i];\n//   for (int j = 0; j < N; j++) acc += beta * A_local[j][i] * y_local[j];\n//   x_local[i] = acc;\n//   x[i] = x_local[i];  // one write per element"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "global_memory_latency",
+        "partial_staging",
+        "ii_target_miss"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "staging only inputs but leaving outputs or accumulators on global memory is incomplete",
+        "reading one operand from global inside a pipelined compute loop usually destroys II and bandwidth"
+      ],
+      "id": "hls-avoid-partial-staging-global-in-compute",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_regression_analysis",
+      "pattern": "some inputs are loaded into local buffers, but the hot compute loop still reads or writes one or more m_axi array parameters directly, such as an accumulator matrix, temporary, or output array",
+      "required_steps": [
+        "list every array indexed inside each pipelined compute loop",
+        "if any index targets a function parameter array, stage that array locally or privatize the accessed region",
+        "route to hls-baseline-load-compute-store-gate or hls-chain-intermediate-results-locally",
+        "validate that compute loops reference only local buffers"
+      ],
+      "sec_pass": 0,
+      "strategy": "do not mix local staging with global reads or writes in the same hot compute loop; stage all operands and outputs used in compute locally first",
+      "tags": [
+        "avoid",
+        "partial-staging",
+        "global-memory",
+        "gemm",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "global_memory_latency",
+        "ii_target_miss",
+        "latency_high",
+        "non_pipelined_hot_loop"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "m_axi interface pragmas alone do not constitute optimization",
+        "absence of PIPELINE, local buffers, or loop restructuring on a memory-bound hot loop is a blocking defect"
+      ],
+      "id": "hls-avoid-reference-port-global-compute",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_regression_analysis",
+      "pattern": "proposed or current code performs the main computation by directly indexing m_axi or global array parameters with no local staging and no HLS pragmas on the hot loops, including multi-phase kernels with many m_axi ports",
+      "required_steps": [
+        "detect whether this avoid-rule pattern is present",
+        "do not apply the unsafe or superficial transformation",
+        "route to hls-baseline-load-compute-store-gate or hls-multi-phase-local-pipeline before any other optimization",
+        "validate with synthesis and correctness feedback"
+      ],
+      "sec_pass": 0,
+      "strategy": "reject reference-port output even when m_axi interface pragmas are present; route to hls-baseline-load-compute-store-gate or hls-multi-phase-local-pipeline before any other optimization",
+      "tags": [
+        "avoid",
+        "reference-port",
+        "global-memory",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "benchmark_leakage",
+        "hidden_test_overfitting"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "do not include source benchmark names in agent-visible prompts",
+        "do not encode baseline-to-target sequences in skill IDs",
+        "do not expose private evaluator metadata"
+      ],
+      "id": "hls-avoid-benchmark-provenance-assumption",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "agent attempts to infer or mention the source benchmark suite, hidden test design, target variant sequence, or expected optimization step from skill names or evaluation feedback",
+      "required_steps": [
+        "detect whether this avoid-rule pattern is present",
+        "do not apply the unsafe or superficial transformation",
+        "route to a safer skill based on the actual bottleneck",
+        "validate with synthesis and correctness feedback"
+      ],
+      "sec_pass": 0,
+      "strategy": "optimize only from current code, reports, constraints, and feedback; do not assume a benchmark family, stepwise target, or one-shot target",
+      "tags": [
+        "hls",
+        "avoid",
+        "benchmark-leakage",
+        "hidden-tests",
+        "kernel-independent"
+      ],
+      "template": ""
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "reference_port",
+        "latency_high",
+        "non_pipelined_hot_loop"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "avoid-tier skills must not cause fallback to unoptimized reference code",
+        "when in doubt, apply hls-baseline-load-compute-store-gate rather than emitting textbook C"
+      ],
+      "id": "hls-avoid-reference-fallback-under-avoid-noise",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_regression_analysis",
+      "pattern": "the model avoids advanced transforms because of many avoid rules or uncertainty, and responds with textbook nested loops on global arrays and no compute pragmas",
+      "required_steps": [
+        "detect reference-port output despite loaded skill catalog",
+        "do not treat caution as permission to skip optimization",
+        "apply hls-baseline-load-compute-store-gate, hls-multi-phase-local-pipeline, or hls-iterative-stencil-timestep-local-volume as appropriate",
+        "ensure PIPELINE pragmas exist before submitting"
+      ],
+      "sec_pass": 0,
+      "strategy": "avoid rules forbid unsafe transforms, not all transforms; when uncertain, still apply the baseline local load-compute-store recipe instead of reference C",
+      "tags": [
+        "avoid",
+        "reference-fallback",
+        "skill-catalog",
+        "mandatory-baseline",
+        "kernel-independent"
+      ],
+      "template": ""
+    }
+  ]
+}

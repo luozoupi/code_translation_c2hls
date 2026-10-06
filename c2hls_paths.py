@@ -56,6 +56,33 @@ SKILLS_II_TARGET_MISS_90_JSON = (
 FLASH_NO_RMW_M_AXI_SKILL_ENTRIES_JSON = (
     SKILLS_PACKAGE_DIR / "flash_no_RMW_m_axi_skill_entries.json"
 )
+POST_FLASH_DSE_SKILL_ENTRIES_JSON = (
+    SKILLS_PACKAGE_DIR / "post_flash_dse_pe_skill_entries.json"
+)
+# DSE v3 overlay. Loaded only when C2HLS_DSE_V3 or C2HLS_DSE_V3_HARNESS is set.
+POST_FLASH_DSE_V3_SKILL_ENTRIES_JSON = (
+    SKILLS_PACKAGE_DIR / "post_flash_dse_v3_skill_entries.json"
+)
+# DSE v4 AutoSA instruction docs. Loaded only when C2HLS_DSE_V4 is set.
+AUTOSA_DOCS_DIR = REPO_ROOT.parent / "AutoSA" / "docs"
+DSE_V2_GRID_JSON = SKILLS_PACKAGE_DIR / "dse_v2_grid.json"
+POST_FLASH_STREAM_SKILL_ENTRIES_JSON = (
+    SKILLS_PACKAGE_DIR / "post_flash_stream_pe_io_skill_entries.json"
+)
+POST_FLASH_OVERLAP_SKILL_ENTRIES_JSON = (
+    SKILLS_PACKAGE_DIR / "post_flash_overlap_pe_skill_entries.json"
+)
+FLASH_ENFORCEMENT_KEEP_FLASH_SKILL_ENTRIES_JSON = (
+    SKILLS_PACKAGE_DIR / "flash_enforcement_keep_flash_skill_entries.json"
+)
+FLASH_ENFORCEMENT_LOADB_IN_DF_SKILL_ENTRIES_JSON = (
+    SKILLS_PACKAGE_DIR / "flash_enforcement_loadb_in_dataflow_skill_entries.json"
+)
+# Historical flash dump order from frozen mmflow 20260830 (139484/10).
+# Opt-in via C2HLS_SKILL_PROMPT_ORDER_JSON; default ranking is unchanged.
+FLASH_SKILL_ORDER_20260830_MMFLOW_JSON = (
+    SKILLS_PACKAGE_DIR / "flash_skill_order_20260830_mmflow.json"
+)
 # Default packaged base for new-matrix tooling.
 SKILLS_II_TARGET_MISS_JSON = SKILLS_II_TARGET_MISS_90_JSON
 VITIS_PRAGMAS_CURATED_MD = SKILLS_PACKAGE_DIR / "vitis_hls_2023_2_pragmas_curated.md"

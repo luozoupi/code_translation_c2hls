@@ -1,0 +1,183 @@
+{
+  "schema": "1.1",
+  "description": "How to read AutoSA latency. The paper number is the max of module latencies plus the last drain tile. Kernel min, kernel max, and loop II are different columns.",
+  "derived_from": [
+    "autosa_concept_crosswalk.csv",
+    "autosa_hls_min_error_bands.csv"
+  ],
+  "skills": [
+    {
+      "id": "autosa-latency-max-of-modules",
+      "kind": "compound_transformation",
+      "confidence": "medium",
+      "origin": "paper",
+      "pattern": "the model estimate is compared to kernel Worst-caseLatency or to a single loop II",
+      "strategy": "Section 7.2 defines design latency as the maximum of the module latencies. predict_design_latency takes that maximum and adds the last drain tile. Report that number as the paper latency. Keep HLS kernel min and HLS kernel max in their own columns. Module-max versus the model is still unmeasured on the U280 300 MHz run: HLS jobs 3464450, 3464453, and 3464456 wrote 0 candidates.",
+      "required_steps": [
+        "take the max of the per-module latencies from latency_est",
+        "add drain_last_tile_latency",
+        "store kernel min and kernel max separately from that paper latency"
+      ],
+      "guards": [
+        "do not raise this skill to high until a completed HLS run reports max of module LatencyBest",
+        "the 5% paper band is not the same claim as within 10% of kernel min"
+      ],
+      "bottleneck_kinds": ["latency"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "latency", "paper"]
+    },
+    {
+      "id": "avoid-autosa-kernel-worst-as-paper-latency",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "agent",
+      "pattern": "ranking or the paper error uses csynth kernel max",
+      "strategy": "Kernel worst-case latency is the dataflow summary. On the ge64 set the kernel-max over model is often about 2x, and only a minority of rows are within 10%. That is a different metric from section 7.2.",
+      "required_steps": [
+        "do not rank the paper model on kernel max",
+        "if kernel max is shown, label it HLS kernel max"
+      ],
+      "guards": [
+        "a close kernel min does not make the kernel max the paper latency"
+      ],
+      "bottleneck_kinds": ["latency"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "avoid", "latency"]
+    },
+    {
+      "id": "avoid-autosa-loop-ii-as-latency",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "agent",
+      "pattern": "a loop II of 1, or a module interval in the thousands, is reported as the design latency",
+      "strategy": "Loop II is the initiation interval of a pipelined loop. On these MM designs it is mostly 1 and sometimes 2 or 3. The thousands-scale number is a latency, not an II. The generic HLS pack may still target II=1; this skill only forbids using II as the AutoSA latency.",
+      "required_steps": [
+        "record loop II only in an II column",
+        "record kernel min, kernel max, and module max as latencies"
+      ],
+      "guards": [
+        "do not quote a module interval as II"
+      ],
+      "bottleneck_kinds": ["latency", "ii_target_miss"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "avoid", "ii"]
+    },
+    {
+      "id": "autosa-double-buffer-formula",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "manual",
+      "pattern": "a double-buffered I/O module is estimated as inter plus intra for every design",
+      "strategy": "If the module is double-buffered, latency is outer * max(inter, intra) plus intra when in==1, otherwise plus inter. Otherwise it is outer * (inter + intra). At N>=512 the HLS max follows outer*max plus one side, not the sum.",
+      "required_steps": [
+        "use the double-buffer formula when module_prop double_buffer is 1",
+        "do not replace that formula with inter+intra for large N"
+      ],
+      "guards": [
+        "B_IO_L2_in and C_IO_L2_out are the modules where this showed up"
+      ],
+      "bottleneck_kinds": ["latency"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "latency", "double-buffer"]
+    },
+    {
+      "id": "avoid-autosa-empty-outer-nonzero",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "agent",
+      "pattern": "an outer latency of 0 on a double-buffered module is replaced by a nonzero constant for every design",
+      "strategy": "predict_module_latency_xilinx sets latency to 0 when an outer module hits a user node while latency is still 1, which drops one child. Change that only when the outer skeleton has no loops. The empty-outer case is the mm64 ST4 I/O gap. It is not the N>=512 pattern.",
+      "required_steps": [
+        "treat outer 0 as a bug only when the outer loop skeleton is empty",
+        "do not add a nonzero outer trip to designs whose outer loop is already nonzero"
+      ],
+      "guards": [
+        "do not change the double-buffer formula in the same edit"
+      ],
+      "bottleneck_kinds": ["latency"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "avoid", "latency"]
+    },
+    {
+      "id": "avoid-autosa-p0-substitute-constant",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "agent",
+      "pattern": "a non-numeric loop lower bound such as p0 is replaced by a nonzero constant to close a latency gap",
+      "strategy": "The latency reader sets a non-numeric lower bound to 0 and rejects a non-numeric upper bound. Trip count is ub-lb+1 after that. If the JSON upper bound disagrees with the HLS trip, the fix belongs in the compiler that writes latency_est, not in a different substituted constant.",
+      "required_steps": [
+        "leave the lower-bound substitution at 0",
+        "compare the JSON ub with the HLS trip before editing the estimator"
+      ],
+      "guards": [
+        "substituting a nonzero lower bound makes the estimate smaller and does not repair a short JSON upper bound"
+      ],
+      "bottleneck_kinds": ["latency"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "avoid", "latency"]
+    },
+    {
+      "id": "autosa-dram-depth-uses-search-cycle",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "paper",
+      "pattern": "DRAM latency is left at 200 ns, or the search cycle_period differs from the HLS clock",
+      "strategy": "The paper uses 182 ns of DRAM latency. The estimator divides 182 by cycle_period. Designs 4 and 5 are 300 MHz, which is 3.33 ns in this flow. The search cycle_period and AUTOSA_CLOCK_NS must be that same number. The earlier mm1024 optimizer file used cycle_period 5.",
+      "required_steps": [
+        "use 182 ns, not 200 ns",
+        "set search cycle_period equal to the HLS clock period"
+      ],
+      "guards": [
+        "changing 5 ns to 3.33 ns changes DRAM cycles; it does not by itself rewrite a compute-bound module latency"
+      ],
+      "bottleneck_kinds": ["latency", "memory_bandwidth"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "latency", "dram"]
+    },
+    {
+      "id": "autosa-st4-kernel-min-band",
+      "kind": "compound_transformation",
+      "confidence": "medium",
+      "origin": "agent",
+      "pattern": "space-time 4 is described as either within the paper's 5% or as a uniform miss",
+      "strategy": "On mm1024, 8 of 10 space-time 4 rows are within 10% of the model on HLS kernel min. That band is kernel min, not the paper module-max. Do not copy this sentence onto space-time 5.",
+      "required_steps": [
+        "quote the space-time 4 kernel-min band only for kernel min",
+        "leave the paper 5% claim unmet until module LatencyBest is collected"
+      ],
+      "guards": [
+        "space-time 5 at mm1024 is about 3x to 4x on kernel min, with no within-10% row in the ge64 set"
+      ],
+      "bottleneck_kinds": ["latency"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "latency", "space_time"]
+    },
+    {
+      "id": "avoid-autosa-st5-kernel-min-as-paper-band",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "agent",
+      "pattern": "space-time 5 is reported inside the paper's 5% latency band",
+      "strategy": "Space-time 5 is the (j,k) array. The paper does not report it. On the measured kernel min, mm1024 space-time 5 is about 3x to 4x the model, and the long module is C_IO_L2_out. The ge64 space-time 5 set has no within-10% row.",
+      "required_steps": [
+        "report space-time 5 kernel min as a miss band",
+        "name C_IO_L2_out when that module is the long one"
+      ],
+      "guards": [
+        "do not merge space-time 4 and space-time 5 into one accuracy sentence"
+      ],
+      "bottleneck_kinds": ["latency"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "avoid", "space_time"]
+    }
+  ]
+}

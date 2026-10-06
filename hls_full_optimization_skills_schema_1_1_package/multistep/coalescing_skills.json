@@ -1,0 +1,880 @@
+{
+  "saved_at": "2026-09-26T08:13:54Z",
+  "schema": "1.1",
+  "flow": "multistep",
+  "step": "coalescing",
+  "role": "skills",
+  "focus": "Burst-friendly m_axi access, 512-bit widening, and matching lane-wide compute.",
+  "derived_from": [
+    "skills_ii_target_miss_solutions_added(90skills).json",
+    "skills_ii_target_miss_solutions_added(90skills)_gemm_flatten_v2.json"
+  ],
+  "merge_rule": "Union of the 90-skill package and gemm_flatten_v2. On id conflicts, gemm_flatten_v2 replaces the 90-skill entry.",
+  "skill_count": 17,
+  "primary_count": 15,
+  "overlap_count": 2,
+  "assignment": [
+    {
+      "id": "prompt-coalescing",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "axi-burst-coalescing-narrow-safe",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "axi-burst-widening-512",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-coalescing-512-compound-transform",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-coalescing-compute-lane-parallelism",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-coalescing-contiguous-access-rewrite",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-coalescing-lane-parallel-reduction",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-coalescing-partition-lane-buffers",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-axi-load-step-matches-widen-lanes",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-multibank-balance-memory-traffic",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-multibank-separate-independent-arrays",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-distinct-gmem-bundle-per-port",
+      "band": "primary",
+      "source": "90"
+    },
+    {
+      "id": "ii-axi-burst-outstanding-prefetch-queue",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "ii-gmem-stage-request-response-decouple",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "ii-loop-order-contiguous-and-banked-inner-loop",
+      "band": "primary",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "ii-reduction-lane-partial-tree",
+      "band": "overlap",
+      "source": "gemm_flatten_v2"
+    },
+    {
+      "id": "hls-array-partition-match-unroll-factor",
+      "band": "overlap",
+      "source": "90"
+    }
+  ],
+  "skills": [
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "port_conflict",
+        "interval_exceeds_latency",
+        "memory_bandwidth",
+        "axi_burst_failed",
+        "underutilized_wide_memory"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not assume coalescing succeeded without checking reports",
+        "do not expose benchmark or hidden-test provenance",
+        "do not over-unroll if the new bottleneck becomes compute resources or local memory ports"
+      ],
+      "id": "prompt-coalescing",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "prompt",
+      "pattern": "narrow per-element AXI burst or scalar global-memory access on a contiguous read/write loop",
+      "required_steps": [
+        "identify contiguous global-memory access",
+        "apply burst-friendly m_axi configuration when legal",
+        "stage or reshape memory access if needed",
+        "rewrite compute to exploit widened/local data when legal",
+        "handle tails and validate reports"
+      ],
+      "sec_pass": 0,
+      "strategy": "preserve the public kernel ABI by default; request max_widen_bitwidth=512 on m_axi ports; improve burst lengths, outstanding transactions, local staging, and tail-safe contiguous access; then restructure the compute loop so the wider memory beat feeds multiple parallel lane operations when legal",
+      "tags": [
+        "prompt-derived",
+        "coalescing",
+        "max_widen_bitwidth",
+        "512-bit",
+        "lane-parallelism"
+      ],
+      "template": "#pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem max_widen_bitwidth=512 max_read_burst_length=64 num_read_outstanding=16\n#pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem max_widen_bitwidth=512 max_write_burst_length=64 num_write_outstanding=16\n// Do not stop at pragmas: rewrite the compute loop around LANES = 512 / element_bitwidth if safe."
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_burst_failed",
+        "port_conflict",
+        "interval_exceeds_latency",
+        "underutilized_wide_memory",
+        "compute_not_scaled_after_widening"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not change top-level pointer element types unless explicitly allowed",
+        "do not treat adding m_axi pragmas as complete coalescing",
+        "confirm accesses are contiguous and burst-friendly",
+        "only unroll lane computation when iterations are independent or safely reducible",
+        "handle N not divisible by the lane factor",
+        "do not leave k+=4 / factor=4 after requesting 512-bit widening on 32-bit data_t"
+      ],
+      "id": "axi-burst-coalescing-narrow-safe",
+      "kind": "compound_transformation",
+      "last_used_at": "2026-05-19T03:17:32-0500",
+      "mean_advantage": 0.11533013057403302,
+      "occurrences": 5,
+      "origin": "manual",
+      "pattern": "m_axi port feeds a contiguous streaming loop, the active host/testbench contract expects the original scalar pointer types, and memory bandwidth limits performance",
+      "required_steps": [
+        "add max_widen_bitwidth=512 to relevant m_axi ports",
+        "use burst length and outstanding transaction pragmas",
+        "stage contiguous global-memory regions into local buffers where helpful",
+        "compute LANES = 512 / element_bitwidth",
+        "rewrite the compute loop to process multiple lanes per outer iteration when legal",
+        "partition local lane buffers to match the lane factor",
+        "validate csim/cosim and inspect synthesis reports for burst/widening success",
+        "set load/store inner step to LANES, not 2/4/8, when max_widen_bitwidth=512",
+        "ARRAY_PARTITION cyclic factor=LANES on the consecutive dim of the staging buffer"
+      ],
+      "sec_pass": 1,
+      "strategy": "preserve the public scalar pointer ABI; request 512-bit automatic m_axi widening with max_widen_bitwidth=512; use burst/outstanding pragmas; stage contiguous data into local buffers; pipeline load/store loops; and rewrite the compute loop to process LANES = 512 / element_bitwidth elements per memory beat when iterations are independent LANES = 512 / element_bitwidth (16 for 32-bit). Load/store must step by LANES with matching consecutive-dim partition. k+=4 / factor=4 is not done when max_widen_bitwidth=512 on a 32-bit ABI.",
+      "tags": [
+        "coalescing",
+        "max_widen_bitwidth",
+        "512-bit",
+        "narrow-abi",
+        "lane-parallelism",
+        "u280",
+        "safe-default"
+      ],
+      "template": "#pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem max_widen_bitwidth=512 max_read_burst_length=64 num_read_outstanding=16\n#pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem max_widen_bitwidth=512 max_write_burst_length=64 num_write_outstanding=16\n// Keep pointer element types unchanged unless the active variant explicitly allows a packed wide-bus ABI.\n// After widening, restructure computation around LANES = 512 / element_bitwidth when legal."
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_burst_failed",
+        "underutilized_wide_memory",
+        "compute_not_scaled_after_widening"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not change the host ABI unless explicitly allowed",
+        "wide memory movement alone is insufficient if compute remains scalar",
+        "lane-level compute unrolling requires independent iterations or a safe reduction structure",
+        "watch DSP/LUT/BRAM growth after increasing lane parallelism",
+        "k+=4 with factor=4 is an incomplete 512-bit load on 32-bit data_t"
+      ],
+      "id": "axi-burst-widening-512",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "manual",
+      "pattern": "m_axi port feeds a pipelined loop, latency remains bandwidth dominated, and synthesis/report evidence shows narrow or failed burst/widening behavior",
+      "required_steps": [
+        "request or implement 512-bit memory movement",
+        "rewrite load/store loops to be burst-friendly",
+        "unpack/stage lanes into local buffers",
+        "unroll lane-level compute",
+        "partition local buffers by lane factor",
+        "handle tails and alignment safely",
+        "rewrite the load/store loop to step by LANES = 512 / element_bitwidth",
+        "match consecutive-dim partition factor to LANES (16 for float, not 4)"
+      ],
+      "sec_pass": 0,
+      "strategy": "request 512-bit m_axi widening using max_widen_bitwidth=512; if a packed wide-bus ABI is explicitly allowed, use ap_uint<512> words; in both cases, unpack/stage into lane-partitioned local buffers and rewrite computation to exploit parallel lanes rather than continuing scalar one-element-at-a-time compute LANES = 512 / element_bitwidth (16 for 32-bit). Load/store must step by LANES with matching consecutive-dim partition. k+=4 / factor=4 is not done when max_widen_bitwidth=512 on a 32-bit ABI.",
+      "tags": [
+        "coalescing",
+        "wide-bus",
+        "max_widen_bitwidth",
+        "512-bit",
+        "lane-parallelism",
+        "validated"
+      ],
+      "template": "#include <ap_int.h>\ntypedef ap_uint<512> wide_t;\n#pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem max_widen_bitwidth=512 max_read_burst_length=64 num_read_outstanding=16\n#pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem max_widen_bitwidth=512 max_write_burst_length=64 num_write_outstanding=16\n// LANES = 512 / (8 * sizeof(element)); unpack/stage lanes, unroll lane compute, and handle scalar tail explicitly."
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_burst_failed",
+        "underutilized_wide_memory",
+        "compute_not_scaled_after_widening"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not treat interface pragmas alone as complete coalescing",
+        "do not change top-level pointer types unless explicitly allowed",
+        "do not unroll lane computation if there is a true loop-carried dependence",
+        "for reductions, use partial sums or a tree reduction instead of a single serial accumulator",
+        "watch DSP/LUT/BRAM growth after lane parallelism",
+        "do not stop after max_widen_bitwidth=512 plus a 4-wide fused load"
+      ],
+      "id": "hls-coalescing-512-compound-transform",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "the kernel is bandwidth-sensitive, accesses contiguous global memory through m_axi ports, and has per-element or lane-independent computation that can be parallelized after widening memory transfers",
+      "required_steps": [
+        "add max_widen_bitwidth=512 to relevant m_axi ports",
+        "use max_read_burst_length/max_write_burst_length and outstanding transaction pragmas where appropriate",
+        "rewrite global accesses to be contiguous, monotonic, and unit-stride where possible",
+        "separate load, compute, and store if mixed logic blocks burst inference",
+        "compute LANES = 512 / element_bitwidth",
+        "process LANES elements per outer-loop iteration",
+        "unroll the lane loop when iterations are independent",
+        "partition local lane buffers to match the lane factor",
+        "handle non-multiple tails and boundary conditions",
+        "validate csim/cosim and inspect reports for burst and widening success",
+        "the load/store loop itself must iterate base += LANES; k+=4 is not LANES=16",
+        "partition the consecutive dim by LANES even if compute banking uses a different factor"
+      ],
+      "sec_pass": 0,
+      "strategy": "apply coalescing as a full transformation: request 512-bit m_axi widening with max_widen_bitwidth=512, rewrite global-memory access into burst-friendly contiguous load/store loops, stage data into local lane buffers, and restructure computation to process multiple elements per widened memory beat using lane-level unrolling and matching buffer partitioning LANES = 512 / element_bitwidth (16 for 32-bit). Load/store must step by LANES with matching consecutive-dim partition. k+=4 / factor=4 is not done when max_widen_bitwidth=512 on a 32-bit ABI.",
+      "tags": [
+        "hls",
+        "coalescing",
+        "compound",
+        "m_axi",
+        "max_widen_bitwidth",
+        "512-bit",
+        "lane-parallelism",
+        "local-buffer",
+        "unroll",
+        "kernel-independent"
+      ],
+      "template": "#pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem max_widen_bitwidth=512 max_read_burst_length=64 num_read_outstanding=16\n#pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem max_widen_bitwidth=512 max_write_burst_length=64 num_write_outstanding=16\n\nconst int LANES = 512 / (8 * sizeof(data_t));\ndata_t in_lane[LANES];\ndata_t out_lane[LANES];\n#pragma HLS ARRAY_PARTITION variable=in_lane complete dim=1\n#pragma HLS ARRAY_PARTITION variable=out_lane complete dim=1\n\nfor (int base = 0; base < N; base += LANES) {\n#pragma HLS PIPELINE II=1\n    for (int lane = 0; lane < LANES; ++lane) {\n#pragma HLS UNROLL\n        int idx = base + lane;\n        if (idx < N) {\n            data_t x = in[idx];\n            out[idx] = f(x);\n        }\n    }\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "underutilized_wide_memory",
+        "compute_not_scaled_after_widening",
+        "memory_bandwidth_improved_but_latency_still_high"
+      ],
+      "confidence": "high",
+      "guards": [
+        "only apply to independent iterations or safely transformed reductions",
+        "do not duplicate memory reads if local staging can feed all lane operations",
+        "avoid excessive lane factor if resource utilization exceeds limits"
+      ],
+      "id": "hls-coalescing-compute-lane-parallelism",
+      "kind": "transformation_operator",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "m_axi widening or burst bandwidth improves memory movement, but the compute loop still processes one scalar element per iteration and does not exploit the wider memory beat; also applies when load already uses max_widen_bitwidth=512 but still walks four floats per cycle",
+      "required_steps": [
+        "identify element bitwidth",
+        "set LANES = 512 / element_bitwidth",
+        "group scalar iterations into base + lane form",
+        "unroll the lane loop",
+        "partition local lane buffers completely or cyclically by lane factor",
+        "handle tails with idx < N guards or a cleanup loop",
+        "apply the same LANES factor to the load/store walk, not only to compute"
+      ],
+      "sec_pass": 0,
+      "strategy": "rewrite the compute loop around a lane factor equal to 512 divided by element bitwidth; unroll the lane loop; partition local lane buffers; and perform multiple independent scalar operations per outer-loop iteration LANES = 512 / element_bitwidth (16 for 32-bit). Load/store must step by LANES with matching consecutive-dim partition. k+=4 / factor=4 is not done when max_widen_bitwidth=512 on a 32-bit ABI.",
+      "tags": [
+        "hls",
+        "coalescing",
+        "lane-parallelism",
+        "compute-rewrite",
+        "unroll",
+        "512-bit",
+        "kernel-independent"
+      ],
+      "template": "const int LANES = 512 / (8 * sizeof(data_t));\nfor (int base = 0; base < N; base += LANES) {\n#pragma HLS PIPELINE II=1\n    for (int lane = 0; lane < LANES; ++lane) {\n#pragma HLS UNROLL\n        int idx = base + lane;\n        if (idx < N) {\n            out[idx] = f(in[idx]);\n        }\n    }\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "axi_burst_failed",
+        "non_contiguous_access",
+        "memory_bandwidth"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not introduce out-of-bounds accesses",
+        "do not reorder writes when observable output order matters",
+        "do not assume indirect indexed accesses can be coalesced without a layout rewrite"
+      ],
+      "id": "hls-coalescing-contiguous-access-rewrite",
+      "kind": "transformation_operator",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "global-memory accesses are logically contiguous but written with mixed compute, conditional control, irregular indexing, or non-monotonic loop structure that prevents burst inference or automatic port widening",
+      "required_steps": [
+        "isolate global-memory load and store loops",
+        "make addresses monotonic and unit-stride where legal",
+        "pipeline load and store loops",
+        "stage data in local buffers if compute is irregular",
+        "preserve boundary conditions and output order",
+        "after isolating load/store, step the inner index by LANES when 512-bit widening is requested"
+      ],
+      "sec_pass": 0,
+      "strategy": "rewrite memory access into clean unit-stride load/store loops, separate irregular compute from global memory access when useful, and stage data into local buffers before compute Isolated load/store loops must still walk LANES elements per II=1 beat when max_widen_bitwidth=512; a scalar i++ pipeline is not coalesced.",
+      "tags": [
+        "hls",
+        "coalescing",
+        "burst-inference",
+        "unit-stride",
+        "local-staging",
+        "kernel-independent"
+      ],
+      "template": "const int LANES = 512 / (8 * sizeof(data_t));\nload_loop: for (int i = 0; i < N; i += LANES) {\n#pragma HLS PIPELINE II=1\n    for (int l = 0; l < LANES; ++l) {\n#pragma HLS UNROLL\n        if (i + l < N) local[i + l] = in[i + l];\n    }\n}\n// BAD: for (int i = 0; i < N; ++i) PIPELINE local[i] = in[i];  // one float / cycle\n"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "compute_not_scaled_after_widening",
+        "reduction_loop",
+        "loop_carried_dep"
+      ],
+      "confidence": "medium",
+      "guards": [
+        "floating-point associativity changes can alter bit-exact results",
+        "only use if the test tolerance or algorithm permits reassociation",
+        "for bit-exact reductions, keep serial order or use a guarded mode",
+        "switch(k&3) named banks still schedule as II=4"
+      ],
+      "id": "hls-coalescing-lane-parallel-reduction",
+      "kind": "transformation_operator",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "the widened memory beat provides multiple scalar elements per cycle, but the computation is a reduction with a serial accumulator that prevents lane-level parallelism; on GEMM this is also a k-loop that does acc[i][j] += a*b every k (Final II=4) after spatial MACs already exist",
+      "required_steps": [
+        "compute LANES = 512 / element_bitwidth",
+        "create lane-local partial accumulators",
+        "unroll lane updates",
+        "combine partial accumulators through a tree or final reduction loop",
+        "preserve numerical tolerance expectations for floating-point reductions",
+        "for a k-reduction, step k by the FP recurrence (typically 4) and update named acc0..acc3 in the same iteration",
+        "do not implement partial banks with switch(k&3) under k++"
+      ],
+      "sec_pass": 0,
+      "strategy": "replace the serial accumulator with lane-local partial sums or a reduction tree so multiple elements from each widened memory beat can be consumed in parallel A float MAC into one acc[i][j] every k is II=4. Advance k by 4 in one PIPELINE iteration and update named acc0..acc3 there. Do not switch(k&3). Do not accept II=4 as the legal endpoint for that GEMM reduction.",
+      "tags": [
+        "hls",
+        "coalescing",
+        "reduction",
+        "lane-parallelism",
+        "partial-sums",
+        "kernel-independent"
+      ],
+      "template": "const int LANES = 512 / (8 * sizeof(data_t));\ndata_t partial[LANES];\n#pragma HLS ARRAY_PARTITION variable=partial complete dim=1\n\ninit: for (int lane = 0; lane < LANES; ++lane) {\n#pragma HLS UNROLL\n    partial[lane] = 0;\n}\n\nmain_loop: for (int base = 0; base < N; base += LANES) {\n#pragma HLS PIPELINE II=1\n    for (int lane = 0; lane < LANES; ++lane) {\n#pragma HLS UNROLL\n        int idx = base + lane;\n        if (idx < N) partial[lane] += f(in[idx]);\n    }\n}\n\n// Final reduction over partial[lane] values."
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "port_conflict",
+        "underutilized_wide_memory",
+        "ii_target_miss"
+      ],
+      "confidence": "high",
+      "guards": [
+        "avoid complete partitioning large arrays",
+        "verify that partitioning resolves II without excessive LUT/FF growth"
+      ],
+      "id": "hls-coalescing-partition-lane-buffers",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "lane-level compute is introduced after 512-bit coalescing, but local buffers still have insufficient memory ports to feed all lanes in parallel",
+      "required_steps": [
+        "identify local buffers consumed by the unrolled lane loop",
+        "match partition factor to lane or unroll factor",
+        "prefer complete partition for small lane buffers",
+        "prefer cyclic partition for larger arrays with regular lane indexing",
+        "consecutive-dim (k) partition factor equals the load unroll / LANES, not the compute tile width",
+        "16-row compute banking does not substitute for factor=16 on k when the load is 16-wide"
+      ],
+      "sec_pass": 0,
+      "strategy": "partition local lane buffers completely or cyclically by the lane/unroll factor so all unrolled lane operations can read/write without BRAM port conflicts Match the consecutive-dim bank count to the AXI load unroll. Flash 16x32 compute with factor=4 on k is a mismatch when the load is meant to be 16-wide.",
+      "tags": [
+        "hls",
+        "coalescing",
+        "array-partition",
+        "lane-buffer",
+        "port-conflict",
+        "kernel-independent"
+      ],
+      "template": "data_t lane_buf[LANES];\n#pragma HLS ARRAY_PARTITION variable=lane_buf complete dim=1\n\nfor (int lane = 0; lane < LANES; ++lane) {\n#pragma HLS UNROLL\n    ... lane_buf[lane] ...\n}"
+    },
+    {
+      "id": "hls-axi-load-step-matches-widen-lanes",
+      "kind": "transformation_operator",
+      "confidence": "high",
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "last_used_at": null,
+      "sec_pass": 0,
+      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
+      "pattern": "m_axi has max_widen_bitwidth=512 on a 32-bit (or similarly narrow) pointer ABI, but the load/store pipeline still steps by 4 (or any factor smaller than LANES) and the local buffer is banked with that same small factor on the consecutive dimension",
+      "strategy": "LANES = 512 / element_bitwidth. For data_t float/int32 that is 16, not 4. The load/store inner loop must step by LANES with UNROLL, and ARRAY_PARTITION cyclic factor on the consecutive dim must equal LANES. max_widen_bitwidth=512 without rewriting the walk is incomplete. Compute row/col banking (16x32) is a different factor and must not replace the consecutive-dim LANES bank.",
+      "required_steps": [
+        "compute LANES = 512 / (8 * sizeof(data_t))",
+        "rewrite load/store: for (k = 0; k < K; k += LANES) PIPELINE II=1, inner UNROLL l < LANES",
+        "ARRAY_PARTITION cyclic factor=LANES on the consecutive (k) dim of the local buffer",
+        "keep compute-side row banking separate (it feeds parallel MACs, not the AXI beat)",
+        "target load trip ≈ (rows * cols) / LANES, not one element per cycle"
+      ],
+      "guards": [
+        "do not change the public scalar pointer ABI to ap_uint<512>",
+        "do not use unroll 2/4/8 as the AXI load default when LANES=16",
+        "partition factor on the consecutive dim must match LANES, not a smaller guess",
+        "this skill does not require fused A+B; separate load_A / load_B is also legal"
+      ],
+      "bottleneck_kinds": [
+        "underutilized_wide_memory",
+        "compute_not_scaled_after_widening",
+        "memory_bandwidth",
+        "axi_burst_failed"
+      ],
+      "tags": [
+        "hls",
+        "coalescing",
+        "512-bit",
+        "LANES",
+        "array-partition",
+        "preventive",
+        "gemm_flatten_v2",
+        "kernel-independent"
+      ],
+      "template": "const int LANES = 512 / (8 * sizeof(data_t));  // 16 for float\n#pragma HLS ARRAY_PARTITION variable=A_loc cyclic factor=LANES dim=2\nload_k: for (int k = 0; k < K; k += LANES) {\n#pragma HLS PIPELINE II=1\n  load_l: for (int l = 0; l < LANES; ++l) {\n#pragma HLS UNROLL\n    A_loc[i][k + l] = A[i][k + l];\n  }\n}\n// BAD: k += 4 with factor=4 while max_widen_bitwidth=512 on 32-bit data_t."
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "bank_imbalance",
+        "axi_port_contention",
+        "single_bundle_bottleneck"
+      ],
+      "confidence": "medium",
+      "guards": [
+        "do not move ports without updating host/linker bank assignment if needed",
+        "do not split dependent streams in a way that complicates correctness",
+        "ensure the chosen platform actually has multiple memory banks"
+      ],
+      "id": "hls-multibank-balance-memory-traffic",
+      "kind": "diagnostic_or_transform",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "one memory bundle or bank carries most of the traffic while other banks are unused or underused",
+      "required_steps": [
+        "estimate memory traffic by port",
+        "identify independent streams that can move banks",
+        "separate high-read and high-write streams when useful",
+        "update m_axi bundle names and host/linker mapping",
+        "validate performance and correctness"
+      ],
+      "sec_pass": 0,
+      "strategy": "redistribute independent arrays, read-only tables, or output streams across available memory banks so traffic is balanced and concurrent accesses avoid contention",
+      "tags": [
+        "hls",
+        "multiddr",
+        "memory-bank",
+        "traffic-balance",
+        "kernel-independent"
+      ],
+      "template": "// Example policy:\n// high-read input  -> gmem0\n// second input     -> gmem1\n// output stream    -> gmem2\n// small scalars    -> control or shared bundle as appropriate"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "single_bundle_bottleneck",
+        "multiple_independent_streams",
+        "axi_port_contention"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not split arrays that must remain on the same physical memory for host compatibility",
+        "do not assume bundle names alone map to separate banks without platform/linker support",
+        "avoid bank imbalance where one bank remains the bottleneck"
+      ],
+      "id": "hls-multibank-separate-independent-arrays",
+      "kind": "transformation_operator",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "multiple high-bandwidth arrays or streams are accessed independently but share one memory bundle or memory bank, creating bandwidth contention",
+      "required_steps": [
+        "identify independent high-bandwidth arrays",
+        "estimate read/write traffic per array",
+        "place independent streams on separate m_axi bundles",
+        "map bundles to distinct physical banks if platform/host supports it",
+        "update host-side buffer bank assignment if required",
+        "verify bandwidth and correctness"
+      ],
+      "sec_pass": 0,
+      "strategy": "assign independent high-bandwidth m_axi ports to separate bundles or memory banks so concurrent memory streams can use independent bandwidth",
+      "tags": [
+        "hls",
+        "multiddr",
+        "memory-bank",
+        "m_axi",
+        "bandwidth",
+        "kernel-independent"
+      ],
+      "template": "#pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem0\n#pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem1\n#pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem2\n// Ensure host/linker maps gmem0/gmem1/gmem2 to distinct memory banks when required."
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "port_conflict",
+        "dataflow",
+        "ii_target_miss"
+      ],
+      "confidence": "high",
+      "guards": [
+        "each bundle still needs burst-friendly access patterns on its port",
+        "do not duplicate bundle names across unrelated ports",
+        "cosim and interface pragmas must stay consistent after rebundling"
+      ],
+      "id": "hls-distinct-gmem-bundle-per-port",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "kernel has two or more m_axi pointer ports and uses #pragma HLS DATAFLOW or multiple load/compute/store tasks that should overlap external memory access",
+      "required_steps": [
+        "enumerate every m_axi port on the top kernel and on DATAFLOW subfunctions that touch global memory",
+        "assign each pointer port a unique bundle=gmemN (gmem0, gmem1, gmem2, …)",
+        "map load tasks to read ports and store tasks to write ports on separate bundles when stages overlap",
+        "re-run csynth and verify parallel tasks no longer stall on a single gmem port (HLS 200-885 on gmem)",
+        "pair with hls::stream or proven stage overlap — distinct bundles alone do not fix decorative DATAFLOW"
+      ],
+      "sec_pass": 0,
+      "strategy": "Assign a distinct bundle=gmem0, gmem1, … to each m_axi pointer port so HLS can issue concurrent external memory transactions across DATAFLOW stages. Never place all read/write ports on a single bundle=gmem when stages are meant to run concurrently.",
+      "tags": [
+        "m_axi",
+        "dataflow",
+        "memory_bandwidth",
+        "flash-mandatory"
+      ],
+      "template": "// BAD: all ports share one bundle — DATAFLOW tasks serialize on gmem\n#pragma HLS INTERFACE m_axi port=A bundle=gmem\n#pragma HLS INTERFACE m_axi port=B bundle=gmem\n#pragma HLS INTERFACE m_axi port=y bundle=gmem\n\n// GOOD: one bundle per port for concurrent stage access\n#pragma HLS INTERFACE m_axi port=A bundle=gmem0\n#pragma HLS INTERFACE m_axi port=B bundle=gmem1\n#pragma HLS INTERFACE m_axi port=y bundle=gmem2"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "global_memory_latency",
+        "m_axi_request_response",
+        "axi_burst_failed",
+        "memory_bandwidth",
+        "pipeline_blocked"
+      ],
+      "confidence": "medium",
+      "guards": [
+        "do not prefetch indirect or data-dependent addresses unless correctness and bounds are guaranteed",
+        "prefetch depth must fit local memory and avoid FIFO deadlock",
+        "outstanding transaction pragmas may not help if access pattern is non-burstable",
+        "preserve ordering when memory side effects or aliasing matter"
+      ],
+      "id": "ii-axi-burst-outstanding-prefetch-queue",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_ii_target_miss_discussion",
+      "pattern": "the compute pipeline stalls waiting for global-memory responses even though future addresses are known early enough to prefetch or issue longer bursts",
+      "required_steps": [
+        "confirm future read addresses are predictable before data is consumed",
+        "rewrite accesses to monotonic contiguous bursts when legal",
+        "create a local prefetch buffer, FIFO, or tile cache with bounded depth",
+        "pipeline the prefetch loop and the compute loop separately",
+        "set num_read_outstanding and max_read_burst_length on relevant m_axi ports",
+        "guard prefetch distance, tails, and bounds",
+        "inspect reports for actual burst inference and outstanding behavior"
+      ],
+      "sec_pass": 0,
+      "strategy": "issue burst-friendly prefetches into a local queue, stream, or tile buffer ahead of compute; increase safe outstanding transactions and burst length so memory latency is hidden behind local computation",
+      "tags": [
+        "hls",
+        "ii-target-miss",
+        "m_axi",
+        "prefetch",
+        "burst",
+        "outstanding",
+        "latency-hiding",
+        "kernel-independent"
+      ],
+      "template": "#pragma HLS INTERFACE m_axi port=in offset=slave bundle=gmem max_read_burst_length=64 num_read_outstanding=16\n\nprefetch: for (int i = 0; i < TILE; ++i) {\n#pragma HLS PIPELINE II=1\n    buf[i] = in[base + i];\n}\ncompute: for (int i = 0; i < TILE; ++i) {\n#pragma HLS PIPELINE II=1\n    out_buf[i] = f(buf[i]);\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "global_memory_latency",
+        "axi_dependency",
+        "m_axi_request_response",
+        "pipeline_blocked",
+        "memory_bandwidth"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not stage unbounded arrays into local memory",
+        "DATAFLOW requires legal producer/consumer structure and bounded stream behavior",
+        "do not change host ABI or pointer types unless explicitly allowed",
+        "if each element is used once and access is already streaming, staging should still enable burst/dataflow or it may add overhead"
+      ],
+      "id": "ii-gmem-stage-request-response-decouple",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_ii_target_miss_discussion",
+      "pattern": "a pipelined compute loop directly issues m_axi/gmem reads and immediately consumes the response, or directly writes results, so request/response latency or AXI scheduling prevents low II",
+      "required_steps": [
+        "identify m_axi reads/writes inside the II-limited compute loop",
+        "split global load, compute, and global store into separate loops or functions",
+        "make load/store addresses contiguous and burst-friendly where possible",
+        "stage bounded chunks into local buffers or streams",
+        "apply DATAFLOW at the parent scope when stages can run concurrently",
+        "use ping-pong buffers for tiled/chunked stages when the same buffer would serialize load and compute",
+        "set appropriate burst length and outstanding transaction pragmas where legal",
+        "pipeline compute over local memory and validate burst/report behavior"
+      ],
+      "sec_pass": 0,
+      "strategy": "decouple global-memory request/response from compute by splitting load, compute, and store stages; use burst-friendly load/store loops, local buffers or hls::stream FIFOs, DATAFLOW, and optionally ping-pong buffering to keep compute working on local data",
+      "tags": [
+        "hls",
+        "ii-target-miss",
+        "m_axi",
+        "gmem",
+        "global-memory",
+        "request-response",
+        "dataflow",
+        "local-staging",
+        "kernel-independent"
+      ],
+      "template": "#pragma HLS DATAFLOW\nload_stage(in, local_or_stream, n);\ncompute_stage(local_or_stream, out_local_or_stream, n);\nstore_stage(out_local_or_stream, out, n);\n\n// load/store stages should be pipelined, burst-friendly, and bounded by tile/chunk size."
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "port_conflict",
+        "axi_burst_failed",
+        "non_contiguous_access",
+        "local_memory_port_limited",
+        "memory_bandwidth"
+      ],
+      "confidence": "medium",
+      "guards": [
+        "do not interchange loops when it violates data dependencies or output order",
+        "manual loop interchange is not useful if the tool already performs it and no access pattern changes",
+        "after reordering, partition the dimension actually accessed in parallel",
+        "verify boundaries and row-major/column-major indexing carefully"
+      ],
+      "id": "ii-loop-order-contiguous-and-banked-inner-loop",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_ii_target_miss_discussion",
+      "pattern": "a loop nest misses II because the innermost pipelined loop uses strided/non-contiguous global accesses, repeatedly hits the same local memory bank, or places the dependency-carrying dimension in the hot pipeline",
+      "required_steps": [
+        "identify current inner-loop memory stride and dependency direction",
+        "determine whether loop interchange or strip-mining preserves semantics",
+        "choose an inner dimension with contiguous global access or conflict-free bank mapping",
+        "update local buffer layout and ARRAY_PARTITION dim to match the new inner loop",
+        "rewrite index expressions and boundary/tail handling",
+        "pipeline the new hot loop and inspect burst/II reports"
+      ],
+      "sec_pass": 0,
+      "strategy": "reorder or strip-mine loops so the pipelined inner loop is unit-stride for global memory, maps parallel lanes to distinct local banks, or moves true dependencies to an outer sequential dimension when legal",
+      "tags": [
+        "hls",
+        "ii-target-miss",
+        "loop-interchange",
+        "loop-order",
+        "banking",
+        "unit-stride",
+        "kernel-independent"
+      ],
+      "template": "// Prefer inner loop over contiguous/banked dimension.\nfor (int outer = 0; outer < OUTER; ++outer) {\n    inner: for (int inner = 0; inner < INNER; ++inner) {\n#pragma HLS PIPELINE II=1\n        int idx = outer * INNER + inner;\n        ... A[idx] ...\n    }\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "reduction_loop",
+        "accumulation_dependency",
+        "loop_carried_dep",
+        "recurrence_limited_ii",
+        "compute_not_scaled_after_widening"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not apply when the operation is order-sensitive or non-associative under required correctness checks",
+        "floating-point results may differ from serial accumulation due to reassociation",
+        "ensure input bandwidth can feed the chosen lane factor",
+        "do not suppress the true accumulator dependence with a false-dependence pragma"
+      ],
+      "id": "ii-reduction-lane-partial-tree",
+      "kind": "advanced_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_ii_target_miss_discussion",
+      "pattern": "a hot pipelined loop has a scalar reduction or accumulation, and the loop-carried accumulator latency prevents the requested II or blocks useful unrolling/lane parallelism",
+      "required_steps": [
+        "confirm the operation is a valid reduction such as sum, min, max, bitwise operation, or another associative/commutative form",
+        "choose a lane or unroll factor that matches available memory bandwidth and resources",
+        "create partial accumulators indexed by lane",
+        "completely partition the partial accumulator array",
+        "rewrite the main loop to update partial[lane] instead of one shared accumulator",
+        "pipeline the main loop and unroll the lane loop",
+        "perform final reduction across partial accumulators",
+        "check numerical tolerance for floating-point or non-associative expressions",
+        "the main loop index must step by the lane factor so each partial is written once per iteration"
+      ],
+      "sec_pass": 0,
+      "strategy": "replace the single accumulator with lane-local partial accumulators, update them in parallel, and combine them with a final tree or cleanup reduction; preserve serial order only when exact order is required A float MAC into one acc[i][j] every k is II=4. Advance k by 4 in one PIPELINE iteration and update named acc0..acc3 there. Do not switch(k&3). Do not accept II=4 as the legal endpoint for that GEMM reduction.",
+      "tags": [
+        "hls",
+        "ii-target-miss",
+        "reduction",
+        "partial-sums",
+        "tree-reduction",
+        "lane-parallelism",
+        "kernel-independent"
+      ],
+      "template": "data_t partial[UNROLL_FACTOR];\n#pragma HLS ARRAY_PARTITION variable=partial complete dim=1\n\ninit: for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {\n#pragma HLS UNROLL\n    partial[lane] = 0;\n}\n\nmain: for (int i = 0; i < N; i += UNROLL_FACTOR) {\n#pragma HLS PIPELINE II=1\n    lanes: for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {\n#pragma HLS UNROLL\n        int idx = i + lane;\n        if (idx < N) partial[lane] += f(in[idx]);\n    }\n}\n\n// Final tree or loop reduction over partial[lane]."
+    },
+    {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "port_conflict",
+        "memory_bandwidth"
+      ],
+      "confidence": "high",
+      "guards": [
+        "watch BRAM/LUT growth from complete partition on large arrays",
+        "partition dim must match access pattern (row vs column)"
+      ],
+      "id": "hls-array-partition-match-unroll-factor",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "UNROLL by factor UF on a loop that reads/writes local arrays without enough parallel memory ports",
+      "required_steps": [
+        "identify unroll factor UF on hot loop",
+        "count simultaneous array accesses per unrolled iteration",
+        "add #pragma HLS ARRAY_PARTITION with factor matching UF or complete for small arrays",
+        "verify csynth does not report memory port conflicts on locals"
+      ],
+      "sec_pass": 0,
+      "strategy": "Apply ARRAY_PARTITION (cyclic or complete) so local arrays expose enough read/write ports for the unroll factor. Complete partition for small partial-sum arrays; cyclic factor=UF for lane buffers.",
+      "tags": [
+        "array-partition",
+        "unroll",
+        "flash-mandatory"
+      ],
+      "template": "const int UF = 4;\ndata_t buf[N];\n#pragma HLS ARRAY_PARTITION variable=buf cyclic factor=UF dim=1\ndata_t partial[UF];\n#pragma HLS ARRAY_PARTITION variable=partial complete"
+    }
+  ]
+}

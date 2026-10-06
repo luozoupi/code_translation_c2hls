@@ -1,0 +1,204 @@
+{
+  "schema": "1.1",
+  "description": "DSE v3 overlay. Four DSE v2 skills plus hls-dse-wide-512-load-store-hoist-b. Loaded only when C2HLS_DSE_V3 or C2HLS_DSE_V3_HARNESS is set. Does not replace post_flash_dse_pe_skill_entries.json.",
+  "skills": [
+    {
+      "id": "hls-dse-gemm-multi-pe-latency-hiding",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "post_flash_dse",
+      "pattern": "dense GEMM/mm after flash LCST still pipelines a k-loop that updates one C[i][j] or crow[j] (DSP ~3-8, II=4 float add recurrence). I,J,K are compile-time constants that fit on-chip.",
+      "strategy": "Keep the flash load-compute-store ABI. Rewrite only the compute nest into row PEs with latency hiding: tile i by PE (prefer 16 if I%16==0 else 8/4), pipeline the independent j (C-column) loop, fully unroll the PE loop. Each PE owns Crow[p][j]. Do not pipeline k. Do not emit AutoSA kernel0 / PE-IO netlists / hls::stream of PE structs.",
+      "required_steps": [
+        "keep the exact extern C top name, parameter list, array ranks/shapes, and all existing #pragma HLS INTERFACE lines",
+        "keep bulk on-chip staging of A, B, and C (load then compute then store); no m_axi RMW inside compute",
+        "choose PE/SIMD from the mandatory recipe (autosa_mm default 16x4; autosa_mm_32x8 overlay 32x8; getting_started/intel 32x4; hcl/int16 32x2; catapult 8x4). PE must divide I (or I_P)",
+        "allocate private Crow[PE][J]; init from local C rows i0+p",
+        "outer i0 += PE; middle k0 += SIMD; innermost pipelined j over 0..J-1",
+        "fully UNROLL the PE loop inside the pipelined j loop so PE rows update in parallel",
+        "pipeline j at II=1; never put PIPELINE on k or on a parent that still has a non-unrolled child",
+        "index B with the existing layout: if B is B[J][K] use local_B[j][k]; if B is B[K][J] use local_B[k][j]",
+        "write Crow back to local C then store C; do not change numerical semantics"
+      ],
+      "guards": [
+        "PE and SIMD must divide I and K; if not, pick smaller factors that do",
+        "PIPELINE on j is legal only because PE and SIMD children are fully unrolled",
+        "Crow[p][j] dependence across k0 is an outer-loop reduction \u2014 that is intended; do not pipeline k0",
+        "do not clone AutoSA's 1000+ line PE/IO interconnect; compact nested loops only",
+        "do not keep a scalar crow[j] += a*b across k as the compute engine"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "interval_exceeds_latency",
+        "compute_bound",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "dse",
+        "gemm",
+        "pe",
+        "latency-hiding",
+        "post-flash"
+      ],
+      "template": "// Copy-paste compute nest. PE=16 SIMD=4 for I=J=K=64 (AutoSA mm).\n// Top ABI example: autosa_mm(A[I][K], B[J][K], C[I][J]) \u2014 B is J x K.\n#define PE 16\n#define SIMD 4\ndata_t Crow[PE][J];\n#pragma HLS ARRAY_PARTITION variable=Crow complete dim=1\n#pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=PE dim=1\n#pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=SIMD dim=2\n#pragma HLS ARRAY_PARTITION variable=local_B cyclic factor=SIMD dim=2\ncompute_i0: for (int i0 = 0; i0 < I; i0 += PE) {\n  init_pe: for (int p = 0; p < PE; ++p) {\n#pragma HLS UNROLL\n    init_j: for (int j = 0; j < J; ++j) {\n#pragma HLS PIPELINE II=1\n      Crow[p][j] = local_C[i0 + p][j];\n    }\n  }\n  compute_k0: for (int k0 = 0; k0 < K; k0 += SIMD) {\n    compute_j: for (int j = 0; j < J; ++j) {\n#pragma HLS PIPELINE II=1\n      pe_mac: for (int p = 0; p < PE; ++p) {\n#pragma HLS UNROLL\n        data_t partial = 0;\n        simd_k: for (int s = 0; s < SIMD; ++s) {\n#pragma HLS UNROLL\n          partial += local_A[i0 + p][k0 + s] * local_B[j][k0 + s];\n        }\n        Crow[p][j] += partial;\n      }\n    }\n  }\n  wb_pe: for (int p = 0; p < PE; ++p) {\n#pragma HLS UNROLL\n    wb_j: for (int j = 0; j < J; ++j) {\n#pragma HLS PIPELINE II=1\n      local_C[i0 + p][j] = Crow[p][j];\n    }\n  }\n}\n// Success check: pipelined loop is compute_j (not compute_k). DSP ~= PE*SIMD*5 for float (~320 at 16x4)."
+    },
+    {
+      "id": "hls-dse-gemm-simd-k-adder-tree",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "post_flash_dse",
+      "pattern": "k-reduction of float MAC into one C element inside a pipelined loop, causing II=4 (FP add recurrence) and DSP of a few units",
+      "strategy": "Factor k by SIMD (prefer 4). Fully unroll the SIMD inner loop so Vitis builds an adder tree of independent a[s]*b[s] products, then one add into Crow[p][j]. The pipelined loop stays on independent j, so the Crow update is not a loop-carried FP recurrence of the PIPELINE loop.",
+      "required_steps": [
+        "pick SIMD that divides K (prefer 4, else 8 or 2)",
+        "fully UNROLL simd_k; do not PIPELINE simd_k",
+        "form partial = a0*b0 + a1*b1 + ... as combinational/unrolled adds, then Crow[p][j] += partial",
+        "partition the K dimension of local_A and local_B with cyclic factor=SIMD so the unrolled reads have ports"
+      ],
+      "guards": [
+        "unrolled SIMD must not sit under a pipelined k loop that still carries one C[i][j]",
+        "do not use a scalar float acc across k as the II=1 pipeline body",
+        "SIMD>1 with no ARRAY_PARTITION on K will serialize on BRAM ports"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "compute_bound"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "dse",
+        "gemm",
+        "simd",
+        "adder-tree",
+        "post-flash"
+      ],
+      "template": "simd_k: for (int s = 0; s < SIMD; ++s) {\n#pragma HLS UNROLL\n  partial += local_A[i0 + p][k0 + s] * local_B[j][k0 + s];\n}\nCrow[p][j] += partial;  // dependence is across k0 (outer), not across pipelined j"
+    },
+    {
+      "id": "hls-dse-partition-match-pe-simd",
+      "kind": "memory_transformation",
+      "confidence": "high",
+      "origin": "post_flash_dse",
+      "pattern": "unrolled PE and SIMD loops that read the same on-chip A/B/C buffers without matching ARRAY_PARTITION, causing port conflicts and II inflation",
+      "strategy": "Partition exactly to the parallel accesses: Crow complete on PE dim; local_A cyclic PE on row dim and cyclic SIMD on K dim; local_B cyclic SIMD on K dim. Do not complete-partition full I x J C (explodes FF). Do not partition m_axi top ports.",
+      "required_steps": [
+        "ARRAY_PARTITION variable=Crow complete dim=1 (PE rows)",
+        "ARRAY_PARTITION variable=local_A cyclic factor=PE dim=1 and cyclic factor=SIMD dim=2",
+        "ARRAY_PARTITION variable=local_B cyclic factor=SIMD on the K dimension (dim=2 if B is [J][K])",
+        "optional: cyclic factor=PE on local_C dim=1 if writeback is unrolled over p",
+        "never ARRAY_PARTITION the top-level m_axi arrays"
+      ],
+      "guards": [
+        "complete partition of Crow[PE][J] is small (PE=16, J=64)",
+        "complete partition of local_C[I][J] is usually too large \u2014 prefer cyclic PE",
+        "partition factor must match UNROLL factor or ports still conflict"
+      ],
+      "bottleneck_kinds": [
+        "port_conflict",
+        "ii_target_miss",
+        "memory_bandwidth"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "dse",
+        "array-partition",
+        "post-flash"
+      ],
+      "template": "#pragma HLS ARRAY_PARTITION variable=Crow complete dim=1\n#pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=PE dim=1\n#pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=SIMD dim=2\n#pragma HLS ARRAY_PARTITION variable=local_B cyclic factor=SIMD dim=2"
+    },
+    {
+      "id": "avoid-dse-k-recurrence-on-single-c",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "post_flash_dse",
+      "pattern": "compute_k pipelined or sequential with C[i][j] += a*b, crow[j] += a*b, or UNROLL-on-j while k remains the reduction loop (DSP stays ~3-8, II=4 on float add)",
+      "strategy": "Reject k-loop recurrence on a single C element as the DSE result. That is the flash kernel, not DSE. Move PIPELINE to independent j, unroll PE rows, and reduce k with an unrolled SIMD adder tree. If DSP is still single-digit, revise before submitting.",
+      "required_steps": [
+        "scan the compute nest: if the pipelined loop's body writes one C[i][j] or crow[j] carried from k, reject",
+        "rewrite so the pipelined loop is j (or a latency-hiding tile over independent C columns)",
+        "confirm PE UNROLL and SIMD UNROLL are present",
+        "confirm DSP after csynth is >> 8 (expect ~PE*SIMD*5 for float)"
+      ],
+      "guards": [
+        "UNROLL 8 on j with still-sequential k is not multi-PE DSE",
+        "DATAFLOW without PE tiling does not fix the k recurrence",
+        "pragma-only ARRAY_PARTITION on the flash nest will not raise DSP"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "compute_bound"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "avoid",
+        "dse",
+        "gemm",
+        "post-flash"
+      ],
+      "template": "// BAD (flash leftover): k is pipelined/carried, one C update, DSP~3\ncompute_k: for (int k = 0; k < K; ++k) {\n  compute_j: for (int j = 0; j < J; ++j) {\n#pragma HLS PIPELINE II=1\n    crow[j] += local_A[i][k] * local_B[j][k];  // FP add recurrence across k\n  }\n}\n// GOOD: pipeline independent j; unroll PE; SIMD-k adder tree (see hls-dse-gemm-multi-pe-latency-hiding)"
+    },
+    {
+      "id": "hls-dse-wide-512-load-store-hoist-b",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "post_flash_dse_v3",
+      "pattern": "DSE v2 compute nest whose load or store is still scalar (one float per cycle) or reloads B inside i0, or that adds a full-K loop the partial-K seed did not have.",
+      "strategy": "Rewrite load and store as well as the compute nest. Global arrays move in 512-bit beats (16 floats). Contiguous index innermost, PIPELINE II=1, beat unrolled. Keep the existing m_axi max_widen_bitwidth=512. If a tile address does not depend on an enclosing loop, load that tile outside the loop. Specifically B[j0][k] is outside i0. If the load stage is many times the compute stage, widen the load. Do not raise PE or SIMD to shorten a scalar load. Do not add a K loop the seed does not have in order to cut latency. Do not stream B once per PE-row group across all of J and K. Reuse a B tile across i0. Tile-level overlap of load, compute, and store is allowed. Do not emit AutoSA kernel0 or a C for-loop of mm_pe inside DATAFLOW. A dataflow region of the three tile stages is allowed.",
+      "required_steps": [
+        "Rewrite load and store as well as the compute nest. Global arrays move in 512-bit beats (16 floats). Contiguous index innermost, PIPELINE II=1, beat unrolled. Keep the existing m_axi max_widen_bitwidth=512.",
+        "If a tile address does not depend on an enclosing loop, load that tile outside the loop. Specifically B[j0][k] is outside i0.",
+        "If the load stage is many times the compute stage, widen the load. Do not raise PE or SIMD to shorten a scalar load.",
+        "Do not add a K loop the seed does not have in order to cut latency.",
+        "Do not stream B once per PE-row group across all of J and K. Reuse a B tile across i0.",
+        "Tile-level overlap of load, compute, and store is allowed. Do not emit AutoSA kernel0 or a C for-loop of mm_pe inside DATAFLOW. A dataflow region of the three tile stages is allowed."
+      ],
+      "guards": [
+        "Do not raise PE or SIMD to shorten a scalar load",
+        "Do not add a K loop the seed does not have in order to cut latency",
+        "Do not stream B once per PE-row group across all of J and K",
+        "Do not emit AutoSA kernel0 or a C for-loop of mm_pe inside DATAFLOW",
+        "Pipeline independent j and fully unroll the SIMD adder tree; do not pipeline a k-loop that updates one C element"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "interval_exceeds_latency",
+        "nested_loop"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "dse",
+        "dse-v3",
+        "wide-load",
+        "gemm",
+        "post-flash"
+      ],
+      "template": "// 512-bit beats (16 floats). Contiguous k is innermost. PIPELINE II=1. Beat unrolled.\n// Keep m_axi max_widen_bitwidth=512. B[j0][k] is outside i0. Reuse that B tile across i0.\n// Do not add a K loop the seed does not have in order to cut latency.\n// Do not raise PE or SIMD to shorten a scalar load.\n// Do not stream B once per PE-row group across all of J and K.\n// Do not emit AutoSA kernel0 or a C for-loop of mm_pe inside DATAFLOW.\nconstexpr int BEAT = 16;\nload_B: for (int j = 0; j < TJ; ++j) {\n  for (int k = 0; k < TK; k += BEAT) {\n#pragma HLS PIPELINE II=1\n    beat: for (int b = 0; b < BEAT; ++b) {\n#pragma HLS UNROLL\n      local_B[j][k + b] = B[j0 + j][k + b];\n    }\n  }\n}\n// local_B is reused by every i0 in this j0 tile.\n// A dataflow region of the three tile stages (load, compute, store) is allowed.\n"
+    }
+  ]
+}

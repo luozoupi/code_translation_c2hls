@@ -1,0 +1,68 @@
+{
+  "schema": "1.1",
+  "description": "AutoSA resource-model search. FF, LUT, and DSP come from per-space-time HLS samples. A stored DSP of 0 means that search did not run.",
+  "derived_from": [
+    "autosa_concept_crosswalk.csv"
+  ],
+  "skills": [
+    {
+      "id": "autosa-resource-train-per-space-time",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "manual",
+      "pattern": "one resource-model training pass on space-time 0 is reused for space-time 1-5",
+      "strategy": "Each space-time is a different kernel id. Train inside that space-time's tmp, then search in the same tmp. The exhaustive script does this once per space_time directory. The paper fits FF, LUT, and DSP on 16 HLS samples; BRAM is estimated from buffer sizes.",
+      "required_steps": [
+        "train resource models inside space_time_N/tmp before searching that space-time",
+        "keep synth sample count at 16 unless the paper setup is intentionally changed",
+        "put FF, LUT, DSP, and BRAM18K in the search resource target"
+      ],
+      "guards": [
+        "a model trained only on space-time 0 does not fill DSP, FF, or LUT for the other kernel ids"
+      ],
+      "bottleneck_kinds": ["resource"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "resource", "dsp"]
+    },
+    {
+      "id": "autosa-resource-xml-dsp-tag",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "manual",
+      "pattern": "Vitis 2023 area XML is parsed only for the tag DSP48E, so every DSP count becomes 0",
+      "strategy": "resource_model.py accepts both DSP48E and DSP. Vitis 2023 emits DSP. If the parser misses that tag, training records DSP 0 and the search cannot prune on DSP.",
+      "required_steps": [
+        "read the DSP element as well as DSP48E",
+        "fail the training check if every sample has DSP 0 on a SIMD GEMM"
+      ],
+      "guards": [
+        "DSP 0 on a float SIMD PE is a parse or training failure, not a real empty PE"
+      ],
+      "bottleneck_kinds": ["resource"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "resource", "dsp"]
+    },
+    {
+      "id": "avoid-autosa-model-dsp-zero",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "agent",
+      "pattern": "a search log shows model DSP 0 and the run is still called the paper resource search",
+      "strategy": "Every earlier exhaustive row in this comparison stored model DSP 0, with a real HLS DSP beside it. That search did not apply a DSP model. HLS can still report a DSP count, including 10240 on mm1024 space-time 3, which is above the U280's 9024.",
+      "required_steps": [
+        "if model DSP is 0, say the recorded search was not the paper resource search",
+        "quote HLS DSP separately from model DSP",
+        "do not treat an HLS DSP above 9024 as a legal U280 design"
+      ],
+      "guards": [
+        "avoid-onchip-dsp-over-u280 caps a rewritten GEMM; this skill caps the AutoSA model record"
+      ],
+      "bottleneck_kinds": ["resource"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "avoid", "dsp"]
+    }
+  ]
+}

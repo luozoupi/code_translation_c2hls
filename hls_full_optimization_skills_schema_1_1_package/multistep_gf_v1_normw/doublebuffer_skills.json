@@ -1,0 +1,801 @@
+{
+  "saved_at": "2026-09-29T01:56:55Z",
+  "schema": "1.1",
+  "flow": "multistep",
+  "step": "doublebuffer",
+  "role": "skills",
+  "focus": "Overlap load and compute with ping-pong buffers or a canonical dataflow schedule.",
+  "derived_from": [
+    "skills_ii_target_miss_solutions_added(90skills)_gemm_flatten_v1.json",
+    "flash_no_RMW_m_axi_skill_entries.json"
+  ],
+  "merge_rule": "Union of gemm_flatten_v1 and flash_no_RMW overlay. On id conflicts, the no-RMW overlay replaces the v1 entry.",
+  "skill_count": 17,
+  "primary_count": 14,
+  "overlap_count": 3,
+  "assignment": [
+    {
+      "id": "hls-canonical-dataflow-lcs-functions",
+      "band": "primary",
+      "source": "no_rmw_overlay"
+    },
+    {
+      "id": "hls-dataflow-fused-compute-phases",
+      "band": "primary",
+      "source": "no_rmw_overlay"
+    },
+    {
+      "id": "hls-dataflow-merge-parallel-consumers",
+      "band": "primary",
+      "source": "no_rmw_overlay"
+    },
+    {
+      "id": "hls-dataflow-one-writer-one-reader-local",
+      "band": "primary",
+      "source": "no_rmw_overlay"
+    },
+    {
+      "id": "hls-dataflow-performance-partition-unroll",
+      "band": "overlap",
+      "source": "no_rmw_overlay"
+    },
+    {
+      "id": "hls-dataflow-ping-pong-gate-flash",
+      "band": "primary",
+      "source": "no_rmw_overlay"
+    },
+    {
+      "id": "hls-distinct-gmem-bundle-per-port",
+      "band": "overlap",
+      "source": "no_rmw_overlay"
+    },
+    {
+      "id": "hls-doublebuffer-dataflow-stage-split",
+      "band": "primary",
+      "source": "gemm_flatten_v1"
+    },
+    {
+      "id": "hls-doublebuffer-first-last-guards",
+      "band": "primary",
+      "source": "gemm_flatten_v1"
+    },
+    {
+      "id": "hls-doublebuffer-load-compute-store",
+      "band": "primary",
+      "source": "gemm_flatten_v1"
+    },
+    {
+      "id": "hls-doublebuffer-pingpong-local-buffers",
+      "band": "primary",
+      "source": "gemm_flatten_v1"
+    },
+    {
+      "id": "hls-dual-layout-fused-load-dataflow",
+      "band": "primary",
+      "source": "no_rmw_overlay"
+    },
+    {
+      "id": "hls-tile-doublebuffer-load-compute",
+      "band": "primary",
+      "source": "gemm_flatten_v1"
+    },
+    {
+      "id": "ii-dataflow-variable-latency-decoupling",
+      "band": "primary",
+      "source": "gemm_flatten_v1"
+    },
+    {
+      "id": "ii-gmem-stage-request-response-decouple",
+      "band": "overlap",
+      "source": "gemm_flatten_v1"
+    },
+    {
+      "id": "ii-raw-dependency-pingpong-old-new-buffers",
+      "band": "primary",
+      "source": "gemm_flatten_v1"
+    },
+    {
+      "id": "prompt-doublebuffer",
+      "band": "primary",
+      "source": "gemm_flatten_v1"
+    }
+  ],
+  "skills": [
+    {
+      "id": "hls-canonical-dataflow-lcs-functions",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "load-compute-store tiling where DATAFLOW overlap between stages is desired and tile dependencies permit concurrent stages",
+      "strategy": "Factor each tile into a helper function whose body is a canonical DATAFLOW region containing only buffer/stream declarations plus exactly three calls: load function, compute function, store function.",
+      "required_steps": [
+        "define load_tile, compute_tile, store_tile as separate synthesizable functions",
+        "helper process_tile_lcs contains #pragma HLS DATAFLOW with declarations + three calls only",
+        "outer host loop uses unit tile index; compute tile_i = tile * TILE_SIZE before calling helper",
+        "no if/else, dynamic tile calculations, or non-unit increments inside the DATAFLOW region",
+        "verify overlap report: concurrent stages, not merely alternating buffer names"
+      ],
+      "guards": [
+        "use hls::stream or ping-pong locals only when fifo depth covers stage latency",
+        "skip DATAFLOW entirely if stages cannot overlap \u2014 use pipelined sequential phases"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "memory_bandwidth",
+        "ii_target_miss"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "dataflow",
+        "load-compute-store",
+        "flash-mandatory"
+      ],
+      "template": "void process_tile_lcs(...) {\n#pragma HLS DATAFLOW\n    tile_buf_t stage_buf;\n    load_tile(A, b, stage_buf, tile_i);\n    compute_tile(stage_buf, tile_i);\n    store_tile(stage_buf, A, y, tile_i);\n}\n\nfor (int tile = 0; tile < NUM_TILES; tile++) {\n    process_tile_lcs(A, b, y, tile * TILE_SIZE);\n}"
+    },
+    {
+      "id": "hls-dataflow-fused-compute-phases",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "multiple compute tasks under #pragma HLS DATAFLOW each read the same local array (matrix reused in two GEMMs, dual matvec on same A, or stat pipeline mean\u2192stddev\u2192normalize all touching local_data) \u2014 HLS 200-779",
+      "strategy": "Merge every compute phase that shares a local input or intermediate into ONE static compute_fused_task with sequential labeled loops inside. Keep parallel load_* and store_* as separate DATAFLOW tasks. Never add an inline for-loop copy inside DATAFLOW to dodge fan-out \u2014 that creates another reader process.",
+      "required_steps": [
+        "list compute tasks and mark which locals each reads/writes",
+        "if two+ compute tasks read the same local (e.g. local_A, local_data_in, local_tmp): fold into one compute_fused_task",
+        "if one intermediate is consumed by downstream compute AND store_tmp: either store inside the fused compute after last use, or chain linearly compute_fused \u2192 local_out read only by store",
+        "for chained GEMMs (tmp = alpha*A*B; D = beta*D + tmp*C): one task does both nests sequentially; parallel loads for A,B,C,D_in; parallel stores for tmp and D_out only after fused compute completes",
+        "for dual matvec (tmp=A*x; y=A'*tmp): one task reads local_A once for both phases",
+        "for stat pipelines (mean, stddev, normalize, corr): one compute_stats_task with sequential loops; parallel store_mean/store_stddev/store_corr OK after"
+      ],
+      "guards": [
+        "fused compute task must not take m_axi port pointers",
+        "do not place copy loops inside DATAFLOW region \u2014 use separate copy task or fuse into compute",
+        "preserve numerical order when merging phases"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "port_conflict",
+        "memory_bandwidth"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "dataflow",
+        "flash-mandatory"
+      ],
+      "template": "// BAD: two readers on local_A and local_tmp\n#pragma HLS DATAFLOW\ncompute_tmp(..., local_A, local_tmp);\ncompute_y(..., local_A, local_tmp);   // local_A reader 2, local_tmp reader 2\nstore_tmp(..., local_tmp);\n\n// GOOD: fused compute, parallel load/store\n#pragma HLS DATAFLOW\nload_A_task(...); load_x_task(...);\ncompute_fused_task(local_A, local_x, local_tmp, local_y);  // both matvecs inside\nstore_y_task(...); store_tmp_task(...);"
+    },
+    {
+      "id": "hls-dataflow-merge-parallel-consumers",
+      "kind": "supporting_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "two compute tasks under #pragma HLS DATAFLOW both read the same local array produced by an upstream task (e.g. compute_x and compute_w both consume local_A_out) \u2014 HLS 200-779",
+      "strategy": "Merge the parallel consumer compute tasks into one compute_xw_task with sequential labeled loops, or insert hls::stream between producer and a single downstream consumer. Never leave two concurrent reader tasks on the same local buffer.",
+      "required_steps": [
+        "identify locals with one writer and two+ reader compute tasks",
+        "merge consumers into one static task with both computation nests inside",
+        "if merge hurts II, use hls::stream from producer to one consumer and duplicate producer output via second stream (tee) \u2014 never two tasks reading same local",
+        "tile loops wrapping DATAFLOW: each tile iteration must use private tile buffers; still no fan-out within one DATAFLOW invocation"
+      ],
+      "guards": [
+        "merged task stays locals-only \u2014 no m_axi pointers",
+        "store tasks may run parallel only if each reads a distinct local output"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "port_conflict"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "dataflow",
+        "flash-mandatory"
+      ],
+      "template": "// BAD: local_A_out read by two compute tasks\n#pragma HLS DATAFLOW\ncompute_A_task(..., local_A_out);\ncompute_x_task(local_A_out, ...);  // reader 1\ncompute_w_task(local_A_out, ...);  // reader 2 \u2014 HLS 200-779\n\n// GOOD: merge consumers\n#pragma HLS DATAFLOW\ncompute_A_task(..., local_A_out);\ncompute_xw_task(local_A_out, local_x, local_w, ...);  // both uses inside one task\nstore_x_task(...); store_w_task(...);"
+    },
+    {
+      "id": "hls-dataflow-one-writer-one-reader-local",
+      "kind": "supporting_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "one local array written by a compute task and read by two or more concurrent DATAFLOW tasks (e.g. compute stage + store stage + downstream compute all touch local_tmp)",
+      "strategy": "Every local array in a DATAFLOW region must have exactly one writer task and exactly one reader task. For fan-out (one producer, multiple consumers), chain with hls::stream FIFOs, duplicate into separate single-use buffers (buf_for_compute / buf_for_store), or merge consumers into one task.",
+      "required_steps": [
+        "list every local array and mark writer task + reader task",
+        "reject any local with >1 writer or >1 concurrent reader",
+        "if compute writes local_M and both store and a later compute read local_M, insert hls::stream between producer and each consumer OR serialize store after final consumer in a linear chain",
+        "for load\u2192compute handoff use buf_in written only by load, read only by compute; compute writes buf_out read only by store",
+        "re-run csynth until HLS 200-779 / 200-979 are gone"
+      ],
+      "guards": [
+        "ping-pong buf0/buf1 still obeys one writer per bank per time step",
+        "hls::stream depth \u2265 2 when producer may run ahead of consumer",
+        "do not pass the same local array into three task calls under one #pragma HLS DATAFLOW"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "port_conflict",
+        "memory_bandwidth"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "dataflow",
+        "flash-mandatory"
+      ],
+      "template": "// BAD: one writer, two readers on local_tmp\n#pragma HLS DATAFLOW\ncompute_tmp(..., local_tmp);\ncompute_next(..., local_tmp);  // reader 1\nstore_tmp(..., local_tmp);     // reader 2 \u2014 HLS 200-779\n\n// GOOD: linear chain or stream fan-out\nhls::stream<tile_t, DEPTH> q;\ncompute_tmp(..., q);\ncompute_next(q, local_out);\nstore_tmp(..., local_out);"
+    },
+    {
+      "id": "hls-dataflow-performance-partition-unroll",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "DATAFLOW structure passes csynth but latency is high because compute tasks lack ARRAY_PARTITION, inner UNROLL, and parallel load/store overlap",
+      "strategy": "After correct DATAFLOW task boundaries, maximize throughput: partition local arrays on the inner compute dimension, UNROLL inner loops to match partition factor, pipeline innermost loops II=1, run independent load tasks in parallel on distinct gmemN bundles, and use hls::stream depth 4\u201316 for tile pipelines to overlap load(t+1) with compute(t).",
+      "required_steps": [
+        "add #pragma HLS ARRAY_PARTITION cyclic or block on hot local arrays \u2014 factor matches UNROLL",
+        "add #pragma HLS UNROLL factor=UF on innermost reduction/dot-product loop",
+        "pipeline innermost memory/compute loop with II=1; never outer row loop PIPELINE for multi-matrix loads",
+        "issue parallel load tasks only when each touches a different m_axi port/bundle",
+        "for tiled kernels use hls::stream tile FIFO between load_tile, compute_tile, store_tile for real overlap",
+        "target higher DSP/FF utilization when latency slack exists \u2014 prefer parallelism over minimal resources"
+      ],
+      "guards": [
+        "partition/unroll must not break DATAFLOW buffer ownership rules",
+        "BRAM budget: tile smaller or stream panels instead of full-matrix locals",
+        "complements hls-array-partition-match-unroll-factor from base skills"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "memory_bandwidth",
+        "dataflow",
+        "interval_exceeds_latency"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "dataflow",
+        "partition",
+        "unroll",
+        "flash-mandatory"
+      ],
+      "template": "#pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=UF dim=2\n#pragma HLS DATAFLOW\nload_A_task(...);   // gmem0\nload_B_task(...);   // gmem1 \u2014 parallel with load_A\ncompute_tile_task(...);\nstore_C_task(...);\n\n// inside compute:\nfor (int j = 0; j < N; j += UF) {\n#pragma HLS PIPELINE II=1\n    for (int k = 0; k < UF; k++) {\n#pragma HLS UNROLL\n        acc += local_A[i][j+k] * local_B[j+k][l];\n    }\n}"
+    },
+    {
+      "id": "hls-dataflow-ping-pong-gate-flash",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "kernel uses or proposes #pragma HLS DATAFLOW, ping-pong buffers, or double-buffered tile staging",
+      "strategy": "Do not add ping-pong buffers or DATAFLOW unless the code expresses a valid canonical producer-consumer schedule with real overlap. Default to single local buffer + pipelined load/compute/store loops when true cross-tile overlap is not implemented.",
+      "required_steps": [
+        "audit every DATAFLOW region: only declarations and function calls \u2014 no if/else, dynamic tile math, or non-unit increments inside",
+        "use unit-increment tile index: for (tile=0; tile<NUM_TILES; tile++) with tile_i = tile * TILE_SIZE \u2014 never DATAFLOW inside tile_i += TILE_SIZE",
+        "reject ping-pong that only alternates buffers across sequential tile iterations without load(t+1) overlapping compute/store(t)",
+        "for triangular factorization/solve or other cross-tile dependencies, prove tile overlap is legal before ping-pong or DATAFLOW across tiles",
+        "factor load-compute-store DATAFLOW into a helper with load_fn(); compute_fn(); store_fn(); calls only",
+        "if no true overlap, use one local buffer and fix loop II, memory access, and reductions first",
+        "report whether ping-pong provides actual overlap; if not, remove ping-pong and DATAFLOW"
+      ],
+      "guards": [
+        "decorative DATAFLOW/ping-pong wastes BRAM and can block II fixes",
+        "fifo/stream depths must match real producer-consumer latency when overlap exists",
+        "sequential tile processing with cross-tile deps forbids fake overlap"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "memory_bandwidth",
+        "ii_target_miss",
+        "interval_exceeds_latency"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "flash-mandatory",
+        "dataflow",
+        "ping-pong",
+        "double-buffer"
+      ],
+      "template": "OVERLAP REPORT (required if ping-pong/DATAFLOW present):\n| stage pairing | overlap? | evidence |\n\nBAD: sequential tiles with buf[tile&1] but no concurrent load/compute\nGOOD: #pragma HLS DATAFLOW + load_tile(t+1) || compute_tile(t) with proven independence"
+    },
+    {
+      "id": "hls-distinct-gmem-bundle-per-port",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "kernel has two or more m_axi pointer ports and uses #pragma HLS DATAFLOW or multiple load/compute/store tasks that should overlap external memory access",
+      "strategy": "Assign a distinct bundle=gmem0, gmem1, \u2026 to each m_axi pointer port so HLS can issue concurrent external memory transactions across DATAFLOW stages. Never place all read/write ports on a single bundle=gmem when stages are meant to run concurrently.",
+      "required_steps": [
+        "enumerate every m_axi port on the top kernel and on DATAFLOW subfunctions that touch global memory",
+        "assign each pointer port a unique bundle=gmemN (gmem0, gmem1, gmem2, \u2026)",
+        "map load tasks to read ports and store tasks to write ports on separate bundles when stages overlap",
+        "re-run csynth and verify parallel tasks no longer stall on a single gmem port (HLS 200-885 on gmem)",
+        "pair with hls::stream or proven stage overlap \u2014 distinct bundles alone do not fix decorative DATAFLOW"
+      ],
+      "guards": [
+        "each bundle still needs burst-friendly access patterns on its port",
+        "do not duplicate bundle names across unrelated ports",
+        "cosim and interface pragmas must stay consistent after rebundling"
+      ],
+      "bottleneck_kinds": [
+        "memory_bandwidth",
+        "axi_dependency",
+        "global_memory_latency",
+        "port_conflict",
+        "dataflow",
+        "ii_target_miss"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "m_axi",
+        "dataflow",
+        "memory_bandwidth",
+        "flash-mandatory"
+      ],
+      "template": "// BAD: all ports share one bundle \u2014 DATAFLOW tasks serialize on gmem\n#pragma HLS INTERFACE m_axi port=A bundle=gmem\n#pragma HLS INTERFACE m_axi port=B bundle=gmem\n#pragma HLS INTERFACE m_axi port=y bundle=gmem\n\n// GOOD: one bundle per port for concurrent stage access\n#pragma HLS INTERFACE m_axi port=A bundle=gmem0\n#pragma HLS INTERFACE m_axi port=B bundle=gmem1\n#pragma HLS INTERFACE m_axi port=y bundle=gmem2"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "dataflow_blocked",
+        "function_stage_serialization",
+        "interval_exceeds_latency"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not use DATAFLOW if stages are still sequentially dependent on the same buffer instance",
+        "do not create streams without bounded production/consumption behavior",
+        "avoid deadlock-prone stream cycles"
+      ],
+      "id": "hls-doublebuffer-dataflow-stage-split",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "load, compute, and store logic is mixed in a single loop or function, preventing DATAFLOW scheduling or stage overlap",
+      "required_steps": [
+        "extract load stage",
+        "extract compute stage",
+        "extract store stage",
+        "define buffer or stream interfaces between stages",
+        "ensure no hidden cross-stage dependence prevents overlap",
+        "apply DATAFLOW at parent scope",
+        "check dataflow report for actual concurrency"
+      ],
+      "sec_pass": 0,
+      "strategy": "split the code into explicit producer/consumer stages connected by local buffers or streams, then apply DATAFLOW at the parent scope when dependencies allow",
+      "tags": [
+        "hls",
+        "doublebuffer",
+        "dataflow",
+        "stage-split",
+        "kernel-independent"
+      ],
+      "template": "#pragma HLS DATAFLOW\nload_stage(in, load_to_compute);\ncompute_stage(load_to_compute, compute_to_store);\nstore_stage(compute_to_store, out);"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "boundary_condition",
+        "doublebuffer_prologue_epilogue",
+        "correctness_risk"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not read from a buffer before it has been loaded",
+        "do not store a tile before it has been computed",
+        "do not drop the final tile during drain"
+      ],
+      "id": "hls-doublebuffer-first-last-guards",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "a double-buffered loop overlaps stages across tile indices and therefore requires prologue, steady-state, and epilogue handling",
+      "required_steps": [
+        "extend loop bounds for startup/drain",
+        "guard load for t < NUM_TILES",
+        "guard compute for t > 0 and t <= NUM_TILES",
+        "guard store for t > 1 or equivalent",
+        "handle partial final tile"
+      ],
+      "sec_pass": 0,
+      "strategy": "guard load, compute, and store stages by tile index so the first and last overlapped iterations do not read uninitialized buffers or write invalid outputs",
+      "tags": [
+        "hls",
+        "doublebuffer",
+        "guards",
+        "prologue",
+        "epilogue",
+        "kernel-independent"
+      ],
+      "template": "for (int t = 0; t < NUM_TILES + 2; ++t) {\n    if (t < NUM_TILES) load_tile(..., t);\n    if (t > 0 && t <= NUM_TILES) compute_tile(..., t - 1);\n    if (t > 1) store_tile(..., t - 2);\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "load_compute_serialize",
+        "store_compute_serialize",
+        "interval_exceeds_latency",
+        "dataflow_blocked",
+        "latency_high_after_tiling"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not add ping-pong buffers unless overlap is possible",
+        "avoid excessive local memory use",
+        "preserve first and last tile behavior",
+        "avoid read/write hazards between buffers"
+      ],
+      "id": "hls-doublebuffer-load-compute-store",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "the kernel processes data in chunks or tiles, and load, compute, and store phases for consecutive chunks currently execute serially",
+      "required_steps": [
+        "identify chunk/tile loop",
+        "split load, compute, and store stages",
+        "create at least two local buffers per overlapped data stream",
+        "alternate buffers using tile index parity",
+        "handle prologue and epilogue iterations",
+        "apply DATAFLOW if stages have legal producer/consumer dependencies",
+        "validate functional correctness and actual phase overlap"
+      ],
+      "sec_pass": 0,
+      "strategy": "split the design into load, compute, and store stages; allocate ping-pong buffers; overlap load of tile k+1, compute of tile k, and optionally store of tile k-1",
+      "tags": [
+        "hls",
+        "doublebuffer",
+        "dataflow",
+        "ping-pong-buffer",
+        "load-compute-store",
+        "kernel-independent"
+      ],
+      "template": "#pragma HLS DATAFLOW\n for (int t = 0; t < NUM_TILES + 2; ++t) {\n    if (t < NUM_TILES) load_tile(in, in_buf[t & 1], t);\n    if (t > 0 && t <= NUM_TILES) compute_tile(in_buf[(t - 1) & 1], out_buf[(t - 1) & 1], t - 1);\n    if (t > 1) store_tile(out_buf[(t - 2) & 1], out, t - 2);\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "load_compute_serialize",
+        "interval_exceeds_latency",
+        "latency_high_after_tiling"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not duplicate very large buffers if memory usage exceeds budget",
+        "do not overlap stages that access the same buffer instance",
+        "validate schedule and correctness"
+      ],
+      "id": "hls-doublebuffer-pingpong-local-buffers",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "a tiled or chunked computation has one local buffer, causing the next load to wait for current compute or store to finish",
+      "required_steps": [
+        "identify the buffer that causes serialization",
+        "allocate two buffers of the same shape",
+        "use t & 1 or equivalent parity for buffer selection",
+        "ensure producer and consumer use different buffers in the same overlapped iteration",
+        "handle startup and drain iterations"
+      ],
+      "sec_pass": 0,
+      "strategy": "duplicate the local buffer into ping-pong buffers and alternate producer/consumer stages across them",
+      "tags": [
+        "hls",
+        "doublebuffer",
+        "ping-pong-buffer",
+        "local-buffer",
+        "kernel-independent"
+      ],
+      "template": "data_t buf0[TILE];\ndata_t buf1[TILE];\ndata_t* load_buf  = (t & 1) ? buf1 : buf0;\ndata_t* compute_buf = (t & 1) ? buf0 : buf1;"
+    },
+    {
+      "id": "hls-dual-layout-fused-load-dataflow",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "flash_no_RMW_m_axi",
+      "pattern": "kernel runs two passes over the same matrix with different access (row-major then transposed/column) and places tile for-loops inside #pragma HLS DATAFLOW that call load_* on the same m_axi port each iteration \u2014 HLS 200-1013",
+      "strategy": "Under DATAFLOW: one fused_load_task reads the matrix from m_axi once per element and fills both row-major and transposed local buffers in the same pipelined loop; load all vectors in the same or parallel tasks; run phase1_task and phase2_task on locals only; fused_store_task for outputs. No outer tile loop inside DATAFLOW that touches m_axi.",
+      "required_steps": [
+        "replace per-tile load loops inside DATAFLOW with single fused_load_task covering full N\u00d7N (or legal tile stream pipeline with hls::stream, not repeated m_axi loads)",
+        "in fused load: for each (i,j) read A[i][j] once; write local_A_row[i][j] and local_A_col[j][i]",
+        "phase1_task uses local_A_row; phase2_task uses local_A_col \u2014 no m_axi in either",
+        "optional ARRAY_PARTITION on row locals for UNROLL in compute",
+        "verify no HLS 200-1013 on matrix port"
+      ],
+      "guards": [
+        "BRAM must fit both layouts \u2014 partition/unroll compute not load",
+        "pair with hls-single-load-dual-local-layout",
+        "distinct gmemN on vector ports enables parallel y1/y2 loads with fused A load"
+      ],
+      "bottleneck_kinds": [
+        "dataflow",
+        "axi_dependency",
+        "memory_bandwidth",
+        "repeated_global_access"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "tags": [
+        "dataflow",
+        "flash-mandatory"
+      ],
+      "template": "// BAD: tile loops inside DATAFLOW reload A each tile\n#pragma HLS DATAFLOW\nfor (i0 = 0; i0 < N; i0 += TILE) {\n    load_tile_A(A, local_A, i0);  // HLS 200-1013\n    compute_tile(...);\n}\n\n// GOOD: fused dual-layout load, phased compute on locals\n#pragma HLS DATAFLOW\nfused_load_task(y1, y2, A, local_y1, local_y2, local_A_row, local_A_col);\nphase1_task(local_x1, local_A_row, local_y1);\nphase2_task(local_x2, local_A_col, local_y2);\nfused_store_task(x1, x2, local_x1, local_x2);"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "load_compute_serialize",
+        "interval_exceeds_latency",
+        "dataflow_blocked",
+        "latency_high_after_tiling"
+      ],
+      "confidence": "medium",
+      "guards": [
+        "preserve first-tile and last-tile behavior",
+        "avoid double buffering if local memory usage becomes too high",
+        "do not introduce read/write hazards between ping-pong buffers",
+        "do not use DATAFLOW if function/loop dependencies prevent overlap"
+      ],
+      "id": "hls-tile-doublebuffer-load-compute",
+      "kind": "supporting_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "curated",
+      "pattern": "the implementation uses tiles, but loading a tile and computing the tile execute serially across tile iterations and the schedule cannot overlap memory movement with computation",
+      "required_steps": [
+        "split load_tile and compute_tile into separate functions or loops",
+        "allocate two local tile buffers",
+        "alternate buffers using tile index parity",
+        "guard first and last tile iterations",
+        "apply DATAFLOW only when there is a legal producer/consumer structure",
+        "validate correctness after overlapping phases"
+      ],
+      "sec_pass": 0,
+      "strategy": "use two local tile buffers in ping-pong fashion to overlap loading tile k+1 with computing tile k, and optionally storing tile k-1, using DATAFLOW only when producer/consumer structure is legal",
+      "tags": [
+        "hls",
+        "tiling",
+        "double-buffering",
+        "dataflow",
+        "ping-pong-buffer",
+        "kernel-independent"
+      ],
+      "template": "#pragma HLS DATAFLOW\nfor (int t = 0; t < NUM_TILES + 1; ++t) {\n    if (t < NUM_TILES) load_tile(in, tile_buf[t & 1], t);\n    if (t > 0) compute_tile(tile_buf[(t - 1) & 1], out, t - 1);\n}"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "pipeline_blocked",
+        "variable_latency_stage",
+        "dataflow_blocked",
+        "load_compute_serialize",
+        "store_compute_serialize"
+      ],
+      "confidence": "medium",
+      "guards": [
+        "do not create cyclic streams without a proven schedule",
+        "producer and consumer token counts must match or be explicitly framed",
+        "DATAFLOW does not remove true data dependencies",
+        "stream depth tuning is required for variable-latency stages"
+      ],
+      "id": "ii-dataflow-variable-latency-decoupling",
+      "kind": "advanced_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_ii_target_miss_discussion",
+      "pattern": "one stage in a loop body has variable or long latency, such as memory access, filtering, parsing, or conditional work, and it serializes otherwise independent producer/consumer work",
+      "required_steps": [
+        "identify separable producer/compute/consumer work in the loop body",
+        "extract stages into functions or loops with clear interfaces",
+        "connect stages with hls::stream or bounded local FIFOs",
+        "set stream depth large enough to absorb burstiness but small enough for resources",
+        "apply DATAFLOW at the parent scope",
+        "guard stream counts so producer and consumer agree exactly",
+        "validate no deadlock and inspect dataflow viewer/report"
+      ],
+      "sec_pass": 0,
+      "strategy": "split the loop body into producer, compute, and consumer stages connected by hls::stream FIFOs under DATAFLOW, so backpressure is localized and independent stages can run concurrently",
+      "tags": [
+        "hls",
+        "ii-target-miss",
+        "dataflow",
+        "stream",
+        "fifo",
+        "variable-latency",
+        "kernel-independent"
+      ],
+      "template": "#pragma HLS DATAFLOW\nhls::stream<data_t> s1, s2;\n#pragma HLS STREAM variable=s1 depth=64\n#pragma HLS STREAM variable=s2 depth=64\nproducer(in, s1, n);\ncompute(s1, s2, n);\nconsumer(s2, out, n);"
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "global_memory_latency",
+        "axi_dependency",
+        "m_axi_request_response",
+        "pipeline_blocked",
+        "memory_bandwidth"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not stage unbounded arrays into local memory",
+        "DATAFLOW requires legal producer/consumer structure and bounded stream behavior",
+        "do not change host ABI or pointer types unless explicitly allowed",
+        "if each element is used once and access is already streaming, staging should still enable burst/dataflow or it may add overhead"
+      ],
+      "id": "ii-gmem-stage-request-response-decouple",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_ii_target_miss_discussion",
+      "pattern": "a pipelined compute loop directly issues m_axi/gmem reads and immediately consumes the response, or directly writes results, so request/response latency or AXI scheduling prevents low II",
+      "required_steps": [
+        "identify m_axi reads/writes inside the II-limited compute loop",
+        "split global load, compute, and global store into separate loops or functions",
+        "make load/store addresses contiguous and burst-friendly where possible",
+        "stage bounded chunks into local buffers or streams",
+        "apply DATAFLOW at the parent scope when stages can run concurrently",
+        "use ping-pong buffers for tiled/chunked stages when the same buffer would serialize load and compute",
+        "set appropriate burst length and outstanding transaction pragmas where legal",
+        "pipeline compute over local memory and validate burst/report behavior"
+      ],
+      "sec_pass": 0,
+      "strategy": "decouple global-memory request/response from compute by splitting load, compute, and store stages; use burst-friendly load/store loops, local buffers or hls::stream FIFOs, DATAFLOW, and optionally ping-pong buffering to keep compute working on local data",
+      "tags": [
+        "hls",
+        "ii-target-miss",
+        "m_axi",
+        "gmem",
+        "global-memory",
+        "request-response",
+        "dataflow",
+        "local-staging",
+        "kernel-independent"
+      ],
+      "template": "#pragma HLS DATAFLOW\nload_stage(in, local_or_stream, n);\ncompute_stage(local_or_stream, out_local_or_stream, n);\nstore_stage(out_local_or_stream, out, n);\n\n// load/store stages should be pipelined, burst-friendly, and bounded by tile/chunk size."
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "read_after_write",
+        "write_after_read",
+        "array_read_modify_write",
+        "loop_carried_dep",
+        "stencil_dependency"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not use old/new buffering for algorithms that intentionally require immediate in-place Gauss-Seidel-style updates",
+        "ensure swap/copy-back occurs at the correct time-step granularity",
+        "do not double buffer arrays so large that BRAM/URAM use becomes infeasible",
+        "preserve boundary cells and unchanged elements"
+      ],
+      "id": "ii-raw-dependency-pingpong-old-new-buffers",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "project_ii_target_miss_discussion",
+      "pattern": "an iterative update reads old values and writes new values through the same array, causing loop-carried RAW/WAR hazards or forcing sequential update semantics when Jacobi-style old/new separation is valid",
+      "required_steps": [
+        "determine whether the algorithm can use old/new state separation without changing semantics",
+        "allocate separate input/current and output/next local buffers",
+        "load the current state into the read buffer",
+        "rewrite the compute loop to read only from old/current and write only to new/next",
+        "swap buffer roles or copy back after each iteration/time step",
+        "partition the read buffer if multiple reads per cycle block II",
+        "pipeline the compute loop and validate boundary handling"
+      ],
+      "sec_pass": 0,
+      "strategy": "split storage into old and new buffers, compute from a read-only old buffer into a write-only new buffer, and swap or copy buffers between time steps; prefer full-grid or line-buffer old/new staging over spatial tiling with per-tile global load/store inside each iteration; combine with partitioning when multiple neighbor reads are needed per cycle",
+      "tags": [
+        "hls",
+        "ii-target-miss",
+        "raw-dependency",
+        "ping-pong",
+        "old-new-buffer",
+        "jacobi",
+        "kernel-independent"
+      ],
+      "template": "data_t old_buf[TILE];\ndata_t new_buf[TILE];\n\ncompute: for (int i = 0; i < TILE; ++i) {\n#pragma HLS PIPELINE II=1\n    new_buf[i] = update_from_old(old_buf, i);\n}\n\n// After the step: swap old_buf/new_buf or copy new_buf back as required."
+    },
+    {
+      "applicable_fpgas": [],
+      "applicable_versions": [],
+      "bottleneck_kinds": [
+        "interval_exceeds_latency",
+        "dataflow_blocked",
+        "load_compute_serialize",
+        "store_compute_serialize",
+        "latency_high_after_tiling"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not add two buffers if phases still execute serially",
+        "do not use DATAFLOW when stage dependencies prevent overlap",
+        "avoid double buffering if local memory usage becomes excessive",
+        "preserve first-tile and last-tile behavior"
+      ],
+      "id": "prompt-doublebuffer",
+      "kind": "compound_transformation",
+      "last_used_at": "2026-05-19T01:20:10-0500",
+      "mean_advantage": -0.034875444839857654,
+      "occurrences": 1,
+      "origin": "prompt",
+      "pattern": "load, compute, and/or store phases operate on consecutive chunks or tiles but currently execute serially with no overlap",
+      "required_steps": [
+        "split load, compute, and store into separable stages",
+        "allocate two or more local buffers for ping-pong scheduling",
+        "use tile index parity to alternate buffers",
+        "guard first and last iterations",
+        "apply DATAFLOW only when dependencies allow overlap",
+        "validate that phases overlap and local memory usage remains acceptable"
+      ],
+      "sec_pass": 1,
+      "strategy": "create ping-pong local buffers and a legal producer/consumer schedule so load of tile k+1 overlaps compute of tile k and optionally store of tile k-1",
+      "tags": [
+        "prompt-derived",
+        "doublebuffer",
+        "dataflow",
+        "ping-pong-buffer",
+        "load-compute-overlap"
+      ],
+      "template": "#pragma HLS DATAFLOW\n for (int t = 0; t < NUM_TILES + 1; ++t) {\n    if (t < NUM_TILES) load_tile(in, buf[t & 1], t);\n    if (t > 0) compute_tile(buf[(t - 1) & 1], out, t - 1);\n}"
+    }
+  ]
+}

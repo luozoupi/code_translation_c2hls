@@ -1,0 +1,77 @@
+{
+  "schema": "1.1",
+  "description": "Ablation after multi-PE: keep the PE×SIMD nest, fuse Crow init/writeback, overlap load/store with ping-pong DATAFLOW. Not the stream PE-FIFO pack (no mm_pe chain, no packed SIMD FIFOs). Seed is *_dse.cpp.",
+  "skills": [
+    {
+      "id": "hls-overlap-fuse-crow-init-drain",
+      "kind": "loop_transformation",
+      "confidence": "high",
+      "origin": "post_flash_overlap",
+      "pattern": "multi-PE GEMM that inits Crow[PE][J] in a 64-beat loop, MACs in compute_k0_compute_j, then writeback Crow to local_C in another 64-beat loop. That is ~528 extra cycles vs a fused pe_kj.",
+      "strategy": "Keep PE and SIMD. Delete init_pe_j and wb_pe_j. One pipelined j×k loop: first k-tile acc=partial (C gold starts at 0), last k-tile writes local_C[i0+p][j]. Same 16×4 (or recipe) MAC.",
+      "required_steps": [
+        "keep #define PE and SIMD from the seed / recipe",
+        "remove the init_pe_j and wb_pe_j loops",
+        "first k-tile: Crow[p][j] = partial; last k-tile: local_C[i0+p][j] = Crow[p][j] (or write acc directly)",
+        "PIPELINE the fused j loop at II=1; PE and SIMD still fully UNROLLED"
+      ],
+      "guards": [
+        "separate init+wb per i-tile costs ~128 cycles × (I/PE) even when MAC is already II=1",
+        "do not pipeline k as a carried C[i][j] += a*b"
+      ],
+      "bottleneck_kinds": ["nested_loop", "interval_exceeds_latency"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["overlap", "fuse", "pe", "post-dse"],
+      "template": "// Fuse init/drain into the MAC loop. Keep PE UNROLL + SIMD UNROLL.\ncompute_k0: for (int k0 = 0; k0 < K; k0 += SIMD) {\n  compute_j: for (int j = 0; j < J; ++j) {\n#pragma HLS PIPELINE II=1\n    pe_mac: for (int p = 0; p < PE; ++p) {\n#pragma HLS UNROLL\n      data_t partial = /* SIMD adder tree */;\n      data_t acc = (k0 == 0) ? partial : (Crow[p][j] + partial);\n      Crow[p][j] = acc;\n      if (k0 == K - SIMD) local_C[i0 + p][j] = acc;\n    }\n  }\n}\n"
+    },
+    {
+      "id": "hls-overlap-pingpong-dataflow-on-pe-array",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "post_flash_overlap",
+      "pattern": "working PE×SIMD GEMM still runs load-all A/B/C, then compute, then store-all. Top interval equals latency (~13k). Shared local_A/B/C make a decorative DATAFLOW illegal.",
+      "strategy": "Keep the PE nest. Split load_tile / compute_tile / store_tile as INLINE-off tasks. Outer i-tile loop wraps #pragma HLS DATAFLOW. Ping-pong two buffers (A0/A1, C0/C1); B can stay on-chip after one load. Distinct gmem0/gmem1/gmem2. This is coarse overlap, not a systolic FIFO PE chain.",
+      "required_steps": [
+        "keep PE×SIMD compute; do not replace it with mm_pe() + fifo_B systolic",
+        "static void load_A_tile / compute_tile / store_C_tile with INLINE off",
+        "for (int i0 = 0; i0 < I; i0 += PE) { #pragma HLS DATAFLOW  load_A_tile(..., ping); compute_tile(...); store_C_tile(..., ping); }",
+        "two banks for the A-row tile and C-row tile (buf0/buf1 or ping index)",
+        "STREAM or ping-pong depth >= 2 so tiles overlap",
+        "do not share one local_A[I][K] as both DATAFLOW producer and consumer without ping-pong"
+      ],
+      "guards": [
+        "#pragma HLS DATAFLOW on the original sequential body with shared locals does not overlap",
+        "one kernel invocation with a single load-all of 64³ has no next tile to ping-pong — you must loop tiles around DATAFLOW",
+        "16 explicit mm_pe() + packed ap_uint FIFOs is the stream pack, not this ablation"
+      ],
+      "bottleneck_kinds": ["dataflow", "memory_bandwidth", "latency"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["overlap", "ping-pong", "dataflow", "post-dse"],
+      "template": "// PE array kept. Tile loop AROUND DATAFLOW. Ping-pong A/C tiles. Not mm_pe FIFOs.\nstatic void load_A_tile(data_t A[I][K], data_t Atile[PE][K], int i0) {\n#pragma HLS INLINE off\n  for (int p = 0; p < PE; ++p)\n    for (int k = 0; k < K; ++k) {\n#pragma HLS PIPELINE II=1\n      Atile[p][k] = A[i0 + p][k];\n    }\n}\nstatic void compute_tile(data_t Atile[PE][K], data_t local_B[J][K], data_t Ctile[PE][J]); // fused PE×SIMD nest\nstatic void store_C_tile(data_t C[I][J], data_t Ctile[PE][J], int i0);\n// top: load_B once, then:\n// tile_i0: for (int i0 = 0; i0 < I; i0 += PE) {\n// #pragma HLS DATAFLOW\n//   load_A_tile(A, Atile[ping], i0);\n//   compute_tile(Atile[ping], local_B, Ctile[ping]);\n//   store_C_tile(C, Ctile[ping], i0);\n// }\n"
+    },
+    {
+      "id": "avoid-overlap-stream-pe-fifo-pack",
+      "kind": "avoid_rule",
+      "confidence": "avoid",
+      "origin": "post_flash_overlap",
+      "pattern": "overlap ablation that emits PE_NUM explicit mm_pe() calls, fifo_A/fifo_B packed ap_uint streams, and systolic B forward. That is the already-measured stream column.",
+      "strategy": "Reject the stream PE-FIFO pack in this step. Keep one compute_tile with Crow[PE][J] and UNROLL PE. Overlap with ping-pong DATAFLOW tasks, not hls::stream between 16 PE functions.",
+      "required_steps": [
+        "zero or one compute function, not PE_NUM mm_pe() calls",
+        "no fifo_B[p] -> fifo_B[p+1] systolic forward",
+        "no packed SIMD hls::stream<ap_uint<N>> between PEs"
+      ],
+      "guards": [
+        "copying the stream template invalidates the ablation vs the stream column",
+        "decorative DATAFLOW on shared locals is also a miss"
+      ],
+      "bottleneck_kinds": ["dataflow"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["avoid", "overlap", "post-dse"],
+      "template": "// BAD for this ablation (that is the stream pack):\n// mm_pe(fifo_A[0], fifo_B[0], fifo_B[1], fifo_C[0]); ... × PE_NUM\n// GOOD: one compute_tile(Atile, local_B, Ctile) with PE UNROLL inside.\n"
+    }
+  ]
+}

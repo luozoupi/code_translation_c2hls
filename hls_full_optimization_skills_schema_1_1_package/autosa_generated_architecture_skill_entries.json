@@ -1,0 +1,48 @@
+{
+  "schema": "1.1",
+  "description": "Names of the AutoSA modules the latency model maximizes over. This pack reads a generated design. It does not ask an agent to emit an AutoSA netlist.",
+  "derived_from": [
+    "autosa_concept_crosswalk.csv"
+  ],
+  "skills": [
+    {
+      "id": "autosa-modules-in-the-latency-max",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "agent",
+      "pattern": "design latency is taken from the kernel top, or from a renamed mm_pe, instead of the generated module latencies",
+      "strategy": "predict_design_latency maximizes over the modules in latency_est. On mm1024 candidate 15 (space-time 0) those include PE, A_IO_L1_in, A_IO_L2_in, B_IO_L2, B_PE_dummy, and C_drain_IO_L1_out / C_drain_IO_L2_out. Space-time 3 adds L3 I/O. Space-time 4 and 5 use C_IO_L2_out rather than C_drain. Space-time 2 uses A_IO_L1, B_IO_L1, and C_IO.",
+      "required_steps": [
+        "list the *_loop_info.json module names before quoting a latency",
+        "include PE and the longest I/O or drain module in the max",
+        "keep inter_trans and intra_trans under their outer module"
+      ],
+      "guards": [
+        "the GEMM-family pack forbids emitting these interconnect names; this skill only reads them"
+      ],
+      "bottleneck_kinds": ["latency", "dataflow"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "modules", "latency"]
+    },
+    {
+      "id": "autosa-local-c-versus-reduction",
+      "kind": "compound_transformation",
+      "confidence": "high",
+      "origin": "paper",
+      "pattern": "every space-time is described as a local C buffer, or every space-time is described as a reduction across PEs",
+      "strategy": "Designs 1 and 4 (space-time 0 and 3) accumulate C inside the PE and drain it, so the generated graph has C_drain_IO. Design 5 (space-time 4) accumulates C along k, so the graph has C_IO_L2_out and no local bufC of that kind. Space-time 2 and 5 follow the reduction side.",
+      "required_steps": [
+        "if the module list contains C_drain_IO, call C a drained local buffer",
+        "if the module list contains C_IO_L2_out and no C_drain_IO, call C a reduction across PEs"
+      ],
+      "guards": [
+        "do not expect array contraction on a C_drain design"
+      ],
+      "bottleneck_kinds": ["dataflow"],
+      "applicable_versions": ["2023.2"],
+      "applicable_fpgas": ["xcu280-fsvh2892-2L-e"],
+      "tags": ["autosa", "modules", "reduction"]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "schema": "autosa_rank1_u280_targets_v1",
+  "part": "xcu280-fsvh2892-2L-e",
+  "clock_ns": 3.33,
+  "success": "agent_csynth_cycles <= rank1_cycles * 1.02",
+  "source": "U280 3.33ns csynth of AutoSA rank1 HLS (inventory / mm locked 4228). DSE XML at 5.0ns is not the gate.",
+  "skip": ["autosa_mm"],
+  "targets": {
+    "autosa_mm": {"rank1_cycles": 4228, "rank1_dsp": 320, "status": "done", "agent_cycles": 4299, "err_pct": 1.68},
+    "autosa_mm_intel": {"rank1_cycles": 4178, "rank1_dsp": 640, "wave": 1, "pe": 32, "simd": 4, "status": "miss_2pct", "agent_cycles": 4308, "err_pct": 3.11, "note": "stream 32x4; 47 cycles over 2% ceiling 4261"},
+    "autosa_mm_int16": {"rank1_cycles": 4219, "rank1_dsp": 64, "wave": 1, "pe": 32, "simd": 2, "data_t": "unsigned short", "status": "in_2pct", "agent_cycles": 4280, "err_pct": 1.45},
+    "autosa_mm_hcl": {"rank1_cycles": 4230, "rank1_dsp": 320, "wave": 1, "pe": 32, "simd": 2, "status": "in_2pct", "agent_cycles": 4294, "err_pct": 1.51},
+    "autosa_mm_hcl_intel": {"rank1_cycles": 4226, "rank1_dsp": 320, "wave": 1, "pe": 16, "simd": 4, "status": "in_2pct", "agent_cycles": 4292, "err_pct": 1.56},
+    "autosa_mm_getting_started": {"rank1_cycles": 2194, "rank1_dsp": 640, "wave": 1, "pe": 32, "simd": 4, "status": "miss_2pct", "agent_cycles": 4307, "err_pct": 96.3, "note": "32 PE x 1 row x 2 i-tiles ~2x rank1; need 2 rows/PE so I is one pass"},
+    "autosa_mm_catapult": {"rank1_cycles": 8286, "rank1_dsp": 96, "wave": 1, "pe": 8, "simd": 4, "data_t": "unsigned int", "macros": "I_P,J_P,K_P", "status": "in_2pct", "agent_cycles": 8351, "err_pct": 0.78},
+    "autosa_cnn": {"rank1_cycles": 18554, "rank1_dsp": 160, "wave": 3, "note": "not GEMM; needs CNN PE/stream skills"},
+    "autosa_large_mm": {"rank1_cycles": 524403, "rank1_dsp": 156, "wave": 2},
+    "autosa_large_mm_intel": {"rank1_cycles": 13631621, "rank1_dsp": 400, "wave": 2},
+    "autosa_mm_hbm": {"rank1_cycles": null, "wave": 1, "note": "no rank1 package yet"},
+    "autosa_mm_block_sparse": {"rank1_cycles": null, "wave": 2, "note": "sparse; no rank1 package"},
+    "autosa_lu": {"rank1_cycles": null, "wave": 3, "note": "no rank1 package"},
+    "autosa_dnn_ops": {"rank1_cycles": null, "wave": 3, "note": "no rank1 package"},
+    "autosa_large_cnn": {"rank1_cycles": 144607317, "wave": 3, "note": "DSE 5.0ns XML; re-csynth at 3.33ns before scoring"},
+    "autosa_large_mttkrp": {"rank1_cycles": 50337174, "wave": 3, "note": "DSE 5.0ns XML; re-csynth at 3.33ns before scoring"},
+    "autosa_large_mm_int16": {"rank1_cycles": null, "wave": 2},
+    "autosa_large_mm_int8": {"rank1_cycles": null, "wave": 2},
+    "autosa_large_mm_block_sparse": {"rank1_cycles": null, "wave": 2},
+    "autosa_large_ttm": {"rank1_cycles": null, "wave": 3, "note": "rank1 export failed"},
+    "autosa_large_ttmc": {"rank1_cycles": null, "wave": 3, "note": "rank1 export failed"}
+  }
+}

@@ -564,10 +564,101 @@ _BLAME_PATTERNS = [
 # A sourcefile:line tag often appears at the start; capture it when present.
 _LOC_RE = re.compile(r"([\w./_\-+]+\.(?:cpp|c|cc|h|hpp|hh)):(\d+)")
 
+_PIPELINE_RESULT_RE = re.compile(
+    r"Pipelining result\s*:\s*Target II\s*=\s*(?P<target>\d+)\s*,\s*"
+    r"Final II\s*=\s*(?P<final>\d+)\s*,\s*Depth\s*=\s*(?P<depth>\d+)\s*,\s*"
+    r"loop\s+'(?P<loop>[^']+)'",
+    re.IGNORECASE,
+)
+_UNROLL_IMPLIED_RE = re.compile(
+    r"Loop\s+'(?P<loop>[^']+)'\s+is marked as complete unroll implied by "
+    r"the pipeline pragma",
+    re.IGNORECASE,
+)
+_UNROLL_RESULT_RE = re.compile(
+    r"Unrolling loop\s+'(?P<loop>[^']+)'.*?"
+    r"(?P<mode>completely|partially)\s+with a factor of\s+"
+    r"(?P<factor>\d+)",
+    re.IGNORECASE,
+)
+
+
+def parse_vitis_schedule_transformations(
+    log_text: str,
+    *,
+    max_records: int = 200,
+) -> List[Dict[str, Any]]:
+    """Extract realized pipeline and unroll decisions from the Vitis log."""
+
+    records: List[Dict[str, Any]] = []
+    if not log_text:
+        return records
+    for raw_line in log_text.splitlines():
+        line = raw_line.strip()
+        match = _PIPELINE_RESULT_RE.search(line)
+        if match:
+            records.append({
+                "kind": "pipeline_result",
+                "loop": match.group("loop"),
+                "target_ii": int(match.group("target")),
+                "final_ii": int(match.group("final")),
+                "depth": int(match.group("depth")),
+                "message": (
+                    f"Vitis pipeline result for {match.group('loop')}: "
+                    f"target II {match.group('target')}, final II "
+                    f"{match.group('final')}, depth {match.group('depth')}"
+                ),
+            })
+        else:
+            match = _UNROLL_IMPLIED_RE.search(line)
+            if match:
+                location = _LOC_RE.search(line)
+                records.append({
+                    "kind": "complete_unroll_implied_by_pipeline",
+                    "loop": match.group("loop"),
+                    "source_location": (
+                        f"{os.path.basename(location.group(1))}:{location.group(2)}"
+                        if location else None
+                    ),
+                    "source_line": int(location.group(2)) if location else None,
+                    "message": (
+                        f"Vitis marked {match.group('loop')} for complete unroll "
+                        "implied by an enclosing pipeline"
+                    ),
+                })
+            else:
+                match = _UNROLL_RESULT_RE.search(line)
+                if match:
+                    location = _LOC_RE.search(line)
+                    mode = match.group("mode").lower()
+                    records.append({
+                        "kind": (
+                            "complete_unroll"
+                            if mode == "completely"
+                            else "partial_unroll"
+                        ),
+                        "loop": match.group("loop"),
+                        "mode": mode,
+                        "effective_factor": int(match.group("factor")),
+                        "source_location": (
+                            f"{os.path.basename(location.group(1))}:{location.group(2)}"
+                            if location else None
+                        ),
+                        "source_line": int(location.group(2)) if location else None,
+                        "message": (
+                            f"Vitis {mode} unrolled {match.group('loop')} with "
+                            f"effective factor {match.group('factor')}"
+                        ),
+                    })
+        if len(records) >= max_records:
+            break
+    return records
+
 
 def parse_vitis_hls_log(log_text: str, *, max_records: int = 200) -> List[Dict[str, Any]]:
     """Pull scheduler-blame lines out of vitis_hls.log."""
     blame: List[Dict[str, Any]] = []
+    schedule_transformations: List[Dict[str, Any]] = []
     if not log_text:
         return blame
     for line in log_text.splitlines():
@@ -680,7 +771,7 @@ def derive_bottleneck_records(
                 "source_location": sc.get("source_location"),
             })
 
-    # --- interval > latency (dataflow / throughput regression) ---
+    # --- top-level restart interval materially exceeds latency ---
     # On a top-level scope this means the kernel cannot start a new transaction
     # until later than the previous one finishes — a real-world "hidden
     # throughput regression" that latency-only rubrics miss (pathfinder
@@ -690,14 +781,20 @@ def derive_bottleneck_records(
         ii = sc.get("interval")
         if lat is None or ii is None or ii <= 1 or lat <= 0:
             continue
-        if ii > lat:
+        # Sequential ap_ctrl_hs designs commonly report Interval-max as
+        # Latency-max + 1.  That single control-cycle boundary is normal and
+        # must not be promoted as a throughput bottleneck.
+        interval_overhead = ii - lat
+        interval_ratio = ii / lat
+        if interval_overhead > 1 and interval_ratio > 1.01:
             bottlenecks.append({
                 "scope_id": sc["scope_id"],
                 "kind": "interval_exceeds_latency",
                 "evidence": f"interval {ii} > latency {lat} cycles on {sc['kind']} '{sc['name']}'",
-                "severity": "high",
+                "severity": "high" if interval_ratio >= 1.10 else "medium",
                 "metric": {"interval": ii, "latency_cycles": lat,
-                           "interval_over_latency": round(ii / lat, 3)},
+                           "interval_overhead_cycles": interval_overhead,
+                           "interval_over_latency": round(interval_ratio, 3)},
                 "source_location": sc.get("source_location"),
             })
 
@@ -1253,6 +1350,7 @@ def build_feedback(*, xml_path: Optional[str] = None,
             log_text = None
     if log_text:
         blame = parse_vitis_hls_log(log_text)
+        schedule_transformations = parse_vitis_schedule_transformations(log_text)
 
     bottlenecks = derive_bottleneck_records(scopes, blame,
                                             requested_clock_ns=requested_clock_ns)
@@ -1293,6 +1391,7 @@ def build_feedback(*, xml_path: Optional[str] = None,
         "schema": FEEDBACK_SCHEMA_VERSION,
         "scopes": scopes,
         "scheduler_blame": blame,
+        "schedule_transformations": schedule_transformations,
         "bottlenecks": bottlenecks,
         "summary": summary,
     }

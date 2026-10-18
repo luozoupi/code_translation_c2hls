@@ -841,7 +841,7 @@ def main() -> int:
                 os.environ["C2HLS_SKILL_MODE"] = skill_label
                 os.environ["C2HLS_FORCE_SKILL_PROMPTS"] = "1"
                 os.environ["C2HLS_SKILL_PROMPT_SCOPE"] = skill_scope
-                os.environ["C2HLS_SKILL_PROMPT_MODE"] = (
+                os.environ["C2HLS_SKILL_PROMPT_MODE"] = os.getenv("C2HLS_SWEEP_SKILL_PROMPT_MODE") or (
                     "action_only"
                     if skill_scope in {
                         "smart_best_fit",

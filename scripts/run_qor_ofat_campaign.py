@@ -21,6 +21,17 @@ RUNNER = REPO / "scripts" / "run_saved_qor_step_smoke.py"
 sys.path.insert(0, str(REPO))
 
 from qor_design_space import STEP_PREFERRED_KINDS, discover_qor_knobs  # noqa: E402
+from qor_linked_controls import (  # noqa: E402
+    build_2mm_linked_lanes_parent,
+    build_2mm_step_control_parent,
+    build_gemm_linked_lanes_parent,
+    build_gemm_step_control_parent,
+    localize_2mm_dimensions,
+    validate_2mm_lane_values,
+    validate_2mm_step_control_values,
+    validate_gemm_lane_values,
+    validate_gemm_step_control_values,
+)
 
 
 def _now() -> str:
@@ -90,11 +101,41 @@ def _case_command(
         str(case.get("ii_values", "1,2,4,8")),
         "--tile-values",
         str(case.get("tile_values", "4,8,16,32,64")),
+        "--widen-values",
+        str(case.get("widen_values", "64,128,256,512,1024")),
     ]
     if case.get("expected_knob_kind"):
         command.extend(["--expected-knob-kind", str(case["expected_knob_kind"])])
     if case.get("expected_knob_name"):
         command.extend(["--expected-knob-name", str(case["expected_knob_name"])])
+    if case.get("gemm_linked_lanes_parent"):
+        command.append("--gemm-linked-lanes-parent")
+        command.extend(["--parent-lanes", str(case.get("parent_lanes", 2))])
+        command.extend([
+            "--gemm-linked-lanes-architecture",
+            str(case.get("gemm_linked_lanes_architecture", "direct_reduction")),
+        ])
+    if case.get("gemm_step_control_parent"):
+        command.extend([
+            "--gemm-step-control-parent",
+            str(case["gemm_step_control_parent"]),
+            "--parent-control-value",
+            str(case["parent_control_value"]),
+            "--fixed-lanes",
+            str(case.get("fixed_lanes", 8)),
+        ])
+    if case.get("two_mm_linked_lanes_parent"):
+        command.append("--two-mm-linked-lanes-parent")
+        command.extend(["--parent-lanes", str(case.get("parent_lanes", 4))])
+    if case.get("two_mm_step_control_parent"):
+        command.extend([
+            "--two-mm-step-control-parent",
+            str(case["two_mm_step_control_parent"]),
+            "--parent-control-value",
+            str(case["parent_control_value"]),
+            "--fixed-lanes",
+            str(case.get("fixed_lanes", 4)),
+        ])
     return command
 
 
@@ -125,15 +166,161 @@ def _preflight_case(case: dict[str, Any], config: dict[str, Any]) -> dict[str, A
         if not result.get("final_report"):
             errors.append("parent_csynth_report_missing")
     origin = str(case["origin_step"]).lower().replace("double_buffer", "doublebuffer")
+    probe_code = str(result.get("hls_code") or "")
+    linked_contract = None
+    linked_modes = sum(bool(case.get(name)) for name in (
+        "gemm_linked_lanes_parent",
+        "gemm_step_control_parent",
+        "two_mm_linked_lanes_parent",
+        "two_mm_step_control_parent",
+    ))
+    if linked_modes > 1:
+        errors.append("multiple_linked_parent_modes")
+    if case.get("gemm_linked_lanes_parent") and probe_code:
+        try:
+            architecture = str(
+                case.get("gemm_linked_lanes_architecture", "direct_reduction")
+            )
+            probe_code, linked_contract = build_gemm_linked_lanes_parent(
+                probe_code,
+                parent_lanes=int(case.get("parent_lanes", 2)),
+                architecture=architecture,
+            )
+            if architecture == "striped_accumulators":
+                header_code = "\n".join(
+                    path.read_text(errors="replace")
+                    for path in sorted(benchmark_dir.glob("*.h"))
+                )
+                linked_contract["domain_validation"] = validate_gemm_lane_values(
+                    header_code,
+                    (
+                        *_values(case.get("factor_values", "1,2,4,8,16")),
+                        int(case.get("parent_lanes", 2)),
+                    ),
+                )
+        except ValueError as exc:
+            errors.append(f"linked_parent_invalid: {exc}")
+    elif case.get("gemm_step_control_parent") and probe_code:
+        try:
+            step = str(case["gemm_step_control_parent"])
+            parent_value = int(case["parent_control_value"])
+            fixed_lanes = int(case.get("fixed_lanes", 8))
+            probe_code, linked_contract = build_gemm_step_control_parent(
+                probe_code,
+                step=step,
+                parent_value=parent_value,
+                fixed_lanes=fixed_lanes,
+            )
+            header_code = "\n".join(
+                path.read_text(errors="replace")
+                for path in sorted(benchmark_dir.glob("*.h"))
+            )
+            domain_values = {
+                "pipeline": _values(case.get("ii_values", "1,2,4,8")),
+                "tiling": _values(case.get("tile_values", "4,8,16,32,64")),
+                "doublebuffer": _values(case.get("factor_values", "1,2,4,8,16")),
+                "coalescing": _values(
+                    case.get("widen_values", "64,128,256,512,1024")
+                ),
+                "resource": _values(case.get("factor_values", "1,2,4,8,16")),
+            }[step]
+            linked_contract["domain_validation"] = validate_gemm_step_control_values(
+                header_code,
+                step,
+                (*domain_values, parent_value),
+                fixed_lanes=fixed_lanes,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            errors.append(f"linked_parent_invalid: {exc}")
+    elif case.get("two_mm_linked_lanes_parent") and probe_code:
+        try:
+            parent_lanes = int(case.get("parent_lanes", 4))
+            probe_code, linked_contract = build_2mm_linked_lanes_parent(
+                probe_code,
+                parent_lanes=parent_lanes,
+            )
+            header_code = "\n".join(
+                path.read_text(errors="replace")
+                for path in sorted(benchmark_dir.glob("*.h"))
+            )
+            linked_contract["domain_validation"] = validate_2mm_lane_values(
+                header_code,
+                (
+                    *_values(case.get("factor_values", "1,2,4,8,16")),
+                    parent_lanes,
+                ),
+            )
+            probe_code, localization = localize_2mm_dimensions(
+                probe_code,
+                header_code,
+            )
+            linked_contract["dimension_localization"] = localization
+            linked_contract["linked_parent_code_sha256"] = hashlib.sha256(
+                probe_code.encode("utf-8")
+            ).hexdigest()
+        except (TypeError, ValueError) as exc:
+            errors.append(f"linked_parent_invalid: {exc}")
+    elif case.get("two_mm_step_control_parent") and probe_code:
+        try:
+            step = str(case["two_mm_step_control_parent"])
+            parent_value = int(case["parent_control_value"])
+            fixed_lanes = int(case.get("fixed_lanes", 4))
+            probe_code, linked_contract = build_2mm_step_control_parent(
+                probe_code,
+                step=step,
+                parent_value=parent_value,
+                fixed_lanes=fixed_lanes,
+            )
+            header_code = "\n".join(
+                path.read_text(errors="replace")
+                for path in sorted(benchmark_dir.glob("*.h"))
+            )
+            domain_values = {
+                "pipeline": _values(case.get("ii_values", "1,2,4,8")),
+                "tiling": _values(case.get("tile_values", "4,8,16,32,64")),
+                "doublebuffer": _values(
+                    case.get("factor_values", "1,2,4,8,16")
+                ),
+                "coalescing": _values(
+                    case.get("widen_values", "64,128,256,512,1024")
+                ),
+                "resource": _values(
+                    case.get("factor_values", "1,2,4,8,16")
+                ),
+            }[step]
+            linked_contract["domain_validation"] = (
+                validate_2mm_step_control_values(
+                    header_code,
+                    step,
+                    (*domain_values, parent_value),
+                    fixed_lanes=fixed_lanes,
+                )
+            )
+            probe_code, localization = localize_2mm_dimensions(
+                probe_code,
+                header_code,
+            )
+            linked_contract["dimension_localization"] = localization
+            linked_contract["linked_parent_code_sha256"] = hashlib.sha256(
+                probe_code.encode("utf-8")
+            ).hexdigest()
+        except (KeyError, TypeError, ValueError) as exc:
+            errors.append(f"linked_parent_invalid: {exc}")
+    exact_knob_name = str(case.get("expected_knob_name") or "").strip()
     knobs = discover_qor_knobs(
-        str(result.get("hls_code") or ""),
+        probe_code,
         factor_values=_values(case.get("factor_values", "1,2,4,8,16")),
         ii_values=_values(case.get("ii_values", "1,2,4,8")),
         tile_values=_values(case.get("tile_values", "4,8,16,32,64")),
         stream_depth_values=_values(case.get("factor_values", "1,2,4,8,16")),
-        max_knobs=int(case.get("max_knobs", 1)),
+        widen_values=_values(case.get("widen_values", "64,128,256,512,1024")),
+        max_knobs=(None if exact_knob_name else int(case.get("max_knobs", 1))),
         preferred_kinds=STEP_PREFERRED_KINDS.get(origin, ()),
     )
+    if exact_knob_name:
+        knobs = [knob for knob in knobs if knob.name == exact_knob_name][
+            :int(case.get("max_knobs", 1))
+        ]
     first = knobs[0] if knobs else None
     if first is None:
         errors.append("no_qor_knob_selected")
@@ -154,6 +341,7 @@ def _preflight_case(case: dict[str, Any], config: dict[str, Any]) -> dict[str, A
         "errors": errors,
         "source_sha256": _sha256(source_path) if source_path.is_file() else None,
         "selected_knob": first.public() if first is not None else None,
+        "linked_control": linked_contract,
         "requested_candidate_count": int(case["max_candidates"]),
         "discoverable_candidate_count": (
             len(first.candidate_values) if first is not None else 0

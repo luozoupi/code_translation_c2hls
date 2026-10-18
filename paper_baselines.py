@@ -200,6 +200,7 @@ def load_public_benchmark_inputs(
     golden = _prepare_independent_golden(
         {
             "meta": {
+                "benchmark": public.benchmark,
                 "source_repo": metadata.get("source_repo"),
                 "independent_golden_required": metadata.get(
                     "independent_golden_required"

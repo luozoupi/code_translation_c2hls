@@ -87,9 +87,14 @@ PAPER_PROFILE_OVERRIDES: dict[str, str] = {
 }
 
 _IMPLEMENTATION_SOURCES = (
+    "experiment_budget.py",
+    "experiment_telemetry.py",
+    "validation_suite.py",
+    "hlsfactory_registry.py",
     "bottleneck_router.py",
     "c2hls.py",
     "c2hls_temp.py",
+    "cosim_walltime.py",
     "candidate_cache.py",
     "evaluation_repro.py",
     "export_schema_jsonl.py",
@@ -97,11 +102,13 @@ _IMPLEMENTATION_SOURCES = (
     "hls_eval.py",
     "hls_feedback.py",
     "qor_design_space.py",
+    "qor_profile_review.py",
     "reference_isolation.py",
     "robustness.py",
     "rubric.py",
     "run_agentic_sweep.py",
     "skill_library.py",
+    "skill_usage.py",
     "smart_skill_router.py",
     "trajectory_alignment.py",
     "configs/hlsfactory_output_shapes.json",
@@ -114,6 +121,12 @@ _SKILL_SOURCES = (
     "hls_full_optimization_skills_schema_1_1_package/skills.json",
 )
 _CONTROL_ENV_NAMES = (
+    "C2HLS_OPENAI_REASONING_EFFORT",
+    "C2HLS_SKILL_EXPLICIT_IDS",
+    "C2HLS_SWEEP_SKILL_PROMPT_MODE",
+    "C2HLS_PROVIDER_MAX_RETRIES",
+    "C2HLS_AGGREGATE_INPUT_TOKEN_BUDGET",
+    "C2HLS_API_BUDGET_LEDGER",
     "C2HLS_ALLOW_WIDE_ABI",
     "C2HLS_ATTEMPTS_PER_CANDIDATE",
     "C2HLS_CANDIDATES_PER_STEP",
@@ -125,6 +138,7 @@ _CONTROL_ENV_NAMES = (
     "C2HLS_COSIM_SKIP_GOLD_RATIO",
     "C2HLS_COSIM_SKIP_SLOWER_THAN_GOLD",
     "C2HLS_COSIM_TIMEOUT",
+    "C2HLS_COSIM_WALL_TIMEOUT_SECONDS",
     "C2HLS_COSIM_TRACE_LEVEL",
     "C2HLS_FORCE_SELECTED_COSIM",
     "C2HLS_CSIM_TIMEOUT",
@@ -171,6 +185,8 @@ _CONTROL_ENV_NAMES = (
     "C2HLS_QOR_SWEEP_MAX_KNOBS",
     "C2HLS_QOR_SWEEP_TILE_VALUES",
     "C2HLS_QOR_SWEEP_VALUES",
+    "C2HLS_QOR_SWEEP_WIDEN_VALUES",
+    "C2HLS_QOR_SWEEP_KNOB_NAME",
     "C2HLS_REFERENCE_BLIND",
     "C2HLS_REFERENCE_CACHE_REQUIRE_COSIM",
     "C2HLS_REFERENCE_CODE_IN_PROMPTS",
@@ -962,6 +978,15 @@ def build_run_fingerprint(
         _benchmark_files(benchmark_dir), relative_to=benchmark_dir
     )
 
+    golden_contract = None
+    metadata_path = benchmark_dir / "metadata.json"
+    if metadata_path.is_file():
+        metadata = json.loads(metadata_path.read_text())
+        if str(metadata.get("source_repo") or "").lower() == "hlsfactory":
+            from hlsfactory_registry import registry_identity
+            testbench = benchmark_dir / (metadata.get("testbench_file") or "testbench.cpp")
+            golden_contract = registry_identity(metadata, testbench.read_text(), environ=env)
+
     skills = skill_snapshot_manifest(repo, environ=env)
     expected_skill_sha256 = _env_value(env, "C2HLS_SKILL_SNAPSHOT_SHA256")
     skills.update(
@@ -985,18 +1010,24 @@ def build_run_fingerprint(
     reference_cache = _reference_cache_manifest(repo, benchmark, env)
     vitis_user_home = _vitis_user_home_manifest(repo, env)
     post_route = _post_route_manifest(repo, env)
+    seed_manifest = _env_value(env, "C2HLS_PHASE_B_SEED_MANIFEST")
     payload: dict[str, Any] = {
         "schema_version": FINGERPRINT_SCHEMA,
         "profile": profile_name,
         "benchmark": {
             "name": benchmark,
             "inputs": benchmark_inputs,
+            "golden_output_contract": golden_contract,
         },
         "implementation": {
             "git_head": _git_head(repo),
             "sources": implementation,
         },
         "prompts": prompts,
+        "phase_b_seed_manifest": _manifest(
+            [Path(seed_manifest).expanduser()] if seed_manifest else [],
+            relative_to=repo,
+        ),
         "model": {
             "label": model_label,
             "id": model_id,
@@ -1032,6 +1063,8 @@ def build_run_fingerprint(
             "dynamic_routing": _bool_env(env, "C2HLS_DYNAMIC_ROUTING"),
             "steps": list(steps) if steps is not None else None,
             "qor_design_sweep": _bool_env(env, "C2HLS_QOR_DESIGN_SWEEP"),
+            "qor_profile_review": _bool_env(env, "C2HLS_QOR_PROFILE_REVIEW"),
+            "sample_id": _env_value(env, "C2HLS_SAMPLE_ID"),
             "qor_interactions": _bool_env(
                 env, "C2HLS_QOR_SWEEP_INTERACTIONS"
             ),

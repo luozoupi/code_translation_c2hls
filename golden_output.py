@@ -812,3 +812,30 @@ __all__ = [
     "compare_structured_outputs",
     "parse_hlsfactory_dumps",
 ]
+
+
+def compare_hlsfactory_cosim_dumps(log, golden, specs):
+    """Validate every complete Vitis dump and require an RTL postcheck dump.
+
+    CSim output alone cannot establish RTL correctness. A later good dump may
+    not hide a bad earlier dump. Unbalanced or nested dump markers fail closed.
+    """
+    start = r"==BEGIN\s+DUMP_ARRAYS=="
+    end = r"==END\s+DUMP_ARRAYS=="
+    blocks = list(re.finditer(start + r".*?" + end, log, re.DOTALL))
+    post = log.rfind("Starting C post checking")
+    if (post < 0 or not any(block.start() > post for block in blocks)
+            or len(blocks) != len(re.findall(start, log))
+            or len(blocks) != len(re.findall(end, log))):
+        return {"schema_version": "c2hls.rtl-golden-comparison.v1", "passed": False,
+                "correctness_status": "invalid_output",
+                "reason": "missing_or_malformed_rtl_postcheck_dump"}
+    checks = [compare_hlsfactory_dumps(golden, block.group(), specs=specs).to_dict()
+              for block in blocks]
+    passed = all(check.get("passed") for check in checks)
+    return {"schema_version": "c2hls.rtl-golden-comparison.v1", "passed": passed,
+            "correctness_status": "passed" if passed else "failed",
+            "reason": "match" if passed else "golden_mismatch",
+            "dump_count": len(checks),
+            "rtl_postcheck_dump_count": sum(block.start() > post for block in blocks),
+            "checks": checks}

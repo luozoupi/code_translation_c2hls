@@ -27,6 +27,8 @@ from typing import Any, List, Optional, Tuple
 from dotenv import load_dotenv
 from openai import OpenAI
 from c2hls_temp import make_tempdir
+from experiment_telemetry import record_tool, unified_candidate_ledger, current_tool_summary
+from experiment_budget import send_budgeted_request
 
 try:
     import anthropic
@@ -52,16 +54,24 @@ from hls_eval import (
     run_native_testbench,
 )
 from qor_design_space import (
+    QOR_METHOD_VERSION,
     STEP_PREFERRED_KINDS,
     build_interaction_candidates,
     build_ofat_candidates,
     code_sha256 as qor_code_sha256,
+    compiler_knob_realization,
     discover_qor_knobs,
     extract_qor_metrics,
     pareto_candidate_ids,
     selection_rank as qor_selection_rank,
     summarize_knob_trends,
     winner_explanation,
+)
+
+from qor_profile_review import (
+    enabled as qor_profile_review_enabled,
+    resource_guidance as qor_resource_guidance,
+    review_candidate as review_qor_candidate,
 )
 
 load_dotenv()
@@ -111,6 +121,8 @@ QOR_SWEEP_MAX_CANDIDATES_ENV = "C2HLS_QOR_SWEEP_MAX_CANDIDATES"
 QOR_SWEEP_VALUES_ENV = "C2HLS_QOR_SWEEP_VALUES"
 QOR_SWEEP_II_VALUES_ENV = "C2HLS_QOR_SWEEP_II_VALUES"
 QOR_SWEEP_TILE_VALUES_ENV = "C2HLS_QOR_SWEEP_TILE_VALUES"
+QOR_SWEEP_WIDEN_VALUES_ENV = "C2HLS_QOR_SWEEP_WIDEN_VALUES"
+QOR_SWEEP_KNOB_NAME_ENV = "C2HLS_QOR_SWEEP_KNOB_NAME"
 QOR_SWEEP_INTERACTIONS_ENV = "C2HLS_QOR_SWEEP_INTERACTIONS"
 QOR_SWEEP_MAX_INTERACTIONS_ENV = "C2HLS_QOR_SWEEP_MAX_INTERACTIONS"
 PHASEB_MODE_ENV = "C2HLS_PHASEB_MODE"
@@ -296,6 +308,7 @@ def _normalize_extra_files(extra_files=None) -> List[Tuple[str, str]]:
     return normalized
 
 
+@record_tool("native_compile")
 def compile_check_cpp(
     code: str,
     header_code: str = "",
@@ -427,6 +440,7 @@ def _selected_cosim_measurement_ok(summary: Optional[dict]) -> bool:
         isinstance(summary, dict)
         and summary.get("ran")
         and summary.get("passed")
+        and summary.get("success") is not False
         and _positive_int(summary.get("kernel_runtime_cycles")) is not None
     )
 
@@ -665,9 +679,18 @@ def _summarize_test_result(result: Optional[dict], supported: bool) -> dict:
     for key in ("kernel_runtime_cycles", "kernel_runtime_us", "kernel_clock_freq_mhz"):
         if key in result:
             summary[key] = result.get(key)
-    for key in ("correctness", "golden_output_sha256"):
+    for key in ("correctness", "golden_output_sha256", "validation_suite"):
         if key in result:
             summary[key] = result.get(key)
+    for key in (
+        "invocation_wall_seconds", "cosim_wall_seconds", "cosim_wall_seconds_censored",
+        "wall_timeout_seconds", "invocation_timeout_seconds", "timeout_phase",
+        "classification", "timing_scope", "phase_marker_path", "phase_markers_complete",
+        "log_path", "returncode", "owned_process_cleanup", "timed_out",
+        "validation_log_scan", "tool_success_marker_seen", "tool_failure_marker_seen",
+    ):
+        if key in result:
+            summary[key] = result[key]
     log_excerpt = _extract_failure_excerpt(result.get("log", ""))
     if log_excerpt and not passed:
         summary["log_excerpt"] = log_excerpt
@@ -963,6 +986,7 @@ def _default_output_dir(bench_dir: str, bench_name: str, multistep: bool = False
 
 
 def _build_coverage(meta: dict, reference_validation: dict, generated_csim: Optional[dict], generated_cosim: Optional[dict]) -> dict:
+    expert_available = reference_validation.get("reference_source") != "independent_public_oracle"
     gt_csim = reference_validation.get("csim", {})
     gt_cosim = reference_validation.get("cosim", {})
     gen_csim = generated_csim or {"status": "failed", "ran": False}
@@ -975,9 +999,9 @@ def _build_coverage(meta: dict, reference_validation: dict, generated_csim: Opti
         )
     )
     return {
-        "ground_truth_csim_available": bool(meta.get("supports_csim") and meta.get("testbench_file")),
+        "ground_truth_csim_available": bool(expert_available and meta.get("supports_csim") and meta.get("testbench_file")),
         "ground_truth_csim_ran": bool(gt_csim.get("ran", False)),
-        "ground_truth_cosim_available": cosim_available,
+        "ground_truth_cosim_available": bool(expert_available and cosim_available),
         "ground_truth_cosim_ran": bool(gt_cosim.get("ran", False)),
         "generated_csim_available": bool(meta.get("supports_csim") and meta.get("testbench_file")),
         "generated_csim_ran": bool(gen_csim.get("ran", False)),
@@ -2231,6 +2255,10 @@ def _render_candidate_improvement_prompt(step_name: str, candidate_index: int,
                                          attempt_count: int, report: dict,
                                          current_code: str) -> str:
     """Prompt fragment for exhaustive candidate attempts after a pass."""
+    resource_budget = (
+        "physical device capacity; resource growth is allowed for measured latency benefit. "
+        if qor_profile_review_enabled() else "the same resource budget. "
+    )
     return (
         f"CANDIDATE SEARCH CONTINUATION: candidate {candidate_index + 1} "
         f"of {candidate_count}, attempt {attempt_index + 1} of {attempt_count} "
@@ -2238,7 +2266,7 @@ def _render_candidate_improvement_prompt(step_name: str, candidate_index: int,
         "The previous attempt compiled, synthesized, and passed available "
         "correctness checks. Produce another complete HLS C++ implementation "
         "for the same optimization step that tries to improve latency while "
-        "preserving correctness and staying within the same resource budget. "
+        f"preserving correctness and staying within {resource_budget}"
         "Do not remove required interface pragmas or change the public "
         "function signature.\n\n"
         "Previous successful attempt report:\n"
@@ -2258,6 +2286,14 @@ def _render_regression_guidance(step_name: str, reasons: list) -> str:
     if not reasons:
         return ""
     bullets = "\n".join(f"  - {r}" for r in reasons)
+    if qor_profile_review_enabled():
+        return (
+            f"The previous `{step_name}` candidate was rejected:\n{bullets}\n"
+            "Address these measured failures while improving feasible latency. "
+            "Resource growth is allowed when it buys performance within device "
+            "capacity and target timing; do not default to a serial design. "
+            "Preserve correctness and true dependencies."
+        )
     return (
         f"Your previous attempt at the `{step_name}` step was REJECTED because "
         f"it regressed against the previous step's metrics:\n"
@@ -3449,6 +3485,26 @@ class QualityRepairAgent(_AgentBase):
     def design_sweep_enabled() -> bool:
         return _qor_design_sweep_enabled()
 
+    def review_optimization_candidate(self, *, code, report, csim,
+                                      skill_meta, synth_success):
+        """Inspect candidate evidence without gold metrics or another model call."""
+        orch = self.orch
+        review = review_qor_candidate(
+            parent_code=orch.hls_code or "", candidate_code=code,
+            parent_report=orch.synth_report or {}, candidate_report=report or {},
+            skill_meta=skill_meta, library=orch.skill_library,
+            feasibility=_paper_candidate_feasibility(
+                report or {}, csim=csim,
+                correctness_required=bool(orch.testbench_code),
+                part=orch.part, clock_ns=orch.clock_ns,
+            ),
+            capacity=_resource_capacity_for(orch.part), synth_success=synth_success,
+        )
+        if not hasattr(orch, "qor_profile_reviews"):
+            orch.qor_profile_reviews = []
+        orch.qor_profile_reviews.append(review)
+        return review
+
     def _run_llm_repair(
         self,
         ground_truth_report: dict,
@@ -3620,6 +3676,9 @@ class QualityRepairAgent(_AgentBase):
             "feasibility": dict(feasibility),
             "csim": _sanitize_test_summary(evaluation.get("csim")),
             "metrics": extract_qor_metrics(report),
+            "compiler_realization": compiler_knob_realization(
+                report, changed_knobs
+            ),
             "report_sha256": C2HLSOrchestrator._candidate_report_sha256(report),
             "selection_score": (
                 selection_score if math.isfinite(selection_score) else None
@@ -3634,6 +3693,7 @@ class QualityRepairAgent(_AgentBase):
         orch = self.orch
         summary: dict[str, Any] = {
             "schema_version": "c2hls.qor-design-sweep.v1",
+            "method_version": QOR_METHOD_VERSION,
             "enabled": self.design_sweep_enabled(),
             "attempted": False,
             "applied": False,
@@ -3669,6 +3729,10 @@ class QualityRepairAgent(_AgentBase):
         tile_values = _positive_env_int_list(
             QOR_SWEEP_TILE_VALUES_ENV, "4,8,16,32,64"
         )
+        widen_values = _positive_env_int_list(
+            QOR_SWEEP_WIDEN_VALUES_ENV, "64,128,256,512,1024"
+        )
+        exact_knob_name = os.getenv(QOR_SWEEP_KNOB_NAME_ENV, "").strip()
         interactions_enabled = _env_flag(QOR_SWEEP_INTERACTIONS_ENV)
         max_interactions = (
             min(
@@ -3691,9 +3755,14 @@ class QualityRepairAgent(_AgentBase):
             ii_values=ii_values,
             tile_values=tile_values,
             stream_depth_values=factor_values,
-            max_knobs=max_knobs,
+            widen_values=widen_values,
+            max_knobs=(None if exact_knob_name else max_knobs),
             preferred_kinds=preferred_kinds,
         )
+        if exact_knob_name:
+            knobs = [knob for knob in knobs if knob.name == exact_knob_name][
+                :max_knobs
+            ]
         fixed_values = {
             knob.knob_id: (
                 knob.current_value
@@ -3745,6 +3814,8 @@ class QualityRepairAgent(_AgentBase):
                 "factor_values": list(factor_values),
                 "ii_values": list(ii_values),
                 "tile_values": list(tile_values),
+                "widen_values": list(widen_values),
+                "exact_knob_name": exact_knob_name or None,
                 "interactions": interactions_enabled,
                 "max_interactions": max_interactions,
                 "preferred_knob_kinds": list(preferred_kinds),
@@ -3781,10 +3852,33 @@ class QualityRepairAgent(_AgentBase):
             max_candidates=ofat_budget,
         )
         records: list[dict[str, Any]] = []
+        skipped_payloads: list[dict[str, Any]] = []
         evaluated: dict[str, dict[str, Any]] = {}
         codes = {"frozen_parent": parent_code}
         parent_integrity_checks = 0
         budget_exhausted = False
+        compiler_inactive_knobs: dict[str, dict[str, Any]] = {}
+
+        def skip_if_compiler_inactive(payload: dict) -> bool:
+            inactive = [
+                compiler_inactive_knobs[item.get("knob_id")]
+                for item in payload.get("changed_knobs") or []
+                if item.get("knob_id") in compiler_inactive_knobs
+            ]
+            if not inactive:
+                return False
+            compact = {key: value for key, value in payload.items() if key != "code"}
+            compact.update({
+                "status": "skipped_compiler_inactive_knob",
+                "reason": (
+                    "Vitis previously reported that this frozen-parent knob is "
+                    "overridden; additional values cannot control the synthesized "
+                    "design."
+                ),
+                "compiler_realization": inactive,
+            })
+            skipped_payloads.append(compact)
+            return True
 
         def evaluate_payload(payload: dict) -> Optional[dict]:
             nonlocal parent_integrity_checks, budget_exhausted
@@ -3809,11 +3903,17 @@ class QualityRepairAgent(_AgentBase):
             records.append(record)
             evaluated[payload["candidate_id"]] = evaluation
             codes[payload["candidate_id"]] = payload["code"]
+            realization = record.get("compiler_realization") or {}
+            for item in realization.get("knobs") or []:
+                if item.get("overridden") is True and item.get("knob_id"):
+                    compiler_inactive_knobs[str(item["knob_id"])] = dict(item)
             if evaluation.get("budget_exhausted"):
                 budget_exhausted = True
             return record
 
         for payload in candidate_payloads:
+            if skip_if_compiler_inactive(payload):
+                continue
             evaluate_payload(payload)
             if budget_exhausted:
                 break
@@ -3843,6 +3943,8 @@ class QualityRepairAgent(_AgentBase):
                 max_candidates=min(max_interactions, remaining),
             )
             for payload in interaction_payloads:
+                if skip_if_compiler_inactive(payload):
+                    continue
                 evaluate_payload(payload)
                 if budget_exhausted:
                     break
@@ -3880,9 +3982,40 @@ class QualityRepairAgent(_AgentBase):
         else:
             winner = parent_record
 
+        knob_trends = summarize_knob_trends(
+            records,
+            knobs,
+            parent=parent_record,
+        )
+        compiler_observed = sum(
+            (record.get("compiler_realization") or {}).get("all_observed") is True
+            for record in records
+        )
+        compiler_overridden = sum(
+            (record.get("compiler_realization") or {}).get("any_overridden") is True
+            for record in records
+        )
+        explanation = winner_explanation(parent_record, winner)
+        if compiler_overridden:
+            explanation += (
+                f" Vitis reported that the requested knob was compiler-overridden "
+                f"in {compiler_overridden}/{len(records)} evaluated candidates."
+            )
+        elif knob_trends and all(
+            trend.get("observable_synthesis_response") is False
+            for trend in knob_trends
+        ):
+            explanation += (
+                " Source values changed, but the observed schedule, timing, latency, "
+                "and resource metrics did not; this knob is inactive for the frozen "
+                "parent under the tested toolchain."
+            )
+
         summary.update({
             "candidates": records,
+            "skipped_candidates": skipped_payloads,
             "candidate_count": len(records),
+            "skipped_candidate_count": len(skipped_payloads),
             "feasible_candidate_count": sum(
                 1 for record in records if record.get("feasible") is True
             ),
@@ -3890,15 +4023,13 @@ class QualityRepairAgent(_AgentBase):
             "parent_integrity_checks": parent_integrity_checks,
             "parent_integrity_passed": True,
             "pareto_candidate_ids": frontier_ids,
-            "knob_trends": summarize_knob_trends(
-                records,
-                knobs,
-                parent=parent_record,
-            ),
+            "knob_trends": knob_trends,
+            "compiler_realization_observed_candidate_count": compiler_observed,
+            "compiler_override_candidate_count": compiler_overridden,
             "winner_candidate_id": winner["candidate_id"],
             "winner_code_sha256": winner["code_sha256"],
             "winner_metrics": winner["metrics"],
-            "winner_explanation": winner_explanation(parent_record, winner),
+            "winner_explanation": explanation,
             "fixed_parent_code_sha256_after_evaluation": qor_code_sha256(
                 parent_code
             ),
@@ -4222,6 +4353,7 @@ class C2HLSOrchestrator:
             self.anthropic_client = anthropic.Anthropic(
                 api_key=api_key,
                 timeout=_llm_timeout_seconds(),
+                max_retries=0 if os.getenv("C2HLS_API_BUDGET_LEDGER") else 2,
             )
         else:
             if self.use_hosted_openai:
@@ -4235,6 +4367,7 @@ class C2HLSOrchestrator:
                 base_url=self.base_url,
                 api_key=self.key,
                 timeout=_llm_timeout_seconds(),
+                max_retries=0 if os.getenv("C2HLS_API_BUDGET_LEDGER") else 2,
             )
 
         # Per-agent LLM cache. Populated lazily when an agent's model differs
@@ -4495,7 +4628,7 @@ class C2HLSOrchestrator:
                 "input_tokens": prompt_tokens,
                 "output_tokens": completion_tokens,
                 "total_tokens": total_tokens,
-                "cached_tokens": self._usage_value(prompt_details, "cached_tokens"),
+                "cached_tokens": self._usage_value(prompt_details, "cached_tokens", self._usage_value(usage, "prompt_cache_hit_tokens")),
                 "reasoning_tokens": self._usage_value(completion_details, "reasoning_tokens"),
             }
 
@@ -4875,6 +5008,7 @@ class C2HLSOrchestrator:
             client = anthropic.Anthropic(
                 api_key=api_key,
                 timeout=_llm_timeout_seconds(),
+                max_retries=0 if os.getenv("C2HLS_API_BUDGET_LEDGER") else 2,
             )
             entry = ("anthropic", client)
         else:
@@ -4899,6 +5033,7 @@ class C2HLSOrchestrator:
                 base_url=base_url,
                 api_key=api_key,
                 timeout=_llm_timeout_seconds(),
+                max_retries=0 if os.getenv("C2HLS_API_BUDGET_LEDGER") else 2,
             ))
         self._extra_clients[model] = entry
         return entry
@@ -4975,9 +5110,8 @@ class C2HLSOrchestrator:
                 "requested_top_p": configured_decoding["top_p"],
                 "mutually_exclusive_omission": omitted_decoding,
             }
-            response = client.messages.create(
-                **anthropic_kwargs,
-            )
+            response = send_budgeted_request(self, client.messages.create,
+                model=model, messages=messages, max_tokens=max_tokens, kwargs=anthropic_kwargs)
             self._record_llm_usage(
                 provider="anthropic",
                 model=model,
@@ -5055,13 +5189,29 @@ class C2HLSOrchestrator:
                 "reasoning": "required",
                 "reasoning_effort": reasoning_effort,
             }
+        elif kind == "openai" and model.lower().startswith("gpt-5.6"):
+            effort = os.getenv("C2HLS_OPENAI_REASONING_EFFORT", "none").strip().lower()
+            if effort not in {"none", "low", "medium", "high", "xhigh", "max"}:
+                raise ValueError("invalid C2HLS_OPENAI_REASONING_EFFORT")
+            kwargs["reasoning_effort"] = effort
+            if effort == "none":
+                for key in ("temperature", "top_p"):
+                    if configured_decoding[key] is not None:
+                        kwargs[key] = configured_decoding[key]
+            effective_decoding = {
+                "temperature": kwargs.get("temperature"), "top_p": kwargs.get("top_p"),
+                "seed": None, "seed_supported": False,
+                "seed_control": "not_requested; no reproducibility guarantee assumed",
+                "requested_seed": configured_decoding["seed"], "reasoning_effort": effort,
+            }
         else:
             for key in ("temperature", "top_p", "seed"):
                 if configured_decoding[key] is not None:
                     kwargs[key] = configured_decoding[key]
         if "qwen" in model.lower():
             kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
-        response = client.chat.completions.create(**kwargs)
+        response = send_budgeted_request(self, client.chat.completions.create,
+            model=model, messages=messages, max_tokens=max_tokens, kwargs=kwargs)
         self._record_llm_usage(
             provider=kind,
             model=model,
@@ -5553,6 +5703,7 @@ class C2HLSOrchestrator:
             golden_output_specs=self.independent_golden_specs,
         )
         self.generated_cosim = _summarize_test_result(result, True)
+        self.generated_cosim["target_code_sha256"] = selected_hash
         return self.generated_cosim
 
     def _total_synthesis_calls(self) -> int:
@@ -5982,6 +6133,14 @@ class C2HLSOrchestrator:
             # Synth succeeded — but may have regressed OR be a no-op.
             new_report = attempt["report"]
             new_code = attempt["code"]
+            review = (attempt.get("skill_prompt") or {}).get("qor_review") or {}
+            if (qor_profile_review_enabled() and outer_turn == 0
+                    and review.get("retry_recommended")):
+                regression_guidance = review["guidance"]
+                self._append_history(
+                    "system", f"[Step: {step_name}] Retrying with measured skill/QoR evidence.",
+                )
+                continue
 
             # Pillar 9 (MVP): no-op-trap check first. If the new variant
             # produced byte-identical synthesis numbers, re-prompt with that
@@ -6419,6 +6578,16 @@ class C2HLSOrchestrator:
             requested_clock_ns=self.clock_ns,
         )
         extra_blocks = []
+        if qor_profile_review_enabled():
+            extra_blocks.append(qor_resource_guidance(
+                self.synth_report or {}, _resource_capacity_for(self.part),
+            ))
+            prior_reviews = getattr(self, "qor_profile_reviews", [])
+            if prior_reviews:
+                extra_blocks.append(
+                    "Previous evaluated candidate review (not necessarily the selected "
+                    "current code):\n" + prior_reviews[-1]["guidance"]
+                )
         skill_prompt_mode = os.getenv("C2HLS_SKILL_PROMPT_MODE", "").strip().lower()
         raw_skill_prompt_scope = os.getenv(
             "C2HLS_SKILL_PROMPT_SCOPE", ""
@@ -6812,7 +6981,9 @@ class C2HLSOrchestrator:
                             if positive_only_skill_prompt else
                             "pattern → strategy → required steps → guardrails → template/example"
                         )
-                        if all_positive_skill_prompt:
+                        if render_skill_prompt_mode in {"same_content_flat", "same_content_structured"}:
+                            extra_blocks.append("Frozen guidance for this rewrite:\n\n" + skill_block)
+                        elif all_positive_skill_prompt:
                             extra_blocks.append(
                                 f"ALL POSITIVE SKILLS from library ({prompt_shape}). "
                                 "Use the applicable positive recipes as a menu for this "
@@ -6836,6 +7007,8 @@ class C2HLSOrchestrator:
                     skill_prompt_meta["injected_skill_count"] = 0
                     skill_prompt_meta["rendered_skill_count"] = 0
             except Exception as exc:  # pragma: no cover - skill injection best-effort
+                if render_skill_prompt_mode in {"same_content_flat", "same_content_structured"}:
+                    raise RuntimeError("controlled recipe injection failed") from exc
                 skill_prompt_meta["reason"] = "skill_injection_error"
                 skill_prompt_meta["error"] = str(exc)
                 logging.warning("Phase 5b skill-template injection failed: %s", exc)
@@ -6904,6 +7077,11 @@ class C2HLSOrchestrator:
 
         for turn in range(attempt_limit):
             logging.info("[Step: %s] Synthesis attempt %d", step_name, turn)
+            # Each repair response has its own claims; never inherit an earlier declaration.
+            skill_prompt_meta.update(parse_skill_usage_declaration(
+                reply, rendered_skill_ids=skill_prompt_meta["rendered_skill_ids"],
+            ))
+            skill_prompt_meta.pop("qor_review", None)
             new_code = self._preflight_generated_hls_code(
                 new_code, f"Step {step_name} attempt {turn}",
             )
@@ -7038,6 +7216,16 @@ class C2HLSOrchestrator:
                 )
             outcome = self._synth_and_test(new_code, log_prefix=f"[Step: {step_name}]")
             result = outcome["synth"]
+            if qor_profile_review_enabled() and not result.get("budget_exhausted"):
+                reviewer = getattr(self, "quality_repair", None)
+                if reviewer is None:
+                    reviewer = self.quality_repair = QualityRepairAgent(self)
+                skill_prompt_meta["qor_review"] = reviewer.review_optimization_candidate(
+                    code=new_code, report=result.get("report"), csim=outcome.get("csim"),
+                    skill_meta=skill_prompt_meta, synth_success=result.get("success", False),
+                )
+                if pending_event is not None:
+                    self.synthesis_eval_events[pending_event]["skill_prompt"] = dict(skill_prompt_meta)
 
             if result.get("budget_exhausted"):
                 return {
@@ -7329,6 +7517,11 @@ class C2HLSOrchestrator:
                     result["report"],
                     new_code,
                 )
+                if qor_profile_review_enabled():
+                    improve_prompt += "\n\n" + skill_prompt_meta["qor_review"]["guidance"]
+                    improve_prompt += "\n\n" + qor_resource_guidance(
+                        result["report"], _resource_capacity_for(self.part),
+                    )
                 self.messages.append({"role": "user", "content": improve_prompt})
                 self._append_history("user", improve_prompt)
                 reply = self._call_llm(self.messages)
@@ -8199,6 +8392,19 @@ class C2HLSOrchestrator:
             },
         }
         if design_sweep_enabled:
+            self.qor_frozen_parent_snapshot = {
+                "schema_version": "c2hls.qor-paired-control.v1",
+                "benchmark": self.benchmark_name,
+                "hls_code": self.hls_code,
+                "code_sha256": qor_code_sha256(self.hls_code),
+                "final_report": copy.deepcopy(self.synth_report),
+                "csim": copy.deepcopy(self.generated_csim),
+                "parent_origin": dict(self.qor_parent_origin),
+                "llm_usage": self._llm_usage_summary(),
+                "synthesis_evaluations": self._synthesis_evaluation_summary(),
+                "control": "same trajectory immediately before additive QoR search",
+                "reference_blind": self.reference_blind,
+            }
             quality_agent = getattr(self, "quality_repair", None)
             if quality_agent is None:
                 quality_agent = QualityRepairAgent(self)
@@ -8226,9 +8432,11 @@ class C2HLSOrchestrator:
             clock_ns=self.clock_ns,
         )
         selected_cosim = self._run_selected_winner_cosim()
-        selected_cosim_ok = not (
+        selected_cosim_required = bool(
             _cosim_selected_only() and self.supports_cosim and self.testbench_code
-        ) or _selected_cosim_measurement_ok(selected_cosim)
+        )
+        selected_cosim_valid = _selected_cosim_measurement_ok(selected_cosim)
+        selected_cosim_ok = not selected_cosim_required or selected_cosim_valid
         run_success = (
             bool(self.synth_report)
             and (
@@ -8282,6 +8490,7 @@ class C2HLSOrchestrator:
             ),
             "quality_repair": quality_repair,
             "qor_design_sweep": quality_repair.get("design_sweep"),
+            "qor_profile_reviews": getattr(self, "qor_profile_reviews", []),
             "skill_library_provenance": self.skill_library_provenance,
             "llm_usage": self._llm_usage_summary(),
             "synthesis_evaluations": self._synthesis_evaluation_summary(),
@@ -8291,7 +8500,10 @@ class C2HLSOrchestrator:
                 self, "cosim_target_code_sha256", None
             ),
             "candidate_feasibility": candidate_feasibility,
-            "selected_cosim_measurement_valid": selected_cosim_ok,
+            "selected_cosim_measurement_valid": selected_cosim_valid,
+            "selected_cosim_required": selected_cosim_required,
+            "selected_cosim_policy_satisfied": selected_cosim_ok,
+            "rtl_executed_pass": selected_cosim_valid,
             "selected_cosim_measurement_error": (
                 "selected winner lacks a passing executed RTL cycle measurement"
                 if not selected_cosim_ok else ""
@@ -8336,6 +8548,16 @@ class C2HLSOrchestrator:
 
     def save_multistep_results(self, output_dir: str, bench_name: str, results: dict):
         os.makedirs(output_dir, exist_ok=True)
+
+        paired_parent = getattr(self, "qor_frozen_parent_snapshot", None)
+        if paired_parent:
+            parent_code = paired_parent.get("hls_code") or ""
+            if qor_code_sha256(parent_code) != paired_parent["code_sha256"]:
+                raise RuntimeError("QoR paired-control source hash changed before export")
+            Path(output_dir, f"{bench_name}_pre_qor.cpp").write_text(parent_code)
+            Path(output_dir, f"{bench_name}_pre_qor.json").write_text(
+                json.dumps(paired_parent, indent=2, default=str) + "\n"
+            )
 
         if self.hls_code:
             with open(os.path.join(output_dir, f"{bench_name}_final.cpp"), "w") as f:
@@ -8416,9 +8638,11 @@ class C2HLSOrchestrator:
             clock_ns=self.clock_ns,
         )
         selected_cosim = self._run_selected_winner_cosim()
-        selected_cosim_ok = not (
+        selected_cosim_required = bool(
             _cosim_selected_only() and self.supports_cosim and self.testbench_code
-        ) or _selected_cosim_measurement_ok(selected_cosim)
+        )
+        selected_cosim_valid = _selected_cosim_measurement_ok(selected_cosim)
+        selected_cosim_ok = not selected_cosim_required or selected_cosim_valid
         run_success = (
             not _feasibility_selection_enabled()
             or candidate_feasibility.get("feasible")
@@ -8433,6 +8657,7 @@ class C2HLSOrchestrator:
             "cosim": self.generated_cosim,
             "quality_repair": quality_repair,
             "qor_design_sweep": quality_repair.get("design_sweep"),
+            "qor_profile_reviews": getattr(self, "qor_profile_reviews", []),
             "turn_history": self.turn_results,
             "preflight_patches": self.preflight_patches,
             "frozen_phase_b": self.frozen_phase_b,
@@ -8444,7 +8669,10 @@ class C2HLSOrchestrator:
                 self, "cosim_target_code_sha256", None
             ),
             "candidate_feasibility": candidate_feasibility,
-            "selected_cosim_measurement_valid": selected_cosim_ok,
+            "selected_cosim_measurement_valid": selected_cosim_valid,
+            "selected_cosim_required": selected_cosim_required,
+            "selected_cosim_policy_satisfied": selected_cosim_ok,
+            "rtl_executed_pass": selected_cosim_valid,
             "selected_cosim_measurement_error": (
                 "selected winner lacks a passing executed RTL cycle measurement"
                 if not selected_cosim_ok else ""
@@ -8676,7 +8904,7 @@ def _hlsfactory_shape_registry_path() -> Path:
 
 
 def _authoritative_hlsfactory_output_specs(
-    meta: dict, testbench_code: str
+    meta: dict, testbench_code: str, *, registry_path=None
 ) -> tuple[dict, dict, dict]:
     """Return hash-bound output contracts audited from public testbenches.
 
@@ -8688,7 +8916,8 @@ def _authoritative_hlsfactory_output_specs(
     """
 
     try:
-        registry_path = _hlsfactory_shape_registry_path()
+        from hlsfactory_registry import resolve_shape_registry
+        registry_path = resolve_shape_registry(meta, testbench_code, registry_path=registry_path)
         registry_bytes = registry_path.read_bytes()
         registry = json.loads(registry_bytes)
     except (OSError, json.JSONDecodeError) as exc:
@@ -8778,7 +9007,7 @@ def _authoritative_hlsfactory_output_specs(
     }
 
 
-def _prepare_independent_golden(inputs: dict) -> dict:
+def _prepare_independent_golden(inputs: dict, *, shape_registry_path=None) -> dict:
     """Build and validate a CPU oracle for print-only benchmark testbenches.
 
     The output text is intentionally kept in the private ``output`` field for
@@ -8851,7 +9080,7 @@ def _prepare_independent_golden(inputs: dict) -> dict:
         shape_registry: dict[str, str] = {}
         if is_hlsfactory:
             specs, declarations, shape_registry = _authoritative_hlsfactory_output_specs(
-                meta, inputs.get("testbench_code") or ""
+                meta, inputs.get("testbench_code") or "", registry_path=shape_registry_path
             )
             if set(parsed) != set(specs):
                 raise ValueError(
@@ -10431,6 +10660,19 @@ def _validate_gold_reference_uncached(inputs: dict) -> dict:
 
 def validate_gold_reference(inputs: dict) -> dict:
     """Validate gold HLS evidence, reusing an exact-input cache when enabled."""
+    if os.getenv("C2HLS_REFERENCE_VALIDATE_MODE", "").strip() == "public_only":
+        provenance = inputs.get("independent_golden_provenance") or {}
+        ready = (_reference_blind_enabled() and provenance.get("required") is True
+                 and provenance.get("status") == "passed"
+                 and bool(inputs.get("independent_golden_output"))
+                 and bool(inputs.get("independent_golden_specs")))
+        return {
+            "benchmark_ready": bool(ready), "reference_source": "independent_public_oracle",
+            "ground_truth_status": "not_evaluated", "report": {}, "workflow": [],
+            "synthesis": {"status": "not_run", "ran": False, "success": False},
+            "invalid_reason": "" if ready else "public-only evaluation requires reference isolation and a passing independent oracle",
+            "reference_cache": {"enabled": False, "used": False},
+        }
     cached, cache_provenance = _load_reference_validation_cache(inputs)
     benchmark = inputs.get("bench_name") or inputs.get("meta", {}).get("benchmark") or "benchmark"
     if cached is not None:
@@ -10736,7 +10978,7 @@ def sanitize_saved_result_record(result: dict, reference_validation: dict | None
 
         output["reference_validation"] = normalized_reference
         output["ground_truth_report"] = normalized_reference.get("report", {})
-        output["ground_truth_status"] = "valid" if normalized_reference.get("benchmark_ready") else "invalid"
+        output["ground_truth_status"] = ("not_evaluated" if normalized_reference.get("reference_source") == "independent_public_oracle" else "valid" if normalized_reference.get("benchmark_ready") else "invalid")
         output["baseline_status"] = normalized_reference.get("synthesis", {}).get("status", "failed")
         output["invalid_reference_reason"] = "" if normalized_reference.get("benchmark_ready") else normalized_reference.get("invalid_reason", "")
         if "ground_truth_workflow" in output:
@@ -10853,6 +11095,10 @@ def _build_run_attribution(orchestrator, meta: dict) -> dict:
             "tile_values": os.getenv(
                 QOR_SWEEP_TILE_VALUES_ENV, "4,8,16,32,64"
             ),
+            "widen_values": os.getenv(
+                QOR_SWEEP_WIDEN_VALUES_ENV, "64,128,256,512,1024"
+            ),
+            "exact_knob_name": os.getenv(QOR_SWEEP_KNOB_NAME_ENV) or None,
             "interactions": _env_flag(QOR_SWEEP_INTERACTIONS_ENV),
             "max_interactions": os.getenv(
                 QOR_SWEEP_MAX_INTERACTIONS_ENV, "2"
@@ -10955,7 +11201,7 @@ def _finalize_singleshot_results(bench_name: str, meta: dict, success: bool,
         output.update(orchestrator._tool_call_attribution())
     output["reference_validation"] = reference_validation
     output["ground_truth_report"] = reference_validation.get("report", {})
-    output["ground_truth_status"] = "valid" if reference_validation.get("benchmark_ready") else "invalid"
+    output["ground_truth_status"] = ("not_evaluated" if reference_validation.get("reference_source") == "independent_public_oracle" else "valid" if reference_validation.get("benchmark_ready") else "invalid")
     output["baseline_status"] = reference_validation.get("synthesis", {}).get("status", "failed")
     output["invalid_reference_reason"] = reference_validation.get("invalid_reason", "")
     output["ground_truth_variant"] = {
@@ -11599,7 +11845,7 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
     results["success"] = success
     results["run"] = _build_run_attribution(orchestrator, inputs["meta"])
     results["reference_validation"] = reference_validation
-    results["ground_truth_status"] = "valid"
+    results["ground_truth_status"] = reference_validation.get("ground_truth_status", "valid")
     results["baseline_status"] = reference_validation.get("synthesis", {}).get("status", "failed")
     results["invalid_reference_reason"] = ""
     results["cosim_reference_cycle_info"] = orchestrator.cosim_reference_cycle_info
@@ -11642,12 +11888,21 @@ def run_benchmark_multistep(bench_dir: str, output_dir: str = None,
         ],
         "post_route_excluded_from_method_wall_time": True,
     }
+    if reference_validation.get("reference_source") == "independent_public_oracle":
+        results["timing_scope"]["preflight_includes"] = [
+            "public_input_load", "cpu_golden_generation", "public_oracle_contract_audit",
+        ]
     results["coverage"] = _build_coverage(
         inputs["meta"],
         reference_validation,
         results.get("csim"),
         results.get("cosim"),
     )
+    results["candidate_ledger"] = unified_candidate_ledger(results)
+    tool_flows = current_tool_summary()
+    if tool_flows is not None:
+        results["tool_flows"] = tool_flows
+        results["total_tool_calls_scope"] = "legacy_synthesis_flows_only; use tool_flows for all invocation types"
     results = sanitize_saved_result_record(results, reference_validation)
     orchestrator.save_multistep_results(output_dir, bench_name, results)
     return results

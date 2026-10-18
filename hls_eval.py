@@ -2,6 +2,9 @@
 HLS evaluation utilities: run Vitis HLS synthesis and parse reports.
 """
 
+from experiment_telemetry import record_tool
+from validation_suite import run_validation_cases
+
 import os
 import re
 import csv
@@ -41,7 +44,10 @@ logging.basicConfig(
 #                         omits it. Use "vitis" for cross-tool comparisons.
 #   C2HLS_SYNTH_TIMEOUT   Max seconds for csynth_design.
 #   C2HLS_CSIM_TIMEOUT    Max seconds for csim_design.
-#   C2HLS_COSIM_TIMEOUT   Max seconds for cosim_design.
+#   C2HLS_COSIM_TIMEOUT   Max seconds for the fresh synthesis + co-sim invocation.
+#   C2HLS_COSIM_WALL_TIMEOUT_SECONDS
+#                         Optional separate wall limit for cosim_design, including
+#                         setup/elaboration/RTL checking, excluding synthesis.
 #   C2HLS_VITIS_USER_HOME Writable HOME for Vitis/Vivado subprocesses.
 #   C2HLS_COSIM_TRACE_LEVEL
 #                         Vitis cosim trace level. Default "none" avoids
@@ -431,6 +437,7 @@ def _tcl_testbench_files(paths, *, base_dir: str = "") -> str:
     return f"add_files -tb [list {tcl_list}]\n"
 
 
+@record_tool("native_oracle")
 def run_native_testbench(
     kernel_code: str,
     testbench_code: str,
@@ -537,17 +544,33 @@ def _apply_independent_golden(
     *,
     golden_output_text: str = "",
     golden_output_specs=None,
+    stage: str = "csim",
+    validation_log=None,
 ) -> dict:
     """Correct a tool-success result using an independent output comparator."""
     if not golden_output_text:
         return result
     from golden_output import compare_hlsfactory_dumps
 
-    comparison = compare_hlsfactory_dumps(
-        golden_output_text,
-        result.get("log", ""),
-        specs=golden_output_specs or {},
-    ).to_dict()
+    if stage == "cosim":
+        from golden_output import compare_hlsfactory_cosim_dumps
+        if result.get("validation_log_scan", {}).get("complete") is False:
+            comparison = {
+                "schema_version": "c2hls.rtl-golden-comparison.v1", "passed": False,
+                "correctness_status": "invalid_output",
+                "reason": "incomplete_full_log_validation_evidence",
+                "issues": result["validation_log_scan"].get("issues", []),
+            }
+        else:
+            comparison = compare_hlsfactory_cosim_dumps(
+                result.get("log", "") if validation_log is None else validation_log,
+                golden_output_text, golden_output_specs or {})
+    elif stage == "csim":
+        comparison = compare_hlsfactory_dumps(
+            golden_output_text, result.get("log", ""), specs=golden_output_specs or {},
+        ).to_dict()
+    else:
+        raise ValueError(f"unknown golden validation stage: {stage}")
     result["correctness"] = comparison
     result["golden_output_sha256"] = hashlib.sha256(
         golden_output_text.encode("utf-8")
@@ -689,6 +712,7 @@ def _cosim_interface_depth_directives(hls_code: str, top_function: str,
     return "\n".join(lines) + ("\n" if lines else "")
 
 
+@record_tool("csynth")
 def run_hls_synthesis(
     hls_code: str,
     header_code: str = "",
@@ -956,6 +980,8 @@ def run_hls_synthesis_repeated(
 # =============================================================================
 
 
+@run_validation_cases("csim")
+@record_tool("csim")
 def run_csim(
     hls_code: str,
     testbench_code: str,
@@ -1036,6 +1062,8 @@ exit
     }, golden_output_text=golden_output_text, golden_output_specs=golden_output_specs)
 
 
+@run_validation_cases("cosim")
+@record_tool("rtl_cosim")
 def run_cosim(
     hls_code: str,
     testbench_code: str,
@@ -1051,8 +1079,12 @@ def run_cosim(
     golden_output_specs=None,
 ) -> dict:
     """Run Vitis HLS co-simulation (cosim)."""
+    from cosim_walltime import configured_timeout, run_guarded_command, tcl_phase_command
+
+    phase_timeout = configured_timeout()
     if work_dir is None:
         work_dir = make_tempdir(prefix="hls_cosim_")
+    marker_path = Path(work_dir) / "c2hls_cosim_phase.tsv"
 
     inputs = _materialize_inputs(
         work_dir, hls_code, header_code, header_name,
@@ -1074,6 +1106,8 @@ add_files {src_file}
     cosim_cmd = "cosim_design"
     if DEFAULT_COSIM_TRACE_LEVEL:
         cosim_cmd += f" -trace_level {DEFAULT_COSIM_TRACE_LEVEL}"
+    if phase_timeout is not None:
+        cosim_cmd = tcl_phase_command(cosim_cmd, marker_path)
 
     tcl_content += _tcl_testbench_files(
         [tb_file, *inputs["extra_files"]],
@@ -1094,14 +1128,41 @@ exit
         f.write(tcl_content)
 
     cmd = f"cd {work_dir} && vitis-run --tcl --input_file {tcl_file}"
-    log, timed_out = _run_vitis_cmd(cmd, COSIM_TIMEOUT)
+    timing = {}
+    validation_log = None
+    if phase_timeout is None:
+        # Frozen/default behavior stays on the original invocation watchdog.
+        started = time.monotonic()
+        log, timed_out = _run_vitis_cmd(cmd, COSIM_TIMEOUT)
+        timing["invocation_wall_seconds"] = time.monotonic() - started
+    else:
+        temp_root = configure_temp_env(create=True)
+        exports = _vitis_shell_exports(temp_root)
+        guarded_cmd = (
+            f"{exports} && source {shlex.quote(VITIS_SETTINGS)} && {exports} && "
+            f"cd {shlex.quote(str(work_dir))} && vitis-run --tcl "
+            f"--input_file {shlex.quote(str(tcl_file))}"
+        )
+        timing = run_guarded_command(
+            ["bash", "-lc", guarded_cmd], invocation_timeout=COSIM_TIMEOUT,
+            phase_timeout=phase_timeout, marker_path=marker_path,
+            log_path=Path(work_dir) / "c2hls_cosim_invocation.log",
+        )
+        log, timed_out = timing.pop("log"), timing["timed_out"]
+        validation_log = timing.pop("validation_log", None)
     if timed_out:
+        timeout_error = (
+            f"Cosim phase timed out after {phase_timeout:g}s of wall time"
+            if timing.get("timeout_phase") == "cosim_design"
+            else f"Cosim timed out after {COSIM_TIMEOUT}s"
+        )
         return {
             "success": False,
             "passed": False,
-            "error": f"Cosim timed out after {COSIM_TIMEOUT}s",
-            "log": "",
+            "error": timeout_error,
+            "log": log if phase_timeout is not None else "",
             "work_dir": work_dir,
+            **timing,
         }
 
     log_lower = log.lower()
@@ -1118,7 +1179,20 @@ exit
         or "undefined symbol" in log_lower
         or "ld.lld" in log_lower
     )
+    if phase_timeout is not None:
+        passed = timing.get("tool_success_marker_seen") is True
+        has_error = timing.get("tool_failure_marker_seen") is True
     success = passed and not has_error
+    if phase_timeout is not None and (
+        timing.get("returncode") != 0
+        or not timing.get("phase_markers_complete")
+        or timing.get("classification") != "completed"
+        or timing.get("validation_log_scan", {}).get("complete") is not True
+        or has_error
+    ):
+        # A printed PASS cannot override tool failure, missing phase evidence,
+        # or incomplete cleanup in the guarded policy.
+        passed = success = False
 
     # Vitis writes the cycle count to sim/report/verilog/lat.rpt. We pull
     # $TOTAL_EXECUTE_TIME from there per the JSONL schema's rtl_sim contract;
@@ -1139,7 +1213,9 @@ exit
         "kernel_runtime_cycles": kernel_runtime_cycles,
         "kernel_runtime_us": kernel_runtime_us,
         "kernel_clock_freq_mhz": kernel_clock_freq_mhz,
-    }, golden_output_text=golden_output_text, golden_output_specs=golden_output_specs)
+        **timing,
+    }, golden_output_text=golden_output_text, golden_output_specs=golden_output_specs,
+        stage="cosim", validation_log=validation_log)
 
 
 def _stage_nova_workdir(nova_bench_dir: str,

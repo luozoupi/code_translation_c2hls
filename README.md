@@ -1,5 +1,20 @@
 # C2HLS Agentic Translation Framework
 
+## Current Session Handoff
+
+For the current local implementation, live July COSIM backfill, completed QoR
+reviewer A/B, uncommitted updates, result/artifact directories, and safe resume
+instructions, start with [the September 28 handoff](docs/session_handoff_20260928.md).
+The [refreshable directory index](artifacts/handoff/handoff_index_20260928.md)
+also maps local and NAS archives. These are dated snapshots: check live campaign
+state and frozen manifests before modifying code or launching experiments.
+
+For reconciled experiment evidence and the SIGMETRICS revision priorities, see
+[the September 28 status and next-step plan](docs/experiment_status_20260928.md).
+Run `python3 scripts/snapshot_experiment_status.py` to produce a fresh progress,
+failure, provenance, and cost ledger under `artifacts/experiment_status/`
+without writing to the running campaign's output files.
+
 C2HLS is a multi-agent framework for translating plain C/C++ kernels into
 Vitis HLS kernels, then validating and scoring the generated designs against
 reference HLS implementations. Its main target today is Rodinia/Rodinia-Nova

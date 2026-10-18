@@ -17,6 +17,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Iterable, Optional, Sequence
 
 
+QOR_METHOD_VERSION = "axi_bundle_linked_v2"
 RESOURCE_KEYS = ("dsp", "bram", "lut", "ff", "uram")
 PARETO_KEYS = (
     "latency_cycles_worst",
@@ -30,11 +31,12 @@ PARETO_KEYS = (
 
 STEP_PREFERRED_KINDS = {
     "pipeline": ("pipeline_ii",),
-    "unroll": ("unroll_factor",),
+    "unroll": ("compute_lanes", "unroll_factor"),
     "tiling": ("tile_size", "partition_factor", "reshape_factor"),
     "doublebuffer": (
         "dataflow_enabled",
         "stream_depth",
+        "buffer_tile_depth",
         "tile_size",
         "partition_enabled",
         "partition_factor",
@@ -50,6 +52,7 @@ STEP_PREFERRED_KINDS = {
     ),
     "resource": (
         "allocation_limit",
+        "bind_op_implementation",
         "bind_op_latency",
         "bind_storage_latency",
         "resource_latency",
@@ -78,13 +81,26 @@ class QorKnob:
     replacement_template: str
     source_context: str
     scope: str
+    dependent_lines: tuple[int, ...] = ()
+    dependent_controls: tuple[str, ...] = ()
+    dependent_source_lines: tuple[int, ...] = ()
+    dependent_source_roles: tuple[str, ...] = ()
+    linked_replacements: tuple[tuple[int, int, str], ...] = ()
+    adapter_bundle: Optional[str] = None
+    affected_ports: tuple[str, ...] = ()
 
     def public(self) -> dict[str, Any]:
         value = asdict(self)
         value.pop("start", None)
         value.pop("end", None)
         value.pop("replacement_template", None)
+        value.pop("linked_replacements", None)
         value["candidate_values"] = list(self.candidate_values)
+        value["dependent_lines"] = list(self.dependent_lines)
+        value["dependent_controls"] = list(self.dependent_controls)
+        value["dependent_source_lines"] = list(self.dependent_source_lines)
+        value["dependent_source_roles"] = list(self.dependent_source_roles)
+        value["affected_ports"] = list(self.affected_ports)
         return value
 
 
@@ -114,6 +130,10 @@ def _make_numeric_knob(
     name: str,
     values: Sequence[int],
     scope: str,
+    dependent_lines: Sequence[int] = (),
+    dependent_controls: Sequence[str] = (),
+    dependent_source_lines: Sequence[int] = (),
+    dependent_source_roles: Sequence[str] = (),
 ) -> QorKnob:
     start, end = match.span("value")
     current = int(match.group("value"))
@@ -136,6 +156,12 @@ def _make_numeric_knob(
         replacement_template="{value}",
         source_context=context,
         scope=scope,
+        dependent_lines=tuple(int(value) for value in dependent_lines),
+        dependent_controls=tuple(str(value) for value in dependent_controls),
+        dependent_source_lines=tuple(
+            int(value) for value in dependent_source_lines
+        ),
+        dependent_source_roles=tuple(str(value) for value in dependent_source_roles),
     )
 
 
@@ -169,6 +195,82 @@ def _make_disable_toggle(
     )
 
 
+def _discover_axi_adapter_knobs(code: str, values: Sequence[int]) -> list[QorKnob]:
+    # Preserve offsets while ignoring braces and pragmas inside comments/strings.
+    masked = re.sub(
+        r'/\*.*?\*/|//[^\n]*|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'',
+        lambda match: re.sub(r"[^\n]", " ", match.group(0)), code, flags=re.DOTALL,
+    )
+    groups: dict[tuple[tuple[int, ...], str], list[dict[str, Any]]] = {}
+    scope: list[int] = []
+    offset = 0
+    for line_number, line in enumerate(masked.splitlines(keepends=True), 1):
+        if re.match(r"\s*#\s*pragma\s+HLS\s+INTERFACE\b", line, re.I) and re.search(r"\bm_axi\b", line, re.I):
+            port = re.search(r"\bport\s*=\s*([A-Za-z_]\w*)\b", line, re.I)
+            bundle = re.search(r"\bbundle\s*=\s*([A-Za-z_]\w*)\b", line, re.I)
+            if port:
+                key = (tuple(scope), bundle.group(1) if bundle else "<default>")
+                groups.setdefault(key, []).append({
+                    "line": line_number, "offset": offset, "text": line,
+                    "port": port.group(1),
+                })
+        elif not line.lstrip().startswith("#"):
+            for match in re.finditer(r"[{}]", line):
+                if match.group() == "{":
+                    scope.append(offset + match.start())
+                elif scope:
+                    scope.pop()
+        offset += len(line)
+
+    knobs = []
+    for (_, bundle), members in groups.items():
+        for option in ("num_read_outstanding", "num_write_outstanding",
+                       "max_read_burst_length", "max_write_burst_length"):
+            targets = []
+            current_values = []
+            explicit = 0
+            for member in members:
+                match = re.search(rf"\b{option}\s*=\s*(\S+)", member["text"], re.I)
+                if match:
+                    if not match.group(1).isdigit():
+                        # Macro/expression controls need a separate linked-source analysis.
+                        break
+                    explicit += 1
+                    start, end = match.span(1)
+                    targets.append((member["offset"] + start, member["offset"] + end, "{value}"))
+                    current_values.append(int(match.group(1)))
+                else:
+                    insertion = member["offset"] + len(member["text"].rstrip())
+                    targets.append((insertion, insertion, f" {option}={{value}}"))
+                    current_values.append(None)
+            else:
+                if not explicit:
+                    continue
+                domain = values
+                if option.endswith("burst_length"):
+                    domain = [int(v) for v in values if 1 <= int(v) <= 256 and int(v) & (int(v) - 1) == 0]
+                current = current_values[0] if len(set(current_values)) == 1 else None
+                candidates = _normalized_values(domain, current)
+                if not candidates:
+                    continue
+                first = members[0]
+                context = "\n".join(member["text"].strip() for member in members)
+                name = f"{option}:bundle={bundle}@L{first['line']}"
+                knobs.append(QorKnob(
+                    knob_id=_stable_knob_id(f"interface_{option}", name, first["line"], context),
+                    kind=f"interface_{option}", name=name, line=first["line"],
+                    current_value=current,
+                    current_label=str(current) if current is not None else "mixed_or_default",
+                    candidate_values=candidates, start=targets[0][0], end=targets[0][1],
+                    replacement_template=targets[0][2], linked_replacements=tuple(targets[1:]),
+                    source_context=context, scope="axi_adapter",
+                    dependent_lines=tuple(member["line"] for member in members[1:]),
+                    dependent_controls=(f"shared_adapter:{bundle}:{option}",),
+                    adapter_bundle=bundle, affected_ports=tuple(member["port"] for member in members),
+                ))
+    return knobs
+
+
 def discover_qor_knobs(
     code: str,
     *,
@@ -184,8 +286,8 @@ def discover_qor_knobs(
 
     Discovery is intentionally conservative.  It does not infer loop bounds or
     rewrite arbitrary expressions.  Every returned knob changes one integer
-    token, except unqualified PIPELINE/UNROLL pragmas where a parameter is
-    appended.
+    token, except unqualified pragmas and linked controls. AXI adapter options
+    are one factor shared by all ports in the same lexical scope and bundle.
     """
 
     knobs: list[QorKnob] = []
@@ -301,13 +403,8 @@ def discover_qor_knobs(
                 )
             )
 
-    interface_options = (
-        "max_widen_bitwidth",
-        "num_read_outstanding",
-        "num_write_outstanding",
-        "max_read_burst_length",
-        "max_write_burst_length",
-    )
+    knobs.extend(_discover_axi_adapter_knobs(code, stream_depth_values))
+    interface_options = ("max_widen_bitwidth",)
     for option in interface_options:
         interface_pattern = re.compile(
             rf"(?im)^\s*#\s*pragma\s+HLS\s+INTERFACE\b[^\n]*?"
@@ -340,11 +437,10 @@ def discover_qor_knobs(
         original = match.group(0)
         if re.search(r"(?i)\bmax_widen_bitwidth\s*=", original):
             continue
-        body, separator, comment = original.partition("//")
+        body = original.partition("//")[0]
         port_match = re.search(r"(?i)\bport\s*=\s*([A-Za-z_]\w*)", body)
         port = port_match.group(1) if port_match else "unknown"
         line = _line_number(code, match.start())
-        rendered_comment = f" //{comment}" if separator else ""
         context = original.strip()
         knobs.append(
             QorKnob(
@@ -360,11 +456,9 @@ def discover_qor_knobs(
                 current_value=None,
                 current_label="auto",
                 candidate_values=_normalized_values(widen_values, None),
-                start=match.start(),
-                end=match.end(),
-                replacement_template=(
-                    body.rstrip() + " max_widen_bitwidth={value}" + rendered_comment
-                ),
+                start=match.start() + len(body.rstrip()),
+                end=match.start() + len(body.rstrip()),
+                replacement_template=" max_widen_bitwidth={value}",
                 source_context=context,
                 scope="interface",
             )
@@ -383,25 +477,128 @@ def discover_qor_knobs(
         if line_end < 0:
             line_end = len(code)
         line_context = code[line_start:line_end]
-        explicit_name = any(
-            token in name.upper() for token in ("TILE", "BLOCK")
+        upper_name = name.upper()
+        linked_compute_name = any(
+            token in upper_name for token in ("LANE", "PARALLEL", "PE_COUNT")
         )
+        linked_pipeline_name = any(
+            token in upper_name for token in ("COMPUTE_II", "PIPELINE_II")
+        )
+        linked_stream_name = any(
+            token in upper_name
+            for token in ("STREAM_DEPTH", "FIFO_DEPTH")
+        )
+        linked_buffer_name = "BUFFER_DEPTH" in upper_name
+        linked_widen_name = any(
+            token in upper_name
+            for token in ("AXI_BITS", "AXI_WIDTH", "WIDEN_BITWIDTH")
+        )
+        linked_allocation_name = any(
+            token in upper_name for token in ("MUL_LIMIT", "ALLOCATION_LIMIT")
+        )
+        linked_bind_impl_name = "MUL_IMPL" in upper_name
+        linked_bind_op_name = "MUL_LATENCY" in upper_name
+        explicit_name = any(token in upper_name for token in ("TILE", "BLOCK"))
         conventional_name = name.lower() in {
             "ti", "tj", "tk", "tm", "tn", "tx", "ty", "tz"
         }
-        if not explicit_name and not (
+        linked_named_control = any((
+            linked_compute_name,
+            linked_pipeline_name,
+            linked_stream_name,
+            linked_buffer_name,
+            linked_widen_name,
+            linked_allocation_name,
+            linked_bind_impl_name,
+            linked_bind_op_name,
+        ))
+        if not linked_named_control and not explicit_name and not (
             conventional_name
             and re.search(r"(?i)\b(tile|block)\b", line_context)
         ):
             continue
+        if linked_compute_name:
+            kind, values, scope = (
+                "compute_lanes", factor_values, "linked_compute_memory"
+            )
+        elif linked_pipeline_name:
+            kind, values, scope = "pipeline_ii", ii_values, "linked_pipeline"
+        elif linked_stream_name:
+            kind, values, scope = (
+                "stream_depth", stream_depth_values, "linked_dataflow_buffer"
+            )
+        elif linked_buffer_name:
+            kind, values, scope = (
+                "buffer_tile_depth", factor_values, "linked_ping_pong_buffer"
+            )
+        elif linked_widen_name:
+            kind, values, scope = (
+                "interface_max_widen_bitwidth",
+                widen_values,
+                "linked_interface",
+            )
+        elif linked_allocation_name:
+            kind, values, scope = (
+                "allocation_limit", factor_values, "linked_operation_allocation"
+            )
+        elif linked_bind_impl_name:
+            kind, values, scope = (
+                "bind_op_implementation",
+                factor_values,
+                "linked_operation_binding_implementation",
+            )
+        elif linked_bind_op_name:
+            kind, values, scope = (
+                "bind_op_latency", factor_values, "linked_operation_binding"
+            )
+        else:
+            kind, values, scope = "tile_size", tile_values, "loop_nest"
+        dependent_lines: list[int] = []
+        dependent_controls: list[str] = []
+        dependent_source_lines: list[int] = []
+        dependent_source_roles: list[str] = []
+        dependency_pattern = re.compile(
+            rf"(?im)^\s*#\s*pragma\s+HLS\s+"
+            rf"(?P<control>UNROLL|ARRAY_PARTITION|ARRAY_RESHAPE|PIPELINE|"
+            rf"STREAM|INTERFACE|ALLOCATION|BIND_OP)\b"
+            rf"[^\n]*\b{re.escape(name)}\b[^\n]*$"
+        )
+        for dependency in dependency_pattern.finditer(code):
+            dependent_lines.append(_line_number(code, dependency.start()))
+            dependent_controls.append(dependency.group("control").lower())
+        reference_pattern = re.compile(
+            rf"(?im)^(?P<line>[^\n]*\b{re.escape(name)}\b[^\n]*)$"
+        )
+        definition_line = _line_number(code, match.start("name"))
+        for reference in reference_pattern.finditer(code):
+            reference_line = _line_number(code, reference.start())
+            if reference_line == definition_line:
+                continue
+            source_line = reference.group("line")
+            if "#pragma" in source_line:
+                role = "hls_directive"
+            elif re.search(rf"\[\s*{re.escape(name)}\s*\]", source_line):
+                role = "array_extent"
+            elif re.search(rf"\+=\s*{re.escape(name)}\b", source_line):
+                role = "loop_stride"
+            elif re.search(rf"<\s*{re.escape(name)}\b", source_line):
+                role = "loop_bound"
+            else:
+                role = "source_expression"
+            dependent_source_lines.append(reference_line)
+            dependent_source_roles.append(role)
         knobs.append(
             _make_numeric_knob(
                 code,
                 match,
-                kind="tile_size",
+                kind=kind,
                 name=name,
-                values=tile_values,
-                scope="loop_nest",
+                values=values,
+                scope=scope,
+                dependent_lines=dependent_lines,
+                dependent_controls=dependent_controls,
+                dependent_source_lines=dependent_source_lines,
+                dependent_source_roles=dependent_source_roles,
             )
         )
 
@@ -537,21 +734,23 @@ def discover_qor_knobs(
 
     priority = {
         "pipeline_ii": 0,
-        "unroll_factor": 1,
-        "partition_factor": 2,
-        "reshape_factor": 3,
-        "tile_size": 4,
-        "stream_depth": 5,
-        "allocation_limit": 6,
-        "dataflow_enabled": 7,
-        "partition_enabled": 8,
-        "reshape_enabled": 9,
-        "bind_op_latency": 10,
-        "bind_storage_latency": 11,
-        "resource_latency": 12,
-        "bind_op_enabled": 13,
-        "bind_storage_enabled": 14,
-        "resource_enabled": 15,
+        "compute_lanes": 1,
+        "unroll_factor": 2,
+        "partition_factor": 3,
+        "reshape_factor": 4,
+        "tile_size": 5,
+        "stream_depth": 6,
+        "buffer_tile_depth": 7,
+        "allocation_limit": 8,
+        "dataflow_enabled": 9,
+        "partition_enabled": 10,
+        "reshape_enabled": 11,
+        "bind_op_latency": 12,
+        "bind_storage_latency": 13,
+        "resource_latency": 14,
+        "bind_op_enabled": 15,
+        "bind_storage_enabled": 16,
+        "resource_enabled": 17,
     }
     preferred_rank = {
         kind: index for index, kind in enumerate(dict.fromkeys(preferred_kinds))
@@ -604,19 +803,21 @@ def discover_qor_knobs(
 def apply_knob_values(code: str, assignments: Sequence[tuple[QorKnob, int]]) -> str:
     """Apply non-overlapping replacements against one frozen parent."""
 
-    replacements = sorted(assignments, key=lambda item: item[0].start, reverse=True)
-    result = code
-    previous_start = len(code) + 1
-    for knob, raw_value in replacements:
+    replacements = []
+    for knob, raw_value in assignments:
         value = int(raw_value)
         zero_is_valid = knob.kind.endswith("_enabled")
         if value < 0 or (value == 0 and not zero_is_valid) or value not in knob.candidate_values:
             raise ValueError(f"illegal value {value} for {knob.knob_id}")
-        if knob.end > previous_start:
+        for start, end, template in ((knob.start, knob.end, knob.replacement_template), *knob.linked_replacements):
+            replacements.append((start, end, template.format(value=value)))
+    result = code
+    previous_start = len(code) + 1
+    for start, end, replacement in sorted(replacements, key=lambda item: (item[0], item[1]), reverse=True):
+        if end > previous_start:
             raise ValueError("overlapping QoR knob replacements")
-        replacement = knob.replacement_template.format(value=value)
-        result = result[: knob.start] + replacement + result[knob.end :]
-        previous_start = knob.start
+        result = result[:start] + replacement + result[end:]
+        previous_start = start
     return result
 
 
@@ -645,6 +846,12 @@ def _candidate_payload(
             "kind": knob.kind,
             "name": knob.name,
             "line": knob.line,
+            "dependent_lines": list(knob.dependent_lines),
+            "dependent_controls": list(knob.dependent_controls),
+            "dependent_source_lines": list(knob.dependent_source_lines),
+            "dependent_source_roles": list(knob.dependent_source_roles),
+            "adapter_bundle": knob.adapter_bundle,
+            "affected_ports": list(knob.affected_ports),
             "from": knob.current_value if knob.current_value is not None else knob.current_label,
             "to": int(value),
         }
@@ -770,6 +977,190 @@ def extract_qor_metrics(report: Optional[dict[str, Any]]) -> dict[str, Any]:
     for key in RESOURCE_KEYS:
         metrics[key] = _number(report.get(key))
     return metrics
+
+
+def _loop_source_line(loop_name: Any) -> Optional[int]:
+    match = re.search(r"(?:^|/)VITIS_LOOP_(\d+)_\d+(?:$|/)", str(loop_name or ""))
+    return int(match.group(1)) if match else None
+
+
+def compiler_knob_realization(
+    report: Optional[dict[str, Any]],
+    changed_knobs: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
+    """Relate requested loop controls to decisions reported by Vitis."""
+
+    feedback = (report or {}).get("feedback") or {}
+    transformations = [
+        item for item in (feedback.get("schedule_transformations") or [])
+        if isinstance(item, dict)
+    ]
+
+    def matches_line(record: dict[str, Any], pragma_line: Optional[int]) -> bool:
+        if pragma_line is None:
+            return False
+        source_line = _number(record.get("source_line"))
+        loop_line = _loop_source_line(record.get("loop"))
+        return any(
+            line is not None and abs(int(line) - int(pragma_line)) <= 1
+            for line in (source_line, loop_line)
+        )
+
+    knobs = []
+    for changed in changed_knobs:
+        kind = str(changed.get("kind") or "")
+        requested = _number(changed.get("to"))
+        pragma_line = int(changed["line"]) if changed.get("line") is not None else None
+        dependent_lines = [
+            int(value) for value in (changed.get("dependent_lines") or [])
+        ]
+        dependent_controls = [
+            str(value) for value in (changed.get("dependent_controls") or [])
+        ]
+        dependent_source_lines = [
+            int(value) for value in (changed.get("dependent_source_lines") or [])
+        ]
+        dependent_source_roles = [
+            str(value) for value in (changed.get("dependent_source_roles") or [])
+        ]
+        record: dict[str, Any] = {
+            "knob_id": changed.get("knob_id"),
+            "kind": kind,
+            "name": changed.get("name"),
+            "requested_value": requested,
+            "pragma_line": pragma_line,
+            "dependent_lines": dependent_lines,
+            "dependent_controls": dependent_controls,
+            "dependent_source_lines": dependent_source_lines,
+            "dependent_source_roles": dependent_source_roles,
+            "status": "not_observed",
+            "observed": False,
+            "overridden": False,
+        }
+        if kind in {"unroll_factor", "compute_lanes"}:
+            unroll_lines = [
+                line
+                for line, control in zip(dependent_lines, dependent_controls)
+                if control == "unroll"
+            ]
+            if kind == "unroll_factor":
+                unroll_lines.append(pragma_line)
+
+            def matches_unroll(record_item: dict[str, Any]) -> bool:
+                return any(
+                    matches_line(record_item, line)
+                    for line in unroll_lines
+                    if line is not None
+                )
+
+            implied = [
+                item for item in transformations
+                if item.get("kind") == "complete_unroll_implied_by_pipeline"
+                and matches_unroll(item)
+            ]
+            loop_names = {item.get("loop") for item in implied}
+            unrolled = [
+                item for item in transformations
+                if item.get("kind") in {"complete_unroll", "partial_unroll"}
+                and (
+                    item.get("loop") in loop_names
+                    or matches_unroll(item)
+                )
+            ]
+            effective = _number(
+                unrolled[-1].get("effective_factor") if unrolled else None
+            )
+            if implied:
+                compiler_matches_request = bool(
+                    kind == "compute_lanes"
+                    and requested is not None
+                    and effective is not None
+                    and effective == requested
+                )
+                record.update({
+                    "status": (
+                        "realized_by_enclosing_pipeline"
+                        if compiler_matches_request
+                        else "overridden_by_enclosing_pipeline"
+                    ),
+                    "observed": True,
+                    "overridden": not compiler_matches_request,
+                    "effective_value": effective,
+                    "loop": implied[-1].get("loop"),
+                    "evidence": [
+                        implied[-1].get("message"),
+                        unrolled[-1].get("message") if unrolled else None,
+                    ],
+                })
+            elif unrolled:
+                overridden = bool(
+                    requested is not None
+                    and effective is not None
+                    and effective != requested
+                )
+                record.update({
+                    "status": (
+                        "compiler_normalized_value" if overridden else "realized"
+                    ),
+                    "observed": True,
+                    "overridden": overridden,
+                    "effective_value": effective,
+                    "loop": unrolled[-1].get("loop"),
+                    "unroll_mode": unrolled[-1].get("mode"),
+                    "evidence": [unrolled[-1].get("message")],
+                })
+            elif kind == "compute_lanes" and requested == 1 and transformations:
+                record.update({
+                    "status": "realized_rolled",
+                    "observed": True,
+                    "overridden": False,
+                    "effective_value": 1.0,
+                    "unroll_mode": "rolled",
+                    "evidence": [
+                        "No Vitis unroll transformation was emitted for the "
+                        "linked factor-1 reduction."
+                    ],
+                })
+        elif kind == "pipeline_ii":
+            pipeline_lines = [
+                line
+                for line, control in zip(dependent_lines, dependent_controls)
+                if control == "pipeline"
+            ]
+            if not pipeline_lines:
+                pipeline_lines.append(pragma_line)
+            pipeline = [
+                item for item in transformations
+                if item.get("kind") == "pipeline_result"
+                and any(matches_line(item, line) for line in pipeline_lines)
+            ]
+            if pipeline:
+                decision = pipeline[-1]
+                target = _number(decision.get("target_ii"))
+                final = _number(decision.get("final_ii"))
+                overridden = bool(
+                    requested is not None and target is not None and target != requested
+                )
+                record.update({
+                    "status": (
+                        "compiler_normalized_target" if overridden else "target_realized"
+                    ),
+                    "observed": True,
+                    "overridden": overridden,
+                    "target_ii": target,
+                    "achieved_ii": final,
+                    "target_achieved": bool(target is not None and final == target),
+                    "loop": decision.get("loop"),
+                    "evidence": [decision.get("message")],
+                })
+        knobs.append(record)
+    return {
+        "schema_version": "c2hls.compiler-knob-realization.v1",
+        "available": bool(transformations),
+        "knobs": knobs,
+        "all_observed": bool(knobs) and all(item["observed"] for item in knobs),
+        "any_overridden": any(item["overridden"] for item in knobs),
+    }
 
 
 def _pareto_value(record: dict[str, Any], key: str) -> float:
@@ -945,6 +1336,23 @@ def summarize_knob_trends(
         valid_ii_pairs = [
             (value, metric) for value, metric in ii_pairs if metric is not None
         ]
+        synthesis_signature_keys = (
+            "latency_cycles_worst",
+            "interval",
+            "estimated_clock_period_ns",
+            "achieved_pipeline_ii_max",
+            *RESOURCE_KEYS,
+        )
+        synthesis_signatures = {
+            tuple(_number((item[2].get("metrics") or {}).get(key)) for key in synthesis_signature_keys)
+            for item in observations
+        }
+        source_hashes = {
+            str(item[2].get("code_sha256"))
+            for item in observations
+            if item[2].get("code_sha256")
+        }
+        observable_response = len(synthesis_signatures) > 1
         summaries.append({
             "knob_id": knob.knob_id,
             "kind": knob.kind,
@@ -963,6 +1371,16 @@ def summarize_knob_trends(
                 )
                 if len(valid_ii_pairs) >= 2
                 else None
+            ),
+            "distinct_source_code_count": len(source_hashes),
+            "distinct_synthesis_metric_signature_count": len(synthesis_signatures),
+            "observable_synthesis_response": observable_response,
+            "realization_status": (
+                "observable_synthesis_response"
+                if observable_response
+                else "source_changed_no_observable_synthesis_response"
+                if len(source_hashes) > 1
+                else "insufficient_source_identity_evidence"
             ),
             "observations": [
                 {

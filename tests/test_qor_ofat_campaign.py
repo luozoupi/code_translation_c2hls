@@ -57,6 +57,64 @@ def test_campaign_preflight_binds_exact_typed_knob(tmp_path: Path) -> None:
     assert result["discoverable_candidate_count"] == 3
 
 
+def test_campaign_preflight_validates_every_striped_gemm_lane(tmp_path: Path) -> None:
+    benchmark = "hlsfactory_gemm"
+    benchmark_dir = tmp_path / "benches" / benchmark
+    benchmark_dir.mkdir(parents=True)
+    (benchmark_dir / "gemm.h").write_text("#define NK 80\n")
+    hls_code = """\
+#include "gemm.h"
+void kernel_gemm() {
+double local_A[80][80];
+double local_B[80][80];
+#pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=2 dim=2
+#pragma HLS ARRAY_PARTITION variable=local_B cyclic factor=2 dim=1
+// Compute: C = alpha * A * B + beta * C
+for (int i = 0; i < 80; ++i) {
+  for (int j = 0; j < 80; ++j) {
+#pragma HLS PIPELINE II=1
+    double sum = 0.0;
+    for (int k = 0; k < 80; ++k) {
+#pragma HLS UNROLL factor=2
+      sum += local_A[i][k] * local_B[k][j];
+    }
+  }
+}
+// Store C
+}
+"""
+    source = tmp_path / "source.json"
+    source.write_text(json.dumps({
+        "benchmark": benchmark,
+        "hls_code": hls_code,
+        "csim": {"passed": True},
+        "final_report": _metrics(100),
+    }))
+    case = {
+        "case_id": "gemm_striped_compute_lanes",
+        "benchmark": benchmark,
+        "result_path": str(source),
+        "origin_step": "unroll",
+        "expected_knob_kind": "compute_lanes",
+        "expected_knob_name": "GEMM_LANES",
+        "gemm_linked_lanes_parent": True,
+        "gemm_linked_lanes_architecture": "striped_accumulators",
+        "parent_lanes": 2,
+        "factor_values": "1,2,4,8,16",
+        "max_knobs": 1,
+        "max_candidates": 4,
+    }
+    config = {"benchmarks_root": str(tmp_path / "benches")}
+    valid = campaign._preflight_case(case, config)
+    assert valid["passed"] is True
+    assert valid["linked_control"]["domain_validation"]["nk"] == 80
+
+    case["factor_values"] = "1,2,3,4"
+    invalid = campaign._preflight_case(case, config)
+    assert invalid["passed"] is False
+    assert any("do not divide NK=80" in error for error in invalid["errors"])
+
+
 def test_completed_output_requires_matching_source_hash(tmp_path: Path) -> None:
     output = tmp_path / "case.json"
     output.write_text(json.dumps({
@@ -105,6 +163,7 @@ def test_analysis_exports_parent_normalized_parameter_effects(tmp_path: Path) ->
     assert candidate["schema_version"] == "c2hls.qor-ofat-measurement.v1"
     assert candidate["parameter_label"] == "2"
     assert candidate["latency_cycles_worst_ratio"] == 0.8
+    assert candidate["top_level_transaction_interval_cycles"] == 81
     assert candidate["bram_ratio"] == 1.5
     assert candidate["mean_resource_ratio"] is not None
     summary = analyze._summary(
@@ -112,6 +171,11 @@ def test_analysis_exports_parent_normalized_parameter_effects(tmp_path: Path) ->
     )
     assert summary["cycle_improvement_case_count"] == 1
     assert summary["resource_tie_improvement_case_count"] == 0
+    assert "not a loop pipeline II" in summary["metric_definitions"]["interval"]
+    report = analyze._report(summary)
+    assert "## Metric definitions" in report
+    assert "Top-level transaction interval" in report
+    assert "## Controlled-run audit" in report
 
 
 def test_analysis_resource_tie_break_matches_qor_selector() -> None:

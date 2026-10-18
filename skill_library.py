@@ -30,6 +30,7 @@ at confidence `medium` until trajectories provide statistics.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import logging
 import os
@@ -873,9 +874,36 @@ def _normalize_prompt_mode(prompt_mode: Optional[str] = None) -> str:
     return (prompt_mode if prompt_mode is not None else os.getenv("C2HLS_SKILL_PROMPT_MODE", "")).strip().lower()
 
 
+def same_content_recipe_atoms(sk: Skill) -> list[tuple[str, str]]:
+    """Full immutable knowledge for the controlled flat/structured comparison."""
+    atoms = [("pattern", sk.pattern), ("strategy", sk.strategy)]
+    for field_name in ("kind", "confidence"):
+        value = getattr(sk, field_name)
+        if value:
+            atoms.append((field_name, value))
+    for field_name in ("bottleneck_kinds", "applicable_versions", "applicable_fpgas", "tags", "required_steps", "guards"):
+        atoms.extend((field_name, value) for value in getattr(sk, field_name) if value)
+    if sk.template:
+        atoms.append(("template", sk.template))
+    return atoms
+
+
+def render_same_content_recipe(sk: Skill, *, structured: bool) -> str:
+    atoms = same_content_recipe_atoms(sk)
+    header = f"[skill {sk.id}]"
+    if structured:
+        return header + "\n" + "\n".join(f"  {kind}:\n{text}" for kind, text in atoms)
+    # Deterministic content-based order removes field grouping/step positions.
+    # The statement and code bytes are preserved, including all warning text.
+    return header + "\n" + "\n\n".join(text for _, text in sorted(
+        atoms, key=lambda item: hashlib.sha256(item[1].encode()).hexdigest()))
+
+
 def render_skill_for_prompt(sk: Skill, *, prompt_mode: Optional[str] = None) -> str:
     """Compact render with schema-1.1 guardrails/checklists."""
     normalized_mode = _normalize_prompt_mode(prompt_mode)
+    if normalized_mode in {"same_content_flat", "same_content_structured"}:
+        return render_same_content_recipe(sk, structured=normalized_mode == "same_content_structured")
     positive_preconditions = (
         normalized_mode in _POSITIVE_PRECONDITION_PROMPT_MODES
     )

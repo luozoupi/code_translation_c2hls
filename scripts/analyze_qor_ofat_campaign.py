@@ -8,6 +8,7 @@ import csv
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any
 
@@ -31,8 +32,54 @@ CASE_LABELS = {
     "bicg_unroll_factor": "BiCG: unroll factor",
     "gemver_tile_size": "GEMVER: tile size",
     "gemm_partition_factor": "GEMM: partition factor",
+    "gemm_unroll_factor": "GEMM: compute-loop unroll factor",
+    "gemm_linked_compute_lanes": "GEMM: linked compute lanes",
+    "gemm_striped_compute_lanes": "GEMM: striped accumulator lanes",
+    "gemm_striped_compute_lanes_expanded": "GEMM: striped accumulator lanes (expanded)",
+    "gemm_pipeline_compute_ii": "GEMM: compute pipeline II",
+    "gemm_tiling_k_strip": "GEMM: K strip size",
+    "gemm_doublebuffer_stream_depth": "GEMM: ping-pong tile depth",
+    "gemm_coalescing_axi_width": "GEMM: AXI width cap",
+    "gemm_resource_mul_limit": "GEMM: multiplier implementation",
     "2mm_axi_widen": "2MM: AXI width cap",
+    "2mm_linked_compute_lanes": "2MM: linked lanes across both reductions",
+    "2mm_pipeline_compute_ii": "2MM: both reduction pipeline IIs",
+    "2mm_tiling_k_strip": "2MM: phase-1 K strip size",
+    "2mm_doublebuffer_b_tile_depth": "2MM: alternating B tile depth",
+    "2mm_coalescing_axi_width": "2MM: shared AXI width cap",
+    "2mm_resource_mul_impl": "2MM: multiplier implementation",
     "trisolv_dataflow_ablation": "TRISOLV: DATAFLOW",
+}
+METRIC_LABELS = {
+    "latency_cycles_worst": "worst-case CSynth latency",
+    "interval": "top-level transaction interval",
+    "estimated_clock_period_ns": "estimated clock period",
+    "achieved_pipeline_ii_max": "maximum achieved loop II",
+    "dsp": "DSP",
+    "bram": "BRAM",
+    "lut": "LUT",
+    "ff": "FF",
+    "uram": "URAM",
+}
+METRIC_DEFINITIONS = {
+    "latency_cycles_worst": (
+        "Maximum CSynth cycles from starting one top-level kernel invocation to "
+        "its completion. This is the primary optimization objective."
+    ),
+    "interval": (
+        "Vitis SummaryOfOverallLatency/Interval-max: the minimum cycle spacing "
+        "between starts of consecutive top-level invocations. It is not a loop "
+        "pipeline II. For a sequential top function it is commonly latency + 1."
+    ),
+    "achieved_pipeline_ii_max": (
+        "Maximum achieved II among all loop scopes reported by Vitis. It is a "
+        "diagnostic aggregate and may belong to a loop unrelated to the changed "
+        "knob; the exported per-loop signature identifies the scopes."
+    ),
+    "requested_parameter": (
+        "The source-level pragma value requested in the candidate. Requested "
+        "pipeline II and achieved pipeline II are distinct measurements."
+    ),
 }
 COLORS = {
     "latency_cycles_worst": "#0072B2",
@@ -62,6 +109,20 @@ def _number(value: Any) -> float | None:
 
 
 def _parameter_label(value: Any, *, kind: str) -> str:
+    if kind == "bind_op_implementation":
+        labels = {
+            1: "fabric",
+            2: "meddsp",
+            3: "fulldsp",
+            4: "maxdsp",
+            5: "primitivedsp",
+        }
+        numeric = _number(value)
+        return (
+            labels.get(int(numeric), str(value))
+            if numeric is not None
+            else "unknown"
+        )
     if kind.endswith("_enabled"):
         return "enabled" if value in (1, "enabled") else "disabled"
     if value is None:
@@ -71,7 +132,55 @@ def _parameter_label(value: Any, *, kind: str) -> str:
 
 def _row_metrics(record: dict[str, Any]) -> dict[str, Any]:
     metrics = record.get("metrics") or {}
-    return {key: _number(metrics.get(key)) for key in METRIC_KEYS}
+    values = {key: _number(metrics.get(key)) for key in METRIC_KEYS}
+    scopes = [
+        item for item in (metrics.get("achieved_pipeline_ii") or [])
+        if isinstance(item, dict) and _number(item.get("pipeline_ii")) is not None
+    ]
+    ordered_scopes = sorted(
+        scopes,
+        key=lambda item: (
+            -float(_number(item.get("pipeline_ii")) or 0),
+            -float(_number(item.get("trip_count")) or 0),
+            str(item.get("scope_id") or ""),
+        ),
+    )
+    bottleneck = ordered_scopes[0] if ordered_scopes else {}
+    values.update({
+        "top_level_transaction_interval_cycles": values["interval"],
+        "pipeline_scope_count": len(scopes),
+        "pipeline_violation_count": sum(
+            bool(str(item.get("violation") or "").strip()) for item in scopes
+        ),
+        "max_ii_scope_id": bottleneck.get("scope_id"),
+        "max_ii_scope_value": _number(bottleneck.get("pipeline_ii")),
+        "max_ii_scope_violation": bottleneck.get("violation"),
+        "pipeline_ii_signature": "; ".join(
+            f"{item.get('scope_id') or 'unknown'}="
+            f"{_number(item.get('pipeline_ii')):g}"
+            + (f" [{item.get('violation')}]" if item.get("violation") else "")
+            for item in sorted(scopes, key=lambda item: str(item.get("scope_id") or ""))
+        ),
+    })
+    return values
+
+
+def _realization_fields(record: dict[str, Any]) -> dict[str, Any]:
+    realization = record.get("compiler_realization") or {}
+    knob = (realization.get("knobs") or [{}])[0]
+    evidence = [str(item) for item in (knob.get("evidence") or []) if item]
+    return {
+        "compiler_realization_available": realization.get("available"),
+        "compiler_control_status": knob.get("status"),
+        "compiler_control_observed": knob.get("observed"),
+        "compiler_requested_value": _number(knob.get("requested_value")),
+        "compiler_effective_value": _number(knob.get("effective_value")),
+        "compiler_pipeline_target_ii": _number(knob.get("target_ii")),
+        "compiler_pipeline_achieved_ii": _number(knob.get("achieved_ii")),
+        "compiler_pipeline_target_achieved": knob.get("target_achieved"),
+        "compiler_target_parameter_overridden": knob.get("overridden"),
+        "compiler_realization_evidence": "; ".join(evidence) or None,
+    }
 
 
 def _measurement_rows(case_path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -98,6 +207,9 @@ def _measurement_rows(case_path: Path) -> tuple[dict[str, Any], list[dict[str, A
     rows = [{
         **base,
         "candidate_id": "frozen_parent",
+        "code_sha256": parent.get("code_sha256"),
+        "source_diff_sha256": parent.get("source_diff_sha256"),
+        "report_sha256": parent.get("report_sha256"),
         "is_parent": True,
         "parameter_value": parent_value,
         "parameter_label": _parameter_label(parent_value, kind=str(knob.get("kind"))),
@@ -105,6 +217,7 @@ def _measurement_rows(case_path: Path) -> tuple[dict[str, Any], list[dict[str, A
         "feasible": parent.get("feasible") is True,
         "csim_status": (parent.get("csim") or {}).get("status"),
         "pareto_frontier": parent.get("pareto_frontier") is True,
+        **_realization_fields(parent),
         **_row_metrics(parent),
     }]
     for candidate in sweep.get("candidates") or []:
@@ -113,6 +226,9 @@ def _measurement_rows(case_path: Path) -> tuple[dict[str, Any], list[dict[str, A
         rows.append({
             **base,
             "candidate_id": candidate.get("candidate_id"),
+            "code_sha256": candidate.get("code_sha256"),
+            "source_diff_sha256": candidate.get("source_diff_sha256"),
+            "report_sha256": candidate.get("report_sha256"),
             "is_parent": False,
             "parameter_value": value,
             "parameter_label": _parameter_label(value, kind=str(knob.get("kind"))),
@@ -120,6 +236,7 @@ def _measurement_rows(case_path: Path) -> tuple[dict[str, Any], list[dict[str, A
             "feasible": candidate.get("feasible") is True,
             "csim_status": (candidate.get("csim") or {}).get("status"),
             "pareto_frontier": candidate.get("pareto_frontier") is True,
+            **_realization_fields(candidate),
             **_row_metrics(candidate),
         })
 
@@ -158,6 +275,137 @@ def _measurement_rows(case_path: Path) -> tuple[dict[str, Any], list[dict[str, A
     return payload, rows
 
 
+def _attach_compiler_realization(
+    rows: list[dict[str, Any]],
+    scratch_case_dir: Path,
+) -> None:
+    fields: dict[str, Any] = {
+        "compiler_log_audited": False,
+        "compiler_effective_label": None,
+        "compiler_complete_unroll_implied_by_pipeline": None,
+        "compiler_effective_unroll_factor": None,
+        "compiler_unroll_mode": None,
+        "compiler_ii_violation_count": None,
+    }
+    for row in rows:
+        for key, value in fields.items():
+            row.setdefault(key, value)
+    rows_by_hash = {
+        str(row.get("code_sha256")): row
+        for row in rows
+        if row.get("code_sha256")
+    }
+    for synth_dir in sorted((scratch_case_dir / "work").glob("hls_synth_*")):
+        kernel_path = synth_dir / "kernel.cpp"
+        log_path = synth_dir / "logs" / "hls_run_tcl.log"
+        if not kernel_path.is_file() or not log_path.is_file():
+            continue
+        code_hash = hashlib.sha256(kernel_path.read_bytes()).hexdigest()
+        row = rows_by_hash.get(code_hash)
+        if row is None:
+            continue
+        log = log_path.read_text(errors="replace")
+        row["compiler_log_audited"] = True
+        row["compiler_ii_violation_count"] = len(re.findall(
+            r"\bII Violation\b", log, re.IGNORECASE
+        ))
+        if row.get("knob_kind") == "bind_op_implementation":
+            report_path = (
+                synth_dir / "hls_proj" / "sol1" / "syn" / "report" / "csynth.rpt"
+            )
+            report_text = (
+                report_path.read_text(errors="replace")
+                if report_path.is_file()
+                else ""
+            )
+            realized = re.search(
+                r"\|\s*bind_op\s*\|[^\n]*\bvariable=lane_product\b"
+                r"[^\n]*\bop=dmul\b[^\n]*\bimpl=(\w+)",
+                report_text,
+                re.IGNORECASE,
+            )
+            unsupported = re.search(
+                r"Impl=(\w+) in bind_op is not supported for the targeted device",
+                log,
+                re.IGNORECASE,
+            )
+            expected = str(row.get("parameter_label") or "").lower()
+            if realized:
+                effective = realized.group(1).lower()
+                row.update({
+                    "compiler_control_status": (
+                        "target_realized"
+                        if effective == expected
+                        else "target_overridden"
+                    ),
+                    "compiler_control_observed": True,
+                    "compiler_effective_label": effective,
+                    "compiler_target_parameter_overridden": effective != expected,
+                    "compiler_realization_evidence": (
+                        f"CSynth operator table: lane_product dmul impl={effective}"
+                    ),
+                })
+            elif unsupported:
+                rejected = unsupported.group(1).lower()
+                row.update({
+                    "compiler_control_status": "unsupported_for_target",
+                    "compiler_control_observed": True,
+                    "compiler_effective_label": None,
+                    "compiler_target_parameter_overridden": False,
+                    "compiler_realization_evidence": (
+                        f"Vitis rejected dmul impl={rejected} for the target device"
+                    ),
+                })
+            continue
+        if row.get("knob_kind") not in {"compute_lanes", "unroll_factor"}:
+            continue
+        implied = bool(re.search(
+            r"complete unroll implied by the pipeline pragma", log, re.IGNORECASE
+        ))
+        effective_matches = re.findall(
+            r"Unrolling loop '([^']+)'.*?(completely|partially) "
+            r"with a factor of (\d+)",
+            log,
+            re.IGNORECASE,
+        )
+        effective_factor = (
+            int(effective_matches[-1][2]) if effective_matches else None
+        )
+        unroll_mode = effective_matches[-1][1].lower() if effective_matches else None
+        requested = _number(row.get("parameter_value"))
+        if (
+            effective_factor is None
+            and row.get("knob_kind") == "compute_lanes"
+            and requested == 1
+        ):
+            effective_factor = 1
+            unroll_mode = "rolled"
+        overridden = bool(
+            effective_factor is not None
+            and requested is not None
+            and effective_factor != requested
+        )
+        evidence = []
+        if implied:
+            evidence.append("complete unroll implied by enclosing pipeline")
+        if effective_matches:
+            loop_name, mode, factor = effective_matches[-1]
+            evidence.append(f"{loop_name} effective {mode}-unroll factor={factor}")
+        elif effective_factor == 1 and unroll_mode == "rolled":
+            evidence.append("factor-1 linked reduction remained rolled")
+        row.update({
+            "compiler_complete_unroll_implied_by_pipeline": implied,
+            "compiler_effective_unroll_factor": effective_factor,
+            "compiler_unroll_mode": unroll_mode,
+            "compiler_target_parameter_overridden": overridden,
+            "compiler_realization_evidence": (
+                "; ".join(evidence)
+                or row.get("compiler_realization_evidence")
+                or "none found"
+            ),
+        })
+
+
 def _save_figure(fig: plt.Figure, output_dir: Path, name: str) -> None:
     fig.savefig(output_dir / f"{name}.png", dpi=220, bbox_inches="tight")
     fig.savefig(output_dir / f"{name}.pdf", bbox_inches="tight")
@@ -165,9 +413,11 @@ def _save_figure(fig: plt.Figure, output_dir: Path, name: str) -> None:
 
 
 def _axes(case_count: int) -> tuple[plt.Figure, np.ndarray]:
-    columns = 3
+    columns = min(3, max(1, case_count))
     rows = math.ceil(case_count / columns)
-    fig, axes = plt.subplots(rows, columns, figsize=(15, 4.2 * rows), squeeze=False)
+    fig, axes = plt.subplots(
+        rows, columns, figsize=(5 * columns, 4.2 * rows), squeeze=False
+    )
     return fig, axes.flatten()
 
 
@@ -198,7 +448,7 @@ def _curve_plot(
                 linewidth=1.8,
                 linestyle=LINE_STYLES.get(metric, "-"),
                 color=COLORS[metric],
-                label=metric.replace("_", " "),
+                label=METRIC_LABELS.get(metric, metric.replace("_", " ")),
             )
         parent = next(row for row in rows if row["is_parent"])
         parent_y = parent.get(
@@ -363,6 +613,57 @@ def _validity(grouped: list[tuple[str, list[dict[str, Any]]]], output_dir: Path)
     _save_figure(fig, output_dir, "candidate_validity_matrix")
 
 
+def _compiler_realization_plot(
+    grouped: list[tuple[str, list[dict[str, Any]]]],
+    output_dir: Path,
+) -> None:
+    audited = []
+    for case_id, rows in grouped:
+        points = [
+            row for row in rows
+            if not row["is_parent"]
+            and _number(row.get("parameter_value")) is not None
+            and _number(row.get("compiler_effective_unroll_factor")) is not None
+        ]
+        if points:
+            audited.append((case_id, points))
+    if not audited:
+        return
+    fig, axes = _axes(len(audited))
+    for axis, (case_id, rows) in zip(axes, audited):
+        requested = [float(row["parameter_value"]) for row in rows]
+        effective = [float(row["compiler_effective_unroll_factor"]) for row in rows]
+        positions = list(range(len(rows)))
+        axis.plot(
+            positions,
+            effective,
+            marker="o",
+            linewidth=2,
+            color="#0072B2",
+            label="Vitis effective unroll",
+        )
+        axis.plot(
+            positions,
+            requested,
+            marker="o",
+            linestyle="--",
+            linewidth=1.2,
+            color="#666666",
+            label="requested source value",
+        )
+        axis.set_title(CASE_LABELS.get(case_id, case_id), fontsize=11)
+        axis.set_xlabel("requested source unroll factor")
+        axis.set_ylabel("effective synthesized unroll factor")
+        axis.set_xticks(positions, [f"{value:g}" for value in requested])
+        axis.grid(color="#E1E1E1", linewidth=0.7)
+        axis.legend(fontsize=8, frameon=False)
+    for axis in axes[len(audited):]:
+        axis.set_visible(False)
+    fig.suptitle("Requested source control versus compiler-realized control", fontsize=14)
+    fig.tight_layout()
+    _save_figure(fig, output_dir, "compiler_realization_by_parameter")
+
+
 def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     fields = list(rows[0]) if rows else []
     with path.open("w", newline="") as handle:
@@ -412,9 +713,14 @@ def _summary(
             "benchmark": payload.get("benchmark"),
             "knob_kind": parent["knob_kind"],
             "knob_name": parent["knob_name"],
+            "knob_source_context": (
+                (sweep.get("discovered_knobs") or [{}])[0]
+            ).get("source_context"),
+            "origin_step": (sweep.get("parent_origin") or {}).get("step_name"),
             "parent_value": parent["parameter_label"],
             "parent_cycles": parent["latency_cycles_worst"],
             "candidate_count": len(rows) - 1,
+            "skipped_candidate_count": len(sweep.get("skipped_candidates") or []),
             "feasible_candidate_count": sum(
                 row["feasible"] for row in rows if not row["is_parent"]
             ),
@@ -426,6 +732,85 @@ def _summary(
             "spearman_value_vs_cycles": trend.get("spearman_value_vs_worst_cycles"),
             "monotonicity_violations": trend.get("monotonicity_violations"),
             "winner_explanation": sweep.get("winner_explanation"),
+            "parent_integrity_passed": sweep.get("parent_integrity_passed") is True,
+            "exact_single_knob_mutations": all(
+                len(candidate.get("changed_knobs") or []) == 1
+                and candidate["changed_knobs"][0].get("knob_id") == parent["knob_id"]
+                and bool(candidate.get("source_diff_sha256"))
+                for candidate in sweep.get("candidates") or []
+            ),
+            "all_candidate_csim_passed": all(
+                (candidate.get("csim") or {}).get("status") == "passed"
+                for candidate in sweep.get("candidates") or []
+            ),
+            "distinct_cycle_result_count": len({
+                row.get("latency_cycles_worst")
+                for row in rows
+                if row.get("latency_cycles_worst") is not None
+            }),
+            "distinct_max_ii_result_count": len({
+                row.get("achieved_pipeline_ii_max")
+                for row in rows
+                if row.get("achieved_pipeline_ii_max") is not None
+            }),
+            "distinct_synthesis_metric_signature_count": len({
+                tuple(row.get(key) for key in (
+                    "latency_cycles_worst",
+                    "interval",
+                    "estimated_clock_period_ns",
+                    "achieved_pipeline_ii_max",
+                    *RESOURCE_KEYS,
+                ))
+                for row in rows
+            }),
+            "compiler_log_candidate_count": sum(
+                row.get("compiler_log_audited") is True for row in rows
+            ),
+            "compiler_override_candidate_count": sum(
+                row.get("compiler_target_parameter_overridden") is True
+                for row in rows
+            ),
+            "compiler_effective_unroll_factors": sorted({
+                int(row["compiler_effective_unroll_factor"])
+                for row in rows
+                if row.get("compiler_effective_unroll_factor") is not None
+            }),
+            "measurements": [
+                {
+                    key: row.get(key)
+                    for key in (
+                        "candidate_id",
+                        "is_parent",
+                        "parameter_value",
+                        "parameter_label",
+                        "status",
+                        "feasible",
+                        "csim_status",
+                        "latency_cycles_worst",
+                        "latency_cycles_worst_ratio",
+                        "top_level_transaction_interval_cycles",
+                        "estimated_clock_period_ns",
+                        "achieved_pipeline_ii_max",
+                        "pipeline_violation_count",
+                        "pipeline_ii_signature",
+                        "compiler_log_audited",
+                        "compiler_control_status",
+                        "compiler_control_observed",
+                        "compiler_effective_value",
+                        "compiler_effective_label",
+                        "compiler_pipeline_target_ii",
+                        "compiler_pipeline_achieved_ii",
+                        "compiler_pipeline_target_achieved",
+                        "compiler_complete_unroll_implied_by_pipeline",
+                        "compiler_effective_unroll_factor",
+                        "compiler_target_parameter_overridden",
+                        "compiler_ii_violation_count",
+                        "compiler_realization_evidence",
+                        *RESOURCE_KEYS,
+                    )
+                }
+                for row in rows
+            ],
         })
     toolchains = [payload.get("toolchain") or {} for payload in payloads.values()]
     toolchain_fingerprints = {
@@ -454,8 +839,12 @@ def _summary(
         "cosim": False,
         "toolchain": toolchains[0] if toolchains else {},
         "toolchain_consistent": len(toolchain_fingerprints) == 1,
+        "metric_definitions": METRIC_DEFINITIONS,
         "case_count": len(cases),
         "candidate_count": sum(case["candidate_count"] for case in cases),
+        "skipped_candidate_count": sum(
+            case["skipped_candidate_count"] for case in cases
+        ),
         "feasible_candidate_count": sum(
             case["feasible_candidate_count"] for case in cases
         ),
@@ -495,11 +884,21 @@ def _report(summary: dict[str, Any]) -> str:
         f"COSIM: **{summary.get('cosim')}**  ",
         f"Cases: **{summary['case_count']}**  ",
         f"Candidates: **{summary['candidate_count']}**  ",
+        f"Compiler-skipped candidates: **{summary['skipped_candidate_count']}**  ",
         f"Feasible candidates: **{summary['feasible_candidate_count']}**  ",
         f"Measurements including parents: **{summary['measurement_count_including_parents']}**",
         "",
-        "| Case | Control | Parent | Best tested | Parent cycles | Best cycles | Change | Valid | Monotonic violations |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+        "## Metric definitions",
+        "",
+        f"- **Worst-case CSynth latency:** {METRIC_DEFINITIONS['latency_cycles_worst']}",
+        f"- **Top-level transaction interval:** {METRIC_DEFINITIONS['interval']}",
+        f"- **Maximum achieved loop II:** {METRIC_DEFINITIONS['achieved_pipeline_ii_max']}",
+        f"- **Requested parameter:** {METRIC_DEFINITIONS['requested_parameter']}",
+        "",
+        "## Summary",
+        "",
+        "| Case | Control | Parent | Best tested | Parent cycles | Best cycles | Change | Valid | Compiler-skipped | Monotonic violations |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for case in summary["cases"]:
         ratio = case.get("best_cycle_ratio")
@@ -509,6 +908,7 @@ def _report(summary: dict[str, Any]) -> str:
             f"{case['parent_value']} | {case['best_parameter_value']} | "
             f"{case['parent_cycles']:.0f} | {case['best_cycles']:.0f} | {change} | "
             f"{case['feasible_candidate_count']}/{case['candidate_count']} | "
+            f"{case.get('skipped_candidate_count', 0)} | "
             f"{case.get('monotonicity_violations')} |"
         )
     improved = [
@@ -549,6 +949,77 @@ def _report(summary: dict[str, Any]) -> str:
         lines.append(
             "- The frozen parent remained best for: " + ", ".join(retained) + "."
         )
+    overridden = [
+        case for case in summary["cases"]
+        if case.get("compiler_override_candidate_count", 0) > 0
+    ]
+    for case in overridden:
+        lines.append(
+            f"- **Compiler realization:** Vitis overrode the requested control in "
+            f"{case['compiler_override_candidate_count']}/"
+            f"{case['compiler_log_candidate_count']} audited candidates for "
+            f"{case['case_label']}. Effective Vitis unroll factor(s): "
+            f"{case['compiler_effective_unroll_factors']}."
+        )
+    lines.extend(["", "## Controlled-run audit", ""])
+    lines.extend([
+        "| Case | Origin step | Exact one-knob edits | Parent hash stable | All candidate CSim | Distinct latencies | Distinct max-II values |",
+        "|---|---|---:|---:|---:|---:|---:|",
+    ])
+    for case in summary["cases"]:
+        lines.append(
+            f"| {case['case_label']} | {case.get('origin_step') or 'unknown'} | "
+            f"{case.get('exact_single_knob_mutations')} | "
+            f"{case.get('parent_integrity_passed')} | "
+            f"{case.get('all_candidate_csim_passed')} | "
+            f"{case.get('distinct_cycle_result_count')} | "
+            f"{case.get('distinct_max_ii_result_count')} |"
+        )
+    lines.extend(["", "## Measurements", ""])
+    for case in summary["cases"]:
+        lines.extend([
+            f"### {case['case_label']}",
+            "",
+            f"Source control: `{case.get('knob_source_context') or 'unknown'}`  ",
+            "",
+            "| Requested value | Compiler status | Effective control | Target II | Achieved II | Override | Parent | CSim | Feasible | Cycles | Change | Top-level interval | Est. period (ns) | Max loop II | Violating loops | DSP | BRAM | LUT | FF | URAM |",
+            "|---:|---|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        ])
+        for row in case.get("measurements") or []:
+            ratio = row.get("latency_cycles_worst_ratio")
+            change = f"{100.0 * (ratio - 1.0):+.2f}%" if ratio is not None else "N/A"
+            def cell(key: str, digits: int = 0) -> str:
+                value = row.get(key)
+                if value is None:
+                    return "N/A"
+                if isinstance(value, bool):
+                    return str(value)
+                if isinstance(value, (int, float)):
+                    return f"{value:.{digits}f}"
+                return str(value)
+            lines.append(
+                f"| {row.get('parameter_label')} | "
+                f"{cell('compiler_control_status')} | "
+                f"{cell('compiler_effective_label') if row.get('compiler_effective_label') is not None else cell('compiler_effective_value')} | "
+                f"{cell('compiler_pipeline_target_ii')} | "
+                f"{cell('compiler_pipeline_achieved_ii')} | "
+                f"{cell('compiler_target_parameter_overridden')} | "
+                f"{row.get('is_parent')} | "
+                f"{row.get('csim_status')} | {row.get('feasible')} | "
+                f"{cell('latency_cycles_worst')} | {change} | "
+                f"{cell('top_level_transaction_interval_cycles')} | "
+                f"{cell('estimated_clock_period_ns', 3)} | "
+                f"{cell('achieved_pipeline_ii_max')} | "
+                f"{cell('pipeline_violation_count')} | {cell('dsp')} | "
+                f"{cell('bram')} | {cell('lut')} | {cell('ff')} | {cell('uram')} |"
+            )
+        lines.extend([
+            "",
+            "Per-loop achieved-II details are retained in `measurements.csv`, "
+            "`measurements.json`, and `measurements.jsonl` under "
+            "`pipeline_ii_signature`.",
+            "",
+        ])
     lines.extend([
         "",
         "All candidates start from each case's frozen parent. Reference metrics are not "
@@ -566,6 +1037,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--campaign-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--scratch-root", type=Path)
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -574,6 +1046,8 @@ def main() -> int:
     all_rows = []
     for case_path in sorted((args.campaign_dir / "cases").glob("*.json")):
         payload, rows = _measurement_rows(case_path)
+        if args.scratch_root is not None:
+            _attach_compiler_realization(rows, args.scratch_root / case_path.stem)
         payloads[case_path.stem] = payload
         grouped.append((case_path.stem, rows))
         all_rows.extend(rows)
@@ -601,12 +1075,14 @@ def main() -> int:
     _curve_plot(
         grouped, args.output_dir,
         metrics=("latency_cycles_worst", "interval"), ratios=True,
-        name="normalized_latency_by_parameter", ylabel="ratio to frozen parent",
+        name="normalized_latency_by_parameter",
+        ylabel="latency and top-level interval ratio to frozen parent",
     )
     _curve_plot(
         grouped, args.output_dir,
         metrics=("estimated_clock_period_ns", "achieved_pipeline_ii_max"), ratios=True,
-        name="timing_ii_by_parameter", ylabel="ratio to frozen parent",
+        name="timing_ii_by_parameter",
+        ylabel="clock-period and max-loop-II ratio to frozen parent",
     )
     _curve_plot(
         grouped, args.output_dir,
@@ -616,6 +1092,7 @@ def main() -> int:
     _heatmap(all_rows, args.output_dir)
     _tradeoff(all_rows, args.output_dir)
     _validity(grouped, args.output_dir)
+    _compiler_realization_plot(grouped, args.output_dir)
     (args.output_dir / "artifact_manifest.json").write_text(
         json.dumps(_artifact_manifest(args.output_dir), indent=2) + "\n"
     )

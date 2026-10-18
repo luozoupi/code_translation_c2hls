@@ -160,6 +160,17 @@ class FingerprintTests(unittest.TestCase):
             changed_prompt = self._build(repo, bench, env)
             self.assertNotEqual(first["sha256"], changed_prompt["sha256"])
 
+    def test_qor_width_domain_and_exact_knob_change_fingerprint(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo, bench, env = self._fixture(Path(tmpdir))
+            first = self._build(repo, bench, env)
+            env["C2HLS_QOR_SWEEP_WIDEN_VALUES"] = "64,128"
+            width_changed = self._build(repo, bench, env)
+            self.assertNotEqual(first["sha256"], width_changed["sha256"])
+            env["C2HLS_QOR_SWEEP_KNOB_NAME"] = "COMPUTE_II"
+            knob_changed = self._build(repo, bench, env)
+            self.assertNotEqual(width_changed["sha256"], knob_changed["sha256"])
+
     def test_endpoint_identity_is_sensitive_and_never_serializes_credentials(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             repo, bench, env = self._fixture(Path(tmpdir))

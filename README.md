@@ -1276,3 +1276,27 @@ Khronos OpenCL headers aren't on the include path. Install
 Ubuntu 22.04 multi-arch glibc issue. Add
 `/usr/include/x86_64-linux-gnu` to `C_INCLUDE_PATH` / `CPLUS_INCLUDE_PATH`
 (handled by `setup_emu_env.sh`).
+
+## Historical branch v6
+
+This branch preserves the **preserved SIGMETRICS implementation, validation scheduling and controlled recipe-study tooling** stage of HLSmith/C2HLS.
+Its original branch was `sigmetrics2027-validation (local preservation)` at commit `42de088a7716a5d00ec69696d07b1b8b1b75840f`.
+The annotated tag `snapshot/20261018/v6` points to the original code before this documentation commit.
+
+Use this branch to inspect or reproduce that historical workflow with its original
+instructions and dependencies. Continue development on `hlsmith-clean`.
+Version labels follow the recorded development milestones; the tip milestone is
+2026-10-18. Git does not record remote branch creation times, so this is not a
+claim about when the original online branch was created. The HPCA local branch
+reflog records creation on July 13, 2026, and the SIGMETRICS local branch on
+September 28, 2026; other creation dates remain unknown.
+
+Historical results retain their original tool versions, model aliases, prompts,
+input/testbench contracts, failures and timeout policy. A branch snapshot alone
+does not reproduce hosted-model weights or establish current SIGMETRICS quality.
+Do not replace a failed archived design with a newly generated one and call it
+the same experiment. See `CHANGELOG.md` for this snapshot's provenance.
+
+Consolidation archive roots are `/mnt/data1/luo00466/c2hls_archive_20260811` and
+`/mnt/data1/luo00466/c2hls_archive_20261018`; consult their manifests for actual
+coverage. Historical absolute paths are provenance, not portable runtime defaults.

@@ -1,0 +1,194 @@
+{
+  "schema_version": "c2hls.qor-paired-config.v1",
+  "campaign_id": "deepseek_v4_pro_qor_paired27_axi_v2_20260908",
+  "model": "deepseek-v4-pro",
+  "model_revision": "deepseek-v4-pro@api.deepseek.com-20260908",
+  "endpoint": "https://api.deepseek.com",
+  "key_file": "/home/luo00466/deepseek-api.txt",
+  "benchmarks_root": "/home/luo00466/code_translation-c2hls-enhanced-fc27133/benchmarks",
+  "shape_registry": "/home/luo00466/code_translation-c2hls-hpca2027/configs/hlsfactory_output_shapes_fc27133.json",
+  "skill_library": "/home/luo00466/code_translation-c2hls-hpca2027/skill_v3_no_rmw_fc27133/skills.json",
+  "skill_mode": "matched",
+  "strategies": [
+    "flash",
+    "dynamic"
+  ],
+  "workers": 2,
+  "cell_timeout_seconds": 43200,
+  "archive_scratch": true,
+  "scratch_root": "/tmp/c2hls_deepseek_v4_pro_qor_paired27_axi_v2_20260908",
+  "storage_root": "/mnt/data2/luo00466/c2hls_rl/deepseek_v4_pro_qor_paired27_axi_v2_20260908",
+  "report_root": "/home/luo00466/code_translation-c2hls-hpca2027/results_sweeps/deepseek_v4_pro_qor_paired27_axi_v2_20260908",
+  "smoke_cell_ids": [
+    "hlsfactory_fdtd-2d_dynamic_matched",
+    "hlsfactory_gesummv_flash_matched"
+  ],
+  "benchmarks": [
+    {
+      "name": "hlsfactory_atax",
+      "family": "matrix-vector reduction"
+    },
+    {
+      "name": "hlsfactory_fdtd-2d",
+      "family": "time-dependent 2D stencil"
+    },
+    {
+      "name": "hlsfactory_bicg",
+      "family": "coupled matrix-vector reduction"
+    },
+    {
+      "name": "hlsfactory_correlation",
+      "family": "statistics and reductions"
+    },
+    {
+      "name": "hlsfactory_cholesky",
+      "family": "factorization with recurrence"
+    },
+    {
+      "name": "hlsfactory_lu",
+      "family": "triangular factorization"
+    },
+    {
+      "name": "hlsfactory_heat-3d",
+      "family": "3D stencil"
+    },
+    {
+      "name": "hlsfactory_jacobi-2d",
+      "family": "iterative 2D stencil"
+    },
+    {
+      "name": "hlsfactory_nussinov",
+      "family": "dynamic programming"
+    },
+    {
+      "name": "hlsfactory_floyd-warshall",
+      "family": "graph dynamic programming"
+    },
+    {
+      "name": "hlsfactory_gemm",
+      "family": "dense matrix multiplication"
+    },
+    {
+      "name": "hlsfactory_2mm",
+      "family": "chained matrix multiplication"
+    },
+    {
+      "name": "hlsfactory_3mm",
+      "family": "three-stage matrix multiplication"
+    },
+    {
+      "name": "hlsfactory_covariance",
+      "family": "statistics and covariance reduction"
+    },
+    {
+      "name": "hlsfactory_durbin",
+      "family": "recursive linear solver"
+    },
+    {
+      "name": "hlsfactory_gemver",
+      "family": "rank updates and matrix-vector reductions"
+    },
+    {
+      "name": "hlsfactory_gesummv",
+      "family": "two matrix-vector reductions"
+    },
+    {
+      "name": "hlsfactory_gramschmidt",
+      "family": "orthogonalization and reductions"
+    },
+    {
+      "name": "hlsfactory_jacobi-1d",
+      "family": "iterative 1D stencil"
+    },
+    {
+      "name": "hlsfactory_ludcmp",
+      "family": "LU factorization and triangular solves"
+    },
+    {
+      "name": "hlsfactory_mvt",
+      "family": "transposed matrix-vector reductions"
+    },
+    {
+      "name": "hlsfactory_seidel-2d",
+      "family": "in-place stencil with dependencies"
+    },
+    {
+      "name": "hlsfactory_symm",
+      "family": "symmetric matrix multiplication"
+    },
+    {
+      "name": "hlsfactory_syr2k",
+      "family": "symmetric rank-2k update"
+    },
+    {
+      "name": "hlsfactory_syrk",
+      "family": "symmetric rank-k update"
+    },
+    {
+      "name": "hlsfactory_trisolv",
+      "family": "triangular solve"
+    },
+    {
+      "name": "hlsfactory_trmm",
+      "family": "triangular matrix multiplication"
+    }
+  ],
+  "environment": {
+    "C2HLS_VITIS_SETTINGS": "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh",
+    "C2HLS_VITIS_VERSION": "2023.2",
+    "C2HLS_PART": "xcu280-fsvh2892-2L-e",
+    "C2HLS_CLOCK_NS": "3.33",
+    "C2HLS_FLOW_TARGET": "vitis",
+    "C2HLS_SWEEP_PROFILE": "hpca2027_reference_blind",
+    "C2HLS_LLM_TEMPERATURE": "0",
+    "C2HLS_LLM_TOP_P": "1",
+    "C2HLS_LLM_SEED": "42",
+    "C2HLS_DEEPSEEK_THINKING": "disabled",
+    "C2HLS_DEEPSEEK_REASONING_EFFORT": "high",
+    "C2HLS_MAX_COMPLETION_TOKENS": "16384",
+    "C2HLS_LLM_TIMEOUT": "900",
+    "C2HLS_TURNS": "4",
+    "C2HLS_SWEEP_CANDIDATES_PER_STEP": "1",
+    "C2HLS_SWEEP_ATTEMPTS_PER_CANDIDATE": "1",
+    "C2HLS_SWEEP_EXHAUSTIVE_CANDIDATE_ATTEMPTS": "1",
+    "C2HLS_SWEEP_SYNTH_TIMEOUT": "1200",
+    "C2HLS_SWEEP_CSIM_TIMEOUT": "300",
+    "C2HLS_SWEEP_DISABLE_ALL_COSIM": "1",
+    "C2HLS_SWEEP_COSIM_REQUIRED": "0",
+    "C2HLS_SWEEP_HW_EMU": "0",
+    "C2HLS_HW_EMU_FINAL": "0",
+    "C2HLS_SWEEP_REFERENCE_CACHE_DIR": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/reference_validation_cache",
+    "C2HLS_SWEEP_REFERENCE_CACHE_REQUIRE_COSIM": "0",
+    "C2HLS_REFERENCE_BLIND_FAIL_ON_LEAK": "1",
+    "C2HLS_SWEEP_RESUME": "1",
+    "C2HLS_PHASEB_MODE": "functional",
+    "C2HLS_SKILL_LIBRARY_FROZEN": "1",
+    "C2HLS_SKILL_LIBRARY_PERSIST": "0",
+    "C2HLS_SKILL_UPDATE_STATS": "0",
+    "C2HLS_SKILL_ROUTER_MAX_SKILLS": "3",
+    "C2HLS_SKILL_ROUTER_MIN_SCORE": "4.0",
+    "C2HLS_SKILL_USAGE_DECLARATION": "1",
+    "C2HLS_SWEEP_QOR_DESIGN_SWEEP": "1",
+    "C2HLS_SWEEP_QOR_MAX_KNOBS": "6",
+    "C2HLS_SWEEP_QOR_MAX_CANDIDATES": "18",
+    "C2HLS_SWEEP_QOR_VALUES": "1,2,3,4,5,8,12,16,32",
+    "C2HLS_SWEEP_QOR_II_VALUES": "1,2,3,4,5,6,8,10,12,16",
+    "C2HLS_SWEEP_QOR_TILE_VALUES": "2,4,8,16,32,64,128",
+    "C2HLS_QOR_SWEEP_WIDEN_VALUES": "64,128,256,512,1024",
+    "C2HLS_SWEEP_QOR_INTERACTIONS": "1",
+    "C2HLS_SWEEP_QOR_MAX_INTERACTIONS": "2",
+    "OMP_NUM_THREADS": "8"
+  },
+  "method_version": "axi_bundle_linked_v2",
+  "historical_campaign_config": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/experiment_matrix/deepseek_v4_pro_qor_paired12_20260906.json",
+  "excluded_benchmarks": [
+    {
+      "name": "hlsfactory_doitgen",
+      "reason": "Excluded by the established 27-kernel valid PolyBench protocol."
+    }
+  ],
+  "required_regression_outputs": [
+    "/home/luo00466/code_translation-c2hls-hpca2027/results_sweeps/qor_axi_bundle_regression_20260908/cases/fdtd-2d_axi_v2.json",
+    "/home/luo00466/code_translation-c2hls-hpca2027/results_sweeps/qor_axi_bundle_regression_20260908/cases/cholesky_axi_v2.json"
+  ]
+}

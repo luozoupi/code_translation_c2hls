@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "retrospective": true,
+  "manifest_sha256": "eebea81df90d822957126f7381cebe73dc6367b94472f799c1ba23abbffb6723",
+  "script_sha256": "2838055ffec5274d5efa292f9830f11714dd8386747e0aa4496c2a20528ea997",
+  "cases": [
+    {
+      "case_id": "hlsfactory_bicg_flash_r1_review_off",
+      "source_sha256": "3af0123910982d5f45b667da8b763b95d554549de87b94d02de37aaacb22a7ed",
+      "binding_ok": true,
+      "recorded_correctness": "passed",
+      "recorded_feasibility": "passed",
+      "endpoint_cycles": 76314,
+      "parent_cycles": 2348378,
+      "goal_reviews": [
+        {
+          "goal_id": "compute_ii1",
+          "target": {
+            "semantic_role": "compute",
+            "mapping": "manually_audited_exact_source_and_scope",
+            "scope_id": "kernel_bicg/kernel_bicg_Pipeline_VITIS_LOOP_46_4_VITIS_LOOP_49_5/VITIS_LOOP_46_4_VITIS_LOOP_49_5",
+            "source_line": 46,
+            "source_line_text": "for (int i = 0; i < n; i++) {"
+          },
+          "predicate": {
+            "metric": "pipeline_ii",
+            "operator": "le",
+            "threshold": 1
+          },
+          "verdict": "unmet",
+          "observation": 5,
+          "reason": "bound_compiler_metric",
+          "scope_id": "kernel_bicg/kernel_bicg_Pipeline_VITIS_LOOP_46_4_VITIS_LOOP_49_5/VITIS_LOOP_46_4_VITIS_LOOP_49_5",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": false
+        },
+        {
+          "goal_id": "load_p_ii1",
+          "target": {
+            "semantic_role": "load_p",
+            "mapping": "manually_audited_exact_source_and_scope",
+            "scope_id": "kernel_bicg/kernel_bicg_Pipeline_VITIS_LOOP_32_3/VITIS_LOOP_32_3",
+            "source_line": 32,
+            "source_line_text": "for (int j = 0; j < m; j++) {"
+          },
+          "predicate": {
+            "metric": "pipeline_ii",
+            "operator": "le",
+            "threshold": 1
+          },
+          "verdict": "achieved",
+          "observation": 1,
+          "reason": "bound_compiler_metric",
+          "scope_id": "kernel_bicg/kernel_bicg_Pipeline_VITIS_LOOP_32_3/VITIS_LOOP_32_3",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": true
+        },
+        {
+          "goal_id": "operand_bank_ports",
+          "target": {
+            "semantic_role": "compute_operand_supply"
+          },
+          "predicate": {
+            "metric": "independent_ports",
+            "operator": "ge",
+            "threshold": 4
+          },
+          "verdict": "unknown",
+          "observation": null,
+          "reason": "required_compiler_evidence_not_available",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": false
+        }
+      ],
+      "controller_action": "none_offline_only"
+    },
+    {
+      "case_id": "hlsfactory_bicg_dynamic_r1_review_off",
+      "source_sha256": "0af3c5379321deffa65a64e237e476866637e352540e48969bede57d7945d1c4",
+      "binding_ok": true,
+      "recorded_correctness": "passed",
+      "recorded_feasibility": "passed",
+      "endpoint_cycles": 23146,
+      "parent_cycles": 2348378,
+      "goal_reviews": [
+        {
+          "goal_id": "load_tile_vectors_ii1",
+          "target": {
+            "semantic_role": "load_tile_vectors",
+            "mapping": "manually_audited_exact_source_and_scope",
+            "scope_id": "kernel_bicg/kernel_bicg_Pipeline_VITIS_LOOP_52_6/VITIS_LOOP_52_6",
+            "source_line": 52,
+            "source_line_text": "for (j = 0; j < TILE_M; j++)"
+          },
+          "predicate": {
+            "metric": "pipeline_ii",
+            "operator": "le",
+            "threshold": 1
+          },
+          "verdict": "achieved",
+          "observation": 1,
+          "reason": "bound_compiler_metric",
+          "scope_id": "kernel_bicg/kernel_bicg_Pipeline_VITIS_LOOP_52_6/VITIS_LOOP_52_6",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": true
+        },
+        {
+          "goal_id": "compute_tile_rows_ii1",
+          "target": {
+            "semantic_role": "compute_tile_rows",
+            "mapping": "manually_audited_exact_source_and_scope",
+            "scope_id": "kernel_bicg/kernel_bicg_Pipeline_VITIS_LOOP_79_10/VITIS_LOOP_79_10",
+            "source_line": 79,
+            "source_line_text": "for (i = 0; i < TILE_N; i++)"
+          },
+          "predicate": {
+            "metric": "pipeline_ii",
+            "operator": "le",
+            "threshold": 1
+          },
+          "verdict": "unmet",
+          "observation": 5,
+          "reason": "bound_compiler_metric",
+          "scope_id": "kernel_bicg/kernel_bicg_Pipeline_VITIS_LOOP_79_10/VITIS_LOOP_79_10",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": false
+        },
+        {
+          "goal_id": "operand_bank_ports",
+          "target": {
+            "semantic_role": "compute_operand_supply"
+          },
+          "predicate": {
+            "metric": "independent_ports",
+            "operator": "ge",
+            "threshold": 4
+          },
+          "verdict": "unknown",
+          "observation": null,
+          "reason": "required_compiler_evidence_not_available",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": false
+        }
+      ],
+      "controller_action": "none_offline_only"
+    },
+    {
+      "case_id": "hlsfactory_atax_flash_r2_review_off",
+      "source_sha256": "5830090656e27b5534bb048746d48c695c2800ac0eb10e0fe8ac183b93a3b0fb",
+      "binding_ok": true,
+      "recorded_correctness": "passed",
+      "recorded_feasibility": "passed",
+      "endpoint_cycles": 107767,
+      "parent_cycles": 2429238,
+      "goal_reviews": [
+        {
+          "goal_id": "dot_product_ii1",
+          "target": {
+            "semantic_role": "dot_product",
+            "mapping": "manually_audited_exact_source_and_scope",
+            "scope_id": "kernel_atax/kernel_atax_Pipeline_VITIS_LOOP_45_3/VITIS_LOOP_45_3",
+            "source_line": 45,
+            "source_line_text": "for (int j = 0; j < n; j++) {"
+          },
+          "predicate": {
+            "metric": "pipeline_ii",
+            "operator": "le",
+            "threshold": 1
+          },
+          "verdict": "unmet",
+          "observation": 5,
+          "reason": "bound_compiler_metric",
+          "scope_id": "kernel_atax/kernel_atax_Pipeline_VITIS_LOOP_45_3/VITIS_LOOP_45_3",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": false
+        },
+        {
+          "goal_id": "update_y_ii1",
+          "target": {
+            "semantic_role": "update_y",
+            "mapping": "manually_audited_exact_source_and_scope",
+            "scope_id": "kernel_atax/kernel_atax_Pipeline_VITIS_LOOP_51_4/VITIS_LOOP_51_4",
+            "source_line": 51,
+            "source_line_text": "for (int j = 0; j < n; j++) {"
+          },
+          "predicate": {
+            "metric": "pipeline_ii",
+            "operator": "le",
+            "threshold": 1
+          },
+          "verdict": "achieved",
+          "observation": 1,
+          "reason": "bound_compiler_metric",
+          "scope_id": "kernel_atax/kernel_atax_Pipeline_VITIS_LOOP_51_4/VITIS_LOOP_51_4",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": true
+        },
+        {
+          "goal_id": "operand_bank_ports",
+          "target": {
+            "semantic_role": "compute_operand_supply"
+          },
+          "predicate": {
+            "metric": "independent_ports",
+            "operator": "ge",
+            "threshold": 4
+          },
+          "verdict": "unknown",
+          "observation": null,
+          "reason": "required_compiler_evidence_not_available",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": false
+        }
+      ],
+      "controller_action": "none_offline_only"
+    },
+    {
+      "case_id": "hlsfactory_atax_dynamic_r2_review_off",
+      "source_sha256": "8c0ca9d91514fe21a5ff0c2bbcd79903d4b29f46b64f8ff2be98a9c9a7625004",
+      "binding_ok": true,
+      "recorded_correctness": "passed",
+      "recorded_feasibility": "passed",
+      "endpoint_cycles": 167354,
+      "parent_cycles": 2429238,
+      "goal_reviews": [
+        {
+          "goal_id": "dot_product_ii1",
+          "target": {
+            "semantic_role": "dot_product",
+            "mapping": "manually_audited_exact_source_and_scope",
+            "scope_id": "kernel_atax/kernel_atax_Pipeline_VITIS_LOOP_36_3/VITIS_LOOP_36_3",
+            "source_line": 36,
+            "source_line_text": "for (j = 0; j < n; j++)"
+          },
+          "predicate": {
+            "metric": "pipeline_ii",
+            "operator": "le",
+            "threshold": 1
+          },
+          "verdict": "unmet",
+          "observation": 32,
+          "reason": "bound_compiler_metric",
+          "scope_id": "kernel_atax/kernel_atax_Pipeline_VITIS_LOOP_36_3/VITIS_LOOP_36_3",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": false
+        },
+        {
+          "goal_id": "update_y_ii1",
+          "target": {
+            "semantic_role": "update_y",
+            "mapping": "manually_audited_exact_source_and_scope",
+            "scope_id": "kernel_atax/kernel_atax_Pipeline_VITIS_LOOP_46_4/VITIS_LOOP_46_4",
+            "source_line": 46,
+            "source_line_text": "for (j = 0; j < n; j++)"
+          },
+          "predicate": {
+            "metric": "pipeline_ii",
+            "operator": "le",
+            "threshold": 1
+          },
+          "verdict": "unmet",
+          "observation": 2,
+          "reason": "bound_compiler_metric",
+          "scope_id": "kernel_atax/kernel_atax_Pipeline_VITIS_LOOP_46_4/VITIS_LOOP_46_4",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": false
+        },
+        {
+          "goal_id": "operand_bank_ports",
+          "target": {
+            "semantic_role": "compute_operand_supply"
+          },
+          "predicate": {
+            "metric": "independent_ports",
+            "operator": "ge",
+            "threshold": 4
+          },
+          "verdict": "unknown",
+          "observation": null,
+          "reason": "required_compiler_evidence_not_available",
+          "prerequisite_verdicts": {},
+          "prerequisite_credit": {},
+          "prerequisites_satisfied": true,
+          "eligible_for_goal_credit_with_prerequisites": false
+        }
+      ],
+      "controller_action": "none_offline_only"
+    }
+  ],
+  "goal_counts": {
+    "achieved": 3,
+    "unmet": 5,
+    "unknown": 4
+  },
+  "limits": [
+    "Post-hoc probes; no historical goal contract or causal enforcement effect.",
+    "Manual source/scope bindings; no automatic correspondence across renamed loops.",
+    "Correctness and feasibility are historical records, not new simulation.",
+    "No bank-port, traffic, or concurrency proof from source markers.",
+    "No controller state changed; unmet goals never rewrite historical selection."
+  ]
+}

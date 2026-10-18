@@ -1,0 +1,211 @@
+{
+  "schema_version": "c2hls.qor-review-ab-config.v1",
+  "campaign_id": "deepseek_flash_reviewer_ab27_20260925",
+  "model": "deepseek-flash",
+  "model_revision": "deepseek-flash@api.deepseek.com-20260925-alias",
+  "endpoint": "https://api.deepseek.com",
+  "key_file": "/home/luo00466/deepseek-api.txt",
+  "benchmarks_root": "/home/luo00466/code_translation-c2hls-enhanced-fc27133/benchmarks",
+  "shape_registry": "/home/luo00466/code_translation-c2hls-hpca2027/configs/hlsfactory_output_shapes_fc27133.json",
+  "skill_library": "/home/luo00466/code_translation-c2hls-hpca2027/skill_v3_no_rmw_fc27133/skills.json",
+  "skill_mode": "matched",
+  "strategies": [
+    "flash",
+    "dynamic"
+  ],
+  "workers": 2,
+  "cell_timeout_seconds": 7200,
+  "archive_scratch": true,
+  "scratch_root": "/tmp/c2hls_deepseek_flash_reviewer_ab27_20260925",
+  "storage_root": "/mnt/data2/luo00466/c2hls_rl/deepseek_flash_reviewer_ab27_20260925",
+  "report_root": "/home/luo00466/code_translation-c2hls-hpca2027/results_sweeps/deepseek_flash_reviewer_ab27_20260925",
+  "smoke_cell_ids": [
+    "hlsfactory_atax_flash_r1_review_off",
+    "hlsfactory_atax_flash_r1_review_on",
+    "hlsfactory_gemm_dynamic_r1_review_on",
+    "hlsfactory_gemm_dynamic_r1_review_off"
+  ],
+  "benchmarks": [
+    {
+      "name": "hlsfactory_atax",
+      "family": "matrix-vector reduction"
+    },
+    {
+      "name": "hlsfactory_fdtd-2d",
+      "family": "time-dependent 2D stencil"
+    },
+    {
+      "name": "hlsfactory_bicg",
+      "family": "coupled matrix-vector reduction"
+    },
+    {
+      "name": "hlsfactory_correlation",
+      "family": "statistics and reductions"
+    },
+    {
+      "name": "hlsfactory_cholesky",
+      "family": "factorization with recurrence"
+    },
+    {
+      "name": "hlsfactory_lu",
+      "family": "triangular factorization"
+    },
+    {
+      "name": "hlsfactory_heat-3d",
+      "family": "3D stencil"
+    },
+    {
+      "name": "hlsfactory_jacobi-2d",
+      "family": "iterative 2D stencil"
+    },
+    {
+      "name": "hlsfactory_nussinov",
+      "family": "dynamic programming"
+    },
+    {
+      "name": "hlsfactory_floyd-warshall",
+      "family": "graph dynamic programming"
+    },
+    {
+      "name": "hlsfactory_gemm",
+      "family": "dense matrix multiplication"
+    },
+    {
+      "name": "hlsfactory_2mm",
+      "family": "chained matrix multiplication"
+    },
+    {
+      "name": "hlsfactory_3mm",
+      "family": "three-stage matrix multiplication"
+    },
+    {
+      "name": "hlsfactory_covariance",
+      "family": "statistics and covariance reduction"
+    },
+    {
+      "name": "hlsfactory_durbin",
+      "family": "recursive linear solver"
+    },
+    {
+      "name": "hlsfactory_gemver",
+      "family": "rank updates and matrix-vector reductions"
+    },
+    {
+      "name": "hlsfactory_gesummv",
+      "family": "two matrix-vector reductions"
+    },
+    {
+      "name": "hlsfactory_gramschmidt",
+      "family": "orthogonalization and reductions"
+    },
+    {
+      "name": "hlsfactory_jacobi-1d",
+      "family": "iterative 1D stencil"
+    },
+    {
+      "name": "hlsfactory_ludcmp",
+      "family": "LU factorization and triangular solves"
+    },
+    {
+      "name": "hlsfactory_mvt",
+      "family": "transposed matrix-vector reductions"
+    },
+    {
+      "name": "hlsfactory_seidel-2d",
+      "family": "in-place stencil with dependencies"
+    },
+    {
+      "name": "hlsfactory_symm",
+      "family": "symmetric matrix multiplication"
+    },
+    {
+      "name": "hlsfactory_syr2k",
+      "family": "symmetric rank-2k update"
+    },
+    {
+      "name": "hlsfactory_syrk",
+      "family": "symmetric rank-k update"
+    },
+    {
+      "name": "hlsfactory_trisolv",
+      "family": "triangular solve"
+    },
+    {
+      "name": "hlsfactory_trmm",
+      "family": "triangular matrix multiplication"
+    }
+  ],
+  "environment": {
+    "C2HLS_VITIS_SETTINGS": "/mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh",
+    "C2HLS_VITIS_VERSION": "2023.2",
+    "C2HLS_PART": "xcu280-fsvh2892-2L-e",
+    "C2HLS_CLOCK_NS": "3.33",
+    "C2HLS_FLOW_TARGET": "vitis",
+    "C2HLS_SWEEP_PROFILE": "hpca2027_reference_blind",
+    "C2HLS_LLM_TEMPERATURE": "0",
+    "C2HLS_LLM_TOP_P": "1",
+    "C2HLS_LLM_SEED": "42",
+    "C2HLS_DEEPSEEK_THINKING": "disabled",
+    "C2HLS_DEEPSEEK_REASONING_EFFORT": "high",
+    "C2HLS_MAX_COMPLETION_TOKENS": "16384",
+    "C2HLS_LLM_TIMEOUT": "900",
+    "C2HLS_TURNS": "4",
+    "C2HLS_SWEEP_CANDIDATES_PER_STEP": "1",
+    "C2HLS_SWEEP_ATTEMPTS_PER_CANDIDATE": "1",
+    "C2HLS_SWEEP_EXHAUSTIVE_CANDIDATE_ATTEMPTS": "1",
+    "C2HLS_SWEEP_SYNTH_TIMEOUT": "1200",
+    "C2HLS_SWEEP_CSIM_TIMEOUT": "300",
+    "C2HLS_SWEEP_DISABLE_ALL_COSIM": "1",
+    "C2HLS_SWEEP_COSIM_REQUIRED": "0",
+    "C2HLS_SWEEP_HW_EMU": "0",
+    "C2HLS_HW_EMU_FINAL": "0",
+    "C2HLS_SWEEP_REFERENCE_CACHE_DIR": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/reference_validation_cache",
+    "C2HLS_SWEEP_REFERENCE_CACHE_REQUIRE_COSIM": "0",
+    "C2HLS_REFERENCE_BLIND_FAIL_ON_LEAK": "1",
+    "C2HLS_SWEEP_RESUME": "1",
+    "C2HLS_PHASEB_MODE": "functional",
+    "C2HLS_SKILL_LIBRARY_FROZEN": "1",
+    "C2HLS_SKILL_LIBRARY_PERSIST": "0",
+    "C2HLS_SKILL_UPDATE_STATS": "0",
+    "C2HLS_SKILL_ROUTER_MAX_SKILLS": "3",
+    "C2HLS_SKILL_ROUTER_MIN_SCORE": "4.0",
+    "C2HLS_SKILL_USAGE_DECLARATION": "1",
+    "OMP_NUM_THREADS": "8",
+    "C2HLS_SWEEP_QOR_DESIGN_SWEEP": "0"
+  },
+  "excluded_benchmarks": [
+    {
+      "name": "hlsfactory_doitgen",
+      "reason": "Excluded by the established 27-kernel valid PolyBench protocol."
+    }
+  ],
+  "review_version": "profile_skill_tradeoff_v1",
+  "replicates": 3,
+  "source_campaign": "/home/luo00466/code_translation-c2hls-hpca2027/results_sweeps/deepseek_flash_qor_profile27_20260923",
+  "phase_b_manifest": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/experiment_matrix/deepseek_flash_reviewer_ab27_20260925/phase_b_manifest.json",
+  "protocol": {
+    "comparison": "bundled reviewer and hardware-tradeoff guidance off versus on",
+    "frozen_parent_source": "completed prior dynamic Phase-B matched by code and report hashes, not performance-ranked",
+    "arms": [
+      "review_off",
+      "review_on"
+    ],
+    "ordering": "adjacent A/B blocks; alternating arm order across benchmarks/modes/samples",
+    "replication": "three independent API requests per cell; not seed-controlled or guaranteed different at temperature zero",
+    "flash_attempts_per_candidate": 2,
+    "multistep_attempts_per_candidate": 1,
+    "call_cap_per_arm": 5,
+    "synthesis_cap_per_arm": 5,
+    "selection": "same latency-first feasible best retention in both arms; frozen fallback recorded",
+    "parameter_search": false,
+    "cosim": false,
+    "statistical_unit": "benchmark cluster, repeats and strategies nested",
+    "component_ablation": "review-only and tradeoff-only follow-up not launched in this primary comparison",
+    "limitations": [
+      "model API alias is not an immutable checkpoint",
+      "one frozen Phase-B source per benchmark",
+      "CSynth timing and resource estimates, not routed hardware or COSIM",
+      "initial library and routing policy identical; subsequent skill choices may diverge as code changes"
+    ]
+  }
+}

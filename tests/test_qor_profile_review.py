@@ -139,7 +139,7 @@ def test_prompt_and_fingerprint_distinguish_opt_in_review(monkeypatch, tmp_path)
 def test_flash_campaign_labels_are_not_pro():
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
     import run_qor_paired_model_campaign as runner
-    config_path = Path(__file__).resolve().parents[1] / "artifacts/experiment_matrix/deepseek_v4_pro_qor_paired27_axi_v2_20260908.json"
+    config_path = Path(__file__).resolve().parents[1] / "tests/fixtures/protocols/deepseek_v4_pro_qor_paired27_axi_v2_20260908.json"
     config = json.loads(config_path.read_text())
     config["model"] = "deepseek-flash"
     cells = runner.cells_for(config)

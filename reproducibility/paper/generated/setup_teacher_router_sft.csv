@@ -1,0 +1,70 @@
+panel,item,series,value,unit
+teacher,2mm,M-EX,1.307047045481209,speedup
+teacher,3mm,M-MP,6.318359807905431,speedup
+teacher,atax,M-BF,1.2178860837258287,speedup
+teacher,bicg,M-BF,1.1970161455139996,speedup
+teacher,cholesky,M-EX,2.189177093813659,speedup
+teacher,correlation,M-BF,3.89044808198483,speedup
+teacher,covariance,M-MP,31.300995619275188,speedup
+teacher,durbin,M-BF,1.9805983457860592,speedup
+teacher,fdtd_2d,M-MP,1.0100097273212212,speedup
+teacher,floyd_warshall,M-SL,1.0,speedup
+teacher,gemm,M-MP,1.0307021544411406,speedup
+teacher,gemver,M-BF,2.3046915675196207,speedup
+teacher,gesummv,M-MP,1.770013037809648,speedup
+teacher,gramschmidt,M-SL,1.0,speedup
+teacher,heat_3d,M-AP,1.1414567816824857,speedup
+teacher,jacobi_1d,M-AP,1.0,speedup
+teacher,jacobi_2d,M-EX,3.50785153461813,speedup
+teacher,lu,F-AP,4.243202745053876,speedup
+teacher,ludcmp,F-AP,2.648270253865758,speedup
+teacher,mvt,M-SL,1.0,speedup
+teacher,nussinov,M-SL,1.0,speedup
+teacher,seidel_2d,M-MP,17.570198534687194,speedup
+teacher,symm,M-MP,1.1219120347187448,speedup
+teacher,syr2k,M-BF,7.139077062325871,speedup
+teacher,syrk,F-MP,1.1513172648472616,speedup
+teacher,trisolv,F-AP,2.9526160497794396,speedup
+teacher,trmm,F-EX,61.64923612269705,speedup
+router,ExtraTrees pairwise,evaluated_setups,5.0,count
+router,ExtraTrees pairwise,configurations_pruned,50.0,percent
+router,ExtraTrees pairwise,exact_best,17,count
+router,ExtraTrees pairwise,within_5pct,17,count
+router,ExtraTrees pairwise,geomean_regret,1.0557155637542108,ratio
+router,ExtraTrees pairwise,p95_regret,1.362095592496767,ratio
+router,Qwen3-0.6B prompted (no FT),evaluated_setups,5.0,count
+router,Qwen3-0.6B prompted (no FT),configurations_pruned,50.0,percent
+router,Qwen3-0.6B prompted (no FT),exact_best,14,count
+router,Qwen3-0.6B prompted (no FT),within_5pct,18,count
+router,Qwen3-0.6B prompted (no FT),geomean_regret,1.1034426589483182,ratio
+router,Qwen3-0.6B prompted (no FT),p95_regret,1.5259765188677767,ratio
+router,Qwen3-0.6B pairwise LoRA,evaluated_setups,5.0,count
+router,Qwen3-0.6B pairwise LoRA,configurations_pruned,50.0,percent
+router,Qwen3-0.6B pairwise LoRA,exact_best,8,count
+router,Qwen3-0.6B pairwise LoRA,within_5pct,9,count
+router,Qwen3-0.6B pairwise LoRA,geomean_regret,1.8872042422677333,ratio
+router,Qwen3-0.6B pairwise LoRA,p95_regret,12.702771183190544,ratio
+router,ET rank-ensemble Top-4 + prompted-Qwen Top-1,evaluated_setups,5.0,count
+router,ET rank-ensemble Top-4 + prompted-Qwen Top-1,configurations_pruned,50.0,percent
+router,ET rank-ensemble Top-4 + prompted-Qwen Top-1,exact_best,17,count
+router,ET rank-ensemble Top-4 + prompted-Qwen Top-1,within_5pct,18,count
+router,ET rank-ensemble Top-4 + prompted-Qwen Top-1,geomean_regret,1.0260460430351737,ratio
+router,ET rank-ensemble Top-4 + prompted-Qwen Top-1,p95_regret,1.0867124259320202,ratio
+router,Exhaustive teacher,evaluated_setups,10.0,count
+router,Exhaustive teacher,configurations_pruned,0.0,percent
+router,Exhaustive teacher,exact_best,19,count
+router,Exhaustive teacher,within_5pct,19,count
+router,Exhaustive teacher,geomean_regret,1.0,ratio
+router,Exhaustive teacher,p95_regret,1.0,ratio
+model_matrix,Gemma-4-31B base,Flash / no skill,721837.7470828077,geomean_worst_case_csynth_cycles
+model_matrix,Gemma-4-31B base,Flash / all-positive,1432468.7990655638,geomean_worst_case_csynth_cycles
+model_matrix,Gemma-4-31B base,Multi-step / no skill,1388736.2004883836,geomean_worst_case_csynth_cycles
+model_matrix,Gemma-4-31B base,Multi-step / all-positive,1361212.3036702017,geomean_worst_case_csynth_cycles
+model_matrix,Qwen3.6-27B active-agent SFT,Flash / no skill,1415945.0989647307,geomean_worst_case_csynth_cycles
+model_matrix,Qwen3.6-27B active-agent SFT,Flash / all-positive,2170574.8403496807,geomean_worst_case_csynth_cycles
+model_matrix,Qwen3.6-27B active-agent SFT,Multi-step / no skill,1214354.3031720573,geomean_worst_case_csynth_cycles
+model_matrix,Qwen3.6-27B active-agent SFT,Multi-step / all-positive,878807.5185362449,geomean_worst_case_csynth_cycles
+model_matrix,Qwen3.6-27B orchestrator SFT,Flash / no skill,3365789.579681259,geomean_worst_case_csynth_cycles
+model_matrix,Qwen3.6-27B orchestrator SFT,Flash / all-positive,2966889.744528442,geomean_worst_case_csynth_cycles
+model_matrix,Qwen3.6-27B orchestrator SFT,Multi-step / no skill,798606.6936300375,geomean_worst_case_csynth_cycles
+model_matrix,Qwen3.6-27B orchestrator SFT,Multi-step / all-positive,356143.99538217287,geomean_worst_case_csynth_cycles

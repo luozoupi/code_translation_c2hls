@@ -1,0 +1,21 @@
+% Generated from immutable original manifest plus the raw-field audit.
+\begin{table}[t]
+\centering
+\caption{Two distinct archived cycle fields and resource counts for TRMM. C is the controller-recorded estimate, and W is the separately retained worst-case field.
+% Both are synthesis estimates, not per-checkpoint RTL measurements. 
+BRAM uses 18-Kb blocks.}
+\label{tab:sigmetrics-trmm-resources}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabularx}{\linewidth}{@{}Xrrrrrrrr@{}}
+\toprule
+Checkpoint & C cycles & W cycles & ns & DSP & BRAM & URAM & LUT & FF \\
+\midrule
+Local staging & 469,321 & 935,521 & 2.431 & 11 & 34 & 0 & 13,323 & 12,176 \\
+Alternating buffers & 181,621 & 941,281 & 3.578 & 22 & 34 & 0 & 15,331 & 16,946 \\
+Matrix staging/pipeline & 159,267 & 303,267 & 2.767 & 11 & 34 & 4 & 9,480 & 10,031 \\
+Tiling & 97,914 & 339,194 & 2.767 & 15 & 42 & 4 & 11,282 & 11,581 \\
+Banking + unrolling & 26,233 & 61,305 & 2.494 & 92 & 82 & 0 & 18,121 & 21,930 \\
+\bottomrule
+\end{tabularx}
+\end{table}

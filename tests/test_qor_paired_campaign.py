@@ -102,7 +102,7 @@ def test_paired_parent_export_keeps_original_source_and_checks_hash(tmp_path):
 
 
 def test_registered_matrix_has_two_structurally_distinct_smoke_cells():
-    config = json.loads((REPO / "artifacts/experiment_matrix/deepseek_v4_pro_qor_paired12_20260906.json").read_text())
+    config = json.loads((REPO / "tests/fixtures/protocols/deepseek_v4_pro_qor_paired12_20260906.json").read_text())
     cells = campaign.cells_for(config)
     assert len(cells) == 24
     assert len({cell["cell_id"] for cell in cells}) == 24
@@ -154,7 +154,7 @@ def test_characterization_export_with_empty_and_valid_matrix(tmp_path):
 
 
 def test_expanded_matrix_covers_twenty_seven_benches_and_versions_method():
-    config = json.loads((REPO / "artifacts/experiment_matrix/deepseek_v4_pro_qor_paired27_axi_v2_20260908.json").read_text())
+    config = json.loads((REPO / "tests/fixtures/protocols/deepseek_v4_pro_qor_paired27_axi_v2_20260908.json").read_text())
     cells = campaign.cells_for(config)
     assert len(cells) == 54
     assert len({cell["benchmark"] for cell in cells}) == 27

@@ -608,6 +608,25 @@ class BaselineReproducibilityTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "fingerprint mismatch"):
                 load_matching_resume(result_path, changed)
 
+    def test_deepseek_baseline_fingerprint_does_not_claim_seed_support(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "metadata.json").write_text("{}")
+            (root / "plain.cpp").write_text("void workload(){}")
+            (root / "testbench.cpp").write_text("int main(){return 0;}")
+            env = self._env()
+            env.update(OPENAI_BASE_URL="https://api.deepseek.com",
+                       C2HLS_DEEPSEEK_THINKING="disabled")
+            with mock.patch.dict(os.environ, env, clear=True):
+                fingerprint = build_baseline_fingerprint(
+                    repo=REPO, inputs=_inputs(root), method=METHOD_ONE_SHOT,
+                    model_id="deepseek-flash", model_label="deepseek_flash", base_seed=42,
+                    profile={"name": "hpca2027_reference_blind"})
+            contract = fingerprint["payload"]["paper_baseline"]
+            self.assertEqual("unsupported_by_provider", contract["seed_policy"])
+            self.assertTrue(all(item["seed_supported"] is False and item["effective_seed"] is None
+                                for item in contract["candidate_seed_schedule"]))
+
 
 if __name__ == "__main__":
     unittest.main()

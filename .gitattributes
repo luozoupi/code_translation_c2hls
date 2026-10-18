@@ -1,0 +1,5 @@
+# Preserve the bytes and line endings of frozen evidence and bundled resources.
+reproducibility/paper/** -text -whitespace
+hlsmith/data/** -text
+# Recovered upstream exporter includes intentional Markdown hard line breaks.
+scripts/export_model_aware_sft_dataset.py -whitespace

@@ -1,0 +1,330 @@
+{
+  "all_kernel_best_available_figure_summary": {
+    "incomplete_kernel": "doitgen",
+    "kernel_count": 26,
+    "missing_agentic_cells": 2,
+    "winner_counts": {
+      "flash_allpos": 7,
+      "ms_allpos": 9,
+      "ms_curated": 7,
+      "ms_noskills": 3
+    }
+  },
+  "claim_boundary": {
+    "candidate_evidence": "paired passing CSim and CSynth reports",
+    "candidate_rtl_simulation": false,
+    "independent_golden_output_check": false,
+    "prohibited_interpretation": "candidate completion must not be described as functional or RTL correctness",
+    "reference_rtl_records": 26
+  },
+  "common_set_per_kernel_best_summary": {
+    "best_fixed_arm": "ms_allpos",
+    "best_fixed_common_geomean_cycles": 149040.97736162547,
+    "best_fixed_gain_over_best_no_skill_fixed": 1.6901386396789537,
+    "best_fixed_speedup_vs_reference": 8.490546128714758,
+    "best_no_skill_fixed_arm": "ms_noskills",
+    "best_no_skill_fixed_common_geomean_cycles": 251899.9147343994,
+    "best_noskill_common_geomean_cycles": 208602.45540658673,
+    "best_noskill_geomean_speedup_vs_gold": 6.066272282802911,
+    "common_geomean_cycles": 72491.62586937824,
+    "geomean_gain_over_best_noskill_per_kernel": 2.8776076257754917,
+    "geomean_speedup_vs_gold": 17.456351381024156,
+    "no_skill_wins": 3,
+    "skill_enabled_wins": 22,
+    "winner_counts": {
+      "flash_allpos": 7,
+      "ms_allpos": 8,
+      "ms_curated": 7,
+      "ms_noskills": 3
+    }
+  },
+  "evidence_sha256": "b3e13cd9750dcc130134e0cfdec9536f01e84322ea3ee8f32d5a0e9cef6cac4a",
+  "fixed_arm_summary": {
+    "flash_allpos": {
+      "common_geomean_cycles": 163291.86625813058,
+      "completed": 26,
+      "completion_ratio": 1.0,
+      "mode": "Flash",
+      "resource_fit": 26,
+      "resource_misses": [],
+      "skills": "All-positive",
+      "timing_and_resource_fit": 26,
+      "timing_closed": 26,
+      "timing_misses": []
+    },
+    "flash_curated": {
+      "common_geomean_cycles": 446310.50012414687,
+      "completed": 26,
+      "completion_ratio": 1.0,
+      "mode": "Flash",
+      "resource_fit": 26,
+      "resource_misses": [],
+      "skills": "Curated",
+      "timing_and_resource_fit": 26,
+      "timing_closed": 26,
+      "timing_misses": []
+    },
+    "flash_noskills": {
+      "common_geomean_cycles": 424808.8434166094,
+      "completed": 26,
+      "completion_ratio": 1.0,
+      "mode": "Flash",
+      "resource_fit": 26,
+      "resource_misses": [],
+      "skills": "No skills",
+      "timing_and_resource_fit": 26,
+      "timing_closed": 26,
+      "timing_misses": []
+    },
+    "ms_allpos": {
+      "common_geomean_cycles": 149040.97736162547,
+      "completed": 26,
+      "completion_ratio": 1.0,
+      "mode": "Multi-step",
+      "resource_fit": 26,
+      "resource_misses": [],
+      "skills": "All-positive",
+      "timing_and_resource_fit": 26,
+      "timing_closed": 26,
+      "timing_misses": []
+    },
+    "ms_curated": {
+      "common_geomean_cycles": 170082.70863871675,
+      "completed": 25,
+      "completion_ratio": 0.9615384615384616,
+      "mode": "Multi-step",
+      "resource_fit": 25,
+      "resource_misses": [],
+      "skills": "Curated",
+      "timing_and_resource_fit": 25,
+      "timing_closed": 25,
+      "timing_misses": []
+    },
+    "ms_noskills": {
+      "common_geomean_cycles": 251899.9147343994,
+      "completed": 25,
+      "completion_ratio": 0.9615384615384616,
+      "mode": "Multi-step",
+      "resource_fit": 25,
+      "resource_misses": [],
+      "skills": "No skills",
+      "timing_and_resource_fit": 25,
+      "timing_closed": 25,
+      "timing_misses": []
+    },
+    "oneshot": {
+      "common_geomean_cycles": 1060170.5558138494,
+      "completed": 26,
+      "completion_ratio": 1.0,
+      "mode": "One-shot",
+      "resource_fit": 26,
+      "resource_misses": [],
+      "skills": "No skills",
+      "timing_and_resource_fit": 18,
+      "timing_closed": 18,
+      "timing_misses": [
+        "cholesky",
+        "floyd-warshall",
+        "gesummv",
+        "gramschmidt",
+        "lu",
+        "nussinov",
+        "syr2k",
+        "syrk"
+      ]
+    }
+  },
+  "generator": "scripts/generate_newskills_sonnet_snapshot.py",
+  "outputs": {
+    "figures/sonnet_best_of_six.pdf": {
+      "bytes": 34855,
+      "sha256": "d9a01a44cdfc885a6622fee79e40cabdfedf5168a428c184ee55149eacbd67b9"
+    },
+    "generated/newskills_sonnet_macros.tex": {
+      "bytes": 939,
+      "sha256": "5578257d461c9c3c0fce5e1022bc763b66f83c4c49f39da9ebd42aaa40eb9788"
+    },
+    "generated/newskills_sonnet_snapshot.csv": {
+      "bytes": 6973,
+      "sha256": "5f803841dcd162867283d7c397dd5818784802edd161d8a2007e92bfb5a5c226"
+    },
+    "generated/newskills_sonnet_table.tex": {
+      "bytes": 1300,
+      "sha256": "d290bf564e1ec2b627fa3e7dac603d0358e6f42187e4428853ee1beb21af049a"
+    }
+  },
+  "schema_version": "1.0",
+  "scope": {
+    "agentic_best_of_arms": [
+      "flash_noskills",
+      "flash_curated",
+      "flash_allpos",
+      "ms_noskills",
+      "ms_curated",
+      "ms_allpos"
+    ],
+    "arms": [
+      "oneshot",
+      "flash_noskills",
+      "flash_curated",
+      "flash_allpos",
+      "ms_noskills",
+      "ms_curated",
+      "ms_allpos"
+    ],
+    "figure_selection": "best available arm on all 26 kernels; doitgen has four of six agentic arms",
+    "fixed_arm_denominator": [
+      "2mm",
+      "3mm",
+      "atax",
+      "bicg",
+      "cholesky",
+      "correlation",
+      "covariance",
+      "durbin",
+      "fdtd-2d",
+      "floyd-warshall",
+      "gemm",
+      "gemver",
+      "gesummv",
+      "gramschmidt",
+      "jacobi-1d",
+      "jacobi-2d",
+      "lu",
+      "ludcmp",
+      "mvt",
+      "nussinov",
+      "symm",
+      "syr2k",
+      "syrk",
+      "trisolv",
+      "trmm"
+    ],
+    "kernels": [
+      "2mm",
+      "3mm",
+      "atax",
+      "bicg",
+      "cholesky",
+      "correlation",
+      "covariance",
+      "doitgen",
+      "durbin",
+      "fdtd-2d",
+      "floyd-warshall",
+      "gemm",
+      "gemver",
+      "gesummv",
+      "gramschmidt",
+      "jacobi-1d",
+      "jacobi-2d",
+      "lu",
+      "ludcmp",
+      "mvt",
+      "nussinov",
+      "symm",
+      "syr2k",
+      "syrk",
+      "trisolv",
+      "trmm"
+    ],
+    "model": "claude-sonnet-4-6",
+    "per_kernel_aggregate_denominator": [
+      "2mm",
+      "3mm",
+      "atax",
+      "bicg",
+      "cholesky",
+      "correlation",
+      "covariance",
+      "durbin",
+      "fdtd-2d",
+      "floyd-warshall",
+      "gemm",
+      "gemver",
+      "gesummv",
+      "gramschmidt",
+      "jacobi-1d",
+      "jacobi-2d",
+      "lu",
+      "ludcmp",
+      "mvt",
+      "nussinov",
+      "symm",
+      "syr2k",
+      "syrk",
+      "trisolv",
+      "trmm"
+    ],
+    "platform": {
+      "device": "xcu280-fsvh2892-2L-e",
+      "flow_target": "vitis",
+      "target_clock_ns": 3.33,
+      "vitis": "2023.2"
+    },
+    "selection_rule": "among timing-closed, resource-fitting arms, minimum worst-case CSynth cycles; tied cells prefer no-skill, then flash, then stable arm order",
+    "suite": "hlsfactory_polybench_float_small"
+  },
+  "sources": {
+    "code": {
+      "branch": "c2hls_enhanced_l_pc2_api_layout",
+      "commit": "fc27133f434451f273e84c97de700f101a03eb1f",
+      "repository": "code_translation_c2hls",
+      "skill_overlay_path": "hls_full_optimization_skills_schema_1_1_package/flash_no_RMW_m_axi_skill_entries.json",
+      "skill_overlay_sha256": "2e335501aa1a9e9746069521f27850855c36a27ad172261264394317dfc4dcdf"
+    },
+    "cycle_overlay": {
+      "crosscheck_mismatches": 0,
+      "path": "external-input/newskills_sonnet_csynth_table.csv",
+      "rows": 26,
+      "sha256": "333d2d26e30abc35a86f8d536d3a4bad6619a218230a47df585312bf2782ae19"
+    },
+    "schema_records": {
+      "path": "external-input/schema_records_newskills_sonnet.jsonl",
+      "records": 438,
+      "sha256": "2c72d00e5a7120bbdd234cecf06271c2fa3e58e0805e67b117072ff1e28140a9"
+    }
+  },
+  "validation": {
+    "agentic_timing_miss_count": 0,
+    "all_candidate_resources_fit": true,
+    "candidate_rtl_record_count": 0,
+    "completed_candidate_cells": 180,
+    "designed_candidate_cells": 182,
+    "kernel_count": 26,
+    "missing_candidate_cells": [
+      {
+        "arm": "ms_curated",
+        "benchmark": "doitgen"
+      },
+      {
+        "arm": "ms_noskills",
+        "benchmark": "doitgen"
+      }
+    ],
+    "one_shot_timing_miss_count": 8,
+    "raw_report_counts": {
+      "hls_synth": 206,
+      "rtl_sim": 26,
+      "sw_run": 206
+    },
+    "timing_misses_by_arm": {
+      "flash_allpos": [],
+      "flash_curated": [],
+      "flash_noskills": [],
+      "ms_allpos": [],
+      "ms_curated": [],
+      "ms_noskills": [],
+      "oneshot": [
+        "cholesky",
+        "floyd-warshall",
+        "gesummv",
+        "gramschmidt",
+        "lu",
+        "nussinov",
+        "syr2k",
+        "syrk"
+      ]
+    }
+  }
+}

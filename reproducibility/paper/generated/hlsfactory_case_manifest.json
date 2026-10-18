@@ -1,0 +1,239 @@
+{
+  "baseline_endpoint_policy": {
+    "baseline_estimate_source": "skill_summary_current.baseline_cycles",
+    "baseline_estimated_cycles": 22598401,
+    "executed_baseline_reported": false,
+    "used_for_paper_speedup": false
+  },
+  "case": "hlsfactory_trmm",
+  "case_evidence_sha256": "4de3eb8c384cd7dd12f631a77bc2ad365e3bf7eb8be650b2cb17546573a73b97",
+  "executed_rtl_cycles": {
+    "selected_final": 50040,
+    "source_jsonl_line": 27
+  },
+  "final_cosim_source_change": "m_axi_depth_annotations_only",
+  "historical_controller_snapshot": "unavailable",
+  "input_sha256": {
+    "coalescing_source": "5bd00babd495de03e504b7fc968676b275d4266b9ff1c5561145029c9f8ebc0b",
+    "doublebuffer_source": "404de403dc81b4a310fd938acf1735262f3af9db2bd80481e8534ac36b29610e",
+    "final_cosim_jsonl": "fd35ed8ba3571a99f2738502ba2dd0981903614e83d4e9bf5f965f5778775cdc",
+    "final_cosim_source": "3532d35f3428e0648d3883738f2145dabc75f2461f588e3934e0582092e96c64",
+    "generator_source": "a103d263e1a8c010f05117f615f5e1b12be03340ffff4d4df99ed7e18cc6e67a",
+    "header": "cc8992d3b0a4c70a2892dfa269694deabe5a226e95cfba81ccbbe302b202db5b",
+    "metadata": "98dcb4c83a6e5c18503300e7271850dffaf5dac65d319df0ac2d4973ee8b4163",
+    "pipeline_source": "b8988d1b7c19aca2df837a3a04e47d546391257611c506459cf4cb7c4d8396ac",
+    "plain_source": "ee11031edebccc1f4fcbe42485ec5d23b123416b21f2cf3b954a55e24eda91da",
+    "skill_jsonl": "425501f2495823d376052b4672cee3f9e54530ed4eff1dc73cea6abd80df7d88",
+    "skill_summary": "e9f740b9870efbff70886e7d1aab33b591617c184ea6ba745a5fd8287d35edb9",
+    "testbench": "b22ed84ade9e6cf9adb5bfc2b980da44e0821dbeaf0a50c15f0863429e7bfa1f",
+    "tiling_source": "564e7014aafcfe1e19d673c387d494e51f13513743095d5585dcaa0b2b839dc7",
+    "unroll_source": "159ee8676e62dfcafd477a5c275e0c0b0508f1a7e523c1b8a97526c30528c0e4"
+  },
+  "limitations": [
+    "historical trace is not a matched causal ablation",
+    "skill-on used dynamic routing, forced skill prompts, and online persistence",
+    "reference validation was trusted_external",
+    "the historical controller source snapshot is unavailable",
+    "the historical skill library has mixed, not yet Rodinia-bound provenance",
+    "the trace records skill IDs and a store hash but not a recoverable exact skill snapshot or full prompt text",
+    "intermediate values are HLS estimates; only the selected final uses RTL cosim",
+    "the double-buffer checkpoint exceeds the nominal requested 3.33 ns period",
+    "later estimates fall below 3.33 ns but this does not erase uncertainty-adjusted compiler timing warnings",
+    "no executed baseline endpoint or per-method speedup is reported",
+    "historical one-shot and expertise-off endpoints are not used for per-kernel comparison",
+    "post-hoc host replay covers the archived test vector, not all inputs",
+    "historical run lacks a complete immutable fingerprint"
+  ],
+  "model": "claude-sonnet-4-6",
+  "posthoc_host_golden_replay": {
+    "arrays": [
+      "B"
+    ],
+    "atol": 1e-08,
+    "comparison_precision": "testbench_printf_%0.6lf_six_decimal_places",
+    "maximum_absolute_error": {
+      "coalescing": 0.0,
+      "doublebuffer": 0.0,
+      "pipeline": 0.0,
+      "selected_rtl_source": 0.0,
+      "tiling": 0.0,
+      "unroll": 0.0
+    },
+    "rtol": 1e-06,
+    "status": "pass",
+    "value_count": 4800
+  },
+  "recorded_trace_environment": {
+    "dynamic_routing": true,
+    "forced_skill_prompts": true,
+    "online_skill_persistence": true,
+    "reference_validation_mode": "trusted_external"
+  },
+  "schema_version": 2,
+  "skilled_trace": {
+    "all_stages_strictly_improve_estimated_cycles": true,
+    "baseline_estimated_cycles": 22598401,
+    "estimated_total_gain": 861.4493576792589,
+    "exact_skill_snapshot_material_bound": false,
+    "llm_calls": 8,
+    "online_persistence_was_enabled": true,
+    "recorded_skill_store_sha256": "286cd7afb03b17e35b0113d037411815bff359de9ec8b2ceb069ccf3cf6019f5",
+    "selected_estimated_cycles": 26233,
+    "selected_step": "unroll",
+    "stages": [
+      {
+        "archived_csim_status": "passed",
+        "controller_slack_ns": 0.899,
+        "effective_delay_budget_ns": 2.431,
+        "estimated_cycles": 469321,
+        "estimated_fmax_mhz": 411.35,
+        "estimated_period_ns": 2.431,
+        "gain_over_previous": 48.151267469386624,
+        "hls_200_871_warning_present": false,
+        "injected_skill_ids": [
+          "hls-coalescing-partition-lane-buffers"
+        ],
+        "interval_cycles": 935522,
+        "nominal_requested_period_met": true,
+        "resources": {
+          "BRAM_18K": 34,
+          "DSP": 11,
+          "FF": 12176,
+          "LUT": 13323,
+          "URAM": 0
+        },
+        "route": "selected_skill",
+        "skill_id": "hls-coalescing-partition-lane-buffers",
+        "source_sha256": "5bd00babd495de03e504b7fc968676b275d4266b9ff1c5561145029c9f8ebc0b",
+        "step": "coalescing",
+        "timing_violation_scope_count": 0,
+        "trace_jsonl_line": 191
+      },
+      {
+        "archived_csim_status": "passed",
+        "controller_slack_ns": -0.248,
+        "effective_delay_budget_ns": 2.431,
+        "estimated_cycles": 181621,
+        "estimated_fmax_mhz": 279.49,
+        "estimated_period_ns": 3.578,
+        "gain_over_previous": 2.5840679216610414,
+        "hls_200_871_warning_present": true,
+        "injected_skill_ids": [
+          "hls-doublebuffer-dataflow-stage-split"
+        ],
+        "interval_cycles": 941282,
+        "nominal_requested_period_met": false,
+        "resources": {
+          "BRAM_18K": 34,
+          "DSP": 22,
+          "FF": 16946,
+          "LUT": 15331,
+          "URAM": 0
+        },
+        "route": "selected_skill",
+        "skill_id": "hls-doublebuffer-dataflow-stage-split",
+        "source_sha256": "404de403dc81b4a310fd938acf1735262f3af9db2bd80481e8534ac36b29610e",
+        "step": "doublebuffer",
+        "timing_violation_scope_count": 1,
+        "trace_jsonl_line": 193
+      },
+      {
+        "archived_csim_status": "passed",
+        "controller_slack_ns": 0.563,
+        "effective_delay_budget_ns": 2.431,
+        "estimated_cycles": 159267,
+        "estimated_fmax_mhz": 361.4,
+        "estimated_period_ns": 2.767,
+        "gain_over_previous": 1.1403555036511015,
+        "hls_200_871_warning_present": true,
+        "injected_skill_ids": [
+          "hls-pipeline-hot-loop-achieve-ii"
+        ],
+        "interval_cycles": 303268,
+        "nominal_requested_period_met": true,
+        "resources": {
+          "BRAM_18K": 34,
+          "DSP": 11,
+          "FF": 10031,
+          "LUT": 9480,
+          "URAM": 4
+        },
+        "route": "selected_skill",
+        "skill_id": "hls-pipeline-hot-loop-achieve-ii",
+        "source_sha256": "b8988d1b7c19aca2df837a3a04e47d546391257611c506459cf4cb7c4d8396ac",
+        "step": "pipeline",
+        "timing_violation_scope_count": 2,
+        "trace_jsonl_line": 195
+      },
+      {
+        "archived_csim_status": "passed",
+        "controller_slack_ns": 0.563,
+        "effective_delay_budget_ns": 2.431,
+        "estimated_cycles": 97914,
+        "estimated_fmax_mhz": 361.4,
+        "estimated_period_ns": 2.767,
+        "gain_over_previous": 1.626600894662663,
+        "hls_200_871_warning_present": true,
+        "injected_skill_ids": [
+          "hls-tile-1d-reuse-and-compute-restructure"
+        ],
+        "interval_cycles": 339195,
+        "nominal_requested_period_met": true,
+        "resources": {
+          "BRAM_18K": 42,
+          "DSP": 15,
+          "FF": 11581,
+          "LUT": 11282,
+          "URAM": 4
+        },
+        "route": "selected_skill",
+        "skill_id": "hls-tile-1d-reuse-and-compute-restructure",
+        "source_sha256": "564e7014aafcfe1e19d673c387d494e51f13513743095d5585dcaa0b2b839dc7",
+        "step": "tiling",
+        "timing_violation_scope_count": 3,
+        "trace_jsonl_line": 197
+      },
+      {
+        "archived_csim_status": "passed",
+        "controller_slack_ns": 0.836,
+        "effective_delay_budget_ns": 2.431,
+        "estimated_cycles": 26233,
+        "estimated_fmax_mhz": 400.96,
+        "estimated_period_ns": 2.494,
+        "gain_over_previous": 3.732474364350246,
+        "hls_200_871_warning_present": true,
+        "injected_skill_ids": [
+          "hls-doublebuffer-dataflow-stage-split",
+          "axi-burst-coalescing-narrow-safe",
+          "hls-pipeline-hot-loop-achieve-ii",
+          "avoid-manual-cse-inside-pipelined-loop",
+          "avoid-manual-loop-interchange-on-perfect-nest"
+        ],
+        "interval_cycles": 61306,
+        "nominal_requested_period_met": true,
+        "resources": {
+          "BRAM_18K": 82,
+          "DSP": 92,
+          "FF": 21930,
+          "LUT": 18121,
+          "URAM": 0
+        },
+        "route": "static_fallback",
+        "skill_id": null,
+        "source_sha256": "159ee8676e62dfcafd477a5c275e0c0b0508f1a7e523c1b8a97526c30528c0e4",
+        "step": "unroll",
+        "timing_violation_scope_count": 2,
+        "trace_jsonl_line": 199
+      }
+    ],
+    "steps_attempted": 5,
+    "steps_synthesized": 5,
+    "total_tokens": 38892
+  },
+  "status": "historical_monotonic_mechanism_not_causal_or_endpoint_comparison",
+  "toolchain": {
+    "device": "xcu280-fsvh2892-2L-e",
+    "requested_clock_ns": 3.33,
+    "vitis_version": "2023.2"
+  }
+}

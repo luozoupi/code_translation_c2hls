@@ -1,0 +1,82 @@
+{
+  "catalog_avoid_count": 39,
+  "catalog_non_avoid_count": 84,
+  "catalog_path": "skill_v3_no_rmw_fc27133/skills.json",
+  "catalog_sha256": "d37094bf5548739debd8bdaae98fc9bc13db959cd33e17ddf9edd7885a1f358c",
+  "entries": 123,
+  "entries_with_classification_or_content_caveats": 29,
+  "family_by_role": {
+    "compute_parallelism": {
+      "avoidance_guard": 4,
+      "transformation": 7
+    },
+    "controller_measurement": {
+      "avoidance_guard": 3,
+      "diagnostic_control": 2,
+      "reporting_only": 1
+    },
+    "dependence": {
+      "avoidance_guard": 3,
+      "transformation": 14
+    },
+    "external_memory": {
+      "avoidance_guard": 3,
+      "transformation": 11
+    },
+    "local_ports": {
+      "avoidance_guard": 1,
+      "transformation": 11
+    },
+    "locality": {
+      "avoidance_guard": 10,
+      "transformation": 18
+    },
+    "loop_schedule": {
+      "avoidance_guard": 6,
+      "transformation": 6
+    },
+    "stage_overlap": {
+      "avoidance_guard": 9,
+      "diagnostic_control": 1,
+      "transformation": 13
+    }
+  },
+  "family_counts": {
+    "compute_parallelism": 11,
+    "controller_measurement": 6,
+    "dependence": 17,
+    "external_memory": 14,
+    "local_ports": 12,
+    "locality": 28,
+    "loop_schedule": 12,
+    "stage_overlap": 23
+  },
+  "role_counts": {
+    "avoidance_guard": 39,
+    "diagnostic_control": 3,
+    "reporting_only": 1,
+    "transformation": 80
+  },
+  "runtime_statistics_all_reset": true,
+  "source_confidence_counts": {
+    "avoid": 39,
+    "high": 66,
+    "medium": 18
+  },
+  "source_kind_counts": {
+    "advanced_transformation": 7,
+    "avoid_rule": 39,
+    "compound_transformation": 41,
+    "diagnostic_or_transform": 4,
+    "supporting_transformation": 27,
+    "transformation_operator": 5
+  },
+  "source_origin_counts": {
+    "curated": 41,
+    "flash_no_RMW_m_axi": 33,
+    "manual": 9,
+    "project_ii_target_miss_discussion": 18,
+    "project_regression_analysis": 17,
+    "prompt": 5
+  }
+}

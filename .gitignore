@@ -123,3 +123,12 @@ c2hls_temp.py
 
 # Required runtime module; retain despite broad temporary-file patterns.
 !/c2hls_temp.py
+
+# Local credentials, new runs and build environments
+*.env
+.env.*
+.venv/
+/runs/
+/artifacts/
+/results/*
+!/results/references_philip

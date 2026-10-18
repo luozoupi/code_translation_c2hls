@@ -1,0 +1,79 @@
+{
+  "evidence_status": "preliminary_external_summary_only",
+  "metric_semantics": {
+    "failure_aware_performance_profile_available": false,
+    "full_matrix_denominator": 26,
+    "matched_denominator": 24,
+    "median_cycle_kind": "summary-reported cycle estimate; not executed RTL cycles",
+    "median_population": "C-simulation-passing outputs; population differs by condition",
+    "paired_geomean_available": false,
+    "rtl_pass_meaning": "summary-reported RTL co-simulation output check against golden output"
+  },
+  "model": {
+    "is_coder_variant": true,
+    "raw_checkpoint_manifest_imported": false,
+    "reported_training": "100-step group-relative policy optimization with rank-32 low-rank adaptation",
+    "reported_training_tasks": "14 Rodinia/ML4Accel tasks",
+    "summary_reported_identity": "Qwen2.5-Coder-7B-Instruct"
+  },
+  "outputs": [
+    {
+      "bytes": 1079,
+      "path": "generated/grpo_7b_table.tex",
+      "sha256": "0038cda573efe062ae0d4e09c8edae66e7c0b66cbaf81d0abdf18694d6fdb5a9"
+    },
+    {
+      "bytes": 1180,
+      "path": "generated/grpo_7b_macros.tex",
+      "sha256": "878bb0c2b43674fe30e972e36bf5fa24d98f29d3d06b1e9a93ca9968c2375cd2"
+    },
+    {
+      "bytes": 436,
+      "path": "generated/grpo_7b_snapshot.csv",
+      "sha256": "4b808d3ce53d12817c19272e1df5d197085cdcba44ed97bc381a3eeaaf125c83"
+    },
+    {
+      "bytes": 16591,
+      "path": "figures/grpo_7b_snapshot.pdf",
+      "sha256": "498f952bfe83dda2e2422d4860b6b8cef2f0e7dd9871841f811509924cb3e8c3"
+    }
+  ],
+  "schema_version": "c2hls.grpo-7b-summary-snapshot.v1",
+  "source": {
+    "bytes": 16275,
+    "path": "external-input/GRPO_7B_SUMMARY.md",
+    "sha256": "9976a21013a962cd3c2bd9c16e7580636a7fd332e044b2e60d6f8dc29f6bcb6b",
+    "snapshot_date": "2026-07-29"
+  },
+  "validation": {
+    "base_correct_grpo_regressions": 3,
+    "base_to_grpo_both_correct_faster": 4,
+    "base_to_grpo_broken_to_correct": 7,
+    "behavioral_pattern_source": "manual inspection reported in the frozen summary",
+    "causal_cross_family_generalization_claim_supported": false,
+    "checkpoint_hash_imported": false,
+    "commercial_parity_claim_supported": false,
+    "fixed_matched_denominator": true,
+    "matched_counts_parsed": true,
+    "matched_task_ids_verified": false,
+    "model_name_present_in_summary": true,
+    "raw_generated_sources_imported": false,
+    "raw_per_kernel_records_imported": false,
+    "selected_case_ratios_recomputed": true,
+    "setup_fingerprint_verified": false,
+    "summary_reported_absent_global_techniques": [
+      "DATAFLOW",
+      "double-buffering",
+      "tiling",
+      "AXI burst coalescing"
+    ],
+    "summary_reported_local_techniques": [
+      "PIPELINE (II=1)",
+      "UNROLL (factor/full)",
+      "ARRAY_PARTITION (cyclic)",
+      "loop fission"
+    ],
+    "toolchain_device_clock_imported": false,
+    "training_split_audit_imported": false
+  }
+}

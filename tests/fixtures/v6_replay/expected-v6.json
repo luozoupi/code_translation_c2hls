@@ -1,0 +1,536 @@
+{
+  "cases": [
+    {
+      "context_sha256": "7fa66878a8815232732efd11e057577f66c692df79f52cd9fba3eadaf9eb8989",
+      "cosim_measurement_eligible": true,
+      "cosim_status": "passed",
+      "csim_status": "passed",
+      "derived_bundle_probe": {
+        "note": "normalized all s_axilite pragmas to bundle=control",
+        "sha256": "f96dd7e40cbfe0571e485fdee0ff6a8039c009c08c829e67ca9f4a8577f4e7dc"
+      },
+      "extracted_source_sha256": "f96dd7e40cbfe0571e485fdee0ff6a8039c009c08c829e67ca9f4a8577f4e7dc",
+      "feasibility": {
+        "correctness_ok": true,
+        "estimated_latency": 13546.0,
+        "feasible": true,
+        "reasons": [],
+        "resource_evidence_complete": true,
+        "resource_fit": true,
+        "schema_version": "c2hls.candidate-feasibility.v1",
+        "target_clock_ns": 3.33,
+        "timing_evidence": "slack_ns",
+        "timing_met": true
+      },
+      "finalized_failures": [],
+      "history_sha256": "e03ebb3c2ee91fd2ac52dc72da21046c5fec7b904247d6aaf6a896ed972b7a90",
+      "id": "sonnet/hlsfactory_2mm/flash_allpos",
+      "phase_b_accepted": true,
+      "preflight_source_sha256": "f96dd7e40cbfe0571e485fdee0ff6a8039c009c08c829e67ca9f4a8577f4e7dc",
+      "public_contract": {
+        "candidate_contract_sha256": "2907e20688ce130a8484d85805ad444703d0183c22798f15d39704dfef5e4d7d",
+        "canonical_contract_sha256": "2907e20688ce130a8484d85805ad444703d0183c22798f15d39704dfef5e4d7d",
+        "differences": [],
+        "passed": true,
+        "public_identifiers": [
+          "NI",
+          "NJ",
+          "NK",
+          "NL"
+        ],
+        "reason_codes": [],
+        "schema_version": "c2hls.public-workload-contract.v1"
+      },
+      "report": {
+        "bram": 184,
+        "dsp": 1330,
+        "estimated_clock_period_ns": 2.494,
+        "ff": 171385,
+        "fmax_mhz": 400.96,
+        "latency_cycles": 13546,
+        "latency_cycles_worst": 13546,
+        "latency_ns": 45108.0,
+        "latency_ns_worst": 45108.0,
+        "lut": 103259,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.836,
+        "uram": 1
+      },
+      "requests": 1,
+      "requests_sha256": "f0567ac14083d4ede93333df773bc2aa4162ed8b8fc90d408c9f9005abbc575a",
+      "signature_mismatch": "",
+      "tool_calls": [
+        {
+          "source_sha256": "f96dd7e40cbfe0571e485fdee0ff6a8039c009c08c829e67ca9f4a8577f4e7dc",
+          "tool": "csim"
+        },
+        {
+          "source_sha256": "f96dd7e40cbfe0571e485fdee0ff6a8039c009c08c829e67ca9f4a8577f4e7dc",
+          "tool": "synthesis"
+        },
+        {
+          "source_sha256": "f96dd7e40cbfe0571e485fdee0ff6a8039c009c08c829e67ca9f4a8577f4e7dc",
+          "tool": "cosim"
+        }
+      ],
+      "turn_results_sha256": "b052866cf21ecece7b00303154ba9c3ab5b15f91505439930d1f7936e0095e33"
+    },
+    {
+      "context_sha256": "fb8a3e0f59e653a338ee206b4563164d367b83eeb3ae81efd1838e8d39c5b95a",
+      "cosim_measurement_eligible": false,
+      "cosim_status": "not_run",
+      "csim_status": "failed",
+      "derived_bundle_probe": {
+        "note": "normalized all s_axilite pragmas to bundle=control",
+        "sha256": "706310f7aa68c7262c82104755450dc585a536449b6d08199f4ef61f1d9bd2eb"
+      },
+      "extracted_source_sha256": "706310f7aa68c7262c82104755450dc585a536449b6d08199f4ef61f1d9bd2eb",
+      "feasibility": {
+        "correctness_ok": false,
+        "estimated_latency": 209226.0,
+        "feasible": false,
+        "reasons": [
+          "golden_correctness_not_passed"
+        ],
+        "resource_evidence_complete": true,
+        "resource_fit": true,
+        "schema_version": "c2hls.candidate-feasibility.v1",
+        "target_clock_ns": 3.33,
+        "timing_evidence": "slack_ns",
+        "timing_met": true
+      },
+      "finalized_failures": [],
+      "history_sha256": "b545debf3eca744099284b22f069682eaacb28976814271c1f5235e9396cf93e",
+      "id": "opus/hlsfactory_gemm/ms_noskills",
+      "phase_b_accepted": false,
+      "preflight_source_sha256": "706310f7aa68c7262c82104755450dc585a536449b6d08199f4ef61f1d9bd2eb",
+      "public_contract": {
+        "candidate_contract_sha256": "553798369caf43dafea41b47b7a950bd1efd92a5f8659490fc1285291b570129",
+        "canonical_contract_sha256": "553798369caf43dafea41b47b7a950bd1efd92a5f8659490fc1285291b570129",
+        "differences": [],
+        "passed": true,
+        "public_identifiers": [
+          "NI",
+          "NJ",
+          "NK"
+        ],
+        "reason_codes": [],
+        "schema_version": "c2hls.public-workload-contract.v1"
+      },
+      "report": {
+        "bram": 34,
+        "dsp": 64,
+        "estimated_clock_period_ns": 2.601,
+        "ff": 19488,
+        "fmax_mhz": 384.47,
+        "latency_cycles": 107608,
+        "latency_cycles_worst": 209226,
+        "latency_ns": 358000.0,
+        "latency_ns_worst": 697000.0,
+        "lut": 22924,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.729,
+        "uram": 2
+      },
+      "requests": 2,
+      "requests_sha256": "e81293c0558e79fc0ba14a89f9d310ae3b98b51183dc725f83c74dd4727ee3d9",
+      "signature_mismatch": "",
+      "tool_calls": [
+        {
+          "source_sha256": "706310f7aa68c7262c82104755450dc585a536449b6d08199f4ef61f1d9bd2eb",
+          "tool": "csim"
+        },
+        {
+          "source_sha256": "706310f7aa68c7262c82104755450dc585a536449b6d08199f4ef61f1d9bd2eb",
+          "tool": "csim"
+        }
+      ],
+      "turn_results_sha256": "3a257bd7536d717a3641f5f66e6519bd53b6012fce34178a95109a2afbdc95b1"
+    },
+    {
+      "context_sha256": "6db4c7692b2cbf9960b6534fbc6ecbcbbbdb10be4593a85587633d32d80e2bc9",
+      "cosim_measurement_eligible": false,
+      "cosim_status": "not_run",
+      "csim_status": "failed",
+      "derived_bundle_probe": {
+        "note": "normalized all s_axilite pragmas to bundle=control",
+        "sha256": "f3e00babd1a97d329d3b9b18f4493f6a0584f24c48920d28309d7e90fbf3c3da"
+      },
+      "extracted_source_sha256": "f3e00babd1a97d329d3b9b18f4493f6a0584f24c48920d28309d7e90fbf3c3da",
+      "feasibility": {
+        "correctness_ok": false,
+        "estimated_latency": 2308300.0,
+        "feasible": false,
+        "reasons": [
+          "golden_correctness_not_passed"
+        ],
+        "resource_evidence_complete": true,
+        "resource_fit": true,
+        "schema_version": "c2hls.candidate-feasibility.v1",
+        "target_clock_ns": 3.33,
+        "timing_evidence": "slack_ns",
+        "timing_met": true
+      },
+      "finalized_failures": [],
+      "history_sha256": "4beecc89b591922afbffa7a68ac6298ece388d5534fe5dcb2e2416da712491a3",
+      "id": "sonnet/hlsfactory_correlation/ms_noskills",
+      "phase_b_accepted": false,
+      "preflight_source_sha256": "f3e00babd1a97d329d3b9b18f4493f6a0584f24c48920d28309d7e90fbf3c3da",
+      "public_contract": {
+        "candidate_contract_sha256": "73a929e66617514d6f8d40d9eb0164c5014048ee46dc179f077791dba6588dd8",
+        "canonical_contract_sha256": "73a929e66617514d6f8d40d9eb0164c5014048ee46dc179f077791dba6588dd8",
+        "differences": [],
+        "passed": true,
+        "public_identifiers": [
+          "M",
+          "N"
+        ],
+        "reason_codes": [],
+        "schema_version": "c2hls.public-workload-contract.v1"
+      },
+      "report": {
+        "bram": 126,
+        "dsp": 28,
+        "estimated_clock_period_ns": 2.494,
+        "ff": 44317,
+        "fmax_mhz": 400.96,
+        "latency_cycles": 1211469,
+        "latency_cycles_worst": 2308300,
+        "latency_ns": 4034000.0,
+        "latency_ns_worst": 7687000.0,
+        "lut": 38418,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.836,
+        "uram": 0
+      },
+      "requests": 2,
+      "requests_sha256": "bfcf23a4e1dfe16b2fe4208d586cf08c51745db08f5aaeb07cd16f4594d3a7be",
+      "signature_mismatch": "",
+      "tool_calls": [
+        {
+          "source_sha256": "f3e00babd1a97d329d3b9b18f4493f6a0584f24c48920d28309d7e90fbf3c3da",
+          "tool": "csim"
+        },
+        {
+          "source_sha256": "f3e00babd1a97d329d3b9b18f4493f6a0584f24c48920d28309d7e90fbf3c3da",
+          "tool": "csim"
+        }
+      ],
+      "turn_results_sha256": "542873aa6dba0f84024bb0726e412f0d093f861f75bdbc46a1b29ed12c5760d1"
+    },
+    {
+      "context_sha256": "2ecd90a280ec3dad12e0fe06a9272ac4f11e7c2501f57fd3a6ac433a27ae3168",
+      "cosim_measurement_eligible": false,
+      "cosim_status": "timeout",
+      "csim_status": "passed",
+      "derived_bundle_probe": {
+        "note": "normalized all s_axilite pragmas to bundle=control",
+        "sha256": "5f617d4ab37479f44b7344d6048b171487967f8871236cc83883988ee2dc8639"
+      },
+      "extracted_source_sha256": "5f617d4ab37479f44b7344d6048b171487967f8871236cc83883988ee2dc8639",
+      "feasibility": {
+        "correctness_ok": true,
+        "estimated_latency": 17930829.0,
+        "feasible": true,
+        "reasons": [],
+        "resource_evidence_complete": true,
+        "resource_fit": true,
+        "schema_version": "c2hls.candidate-feasibility.v1",
+        "target_clock_ns": 3.33,
+        "timing_evidence": "slack_ns",
+        "timing_met": true
+      },
+      "finalized_failures": [],
+      "history_sha256": "ef887ee692a82a322acfa72bcde3be7aa8eba29140427ecd778f9280dca9e3d8",
+      "id": "gpt55/hlsfactory_cholesky/ms_noskills",
+      "phase_b_accepted": true,
+      "preflight_source_sha256": "5f617d4ab37479f44b7344d6048b171487967f8871236cc83883988ee2dc8639",
+      "public_contract": {
+        "candidate_contract_sha256": "5683d731c0f38e9a917ee9fcbbd34af74b0fb63dfc7f0bd59903fbeb63b00eee",
+        "canonical_contract_sha256": "5683d731c0f38e9a917ee9fcbbd34af74b0fb63dfc7f0bd59903fbeb63b00eee",
+        "differences": [],
+        "passed": true,
+        "public_identifiers": [
+          "N"
+        ],
+        "reason_codes": [],
+        "schema_version": "c2hls.public-workload-contract.v1"
+      },
+      "report": {
+        "bram": 4,
+        "dsp": 11,
+        "estimated_clock_period_ns": 2.812,
+        "ff": 9970,
+        "fmax_mhz": 355.62,
+        "latency_cycles": 2649963,
+        "latency_cycles_worst": 17930829,
+        "latency_ns": 8824000.0,
+        "latency_ns_worst": 59710000.0,
+        "lut": 11029,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.518,
+        "uram": 0
+      },
+      "requests": 1,
+      "requests_sha256": "b59155a71b4beea403e10fa3a9df0a84c71a9e0864e9cb520713089223ed1ea5",
+      "signature_mismatch": "",
+      "tool_calls": [
+        {
+          "source_sha256": "5f617d4ab37479f44b7344d6048b171487967f8871236cc83883988ee2dc8639",
+          "tool": "csim"
+        },
+        {
+          "source_sha256": "5f617d4ab37479f44b7344d6048b171487967f8871236cc83883988ee2dc8639",
+          "tool": "synthesis"
+        },
+        {
+          "source_sha256": "5f617d4ab37479f44b7344d6048b171487967f8871236cc83883988ee2dc8639",
+          "tool": "cosim"
+        }
+      ],
+      "turn_results_sha256": "582d1445648e6fdb31a1771c6225b7be2f1441258fe3dd12a3fa2d33cfa125e9"
+    },
+    {
+      "context_sha256": "7a5a8304b1d6984398febbb0673d8b7c8fd7ef0686067c478caa64e0ed831d74",
+      "cosim_measurement_eligible": false,
+      "cosim_status": "failed",
+      "csim_status": "passed",
+      "derived_bundle_probe": {
+        "note": "normalized all s_axilite pragmas to bundle=control",
+        "sha256": "8e3f5b2e130076f3eb2a861fe4f633c66a0275f393760f90b7c194f50cf228e9"
+      },
+      "extracted_source_sha256": "8e3f5b2e130076f3eb2a861fe4f633c66a0275f393760f90b7c194f50cf228e9",
+      "feasibility": {
+        "correctness_ok": true,
+        "estimated_latency": 155374.0,
+        "feasible": true,
+        "reasons": [],
+        "resource_evidence_complete": true,
+        "resource_fit": true,
+        "schema_version": "c2hls.candidate-feasibility.v1",
+        "target_clock_ns": 3.33,
+        "timing_evidence": "slack_ns",
+        "timing_met": true
+      },
+      "finalized_failures": [],
+      "history_sha256": "ff5aa32d529f587581191d85d654a4380d779835b94583706b8508e14bf8fc5d",
+      "id": "gpt55/hlsfactory_fdtd-2d/flash_allpos",
+      "phase_b_accepted": false,
+      "preflight_source_sha256": "8e3f5b2e130076f3eb2a861fe4f633c66a0275f393760f90b7c194f50cf228e9",
+      "public_contract": {
+        "candidate_contract_sha256": "5cf0af9c018218b82e9cccee2d391d6a26d7264a8b6ac19f85bf6808d56474ee",
+        "canonical_contract_sha256": "5cf0af9c018218b82e9cccee2d391d6a26d7264a8b6ac19f85bf6808d56474ee",
+        "differences": [],
+        "passed": true,
+        "public_identifiers": [
+          "NX",
+          "NY",
+          "TMAX"
+        ],
+        "reason_codes": [],
+        "schema_version": "c2hls.public-workload-contract.v1"
+      },
+      "report": {
+        "bram": 30,
+        "dsp": 80,
+        "estimated_clock_period_ns": 2.812,
+        "ff": 35104,
+        "fmax_mhz": 355.62,
+        "latency_cycles": 155374,
+        "latency_cycles_worst": 155374,
+        "latency_ns": 517000.0,
+        "latency_ns_worst": 517000.0,
+        "lut": 24705,
+        "requested_clock_period_ns": 3.33,
+        "slack_ns": 0.518,
+        "uram": 12
+      },
+      "requests": 2,
+      "requests_sha256": "a5fd1c7c13cfc0dbe7f8cd2854a7515d3066fa0b6ed72a276c74afb26a2e2d79",
+      "signature_mismatch": "",
+      "tool_calls": [
+        {
+          "source_sha256": "8e3f5b2e130076f3eb2a861fe4f633c66a0275f393760f90b7c194f50cf228e9",
+          "tool": "csim"
+        },
+        {
+          "source_sha256": "8e3f5b2e130076f3eb2a861fe4f633c66a0275f393760f90b7c194f50cf228e9",
+          "tool": "synthesis"
+        },
+        {
+          "source_sha256": "8e3f5b2e130076f3eb2a861fe4f633c66a0275f393760f90b7c194f50cf228e9",
+          "tool": "cosim"
+        },
+        {
+          "source_sha256": "8e3f5b2e130076f3eb2a861fe4f633c66a0275f393760f90b7c194f50cf228e9",
+          "tool": "csim"
+        },
+        {
+          "source_sha256": "8e3f5b2e130076f3eb2a861fe4f633c66a0275f393760f90b7c194f50cf228e9",
+          "tool": "synthesis"
+        },
+        {
+          "source_sha256": "8e3f5b2e130076f3eb2a861fe4f633c66a0275f393760f90b7c194f50cf228e9",
+          "tool": "cosim"
+        }
+      ],
+      "turn_results_sha256": "165d9c587143d8c80e5053b5024a0c2881c1bc12041f888002c46cad1a9ab7bf"
+    }
+  ],
+  "schema": "hlsmith.v6-deterministic-results.v1",
+  "selection": {
+    "candidate_decisions": [
+      {
+        "feasibility": {
+          "correctness_ok": true,
+          "estimated_latency": 19034.0,
+          "feasible": true,
+          "reasons": [],
+          "resource_evidence_complete": true,
+          "resource_fit": true,
+          "schema_version": "c2hls.candidate-feasibility.v1",
+          "target_clock_ns": 3.33,
+          "timing_evidence": "slack_ns",
+          "timing_met": true
+        },
+        "score": 19034.00000025552,
+        "step_name": "sonnet/hlsfactory_gemm/ms_allpos"
+      },
+      {
+        "feasibility": {
+          "correctness_ok": true,
+          "estimated_latency": 28199.0,
+          "feasible": true,
+          "reasons": [],
+          "resource_evidence_complete": true,
+          "resource_fit": true,
+          "schema_version": "c2hls.candidate-feasibility.v1",
+          "target_clock_ns": 3.33,
+          "timing_evidence": "slack_ns",
+          "timing_met": true
+        },
+        "score": 28199.000000230604,
+        "step_name": "sonnet/hlsfactory_gemm/flash_allpos"
+      },
+      {
+        "feasibility": {
+          "correctness_ok": true,
+          "estimated_latency": 49837.0,
+          "feasible": true,
+          "reasons": [],
+          "resource_evidence_complete": true,
+          "resource_fit": true,
+          "schema_version": "c2hls.candidate-feasibility.v1",
+          "target_clock_ns": 3.33,
+          "timing_evidence": "slack_ns",
+          "timing_met": true
+        },
+        "score": 49837.00000007393,
+        "step_name": "sonnet/hlsfactory_gemm/ms_noskills"
+      },
+      {
+        "feasibility": {
+          "correctness_ok": true,
+          "estimated_latency": 56307.0,
+          "feasible": true,
+          "reasons": [],
+          "resource_evidence_complete": true,
+          "resource_fit": true,
+          "schema_version": "c2hls.candidate-feasibility.v1",
+          "target_clock_ns": 3.33,
+          "timing_evidence": "slack_ns",
+          "timing_met": true
+        },
+        "score": 56307.000000151245,
+        "step_name": "sonnet/hlsfactory_gemm/ms_curated"
+      },
+      {
+        "feasibility": {
+          "correctness_ok": true,
+          "estimated_latency": 351781.0,
+          "feasible": true,
+          "reasons": [],
+          "resource_evidence_complete": true,
+          "resource_fit": true,
+          "schema_version": "c2hls.candidate-feasibility.v1",
+          "target_clock_ns": 3.33,
+          "timing_evidence": "slack_ns",
+          "timing_met": true
+        },
+        "score": 351781.0000000103,
+        "step_name": "sonnet/hlsfactory_gemm/flash_curated"
+      },
+      {
+        "feasibility": {
+          "correctness_ok": true,
+          "estimated_latency": 352654.0,
+          "feasible": true,
+          "reasons": [],
+          "resource_evidence_complete": true,
+          "resource_fit": true,
+          "schema_version": "c2hls.candidate-feasibility.v1",
+          "target_clock_ns": 3.33,
+          "timing_evidence": "slack_ns",
+          "timing_met": true
+        },
+        "score": 352654.0000000108,
+        "step_name": "sonnet/hlsfactory_gemm/flash_noskills"
+      },
+      {
+        "feasibility": {
+          "correctness_ok": true,
+          "estimated_latency": 683041.0,
+          "feasible": true,
+          "reasons": [],
+          "resource_evidence_complete": true,
+          "resource_fit": true,
+          "schema_version": "c2hls.candidate-feasibility.v1",
+          "target_clock_ns": 3.33,
+          "timing_evidence": "slack_ns",
+          "timing_met": true
+        },
+        "score": 683041.0000000105,
+        "step_name": "sonnet/hlsfactory_gemm/oneshot"
+      }
+    ],
+    "eligible_candidates": 7,
+    "promoted_step": "sonnet/hlsfactory_gemm/ms_allpos",
+    "registered_candidates": 7,
+    "winner_report": {
+      "bram": 238,
+      "dsp": 1523,
+      "estimated_clock_period_ns": 2.494,
+      "ff": 160335,
+      "fmax_mhz": 400.96,
+      "latency_cycles": 19034,
+      "latency_cycles_worst": 19034,
+      "latency_ns": 63383.0,
+      "latency_ns_worst": 63383.0,
+      "lut": 93426,
+      "requested_clock_period_ns": 3.33,
+      "slack_ns": 0.836,
+      "uram": 0
+    },
+    "winner_source_sha256": "17b6198bd6a11f437c7f1983ab6b671832f1b9d0df8b68c9541d5be94ffff007"
+  },
+  "source_contract_helpers": {
+    "_align_generated_top_signature": "ed2c55596be9d2efeee31bffd80e58ba180b31ade27180c3f851052c1575f7e2",
+    "_canonical_function_signature": "9b891bacafc4f7b3db9e7861db8ce291b84e9816619de533d2e79f9846a5d4a9",
+    "_expected_top_signature": "0b28b4233459f90cada971db5be56fdc6ddc404a32468312062eadae33d56de8",
+    "_extract_defined_function_names": "42264633c9479f0f5c992a783a61b131cc20019947d9e8b7b8d4c991ae0467c2",
+    "_extract_function_signature": "2ab69c302e739cb4564a651be7d79b2ec8ae7fffa5f0d3455637ad46694d2142",
+    "_extract_interface_ports": "d9c45fa6ad39d2550e40e455aecc50f4b089880febcf1f28d17b41655b22ec36",
+    "_extract_prototype_names": "07dfb5580856bc533cbfa491e531e61424f93fb7d9f3e7cad314b1178d90876b",
+    "_extract_struct_names": "7ee3b2da0bb6f038033358361ff053a9d1852a680962f315164fd6c16bb504a1",
+    "_header_contract_definitions": "7f7f3b890688e7cea39b734e8c3500d94e3090642c2aa200eafb06dd684400de",
+    "_normalize_contract_tokens": "75e0b84cefb225c3eadf5352526abc1e844ea651dd87a577b150e81b7d4b34b1",
+    "_normalize_signature_text": "61609bf15aca484a53aae31cb5ab245b73ce22413044bbf9e7b7b4c86d086a32",
+    "_normalize_vitis_s_axilite_bundles": "6ca9ad90dd2211751791690e3e84dd1ecabc9855f98a128d89fbdc207997272e",
+    "_public_header_contract_audit": "12c2d89e2f85db8d4bb46c05cc3a571742f8ac1ea851899499711b2012746daa",
+    "_render_function_signature": "2d63ade59f1372fdf2805e851a1aabd38c454f0ffeb3f50790a2b1b23d298095",
+    "_sha256_text": "6f96e398c7ccd6a20a53f0856158c61a2b6f4e121f1484b5204d121f7427a02f",
+    "_strip_contract_comments_and_literals": "f57f25cbb1e936719512a67f542baec215da46d867626a1986ab5847dd33df3a",
+    "_top_signature_mismatch_reason": "979c7f72e93730f028c2d9f5ea70f47a54a1e248dde1e6ba0942bcaff3b093ca",
+    "extract_cpp_code": "f76e5c4527a28987d4eaf5d28541cbd3bd23996117e3a917dff92c392667c87f"
+  }
+}

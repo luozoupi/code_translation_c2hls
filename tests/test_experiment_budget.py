@@ -52,3 +52,21 @@ def test_input_cap_prevents_provider_call(ledger,monkeypatch):
         send_budgeted_request(SimpleNamespace(llm_usage_events=[]),lambda **kw:calls.append(kw),
             model='model',messages=[{'role':'user','content':'test'}],max_tokens=1,kwargs={})
     assert not calls and not json.loads(ledger.read_text())['reservations']
+
+
+def test_deepseek_cache_usage_and_response_identity_are_preserved(tmp_path, monkeypatch):
+    path = tmp_path / 'deepseek.json'
+    initialize(path, limit_usd=1, prices={'deepseek-flash': {'input': .3, 'cached_input': .006, 'output': 1.2}})
+    monkeypatch.setenv('C2HLS_API_BUDGET_LEDGER', str(path))
+    monkeypatch.setenv('C2HLS_AGGREGATE_INPUT_TOKEN_BUDGET', '100000')
+    owner = SimpleNamespace(llm_usage_events=[])
+    response = SimpleNamespace(model='deepseek-flash', id='response', _request_id='request',
+                              usage=SimpleNamespace(prompt_tokens=1000, completion_tokens=100,
+                                                    prompt_cache_hit_tokens=800))
+    send_budgeted_request(owner, lambda **kwargs: response, model='deepseek-flash',
+                          messages=[{'role': 'user', 'content': 'test'}], max_tokens=100, kwargs={})
+    row = json.loads(path.read_text())['reservations'][0]
+    assert row['cached_tokens'] == 800
+    assert row['charged_or_reserved_usd'] == pytest.approx((200 * .3 + 800 * .006 + 100 * 1.2) / 1e6)
+    assert row['response_model'] == 'deepseek-flash' and row['request_id'] == 'request'
+    assert owner.last_response_metadata == {'response_model': 'deepseek-flash', 'response_id': 'response', 'request_id': 'request'}

@@ -1,0 +1,282 @@
+{
+  "bundle_sha256": "f2a829f2d64c4beda82bf3669c2b7bcdc8e84aefaed13391ceac2b8c447844ae",
+  "evidence_boundaries": [
+    "DeepSeek and Grok pass fields and cycles are reproduced from compact CSV files; raw generated source, tool reports, exact model revisions, and output-comparison records are absent.",
+    "The companion synthesis tables reproduce every reported co-simulation cycle, pass flag, cohort, and source identifier.",
+    "Five Grok next-five rows use asymmetric post-hoc best selection on the expertise-enabled arm and are excluded from the primary aggregate.",
+    "The Opus schema supplies passing benchmark-baseline RTL cycles for 26 kernels; Heat-3D and Seidel-2D have no baseline RTL record.",
+    "Claude Opus candidate records contain C-simulation and HLS-synthesis completion but no independent output comparison or generated RTL simulation.",
+    "The Opus Markdown note claims a Vivado baseline, while the raw schema records both baseline and candidates as Vitis 2023.2; the schema is used.",
+    "The ChatHLS compact CSV has two malformed trailer lines; the generator requires and ignores exactly those lines and validates the preceding 14 rows."
+  ],
+  "inputs": [
+    {
+      "sha256": "8f5c5ef4fe85565f43b551f73a7427c44496a48f8d5983715edd35ebffad61a5",
+      "source_id": "deepseek_v4_flash_flash_cosim_skills_vs_noskills.csv"
+    },
+    {
+      "sha256": "63883c68258340376b46406a341b4abd981357c2a80a826291f1d55c8630efec",
+      "source_id": "deepseek_v4_flash_flash_csynth_skills_vs_noskills.csv"
+    },
+    {
+      "sha256": "6f84e3cb8df659752a432932d3ae5d2bd142f198a7aff71e9e2b1a6f5b9e83fa",
+      "source_id": "grok45_flash_cosim_skills_vs_noskills.csv"
+    },
+    {
+      "sha256": "975ff6c8e4d8b1968399d1909fa264b6f456b06b773713466c4fd9dc953b149c",
+      "source_id": "grok45_flash_csynth_skills_vs_noskills.csv"
+    },
+    {
+      "sha256": "4e923a9e09f4a8385d1f14ee52553a40ec209fb09794794d5f7329236869811b",
+      "source_id": "newskills_opus_csynth_table.csv"
+    },
+    {
+      "sha256": "8ec9bb591d6765ad81d293bbbaa2e11c8ff1d5b094f54faeea8ac48a0dd34d11",
+      "source_id": "newskills_opus_csynth_table.md"
+    },
+    {
+      "sha256": "c83745a19bf1b94d8b24408f69d00eb3dbf273528b212e4340cddb030cd590ff",
+      "source_id": "schema_records_newskills_opus.jsonl"
+    },
+    {
+      "sha256": "465d1cc3acc86053f244ff34fd7fddac1c09c60ac0cb22b2b28fdeda051bd9d7",
+      "source_id": "u280_hlsmith_vs_chathls_cosim_cycles_20260722.csv"
+    }
+  ],
+  "metrics": {
+    "chathls": {
+      "chathls_failure_count": 6,
+      "chathls_pass": 8,
+      "hlsmith_only_pass": 6,
+      "hlsmith_pass": 14,
+      "malformed_trailer_ignored": [
+        "===============",
+        "hlsmith vs chathls cosim cycles deepseek."
+      ],
+      "paired": 8,
+      "paired_reduction": 6.914059597101414,
+      "without_syr2k_count": 7,
+      "without_syr2k_reduction": 4.244539516492141
+    },
+    "deepseek_by_supplied_cohort": {
+      "next5": {
+        "denominator": 5,
+        "disabled_gmean_cycles": 1212549.5637225145,
+        "disabled_pass": 5,
+        "enabled_gmean_cycles": 341784.06546077074,
+        "enabled_pass": 5,
+        "losses": 0,
+        "median_reduction": 3.691963916245965,
+        "paired": 5,
+        "paired_reduction": 3.5477065383017075,
+        "ties": 0,
+        "wins": 5
+      },
+      "rest23_excl": {
+        "denominator": 18,
+        "disabled_gmean_cycles": 698394.8380280997,
+        "disabled_pass": 16,
+        "enabled_gmean_cycles": 706178.4812524128,
+        "enabled_pass": 15,
+        "losses": 5,
+        "median_reduction": 1.0230675096879462,
+        "paired": 13,
+        "paired_reduction": 0.9889777960799542,
+        "ties": 0,
+        "wins": 8
+      },
+      "top5": {
+        "denominator": 5,
+        "disabled_gmean_cycles": 1344014.8251910324,
+        "disabled_pass": 5,
+        "enabled_gmean_cycles": 21316.806386705226,
+        "enabled_pass": 5,
+        "losses": 0,
+        "median_reduction": 146.76586211016848,
+        "paired": 5,
+        "paired_reduction": 63.049539448332155,
+        "ties": 0,
+        "wins": 5
+      }
+    },
+    "deepseek_primary": {
+      "denominator": 28,
+      "disabled_gmean_cycles": 907805.1767585864,
+      "disabled_pass": 26,
+      "enabled_gmean_cycles": 281789.14583766606,
+      "enabled_pass": 25,
+      "losses": 5,
+      "median_reduction": 1.758809166040571,
+      "paired": 23,
+      "paired_reduction": 3.2215760974752308,
+      "ties": 0,
+      "wins": 18
+    },
+    "deepseek_strict_baseline_cohort": {
+      "baseline_reduction": 2.5790737748783634,
+      "coverage": 22,
+      "expertise_reduction": 2.5535618973171714,
+      "losses": 5,
+      "wins": 17
+    },
+    "enabled_cross_model_common_cohort": {
+      "benches": [
+        "atax",
+        "mvt",
+        "2mm",
+        "3mm",
+        "cholesky",
+        "covariance",
+        "durbin",
+        "gemver",
+        "gesummv",
+        "gramschmidt",
+        "jacobi-2d",
+        "lu",
+        "nussinov",
+        "symm",
+        "syr2k",
+        "syrk",
+        "trisolv",
+        "trmm"
+      ],
+      "coverage": 18,
+      "grok_over_deepseek": 1.6569254032491967
+    },
+    "grok_full_sensitivity": {
+      "denominator": 28,
+      "disabled_gmean_cycles": 363326.5683873552,
+      "disabled_pass": 28,
+      "enabled_gmean_cycles": 206927.41100101452,
+      "enabled_pass": 28,
+      "losses": 6,
+      "median_reduction": 1.8434962463612685,
+      "paired": 28,
+      "paired_reduction": 1.7558165282683307,
+      "ties": 0,
+      "wins": 22
+    },
+    "grok_primary_same_source": {
+      "denominator": 23,
+      "disabled_gmean_cycles": 343041.9002110513,
+      "disabled_pass": 23,
+      "enabled_gmean_cycles": 221694.8232599833,
+      "enabled_pass": 23,
+      "losses": 5,
+      "median_reduction": 1.8427535491164038,
+      "paired": 23,
+      "paired_reduction": 1.5473608953365716,
+      "ties": 0,
+      "wins": 18
+    },
+    "grok_strict_baseline_cohort": {
+      "baseline_reduction": 4.47214528587867,
+      "coverage": 21,
+      "expertise_reduction": 1.8726536979585247,
+      "losses": 4,
+      "wins": 17
+    },
+    "opus": {
+      "arm_summary": {
+        "flash_allpos": {
+          "baseline_reduction": 7.132957136477906,
+          "gmean_cycles": 169212.23519239892,
+          "resource_fit": 26,
+          "timing_resource_feasible": 26,
+          "tool_complete": 26
+        },
+        "flash_curated": {
+          "baseline_reduction": 3.4459878435043447,
+          "gmean_cycles": 350257.6548173705,
+          "resource_fit": 26,
+          "timing_resource_feasible": 25,
+          "tool_complete": 26
+        },
+        "flash_noskills": {
+          "baseline_reduction": 3.358140471890213,
+          "gmean_cycles": 359420.2299451812,
+          "resource_fit": 26,
+          "timing_resource_feasible": 26,
+          "tool_complete": 26
+        },
+        "ms_allpos": {
+          "baseline_reduction": 7.978920092395827,
+          "gmean_cycles": 151271.55136511454,
+          "resource_fit": 26,
+          "timing_resource_feasible": 26,
+          "tool_complete": 26
+        },
+        "ms_curated": {
+          "baseline_reduction": 6.562112277689636,
+          "gmean_cycles": 183932.1806026687,
+          "resource_fit": 26,
+          "timing_resource_feasible": 26,
+          "tool_complete": 26
+        },
+        "ms_noskills": {
+          "baseline_reduction": 5.046190471353245,
+          "gmean_cycles": 239187.0912219691,
+          "resource_fit": 26,
+          "timing_resource_feasible": 25,
+          "tool_complete": 26
+        },
+        "oneshot": {
+          "baseline_reduction": 0.25102101165982393,
+          "gmean_cycles": 4808297.172472029,
+          "resource_fit": 26,
+          "timing_resource_feasible": 15,
+          "tool_complete": 26
+        }
+      },
+      "baseline_gmean_cycles": 1206983.6205949998,
+      "baseline_rtl_gmean_cycles": 739043.766292729,
+      "baseline_rtl_kernel_count": 26,
+      "best_arm_counts": {
+        "flash_allpos": 9,
+        "ms_allpos": 9,
+        "ms_curated": 5,
+        "ms_noskills": 3
+      },
+      "best_gmean_reduction": 14.505700388219587,
+      "best_guided_count": 23,
+      "best_off_count": 3,
+      "best_off_gmean_reduction": 5.508155874213465,
+      "best_over_off_gmean": 2.6334948972900887
+    }
+  },
+  "outputs": [
+    {
+      "path": "figures/july30_cosim_expertise.pdf",
+      "sha256": "3147be996232bd28c2cd170b50a549351dfc8a76727c332203e76601819cfb5c"
+    },
+    {
+      "path": "figures/opus_exhaustive_setup.pdf",
+      "sha256": "62617c09b5b855b379385f3b684b8dc0336da4c5c093f076293fc79c48292da6"
+    },
+    {
+      "path": "figures/chathls_cosim_comparison.pdf",
+      "sha256": "21a8ce1a586ab6452a038ce52858d928ee4d1ec7fb3175e50c8121a8111bbec4"
+    },
+    {
+      "path": "generated/july30_results_tables.tex",
+      "sha256": "d7ea5a10468352ac927ddec64653f86ed83d7a7ba065ae4880e979fa0bfd25b9"
+    },
+    {
+      "path": "generated/july30_results_macros.tex",
+      "sha256": "0f5da9cf39e6b7d5ccba6b35c3a4f7a99a5700602c5ecec346443d2e47fd67a0"
+    },
+    {
+      "path": "generated/july30_cosim_expertise.csv",
+      "sha256": "c2c100b808b956d74c51f16e4a572cf5d63c623e0e7a81733a278b43194e67ca"
+    },
+    {
+      "path": "generated/july30_opus_selection.csv",
+      "sha256": "8647630e726fa1aa864f1c138e8eace521279c4c72e03366a5c5e70b8b904687"
+    },
+    {
+      "path": "generated/july30_chathls_comparison.csv",
+      "sha256": "adf8d5b5862bc5c9835b99f1a887aa9301e3a98669552f60fdec394392710cbb"
+    }
+  ],
+  "schema": "hlsmith.paper.july30-results.v4"
+}

@@ -1,0 +1,31 @@
+{
+  "benchmark": "hlseval_machsuite_aes_aes",
+  "source_repo": "hls-eval",
+  "algorithm_source_path": "/home/luo00466/code_translation-c2hls/external_datasets/hls-eval/hls_eval_data/machsuite/aes_aes/aes_aes.cpp",
+  "gold_hls_source_path": "/home/luo00466/code_translation-c2hls/external_datasets/hls-eval/hls_eval_data/machsuite/aes_aes/aes_aes.cpp",
+  "gold_hls_source_file": "hls_baseline.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "hls_baseline.cpp",
+  "header_file": "aes_aes.h",
+  "baseline_variant": "hlseval_machsuite_aes_aes_baseline",
+  "translated_hls_top": "aes256_encrypt_ecb",
+  "hls_top": "aes256_encrypt_ecb",
+  "testbench_file": "testbench.cpp",
+  "support_files": [
+    "check.data",
+    "hls_eval_config.toml",
+    "input.data",
+    "kernel_description.md",
+    "top.txt"
+  ],
+  "variants": [
+    {
+      "name": "hlseval_machsuite_aes_aes_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/home/luo00466/code_translation-c2hls/external_datasets/hls-eval/hls_eval_data/machsuite/aes_aes/aes_aes.cpp"
+    }
+  ],
+  "supports_csim": true,
+  "supports_cosim": false,
+  "preferred_gt_file": "hls_baseline.cpp"
+}

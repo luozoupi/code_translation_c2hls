@@ -1,0 +1,106 @@
+{
+  "bundle_sha256": "7672e46ca87e9dd6e9bd42de32327a018167f7510dcdeca87f20bd8566600b8b",
+  "evidence_boundaries": [
+    "Sonnet, Opus, and GPT-5.5 rows use post-hoc best-of-six HLS-synthesis selection and stored HLSFactory baseline cycles.",
+    "Sonnet aggregates use the 25-kernel all-arm common set; the displayed Doitgen row has only four of six agentic setups.",
+    "The teacher-model candidates lack independent output comparison and generated-design RTL simulation.",
+    "The GPT-5.5 source records use only the model key gpt55 and do not record an exact checkpoint revision.",
+    "GPT-5.5 aggregates use 23 kernels with all six agentic setups attempted; three displayed kernels have one unexecuted setup.",
+    "DeepSeek and Grok bars divide executed benchmark-baseline RTL cycles by fixed-flash reported RTL cycles; executed baselines cover 26 kernels and are unavailable for Heat-3D and Seidel-2D.",
+    "The common-cohort table intersects the executed baseline, passing expertise-on/off arms, and the primary-selection cohort.",
+    "Experiment metadata identifies both enabled RTL arms as the all-skills policy. The compact DeepSeek campaign key is aav_n (all positive plus avoid rules), while the Grok input labels the arm skills.",
+    "Five Grok rows with asymmetric enabled-arm repeat selection are shown but excluded from the strict aggregate.",
+    "The five rows share kernel positions and improvement direction, not a common evidence level, search budget, or expertise snapshot."
+  ],
+  "inputs": [
+    {
+      "sha256": "c2c100b808b956d74c51f16e4a572cf5d63c623e0e7a81733a278b43194e67ca",
+      "source_id": "july30_cosim_expertise.csv"
+    },
+    {
+      "sha256": "8647630e726fa1aa864f1c138e8eace521279c4c72e03366a5c5e70b8b904687",
+      "source_id": "july30_opus_selection.csv"
+    },
+    {
+      "sha256": "3a4899c8fda4d5a2329d5ad087aec6ea6cf6e1a4c74a3c79671780279d8c97aa",
+      "source_id": "newskills_gpt55_snapshot.csv"
+    },
+    {
+      "sha256": "5f803841dcd162867283d7c397dd5818784802edd161d8a2007e92bfb5a5c226",
+      "source_id": "newskills_sonnet_snapshot.csv"
+    }
+  ],
+  "metrics": {
+    "deepseek": {
+      "baseline_available": 26,
+      "baseline_reduction": 2.5790737748778327,
+      "common": 22,
+      "common_expertise_reduction": 2.553561897318187,
+      "common_losses": 5,
+      "common_wins": 17,
+      "disabled_pass": 26,
+      "enabled_pass": 25,
+      "expertise_reduction": 3.2215760974763397,
+      "losses": 5,
+      "paired": 23,
+      "wins": 18
+    },
+    "gpt55": {
+      "baseline_reduction": 11.386540246912832,
+      "common": 23,
+      "displayed": 26,
+      "expertise_reduction": 2.302068183704393,
+      "expertise_selections": 17,
+      "off_baseline_reduction": 4.94622197879043,
+      "off_selections": 6,
+      "partial": 3
+    },
+    "grok": {
+      "baseline_available": 26,
+      "baseline_reduction": 4.472145285876974,
+      "common": 21,
+      "common_expertise_reduction": 1.8726536979590611,
+      "common_losses": 4,
+      "common_wins": 17,
+      "disabled_pass": 28,
+      "enabled_pass": 28,
+      "expertise_reduction": 1.5473608953370102,
+      "losses": 5,
+      "paired": 23,
+      "wins": 18
+    },
+    "opus": {
+      "baseline_reduction": 14.505700388226622,
+      "common": 26,
+      "displayed": 26,
+      "expertise_reduction": 2.633494897291857,
+      "expertise_selections": 23,
+      "off_baseline_reduction": 5.508155874212435,
+      "off_selections": 3
+    },
+    "sonnet": {
+      "baseline_reduction": 17.456351381024156,
+      "common": 25,
+      "displayed": 26,
+      "expertise_reduction": 2.8776076257754912,
+      "expertise_selections": 22,
+      "off_baseline_reduction": 6.066272282802912,
+      "off_selections": 3
+    }
+  },
+  "outputs": [
+    {
+      "path": "figures/model_expertise_aligned.pdf",
+      "sha256": "a9bfccfe970d1e26a1abae634a5d0843dd07e1286a2f1b65dfb421a4b836f493"
+    },
+    {
+      "path": "generated/model_expertise_summary_table.tex",
+      "sha256": "089f99ad74e822486f830082ead17ca8f3fc7701b7a7c46295aa15e999f4d046"
+    },
+    {
+      "path": "generated/model_expertise_aligned.csv",
+      "sha256": "f254d10f78f7717237a8c10aa71a3ee9674dff4109c2008fac881e7786f79de4"
+    }
+  ],
+  "schema": "hlsmith.paper.aligned-model-expertise.v3"
+}

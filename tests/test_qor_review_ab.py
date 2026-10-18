@@ -34,7 +34,7 @@ def test_seed_recovery_uses_measured_hash_not_first_reply():
 
 
 def registration():
-    return json.loads((REPO / "artifacts/experiment_matrix/deepseek_flash_reviewer_ab27_20260925.json").read_text())
+    return json.loads((REPO / "tests/fixtures/protocols/deepseek_flash_reviewer_ab27_20260925.json").read_text())
 
 
 def test_full_matrix_is_paired_and_interleaved():

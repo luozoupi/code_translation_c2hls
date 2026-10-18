@@ -1,0 +1,129 @@
+{
+  "benchmarks": [
+    "hlsfactory_gemm",
+    "hlsfactory_2mm",
+    "hlsfactory_3mm",
+    "hlsfactory_doitgen",
+    "hlsfactory_syrk",
+    "hlsfactory_syr2k",
+    "hlsfactory_symm",
+    "hlsfactory_trmm",
+    "hlsfactory_mvt",
+    "hlsfactory_gemver",
+    "hlsfactory_gesummv",
+    "hlsfactory_atax",
+    "hlsfactory_bicg",
+    "hlsfactory_cholesky",
+    "hlsfactory_correlation",
+    "hlsfactory_covariance",
+    "hlsfactory_durbin",
+    "hlsfactory_fdtd-2d",
+    "hlsfactory_floyd-warshall",
+    "hlsfactory_gramschmidt",
+    "hlsfactory_jacobi-1d",
+    "hlsfactory_jacobi-2d",
+    "hlsfactory_lu",
+    "hlsfactory_ludcmp",
+    "hlsfactory_nussinov",
+    "hlsfactory_trisolv"
+  ],
+  "cohorts": [
+    {
+      "id": "frozen-paper",
+      "prompt_profile": "paper-sigmetrics-2026",
+      "source": "frozen"
+    },
+    {
+      "id": "clean-paper",
+      "prompt_profile": "paper-sigmetrics-2026",
+      "source": "clean"
+    },
+    {
+      "id": "clean-researcher",
+      "prompt_profile": "researcher-v1",
+      "source": "clean"
+    }
+  ],
+  "configurations": [
+    {
+      "entrypoint": "run_benchmark",
+      "generation_timeout_seconds": 7200,
+      "id": "oneshot",
+      "quality_repair_turns": 0,
+      "skills": "off",
+      "turns": 1
+    },
+    {
+      "entrypoint": "run_benchmark",
+      "generation_timeout_seconds": 14400,
+      "id": "flash_noskills",
+      "quality_repair_turns": 4,
+      "skills": "noskills",
+      "turns": 5
+    },
+    {
+      "entrypoint": "run_benchmark",
+      "generation_timeout_seconds": 14400,
+      "id": "flash_curated",
+      "quality_repair_turns": 4,
+      "skills": "curated",
+      "turns": 5
+    },
+    {
+      "entrypoint": "run_benchmark",
+      "generation_timeout_seconds": 14400,
+      "id": "flash_allpos",
+      "quality_repair_turns": 4,
+      "skills": "allpos",
+      "turns": 5
+    },
+    {
+      "entrypoint": "run_benchmark_multistep",
+      "generation_timeout_seconds": 14400,
+      "id": "ms_noskills",
+      "quality_repair_turns": 4,
+      "skills": "noskills",
+      "turns": 5
+    },
+    {
+      "entrypoint": "run_benchmark_multistep",
+      "generation_timeout_seconds": 14400,
+      "id": "ms_curated",
+      "quality_repair_turns": 4,
+      "skills": "curated",
+      "turns": 5
+    },
+    {
+      "entrypoint": "run_benchmark_multistep",
+      "generation_timeout_seconds": 14400,
+      "id": "ms_allpos",
+      "quality_repair_turns": 4,
+      "skills": "allpos",
+      "turns": 5
+    }
+  ],
+  "historical_launcher": "commercial_sweep_20261008/import/payload/c2hls_newskills_commercial_sweep/scripts/_run_newskills_campaign.sh",
+  "jobs": 1638,
+  "paid_launch_caps": "required explicitly; no defaults",
+  "provider": {
+    "declared_release": "DeepSeek-V4.1-Flash-1017",
+    "endpoint": "https://api.deepseek.com",
+    "immutable_weights_claim": false,
+    "model": "deepseek-flash",
+    "provider": "deepseek",
+    "rates_captured_on": "2026-10-18",
+    "rates_per_million": {
+      "cached_input": 0.006,
+      "input": 0.3,
+      "output": 1.2
+    },
+    "rates_scope": "peak USD; recheck before launch",
+    "rates_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "seed_supported": false,
+    "thinking": "disabled"
+  },
+  "repeats": 3,
+  "schema_version": "hlsmith.cleanup-comparison.v1",
+  "treatment_warning": "Seven requested configurations do not imply seven active treatments: v6 single-shot run_benchmark does not inject recipes for curated/all-positive flags. Preserve this behavior in the cleanup comparison; do not attribute single-shot differences to recipe guidance.",
+  "validation_outer_seconds": 4620
+}

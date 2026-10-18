@@ -1,0 +1,21 @@
+% Exact recorded IDs, input hashes, and loop witnesses: trmm_skill_evidence.json.
+\begin{table}[t]
+\centering
+\caption{TRMM skill-to-mechanism trace. Source motifs come from the earlier validated case manifest. Loop observations come from the retained report fields. % Wording review D14: TRMM figure/table captions repeat surrounding audit prose.
+% \defensiveflag{D14}{A selected recipe or source marker does not isolate its causal contribution.}
+}
+\label{tab:trmm-skill-trace}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{@{}Y{0.45}Y{0.85}Y{1.7}@{}}
+\toprule
+Stage & Recorded guidance & Source/report observation \\
+\midrule
+Staging & Selected lane-buffer banking recipe & Column/row buffers and factor-eight accumulator banks. No measured AXI traffic reduction. \\
+Buffers & Selected stage-split recipe & Alternating row buffers. Actual load/compute overlap remains unverified. \\
+Pipeline & Selected hot-loop pipeline recipe & Full-matrix staging and dependence assertion. Earlier checkpoint loops already report II=1. \\
+Tiling & Selected reuse/tiling recipe & Eight-row tile and $8\times80$ accumulator. The worst-case field rises despite a lower controller estimate. \\
+Unroll & Static fallback and other guidance & Factor-eight banking/unrolling. Scaling-loop trip count $80\to10$ at unchanged II=1. \\
+\bottomrule
+\end{tabularx}
+\end{table}

@@ -8,7 +8,7 @@ import types
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-FROZEN = REPO / 'artifacts/sigmetrics2027/registry_recovery_20260928/source/scripts/run_historical_cosim.py'
+FROZEN = REPO / 'tests/fixtures/frozen-validation/scripts/run_historical_cosim.py'
 
 
 @pytest.mark.parametrize('csim_passed', [False, True])

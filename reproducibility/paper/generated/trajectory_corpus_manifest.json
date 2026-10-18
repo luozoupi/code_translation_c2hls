@@ -1,0 +1,126 @@
+{
+  "models_not_observed_in_current_export": [
+    "claude-opus-4-8",
+    "gpt-5.5"
+  ],
+  "observed_teacher_labels": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-4-6"
+  ],
+  "paper_admission": "implemented_export_only_quarantined_pending_reference_cue_filter_independent_golden_relabel_and_leakage_safe_split",
+  "raw_export": {
+    "count_source": "agentic_sft_manifest.json",
+    "positive_records": 5065,
+    "quality_counts": {
+      "negative": 121,
+      "no_code": 1,
+      "synth_positive": 447,
+      "validated_positive": 4618
+    },
+    "records": 5187,
+    "suite_counts": {
+      "agentic": 347,
+      "hlsfactory": 4793,
+      "portable_branch": 47
+    },
+    "teacher_counts": {
+      "claude-haiku-4-5-20251001": 519,
+      "claude-sonnet-4-6": 4621,
+      "unknown": 47
+    }
+  },
+  "schema_version": "c2hls.paper-trajectory-corpus-snapshot.v1",
+  "sft_export": {
+    "benchmark_overlap_across_splits": false,
+    "broad_reference_mention_rows": 2264,
+    "kernel_count": 27,
+    "missing_primary_benchmarks": [
+      "hlsfactory_doitgen"
+    ],
+    "prompt_path_cue_rows": 3935,
+    "records": 4531,
+    "split_benchmarks": {
+      "test": [
+        "hlsfactory_durbin",
+        "hlsfactory_floyd_warshall",
+        "hlsfactory_gemm",
+        "hlsfactory_trmm"
+      ],
+      "train": [
+        "hlsfactory_2mm",
+        "hlsfactory_3mm",
+        "hlsfactory_atax",
+        "hlsfactory_bicg",
+        "hlsfactory_cholesky",
+        "hlsfactory_correlation",
+        "hlsfactory_covariance",
+        "hlsfactory_fdtd_2d",
+        "hlsfactory_gemver",
+        "hlsfactory_gesummv",
+        "hlsfactory_heat_3d",
+        "hlsfactory_jacobi_1d",
+        "hlsfactory_jacobi_2d",
+        "hlsfactory_lu",
+        "hlsfactory_ludcmp",
+        "hlsfactory_mvt",
+        "hlsfactory_nussinov",
+        "hlsfactory_seidel_2d",
+        "hlsfactory_symm",
+        "hlsfactory_syr2k",
+        "hlsfactory_syrk",
+        "hlsfactory_trisolv"
+      ],
+      "val": [
+        "hlsfactory_gramschmidt"
+      ]
+    },
+    "split_counts": {
+      "test": 615,
+      "train": 3771,
+      "val": 145
+    },
+    "split_kernel_counts": {
+      "test": 4,
+      "train": 22,
+      "val": 1
+    },
+    "strong_reference_cue_rows": 73,
+    "target_hash_overlap_across_splits": false,
+    "teacher_counts": {
+      "claude-haiku-4-5-20251001": 63,
+      "claude-sonnet-4-6": 4468
+    }
+  },
+  "snapshot_hash_prefix": "c44544f59c05",
+  "snapshot_sha256": "c44544f59c059b741f457db6b8fd755f7b622d7487749bcb5e1299344ffbfc42",
+  "snapshot_validation": {
+    "cosim_observed_pass_and_cycle_fields_checked": true,
+    "cosim_subsets_joined_by_split_benchmark_and_code_hash": true,
+    "cross_split_benchmark_and_target_hash_overlap_rejected": true,
+    "independent_golden_correctness_checked": false,
+    "per_row_suite_quality_and_split_checked": true,
+    "per_row_synth_and_csim_labels_checked": true,
+    "provider_model_identity_attested": false,
+    "within_split_benchmark_code_duplicates_rejected": true
+  },
+  "source_hashes": {
+    "agentic_sft_compact_positive.jsonl": "d0a3cb608fec292f8e0edad855a371fb8a262122a9441ba6c1af24f2fc6e5d67",
+    "agentic_sft_manifest.json": "3d7ed6171944c15884c0c9e57856686456c867b0dc97bb85cc659e512548395e",
+    "agentic_sft_v1/manifest.json": "51f98a9ae0acabe9088630b288106936439ff8e6c19881c617a27b6e67fb3d9e",
+    "agentic_sft_v1/test.jsonl": "8c32dce7aa151462e7105ca9182d9c17f1a854913f21f8d4c7d300017a5daba9",
+    "agentic_sft_v1/train.jsonl": "b5ebf7fffca458e259dd081448cbde2f715ee98f16d419e587e7328626232acf",
+    "agentic_sft_v1/val.jsonl": "7babed72037ed50936ee93129971148c08441d0304be31ce7fd0034689e9b8c5",
+    "agentic_trl_chat_v1/cosim_observed.jsonl": "705ae92ed3227098d7282190e90b7cc7760a03aaa96ba24ac9cebcd5ec8e1d1d",
+    "agentic_trl_chat_v1/cosim_passed.jsonl": "b1d13432b6c3ebb37aa6a7d721a6e95e3948eefa4c355cfef60fbe35595955c7",
+    "agentic_trl_chat_v1/manifest.json": "4ee17b491599d5439273cb9845ff24446b8a259501edf2de1b88b8933ed51b55"
+  },
+  "student_training_status": "pending_no_adapter_or_checkpoint_admitted",
+  "teacher_label_provenance": "self_reported_model_teacher_field_not_provider_attested",
+  "trl_export": {
+    "cosim_missing": 4336,
+    "cosim_observed": 195,
+    "cosim_passed": 126,
+    "preference_pairs_present": false,
+    "reward_policy": "heuristic correctness tier; speed/resources separate"
+  }
+}

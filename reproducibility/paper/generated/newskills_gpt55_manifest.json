@@ -1,0 +1,124 @@
+{
+  "bundle_sha256": "b9bd6eed51ef5b6580b6b85cb662411e7b2b8ac3d02c0cf43055db702821de43",
+  "evidence_boundaries": [
+    "The source records identify the model only with the key gpt55; the paper label GPT-5.5 follows experiment-owner metadata.",
+    "Candidate records contain C-simulation and HLS-synthesis status, but no independent output comparison or generated RTL simulation.",
+    "Post-hoc selection uses only CSim/CSynth-passing candidates that meet the 3.33-ns target and fit U280 resources.",
+    "Common-set aggregates exclude three kernels with an unexecuted agentic setup; the figure retains them with partial markers.",
+    "The six agentic setups are not a cost-matched model comparison or an online learned-router result."
+  ],
+  "inputs": [
+    {
+      "sha256": "4812782ab998905db5ec6c3284dd76f495aa6d424c7c38b760e42181724d390c",
+      "source_id": "newskills_gpt55_csynth_table.csv"
+    },
+    {
+      "sha256": "b8e94ffb7b27de4eb95ea28759077e35214077bc04fbf90ba9013862cecfa608",
+      "source_id": "schema_records_newskills_gpt55.jsonl"
+    }
+  ],
+  "metrics": {
+    "agentic_attempted_cells": 153,
+    "agentic_csim_pass_cells": 153,
+    "agentic_csynth_pass_cells": 152,
+    "agentic_expected_cells": 156,
+    "agentic_feasible_cells": 150,
+    "common_23": {
+      "all_skills_over_no_skills": 2.302068183703425,
+      "baseline_reduction": 11.386540246912029,
+      "kernels": 23,
+      "no_skills_baseline_reduction": 4.946221978792161,
+      "no_skills_selected": 6,
+      "skills_selected": 17,
+      "winner_counts": {
+        "flash_allpos": 8,
+        "flash_curated": 3,
+        "flash_noskills": 1,
+        "ms_allpos": 4,
+        "ms_curated": 2,
+        "ms_noskills": 5
+      }
+    },
+    "complete_setup_grid_kernels": 23,
+    "displayed_26_sensitivity": {
+      "all_skills_over_no_skills": 2.26214595504103,
+      "baseline_reduction": 11.365158679310397,
+      "kernels": 26,
+      "no_skills_baseline_reduction": 5.024060739309928,
+      "no_skills_selected": 6,
+      "skills_selected": 20,
+      "winner_counts": {
+        "flash_allpos": 10,
+        "flash_curated": 3,
+        "flash_noskills": 1,
+        "ms_allpos": 4,
+        "ms_curated": 3,
+        "ms_noskills": 5
+      }
+    },
+    "displayed_kernels": 26,
+    "partial_setup_grid_kernels": 3
+  },
+  "model": {
+    "exact_checkpoint_revision_recorded": false,
+    "paper_label": "GPT-5.5",
+    "recorded_key": "gpt55"
+  },
+  "outputs": [
+    {
+      "path": "generated/newskills_gpt55_snapshot.csv",
+      "sha256": "3a4899c8fda4d5a2329d5ad087aec6ea6cf6e1a4c74a3c79671780279d8c97aa"
+    },
+    {
+      "path": "generated/newskills_gpt55_macros.tex",
+      "sha256": "d8db7ab5adfa5c24d4b5dc54fe2b8b6cc9fd62a54b096338c471785f335bf887"
+    }
+  ],
+  "schema": "hlsmith.paper.gpt55-synthesis-snapshot.v1",
+  "toolchain": {
+    "device": "xcu280-fsvh2892-2L-e",
+    "target_period_ns": 3.33,
+    "vitis": "2023.2"
+  },
+  "validation": {
+    "missing_cells": [
+      {
+        "benchmark": "3mm",
+        "setup": "flash_noskills"
+      },
+      {
+        "benchmark": "floyd-warshall",
+        "setup": "flash_allpos"
+      },
+      {
+        "benchmark": "gemver",
+        "setup": "flash_curated"
+      },
+      {
+        "benchmark": "jacobi-1d",
+        "setup": "oneshot"
+      }
+    ],
+    "resource_failures": [],
+    "synthesis_failures": [
+      {
+        "benchmark": "nussinov",
+        "setup": "flash_curated"
+      }
+    ],
+    "timing_failures": [
+      {
+        "benchmark": "correlation",
+        "setup": "oneshot"
+      },
+      {
+        "benchmark": "gemver",
+        "setup": "ms_allpos"
+      },
+      {
+        "benchmark": "lu",
+        "setup": "ms_allpos"
+      }
+    ]
+  }
+}

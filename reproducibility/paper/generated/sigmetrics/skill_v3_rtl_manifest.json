@@ -1,0 +1,165 @@
+{
+  "bar_width": 0.28,
+  "captured_at": "2026-10-07T20:23:57.779319+00:00",
+  "evidence_boundaries": [
+    "108 designs were selected by the existing post-hoc best-of-five synthesis rule, not reselected using RTL results.",
+    "CSynth ratios use the 108 frozen historical synthesis-record pairs; 103 pairs are identity-linked to backfill artifacts and five retain unresolved no-recipes identities, marked U in the status strip.",
+    "COSim ratios are plotted only when both independently checked designs pass under the same one-hour limit. Missing ratios have separate selected/comparator statuses and are never plotted as zero.",
+    "Three-hour retry passes appear only in the coverage sensitivity table/CSV, never in primary plotted bars.",
+    "The upstream HLS reference synthesis estimates are not used as RTL denominators.",
+    "The 27-kernel cohort excludes Doitgen, which was not run in the source sweep.",
+    "All linked historical designs retain failed advisory reference-isolation audits. Co-simulation validates tested outputs, not isolation or general functional equivalence.",
+    "Distinct Gemma serving revisions and the four workflows remain separate; these are not matched-budget causal recipe comparisons.",
+    "Conditional geomeans describe surviving pairs only and are not aggregate speedups across all 27 kernels.",
+    "Five no-recipes identities are unresolved and remain unmeasured; their failures are not replaced by new candidates."
+  ],
+  "evidence_bundle": "generated/sigmetrics/skill_v3_rtl_evidence",
+  "evidence_manifest_sha256": "15f39e77be72ac99f6be3d41640f078b81a19e05c6cabcf389dedc4009a85854",
+  "figure_inches": [
+    6.4,
+    4.5
+  ],
+  "font": {
+    "family": "Times New Roman",
+    "path": "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman.ttf"
+  },
+  "generator_sha256": "64920000dbdd36fce1276d439426b3c0de8567b1813d9592282e03e9ac035e2a",
+  "metric": "same-model same-mode no-recipes cycles / fixed synthesis-selected cycles, computed separately within CSynth and COSim",
+  "metrics": {
+    "COSim": "independently output-checked measured RTL cycle ratio",
+    "CSynth": "historical synthesis estimate ratio"
+  },
+  "outputs": {
+    "figures/sigmetrics/skill_v3_rtl.pdf": "552d9378f95414e44f0a5a797db7b9fc3555df72daeb9b5c40bf3f67d6809c31",
+    "figures/sigmetrics/skill_v3_rtl.png": "0a8b4fa0812a7a6c822f3afe1f310a88cf43d1cc1ed80c1af7eedaa29dfd10a4",
+    "figures/sigmetrics/skill_v3_rtl.svg": "e2bad000e6088b55a48497b637d3b1c13bc62592e6d6bf83a0ccd65b267b4b9c",
+    "generated/sigmetrics/skill_v3_rtl_coverage_table.tex": "d4f6e3fbae48207712209bdb211a419a7b4c62a7a4823152d5b5cda75f241018",
+    "generated/sigmetrics/skill_v3_rtl_macros.tex": "82a50ab0ef8de965cb67199fe0fac7dfbee7ea2d71f7011ea6712d3728034312",
+    "generated/sigmetrics/skill_v3_rtl_snapshot.csv": "497b90c5022019580e857ccc4c92e7ebb39f47dd72f70c7a36e1e0121a92f00f",
+    "generated/sigmetrics/skill_v3_rtl_summary.json": "8a321d5bdb1015bd6ac6c0ba28a88b6a9163fd44a9e6c3fac293638fbe57fccc"
+  },
+  "pair_outer_width": 0.6000000000000001,
+  "primary_limit_seconds": 3600,
+  "schema": "c2hls.figure8-rtl.v1",
+  "sensitivity_limit_seconds": 10800,
+  "summary": {
+    "groups": [
+      {
+        "conditional_geomean_1h": 2.1617072258966608,
+        "conditional_geomean_with_replay": 2.745337019070434,
+        "identity_linked_synthesis_pairs": 27,
+        "model": "Gemma-4-31B",
+        "off_pass_with_replay": 20,
+        "off_statuses_1h": {
+          "fail": 2,
+          "pass": 17,
+          "timeout": 8
+        },
+        "paired_1h": 17,
+        "paired_with_replay": 20,
+        "recorded_synthesis_pairs": 27,
+        "same_design_pairs_1h": 8,
+        "same_design_pairs_with_replay": 9,
+        "selected_pass_with_replay": 24,
+        "selected_statuses_1h": {
+          "fail": 1,
+          "pass": 23,
+          "timeout": 3
+        },
+        "total": 27,
+        "workflow": "flash"
+      },
+      {
+        "conditional_geomean_1h": 2.7052463348293405,
+        "conditional_geomean_with_replay": 3.379366787197009,
+        "identity_linked_synthesis_pairs": 26,
+        "model": "Gemma-4-31B",
+        "off_pass_with_replay": 18,
+        "off_statuses_1h": {
+          "blocked_identity": 1,
+          "fail": 2,
+          "pass": 17,
+          "timeout": 7
+        },
+        "paired_1h": 14,
+        "paired_with_replay": 17,
+        "recorded_synthesis_pairs": 27,
+        "same_design_pairs_1h": 5,
+        "same_design_pairs_with_replay": 5,
+        "selected_pass_with_replay": 21,
+        "selected_statuses_1h": {
+          "fail": 2,
+          "pass": 19,
+          "timeout": 6
+        },
+        "total": 27,
+        "workflow": "multistep"
+      },
+      {
+        "conditional_geomean_1h": 6.302045102908323,
+        "conditional_geomean_with_replay": 12.840895874566746,
+        "identity_linked_synthesis_pairs": 25,
+        "model": "Qwen3.6-27B",
+        "off_pass_with_replay": 13,
+        "off_statuses_1h": {
+          "blocked_identity": 2,
+          "fail": 4,
+          "pass": 11,
+          "timeout": 10
+        },
+        "paired_1h": 9,
+        "paired_with_replay": 13,
+        "recorded_synthesis_pairs": 27,
+        "same_design_pairs_1h": 3,
+        "same_design_pairs_with_replay": 3,
+        "selected_pass_with_replay": 25,
+        "selected_statuses_1h": {
+          "fail": 1,
+          "pass": 20,
+          "timeout": 6
+        },
+        "total": 27,
+        "workflow": "flash"
+      },
+      {
+        "conditional_geomean_1h": 8.580965223801106,
+        "conditional_geomean_with_replay": 10.155084513477993,
+        "identity_linked_synthesis_pairs": 25,
+        "model": "Qwen3.6-27B",
+        "off_pass_with_replay": 15,
+        "off_statuses_1h": {
+          "blocked_identity": 2,
+          "fail": 1,
+          "pass": 12,
+          "timeout": 12
+        },
+        "paired_1h": 12,
+        "paired_with_replay": 15,
+        "recorded_synthesis_pairs": 27,
+        "same_design_pairs_1h": 1,
+        "same_design_pairs_with_replay": 1,
+        "selected_pass_with_replay": 24,
+        "selected_statuses_1h": {
+          "fail": 1,
+          "pass": 22,
+          "timeout": 4
+        },
+        "total": 27,
+        "workflow": "multistep"
+      }
+    ],
+    "identity_linked_synthesis_pairs": 103,
+    "identity_unresolved": 5,
+    "off_pass_1h": 57,
+    "paired_1h": 52,
+    "paired_with_replay": 65,
+    "recorded_synthesis_pairs": 108,
+    "selected_pass_1h": 84,
+    "selected_pass_with_replay": 94,
+    "selected_total": 108,
+    "strict_wins_1h": 35,
+    "ties_1h": 17
+  },
+  "timeout_scope": "entire historical Vitis invocation, including fresh synthesis and co-simulation; not a cosim_design-only limit",
+  "wrapper_sha256": "ed92bfdb55358004a768ac5baa9cedb58f6dbd7af62ebaac290f7b6e516560e2"
+}

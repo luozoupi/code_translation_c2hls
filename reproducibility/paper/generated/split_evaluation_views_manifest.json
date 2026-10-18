@@ -1,0 +1,40 @@
+{
+  "evidence_sha256": "75f94be4766e26a6c6def565ec687d01d5c06e714d4d9a0aa57d3505dd88a7e1",
+  "generator": "scripts/generate_split_evaluation_views.py",
+  "inputs": [
+    {
+      "bytes": 4451,
+      "path": "generated/setup_teacher_router_sft.csv",
+      "sha256": "08ec6bb3c366182eb0281e81f3d382f3957c8c6309f471709b47721c4103590d"
+    },
+    {
+      "bytes": 58861,
+      "path": "c2hls-data/artifacts/setup_router/topk_architecture_comparison_corrected_v2_20260728/metrics.json",
+      "sha256": "e52b6005ed1eb8ebe91d51549b1e4b60c87fc41da65107136a0a075525f16656"
+    }
+  ],
+  "outputs": [
+    {
+      "bytes": 3281,
+      "path": "generated/router_network_table.tex",
+      "sha256": "efdc7636e6b5daec173678825be1fe7fbf13fe5631f1bdfda08a8f03d9357aca"
+    },
+    {
+      "bytes": 14768,
+      "path": "figures/open_model_sft_matrix.pdf",
+      "sha256": "5d75bdf39cc7d36e7a15f79036a355a92a2e661650d56332f669372d5d5e0891"
+    }
+  ],
+  "schema_version": "c2hls.paper-split-evaluation-views.v1",
+  "scope": {
+    "causal_sft_comparison_available": false,
+    "hybrid_is_development_selected": true,
+    "open_model_cycle_source": "worst-case CSynth estimate",
+    "open_model_independent_cpu_check": true,
+    "open_model_kernels": 5,
+    "open_model_rtl_simulation": false,
+    "router_candidate_count": 5,
+    "router_lineages": 19,
+    "router_protocol": "raw predicted Top-5"
+  }
+}

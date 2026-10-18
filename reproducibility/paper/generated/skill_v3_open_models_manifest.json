@@ -1,0 +1,276 @@
+{
+  "evidence_boundaries": [
+    "Each setup is one deterministic sample; no repeated-seed variance is available.",
+    "Each per-kernel bar is a within-mode post-hoc best-of-five HLS-synthesis oracle, not an online-router or matched-cost deployment result.",
+    "Single-step and multi-step results are not pooled; the two Gemma modes name distinct, externally unauthenticated serving revisions.",
+    "Raw selected-result records label the independent-golden, CSim, CSynth, timing, and resource gates as passed; the figure reports only HLS-synthesis cycles.",
+    "Generated-design RTL simulation was not run.",
+    "Every row carries an advisory reference-isolation failure; the bundled README attributes these to unlabeled_reference_metric and says classification remains pending.",
+    "The derived CSV/JSONL fingerprint column is blank because of an export bug; all 540 manifest-linked raw summary/result pairs contain the same nonempty fingerprint.",
+    "The derived export flattens the Gemma multi-step revision onto its single-step rows; raw result records preserve the two distinct revisions.",
+    "The Qwen wrapper reports exit code 2 after producing the complete row bundle; the Gemma wrapper reports completion.",
+    "Heat-3d and Seidel-2d references come from the validation cache rather than the website schema.",
+    "Stored references are comparison denominators, not independently established expert frontiers.",
+    "The four execution-mode studies are reported separately and must not be pooled with commercial-model, older skill-library, SFT, or RTL studies as matched model comparisons.",
+    "The bundled pooled winners.csv is cross-checked for source integrity but is not used to select or summarize the plotted within-mode winners."
+  ],
+  "figure_definition": {
+    "bar": "upstream_hls_reference_worst_case_cycles / within_mode_posthoc_best_of_5_qualified_worst_case_csynth_cycles",
+    "color": "selected_skill_policy",
+    "diamond": "upstream_hls_reference_worst_case_cycles / same_mode_no_expertise_qualified_worst_case_csynth_cycles",
+    "displayed_kernel_slots": 28,
+    "hatch": "multi_step",
+    "paired_bar_offset": "single_step_left_multi_step_right",
+    "recorded_kernel_slots": 27
+  },
+  "generator": {
+    "path": "scripts/generate_skill_v3_open_models.py",
+    "sha256": "8da47fc82d8f30b6f82c9a1e1ea4d1f423499d01f023d2e40add116862bae217"
+  },
+  "outputs": {
+    "figures/skill_v3_open_models.pdf": {
+      "bytes": 41929,
+      "sha256": "03aef6a1e49ffd218e29b5a20b8270a86eca795637cd5888cbf62d46c0d029f9"
+    },
+    "generated/skill_v3_open_models_macros.tex": {
+      "bytes": 2311,
+      "sha256": "11cd5af1ef882c43739c9e2cc0eabc843a2802b4809d5460d6292b20b8cb6fce"
+    },
+    "generated/skill_v3_open_models_snapshot.csv": {
+      "bytes": 95715,
+      "sha256": "58324404ccad48096fddbc26287b80082e8e668d9e617349ec812830e5d6b89d"
+    }
+  },
+  "raw_provenance_audit": {
+    "derived_export_blank_fingerprint_count": 540,
+    "derived_export_revision_mismatch_count": 135,
+    "raw_fingerprint_count": 540,
+    "raw_independent_golden_pass_count": 540,
+    "workflows": {
+      "gemma4_31b__flash": {
+        "derived_export_revision": "google/gemma-4-31B-it@vllm-0.20.2-20260730",
+        "endpoint_sha256": "6db9060783236431647d04b50ebc694630ff77615a6d213b14d0be009076dc67",
+        "externally_authenticated_revision": false,
+        "matching_raw_fingerprint_count": 135,
+        "model": "Gemma-4-31B",
+        "model_key": "gemma4_31b",
+        "raw_independent_golden_pass_count": 135,
+        "raw_recorded_revision": "gemma-4-31b-it@cs-u-converge-30001-20260729",
+        "revision_source": "C2HLS_MODEL_REVISION",
+        "row_count": 135,
+        "state_path": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/experiment_matrix/skill_v3_fc27133/gemma_state.json",
+        "state_sha256": "53bc44e17d4837323ca0b148c4c991614caeb0cf48fbd0b2653b780f5a70d338",
+        "strategy": "flash",
+        "summary_path": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/agentic_no_streamcluster_skillv3_no_rmw_fc27133_gemma4_31b_base_remote_flash_skills5_nocosim_shapeaudit1_20260729.summary.json",
+        "summary_sha256": "291aeb6be994348f60f8f4990b4ba810e67bbc3ea59eaf4e245629102ec88fbc"
+      },
+      "gemma4_31b__multistep": {
+        "derived_export_revision": "google/gemma-4-31B-it@vllm-0.20.2-20260730",
+        "endpoint_sha256": "69bec3dbf463c6167aa4f9dc5c435cee4a6fdbcc5a41985504859b6ac14c1e27",
+        "externally_authenticated_revision": false,
+        "matching_raw_fingerprint_count": 135,
+        "model": "Gemma-4-31B",
+        "model_key": "gemma4_31b",
+        "raw_independent_golden_pass_count": 135,
+        "raw_recorded_revision": "google/gemma-4-31B-it@vllm-0.20.2-20260730",
+        "revision_source": "C2HLS_MODEL_REVISION",
+        "row_count": 135,
+        "state_path": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/experiment_matrix/skill_v3_fc27133/gemma_dynamic_rerun1_state.json",
+        "state_sha256": "4b69320778f37a6d66a3015ddb0e54279b8b89334ef16429ee7bc1dc81914058",
+        "strategy": "multistep",
+        "summary_path": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/agentic_no_streamcluster_skillv3_no_rmw_fc27133_gemma4_31b_base_remote_dynamic_skills5_nocosim_shapeaudit1_endpoint_rerun1_20260730.summary.json",
+        "summary_sha256": "829a47005d226c59b1c3bd184b51cc61fba0025ac725f6b234d36fa16d2206d3"
+      },
+      "qwen3_6_27b__flash": {
+        "derived_export_revision": "Qwen3.6-27B@6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+        "endpoint_sha256": "99239e8d723b9009aa89dfcb2adbc315ee272ab41b3dae3665e51569b34fb266",
+        "externally_authenticated_revision": false,
+        "matching_raw_fingerprint_count": 135,
+        "model": "Qwen3.6-27B",
+        "model_key": "qwen3_6_27b",
+        "raw_independent_golden_pass_count": 135,
+        "raw_recorded_revision": "Qwen3.6-27B@6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+        "revision_source": "C2HLS_MODEL_REVISION",
+        "row_count": 135,
+        "state_path": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/experiment_matrix/skill_v3_fc27133/qwen_state.json",
+        "state_sha256": "8f4ef1854aad3ee51638396e06619d7e09ce802463b111670a336c3fa85097bc",
+        "strategy": "flash",
+        "summary_path": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/agentic_no_streamcluster_skillv3_no_rmw_fc27133_qwen36_27b_base_local_flash_skills5_nocosim_shapeaudit1_20260729.summary.json",
+        "summary_sha256": "e15fb2aff24fabecf84463fbe9454c74f09ee944b4aa3714f0d959ded850ccc6"
+      },
+      "qwen3_6_27b__multistep": {
+        "derived_export_revision": "Qwen3.6-27B@6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+        "endpoint_sha256": "99239e8d723b9009aa89dfcb2adbc315ee272ab41b3dae3665e51569b34fb266",
+        "externally_authenticated_revision": false,
+        "matching_raw_fingerprint_count": 135,
+        "model": "Qwen3.6-27B",
+        "model_key": "qwen3_6_27b",
+        "raw_independent_golden_pass_count": 135,
+        "raw_recorded_revision": "Qwen3.6-27B@6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+        "revision_source": "C2HLS_MODEL_REVISION",
+        "row_count": 135,
+        "state_path": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/experiment_matrix/skill_v3_fc27133/qwen_state.json",
+        "state_sha256": "8f4ef1854aad3ee51638396e06619d7e09ce802463b111670a336c3fa85097bc",
+        "strategy": "multistep",
+        "summary_path": "/home/luo00466/code_translation-c2hls-hpca2027/artifacts/agentic_no_streamcluster_skillv3_no_rmw_fc27133_qwen36_27b_base_local_dynamic_skills5_nocosim_shapeaudit1_20260729.summary.json",
+        "summary_sha256": "aacfc66c58af2b7c072854818160b2e8fe75e3deee7e75487e950cb4e3df103d"
+      }
+    }
+  },
+  "schema_version": "c2hls.paper.skill-v3-open-models.v1",
+  "snapshot_row_count": 108,
+  "source_bundle": {
+    "files": {
+      "README.md": {
+        "sha256": "20f4e11379fbc141402478312682800db82e85f64636b9e594fea3d907495b41"
+      },
+      "all_rows.csv": {
+        "sha256": "33f75602fcd0e62ee3ee9e05bb08f11653411e6d96befa7427ea98682ff1c724"
+      },
+      "all_rows.jsonl": {
+        "sha256": "3105b36f8004889b6a562f4f2e86e1cc03c747a51563c05fa898dafe0ea50c4d"
+      },
+      "manifest.json": {
+        "sha256": "0858ff6940e2ac78a2ad04d3e7c6d110246230ee34330107703e94a43f1b769a"
+      },
+      "setup_summary.csv": {
+        "sha256": "a63469d50de1456ad319c6f2f6437632c1cff28b31d52c03f1f2fb18d8feebf9"
+      },
+      "winners.csv": {
+        "sha256": "84aab3cd7480839ea1feec5868c304c9f0332d05af3ad02041d7871edf8db55c"
+      },
+      "worst_cycles_wide.csv": {
+        "sha256": "862cc23ddb935e462563fc007f689a565b1e8c6217fd03b5e15af058650b1f63"
+      }
+    },
+    "manifest_schema": "c2hls.skill-v3-sweep-table-manifest.v1",
+    "path": "/home/luo00466/code_translation-c2hls-hpca2027/results_sweeps/skill_v3_qwen_gemma_matrix_20260731"
+  },
+  "validated_matrix": {
+    "cache_only_reference_count": 2,
+    "cell_count": 540,
+    "cosim_not_run_count": 540,
+    "csim_pass_count": 540,
+    "csynth_pass_count": 540,
+    "derived_export_blank_fingerprint_count": 540,
+    "gemma_wrapper_complete_exit_0_rows": 270,
+    "kernel_count": 27,
+    "matching_raw_fingerprint_count": 540,
+    "missing_kernel": "hlsfactory_doitgen",
+    "model_count": 2,
+    "qwen_wrapper_failed_exit_2_rows": 270,
+    "raw_independent_golden_pass_count": 540,
+    "reference_isolation_audit_flag_count": 540,
+    "resource_fit_count": 540,
+    "selected_baseline_fallback_count": 177,
+    "setups_per_workflow_kernel": 5,
+    "skill_catalog": {
+      "avoid_count": 39,
+      "catalog_count": 123,
+      "id": "skill_v3_no_rmw_fc27133",
+      "positive_count": 84
+    },
+    "skill_policy_count": 5,
+    "strategy_count": 2,
+    "timing_pass_count": 540,
+    "toolchain": {
+      "clock_ns": 3.33,
+      "cosim": false,
+      "part": "xcu280-fsvh2892-2L-e",
+      "vitis_version": "2023.2"
+    },
+    "website_schema_reference_count": 25,
+    "within_workflow_winner_baseline_fallback_count": 5,
+    "workflow_count": 4
+  },
+  "workflow_summaries": {
+    "gemma4_31b__flash": {
+      "expertise_policy_setup_selections": 16,
+      "externally_authenticated_revision": false,
+      "kernel_count": 27,
+      "model": "Gemma-4-31B",
+      "model_key": "gemma4_31b",
+      "no_expertise_setup_selections": 11,
+      "no_skills_over_selected_geomean": 3.053254911415487,
+      "posthoc_best_of_setup_count": 5,
+      "raw_recorded_model_revision": "gemma-4-31b-it@cs-u-converge-30001-20260729",
+      "reference_over_no_skills_geomean": 1.0901624417689475,
+      "reference_over_selected_geomean": 3.328543829571738,
+      "selected_baseline_fallbacks": 3,
+      "selected_policy_counts": {
+        "all_positive": 6,
+        "matched": 6,
+        "skillless": 11,
+        "smart_best_fit": 3,
+        "smart_exhaustive": 1
+      },
+      "workflow": "flash"
+    },
+    "gemma4_31b__multistep": {
+      "expertise_policy_setup_selections": 20,
+      "externally_authenticated_revision": false,
+      "kernel_count": 27,
+      "model": "Gemma-4-31B",
+      "model_key": "gemma4_31b",
+      "no_expertise_setup_selections": 7,
+      "no_skills_over_selected_geomean": 4.7073157870435605,
+      "posthoc_best_of_setup_count": 5,
+      "raw_recorded_model_revision": "google/gemma-4-31B-it@vllm-0.20.2-20260730",
+      "reference_over_no_skills_geomean": 1.227304497125571,
+      "reference_over_selected_geomean": 5.777309834828759,
+      "selected_baseline_fallbacks": 0,
+      "selected_policy_counts": {
+        "all_positive": 9,
+        "matched": 6,
+        "skillless": 7,
+        "smart_best_fit": 3,
+        "smart_exhaustive": 2
+      },
+      "workflow": "multistep"
+    },
+    "qwen3_6_27b__flash": {
+      "expertise_policy_setup_selections": 23,
+      "externally_authenticated_revision": false,
+      "kernel_count": 27,
+      "model": "Qwen3.6-27B",
+      "model_key": "qwen3_6_27b",
+      "no_expertise_setup_selections": 4,
+      "no_skills_over_selected_geomean": 18.7723837923572,
+      "posthoc_best_of_setup_count": 5,
+      "raw_recorded_model_revision": "Qwen3.6-27B@6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+      "reference_over_no_skills_geomean": 0.2206495984964323,
+      "reference_over_selected_geomean": 4.1421189466045485,
+      "selected_baseline_fallbacks": 2,
+      "selected_policy_counts": {
+        "all_positive": 16,
+        "matched": 4,
+        "skillless": 4,
+        "smart_best_fit": 1,
+        "smart_exhaustive": 2
+      },
+      "workflow": "flash"
+    },
+    "qwen3_6_27b__multistep": {
+      "expertise_policy_setup_selections": 25,
+      "externally_authenticated_revision": false,
+      "kernel_count": 27,
+      "model": "Qwen3.6-27B",
+      "model_key": "qwen3_6_27b",
+      "no_expertise_setup_selections": 2,
+      "no_skills_over_selected_geomean": 11.391046218464517,
+      "posthoc_best_of_setup_count": 5,
+      "raw_recorded_model_revision": "Qwen3.6-27B@6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+      "reference_over_no_skills_geomean": 0.2611950333718281,
+      "reference_over_selected_geomean": 2.9752846971718747,
+      "selected_baseline_fallbacks": 0,
+      "selected_policy_counts": {
+        "all_positive": 13,
+        "matched": 5,
+        "skillless": 2,
+        "smart_best_fit": 3,
+        "smart_exhaustive": 4
+      },
+      "workflow": "multistep"
+    }
+  }
+}

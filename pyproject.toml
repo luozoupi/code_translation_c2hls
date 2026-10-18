@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hlsmith"
+version = "0.1.0"
+description = "Compiler-guided C-to-HLS translation and FPGA optimization"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["openai>=2.6,<3", "python-dotenv>=1,<2"]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.60,<1"]
+analysis = ["numpy>=1.24", "matplotlib>=3.8,<4", "scikit-learn>=1.3"]
+training = ["torch>=2.2", "transformers>=4.45", "datasets>=3", "peft>=0.13", "trl>=0.11", "bitsandbytes>=0.44", "accelerate>=1"]
+test = ["pytest>=8", "pytest-subtests>=0.13", "numpy>=1.24", "matplotlib>=3.8,<4", "scikit-learn>=1.3"]
+
+[project.scripts]
+c2hls = "hlsmith.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hlsmith*", "dataset_pipeline*", "paper_eval*"]
+namespaces = false
+
+[tool.setuptools]
+include-package-data = true
+py-modules = ["bottleneck_router", "build_hwemu_reference_candidate", "c2hls", "c2hls_temp", "candidate_cache", "compare_jsonl_to_references", "cosim_runtime_monitor", "cosim_walltime", "evaluation_repro", "experiment_budget", "experiment_telemetry", "export_ml4accel_points", "export_rl_corpus", "export_schema_jsonl", "golden_output", "hls_eval", "hls_feedback", "hlsfactory_registry", "paper_baselines", "phase_b_manifest", "prepare_benchmarks", "prepare_nova_benchmarks", "prompt_c2hls", "qor_design_space", "qor_linked_controls", "qor_profile_review", "reference_isolation", "report", "robustness", "rubric", "run_2023_2_synth_comparison", "run_3bench_haiku_sonnet", "run_agentic_sweep", "run_hlsfactory_direct_reference", "run_hw_emu", "run_kmeans_baseline_2023_2", "run_multistep_haiku", "run_multistep_hwemu", "run_nova_direct_csynth", "run_nova_direct_emu", "run_nw2_xrtini_hwemu_experiment", "run_paper_baseline", "run_patched_benchmarks", "run_phase12_knn_sc_models", "run_remaining_haiku", "run_requested_agentic_hwemu_smoke", "run_requested_hwemu_matrix", "run_requested_hwemu_mismatch_rerun", "sanitize_saved_results", "setup_router", "sigmetrics_main_policy", "skill_library", "skill_usage", "smart_skill_router", "trajectory_alignment", "validate_corpus", "validation_suite", "verify_corpus_stability"]
+
+[tool.setuptools.package-data]
+hlsmith = ["legacy_modules.json", "data/**/*"]

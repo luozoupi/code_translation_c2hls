@@ -103,7 +103,7 @@ def test_local_allowance_checked_before_request_count_changes():
 def amended_method(tmp_path):
     import c2hls
     for filename in ('c2hls.py', 'prompt_c2hls.py'):
-        shutil.copy2(ROOT / filename, tmp_path / filename)
+        shutil.copy2(Path(c2hls.__file__) if filename == "c2hls.py" else ROOT / filename, tmp_path / filename)
     before = main.sha(ROOT / 'c2hls.py')
     main.patch_snapshot(tmp_path)
     assert main.sha(ROOT / 'c2hls.py') == before

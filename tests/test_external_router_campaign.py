@@ -169,8 +169,7 @@ def test_external_corpus_requires_and_ranks_all_corrected_setups(
             matrix_records=matrix_path,
             benchmarks_dir=(
                 Path(__file__).resolve().parents[1]
-                / "benchmarks_external"
-                / "hls_eval"
+                / "tests" / "fixtures" / "external-benchmarks"
             ),
         )
     )

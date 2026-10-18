@@ -1,0 +1,115 @@
+{
+  "excluded_rows": [
+    {
+      "coverage": 25,
+      "metadata_skills": [
+        "on"
+      ],
+      "reason": "origin version says skillless while origin_meta.skills says on",
+      "version": "enh__opus__flash__skilless_A"
+    },
+    {
+      "coverage": 23,
+      "metadata_skills": [
+        "on"
+      ],
+      "reason": "origin version says skillless while origin_meta.skills says on",
+      "version": "enh__opus__flash__skilless_B"
+    }
+  ],
+  "golden_output_evidence_present": false,
+  "intended_kernel_count": 28,
+  "missing_kernels": [
+    "heat-3d",
+    "seidel-2d"
+  ],
+  "model": "claude-opus-4-8",
+  "owner_asserts_hosted_teacher_weights_unchanged": true,
+  "paper_admission": "exploratory_pending_independent_golden_revalidation",
+  "present_kernels": [
+    "2mm",
+    "3mm",
+    "atax",
+    "bicg",
+    "cholesky",
+    "correlation",
+    "covariance",
+    "doitgen",
+    "durbin",
+    "fdtd-2d",
+    "floyd-warshall",
+    "gemm",
+    "gemver",
+    "gesummv",
+    "gramschmidt",
+    "jacobi-1d",
+    "jacobi-2d",
+    "lu",
+    "ludcmp",
+    "mvt",
+    "nussinov",
+    "symm",
+    "syr2k",
+    "syrk",
+    "trisolv",
+    "trmm"
+  ],
+  "reference_isolation_evidence_present": false,
+  "rows": [
+    {
+      "coverage": 26,
+      "csim_pass": 26,
+      "faster_than_baseline": 4,
+      "label": "Direct one-shot (expertise off)",
+      "raw_gmean_speedup": null,
+      "rtl_pass": 15,
+      "synth_pass": 15,
+      "target_and_resource_pass": 13,
+      "version": "enh__opus__oneshot__no_skills"
+    },
+    {
+      "coverage": 26,
+      "csim_pass": 26,
+      "faster_than_baseline": 21,
+      "label": "Single-turn feedback (all-positive-skills label)",
+      "raw_gmean_speedup": 1.9843486277199214,
+      "rtl_pass": 26,
+      "synth_pass": 26,
+      "target_and_resource_pass": 26,
+      "version": "enh__opus__flash__all_positive"
+    },
+    {
+      "coverage": 26,
+      "csim_pass": 26,
+      "faster_than_baseline": 24,
+      "label": "Multi-step (curated-skill label)",
+      "raw_gmean_speedup": 2.5524353974017404,
+      "rtl_pass": 26,
+      "synth_pass": 26,
+      "target_and_resource_pass": 26,
+      "version": "enh__opus__multistep__curated"
+    },
+    {
+      "coverage": 26,
+      "csim_pass": 26,
+      "faster_than_baseline": 21,
+      "label": "Multi-step (all-positive-skills label)",
+      "raw_gmean_speedup": 2.968450495498759,
+      "rtl_pass": 26,
+      "synth_pass": 26,
+      "target_and_resource_pass": 26,
+      "version": "enh__opus__multistep__all_positive"
+    }
+  ],
+  "schema_documents_skill_snapshot": false,
+  "schema_documents_training_method": false,
+  "schema_version": "c2hls.paper-commercial-snapshot.v3",
+  "skill_policy_label_source": "origin_version_only",
+  "source": {
+    "name": "schema_records.jsonl",
+    "records": 523,
+    "sha256": "707ab567afb7e25f589ae0c8aa8e89278f7b5d447b1f3b5f6ba81664deeb515d"
+  },
+  "strict_generator_structural_validation": true,
+  "suite": "hlsfactory_polybench_float_small"
+}

@@ -1,0 +1,222 @@
+{
+  "claim_boundary": {
+    "cosim_status_available_in_csv": false,
+    "csim_status_available_in_csv": false,
+    "descriptive_only": true,
+    "exact_model_revisions_available_in_csv": false,
+    "gold_or_reference_cycles_available_in_csv": false,
+    "independent_output_check_available_in_csv": false,
+    "notes": [
+      "A numeric cycle cell establishes only a supplied CSynth estimate.",
+      "Sonnet, Grok, and Haiku are commercial-model aliases; this is not an open-model-only study.",
+      "No gold/reference denominator is joined because the CSV has no run fingerprint.",
+      "Algorithm-pattern discussion is interpretive, not source-diff evidence."
+    ],
+    "timing_or_resource_status_available_in_csv": false,
+    "workflow_or_setup_ids_available_in_csv": false
+  },
+  "outputs": {
+    "figure": {
+      "path": "figures/cross_model_expertise_snapshot.pdf",
+      "sha256": "868cb61c8ef95505e786664366a2dfcf6a79aeb6b32d13870cf1f17526fb4411"
+    },
+    "macros": {
+      "path": "generated/cross_model_expertise_macros.tex",
+      "sha256": "70cd792f78a02e5af1c19eb343225dd38ea21fd1200f63b8fd039754b6b3c017"
+    },
+    "snapshot": {
+      "path": "generated/cross_model_expertise_snapshot.csv",
+      "sha256": "ad89a09d5f99d654aaa3012cfb127c912d47199d512a962568a58cc5f6291386"
+    },
+    "table": {
+      "path": "generated/cross_model_expertise_table.tex",
+      "sha256": "2b86873528ab45d4592b4db194eb388c29391e8befc7c17b1b747fe2e8f2ed6a"
+    }
+  },
+  "schema_version": "c2hls.paper.cross-model-expertise.v1",
+  "scope": {
+    "arms_as_supplied": [
+      "skills",
+      "noskills"
+    ],
+    "kernels": [
+      "atax",
+      "mvt",
+      "2mm",
+      "3mm",
+      "heat-3d"
+    ],
+    "model_aliases": [
+      "Sonnet",
+      "Luna",
+      "Grok",
+      "Haiku",
+      "DeepSeek"
+    ],
+    "numeric_cycle_cells": 50,
+    "selection": "minimum cycle value among the ten supplied model/arm cells; this is a best-of-two-reported-arm comparison, not an exhaustive setup search"
+  },
+  "sources": {
+    "cycles_csv": {
+      "path": "external-input/model_arm_benchmark_cycles_with_deepseek.csv",
+      "sha256": "5628c4040c55482556477466fdde10a2be965b59cc7b1110cd02bc1ad086b7ec"
+    },
+    "supplied_png_archive": {
+      "members": [
+        "deepseek_skills_vs_noskills.png",
+        "grok_skills_vs_noskills.png",
+        "haiku_skills_vs_noskills.png",
+        "luna_skills_vs_noskills.png",
+        "sonnet_skills_vs_noskills.png"
+      ],
+      "path": "external-input/model_arm_skills_vs_noskills_pngs.zip",
+      "role": "visual cross-check only; adds no measurements",
+      "sha256": "bf079e3a9284142ab219f09398e8f4c7846236a0fe6bbcf98da85bf63a5e1d34"
+    }
+  },
+  "summary": {
+    "all_pair_geomean_reduction": 4.440331996770942,
+    "kernels": [
+      {
+        "best_guided_cycles": 17175,
+        "best_guided_model": "DeepSeek",
+        "best_off_cycles": 54445,
+        "best_off_model": "Sonnet",
+        "best_supplied_arm": "skills",
+        "best_supplied_cycles": 17175,
+        "best_supplied_model": "DeepSeek",
+        "kernel": "atax",
+        "off_over_best": 3.170014556040757
+      },
+      {
+        "best_guided_cycles": 20855,
+        "best_guided_model": "Sonnet",
+        "best_off_cycles": 18512,
+        "best_off_model": "Luna",
+        "best_supplied_arm": "noskills",
+        "best_supplied_cycles": 18512,
+        "best_supplied_model": "Luna",
+        "kernel": "mvt",
+        "off_over_best": 1.0
+      },
+      {
+        "best_guided_cycles": 13670,
+        "best_guided_model": "DeepSeek",
+        "best_off_cycles": 175520,
+        "best_off_model": "Grok",
+        "best_supplied_arm": "skills",
+        "best_supplied_cycles": 13670,
+        "best_supplied_model": "DeepSeek",
+        "kernel": "2mm",
+        "off_over_best": 12.83979517190929
+      },
+      {
+        "best_guided_cycles": 16738,
+        "best_guided_model": "DeepSeek",
+        "best_off_cycles": 347874,
+        "best_off_model": "Grok",
+        "best_supplied_arm": "skills",
+        "best_supplied_cycles": 16738,
+        "best_supplied_model": "DeepSeek",
+        "kernel": "3mm",
+        "off_over_best": 20.783486677022346
+      },
+      {
+        "best_guided_cycles": 46947,
+        "best_guided_model": "DeepSeek",
+        "best_off_cycles": 487787,
+        "best_off_model": "Sonnet",
+        "best_supplied_arm": "skills",
+        "best_supplied_cycles": 46947,
+        "best_supplied_model": "DeepSeek",
+        "kernel": "heat-3d",
+        "off_over_best": 10.390163375721558
+      }
+    ],
+    "models": [
+      {
+        "cycle_reduction": 1.197607642425452,
+        "guided_geomean_cycles": 205351.1527575702,
+        "guided_losses": 2,
+        "guided_wins": 2,
+        "model": "Sonnet",
+        "off_geomean_cycles": 245930.1099233425,
+        "per_kernel_reduction": {
+          "2mm": 1.0,
+          "3mm": 1.0199429888788967,
+          "atax": 0.9916218923595301,
+          "heat-3d": 0.9987551060105038,
+          "mvt": 2.4388875569407817
+        },
+        "ties": 1
+      },
+      {
+        "cycle_reduction": 1.2540596176252057,
+        "guided_geomean_cycles": 528855.0347846515,
+        "guided_losses": 2,
+        "guided_wins": 3,
+        "model": "Luna",
+        "off_geomean_cycles": 663215.7427012048,
+        "per_kernel_reduction": {
+          "2mm": 3.8128601941124525,
+          "3mm": 1.374633822371029,
+          "atax": 0.8865476077986708,
+          "heat-3d": 3.130598633893393,
+          "mvt": 0.21321784801087282
+        },
+        "ties": 0
+      },
+      {
+        "cycle_reduction": 2.9884040428795258,
+        "guided_geomean_cycles": 83339.48884575508,
+        "guided_losses": 0,
+        "guided_wins": 5,
+        "model": "Grok",
+        "off_geomean_cycles": 249052.06539816764,
+        "per_kernel_reduction": {
+          "2mm": 12.827596287363882,
+          "3mm": 1.1240887705511322,
+          "atax": 2.8953722334004026,
+          "heat-3d": 3.0967348453320813,
+          "mvt": 1.8434962463612685
+        },
+        "ties": 0
+      },
+      {
+        "cycle_reduction": 6.099907347119287,
+        "guided_geomean_cycles": 185033.95491391572,
+        "guided_losses": 1,
+        "guided_wins": 4,
+        "model": "Haiku",
+        "off_geomean_cycles": 1128689.9810459334,
+        "per_kernel_reduction": {
+          "2mm": 0.5257832508504732,
+          "3mm": 142.97625966826126,
+          "atax": 4.402587395957194,
+          "heat-3d": 7.679136764299389,
+          "mvt": 3.3229600896691562
+        },
+        "ties": 0
+      },
+      {
+        "cycle_reduction": 63.04953944833227,
+        "guided_geomean_cycles": 21316.806386705226,
+        "guided_losses": 0,
+        "guided_wins": 5,
+        "model": "DeepSeek",
+        "off_geomean_cycles": 1344014.8251910324,
+        "per_kernel_reduction": {
+          "2mm": 214.14008778346744,
+          "3mm": 146.76586211016848,
+          "atax": 9.431441048034934,
+          "heat-3d": 534.9984237544465,
+          "mvt": 6.282840137480091
+        },
+        "ties": 0
+      }
+    ],
+    "total_guided_losses": 5,
+    "total_guided_wins": 19,
+    "total_ties": 1
+  }
+}

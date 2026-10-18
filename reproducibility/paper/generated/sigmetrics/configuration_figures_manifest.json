@@ -1,0 +1,678 @@
+{
+  "schema": "hlsmith.sigmetrics.configuration-figures.v1",
+  "generator": "scripts/generate_sigmetrics_configuration_figures.py",
+  "generator_sha256": "a6aabd12f58639a72ef48d1c9b1dd6da9be91a36def6da55c6a7754838fa9206",
+  "metric": "archived worst-case HLS synthesis cycle estimates",
+  "font": {
+    "family": "Times New Roman",
+    "font_file": "Times_New_Roman.ttf",
+    "pdf_fonttype": 42
+  },
+  "sizes_inches": {
+    "configuration_sweeps": [
+      6.4,
+      2.55
+    ],
+    "cross_model_snapshot": [
+      6.4,
+      1.72
+    ]
+  },
+  "inputs": [
+    {
+      "path": "generated/newskills_sonnet_snapshot.csv",
+      "sha256": "5f803841dcd162867283d7c397dd5818784802edd161d8a2007e92bfb5a5c226",
+      "archive_manifest": "generated/newskills_sonnet_manifest.json",
+      "archive_manifest_sha256": "c43ef87a8f588258a81517947080e5c8ea483e5238f8ba91ab8ef2827fad684c"
+    },
+    {
+      "path": "generated/july30_opus_selection.csv",
+      "sha256": "8647630e726fa1aa864f1c138e8eace521279c4c72e03366a5c5e70b8b904687",
+      "archive_manifest": "generated/july30_results_manifest.json",
+      "archive_manifest_sha256": "d08cbe27b6efacf39000b3168d2b9d4fabbb2e981813e7b02276fa82a79e0a9e"
+    },
+    {
+      "path": "generated/cross_model_expertise_snapshot.csv",
+      "sha256": "ad89a09d5f99d654aaa3012cfb127c912d47199d512a962568a58cc5f6291386",
+      "archive_manifest": "generated/cross_model_expertise_manifest.json",
+      "archive_manifest_sha256": "867a66b2cbc8fd88294b76193ffede505c927d19493b38a49434b45ea0f3ed37"
+    }
+  ],
+  "outputs": [
+    {
+      "path": "figures/sigmetrics/configuration_sweeps.pdf",
+      "sha256": "c6e61dc2244a7f09c884bf7c64978d17988f0d2344817a6f689ea40923541411",
+      "bytes": 60760
+    },
+    {
+      "path": "figures/sigmetrics/configuration_sweeps.png",
+      "sha256": "2a00d6c8e6bbef40c03a6558512e59e96f3f99c626485c65c06d4b80f222f0cb",
+      "bytes": 146493
+    },
+    {
+      "path": "figures/sigmetrics/cross_model_snapshot.pdf",
+      "sha256": "98081264f37db2e8a0172c034629447f7e84c6c64d3fc135937c0d05f65ee7fc",
+      "bytes": 27549
+    },
+    {
+      "path": "figures/sigmetrics/cross_model_snapshot.png",
+      "sha256": "6100276ed2c6ca16404e11b9797fe453189f9a0cab6c33e1993ca0cbabb869b6",
+      "bytes": 46838
+    }
+  ],
+  "checks": {
+    "archive_checksums": "pass",
+    "source_manifest_checksums": "pass",
+    "sweep_ratio_arithmetic": "pass",
+    "cross_model_minima_and_ratios": "pass",
+    "sweep_kernel_counts": [
+      26,
+      26
+    ],
+    "sweep_bars": 52,
+    "sweep_disabled_markers": 52,
+    "cross_model_kernels": 5,
+    "cross_model_bars": 10
+  },
+  "selection_counts": {
+    "Sonnet 4.6": {
+      "flash_allpos": 7,
+      "ms_allpos": 9,
+      "ms_curated": 7,
+      "ms_noskills": 3
+    },
+    "Opus 4.8": {
+      "flash_allpos": 9,
+      "ms_allpos": 9,
+      "ms_curated": 5,
+      "ms_noskills": 3
+    }
+  },
+  "sweep_points": {
+    "Sonnet 4.6": [
+      {
+        "kernel": "2mm",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 1200415.0,
+        "selected_cycles": 13546.0,
+        "off_cycles": 42004.0,
+        "selected_ratio": 88.61767311383434,
+        "off_ratio": 28.578587753547282,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "3mm",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 2310407.0,
+        "selected_cycles": 16616.0,
+        "off_cycles": 92686.0,
+        "selected_ratio": 139.04712325469427,
+        "off_ratio": 24.92724899121766,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "atax",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 119608.0,
+        "selected_cycles": 16256.0,
+        "off_cycles": 68399.0,
+        "selected_ratio": 7.3577755905511815,
+        "off_ratio": 1.74868053626515,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "bicg",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 115210.0,
+        "selected_cycles": 19983.0,
+        "off_cycles": 50149.0,
+        "selected_ratio": 5.765400590501927,
+        "off_ratio": 2.297353885421444,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "cholesky",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 29351401.0,
+        "selected_cycles": 871353.0,
+        "off_cycles": 2519914.0,
+        "selected_ratio": 33.684856768726334,
+        "off_ratio": 11.647778852770372,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "correlation",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 5129456.0,
+        "selected_cycles": 246287.0,
+        "off_cycles": 1211469.0,
+        "selected_ratio": 20.827148814188327,
+        "off_ratio": 4.234079452301297,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "covariance",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 5195978.0,
+        "selected_cycles": 38936.0,
+        "off_cycles": 914652.0,
+        "selected_ratio": 133.44919868502157,
+        "off_ratio": 5.680825056961555,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "doitgen",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 370001.0,
+        "selected_cycles": 131841.0,
+        "off_cycles": 246630.0,
+        "selected_ratio": 2.806418337239554,
+        "off_ratio": 1.5002270607793051,
+        "completed_configurations": 4
+      },
+      {
+        "kernel": "durbin",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 138519.0,
+        "selected_cycles": 28596.0,
+        "off_cycles": 61440.0,
+        "selected_ratio": 4.843999160721779,
+        "off_ratio": 2.254541015625,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "fdtd-2d",
+        "selected_arm": "ms_noskills",
+        "baseline_cycles": 572601.0,
+        "selected_cycles": 263393.0,
+        "off_cycles": 263393.0,
+        "selected_ratio": 2.173941600574047,
+        "off_ratio": 2.173941600574047,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "floyd-warshall",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 11664005.0,
+        "selected_cycles": 1101756.0,
+        "off_cycles": 5965176.0,
+        "selected_ratio": 10.586740621335396,
+        "off_ratio": 1.9553496828928434,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "gemm",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 342901.0,
+        "selected_cycles": 19034.0,
+        "off_cycles": 49837.0,
+        "selected_ratio": 18.015183356099612,
+        "off_ratio": 6.880450267873266,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "gemver",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 216211.0,
+        "selected_cycles": 65468.0,
+        "off_cycles": 195105.0,
+        "selected_ratio": 3.302544754689314,
+        "off_ratio": 1.1081776479331642,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "gesummv",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 64835.0,
+        "selected_cycles": 9176.0,
+        "off_cycles": 34818.0,
+        "selected_ratio": 7.065714908456844,
+        "off_ratio": 1.8621115514963524,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "gramschmidt",
+        "selected_arm": "ms_noskills",
+        "baseline_cycles": 470161.0,
+        "selected_cycles": 378801.0,
+        "off_cycles": 378801.0,
+        "selected_ratio": 1.2411820454539455,
+        "off_ratio": 1.2411820454539455,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "jacobi-1d",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 21201.0,
+        "selected_cycles": 5111.0,
+        "off_cycles": 5500.0,
+        "selected_ratio": 4.148111915476424,
+        "off_ratio": 3.854727272727273,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "jacobi-2d",
+        "selected_arm": "ms_noskills",
+        "baseline_cycles": 1862241.0,
+        "selected_cycles": 23894.0,
+        "off_cycles": 23894.0,
+        "selected_ratio": 77.93759939733825,
+        "off_ratio": 77.93759939733825,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "lu",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 42942001.0,
+        "selected_cycles": 2640753.0,
+        "off_cycles": 4718314.0,
+        "selected_ratio": 16.261271311629674,
+        "off_ratio": 9.10113252318519,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "ludcmp",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 25029603.0,
+        "selected_cycles": 4797155.0,
+        "off_cycles": 4811675.0,
+        "selected_ratio": 5.21759313593161,
+        "off_ratio": 5.2018482129404005,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "mvt",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 201633.0,
+        "selected_cycles": 23750.0,
+        "off_cycles": 94651.0,
+        "selected_ratio": 8.48981052631579,
+        "off_ratio": 2.1302786024447706,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "nussinov",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 23295601.0,
+        "selected_cycles": 1117183.0,
+        "off_cycles": 1699792.0,
+        "selected_ratio": 20.852090481147673,
+        "off_ratio": 13.704971549460168,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "symm",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 2246401.0,
+        "selected_cycles": 24701.0,
+        "off_cycles": 171977.0,
+        "selected_ratio": 90.94372697461641,
+        "off_ratio": 13.062217622123889,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "syr2k",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 3082401.0,
+        "selected_cycles": 26282.0,
+        "off_cycles": 210703.0,
+        "selected_ratio": 117.2818278669812,
+        "off_ratio": 14.629127254951282,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "syrk",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 3081601.0,
+        "selected_cycles": 26274.0,
+        "off_cycles": 223752.0,
+        "selected_ratio": 117.28708989875923,
+        "off_ratio": 13.772395330544532,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "trisolv",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 276121.0,
+        "selected_cycles": 26527.0,
+        "off_cycles": 33303.0,
+        "selected_ratio": 10.409054925170581,
+        "off_ratio": 8.291174969221991,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "trmm",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 4900801.0,
+        "selected_cycles": 78831.0,
+        "off_cycles": 160714.0,
+        "selected_ratio": 62.16844896043435,
+        "off_ratio": 30.493927100314846,
+        "completed_configurations": 6
+      }
+    ],
+    "Opus 4.8": [
+      {
+        "kernel": "2mm",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 1200415.0,
+        "selected_cycles": 13546.0,
+        "off_cycles": 74699.0,
+        "selected_ratio": 88.6176731138,
+        "off_ratio": 16.0700277112,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "3mm",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 2310407.0,
+        "selected_cycles": 15882.0,
+        "off_cycles": 105410.0,
+        "selected_ratio": 145.47330311,
+        "off_ratio": 21.9182904848,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "atax",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 119608.0,
+        "selected_cycles": 23474.0,
+        "off_cycles": 35454.0,
+        "selected_ratio": 5.09533952458,
+        "off_ratio": 3.37361087606,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "bicg",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 115210.0,
+        "selected_cycles": 16214.0,
+        "off_cycles": 89555.0,
+        "selected_ratio": 7.10558776366,
+        "off_ratio": 1.28647200045,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "cholesky",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 29351401.0,
+        "selected_cycles": 1525234.0,
+        "off_cycles": 2519914.0,
+        "selected_ratio": 19.2438674984,
+        "off_ratio": 11.6477788528,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "correlation",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 5129456.0,
+        "selected_cycles": 459798.0,
+        "off_cycles": 1581411.0,
+        "selected_ratio": 11.1558901953,
+        "off_ratio": 3.24359448619,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "covariance",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 5195978.0,
+        "selected_cycles": 922004.0,
+        "off_cycles": 1672064.0,
+        "selected_ratio": 5.635526527,
+        "off_ratio": 3.10752339623,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "doitgen",
+        "selected_arm": "ms_noskills",
+        "baseline_cycles": 370001.0,
+        "selected_cycles": 119042.0,
+        "off_cycles": 119042.0,
+        "selected_ratio": 3.10815510492,
+        "off_ratio": 3.10815510492,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "durbin",
+        "selected_arm": "ms_noskills",
+        "baseline_cycles": 138519.0,
+        "selected_cycles": 26216.0,
+        "off_cycles": 26216.0,
+        "selected_ratio": 5.28375801038,
+        "off_ratio": 5.28375801038,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "fdtd-2d",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 572601.0,
+        "selected_cycles": 159114.0,
+        "off_cycles": 334994.0,
+        "selected_ratio": 3.59868396244,
+        "off_ratio": 1.70928733052,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "floyd-warshall",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 11664005.0,
+        "selected_cycles": 1767040.0,
+        "off_cycles": 6157415.0,
+        "selected_ratio": 6.60087207986,
+        "off_ratio": 1.8943022356,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "gemm",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 342901.0,
+        "selected_cycles": 14822.0,
+        "off_cycles": 107608.0,
+        "selected_ratio": 23.1345972203,
+        "off_ratio": 3.18657534756,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "gemver",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 216211.0,
+        "selected_cycles": 38750.0,
+        "off_cycles": 40293.0,
+        "selected_ratio": 5.57963870968,
+        "off_ratio": 5.36596927506,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "gesummv",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 64835.0,
+        "selected_cycles": 12511.0,
+        "off_cycles": 40935.0,
+        "selected_ratio": 5.18223962913,
+        "off_ratio": 1.583852449,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "gramschmidt",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 470161.0,
+        "selected_cycles": 103904.0,
+        "off_cycles": 547023.0,
+        "selected_ratio": 4.52495572836,
+        "off_ratio": 0.859490368778,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "jacobi-1d",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 21201.0,
+        "selected_cycles": 5500.0,
+        "off_cycles": 7820.0,
+        "selected_ratio": 3.85472727273,
+        "off_ratio": 2.71112531969,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "jacobi-2d",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 1862241.0,
+        "selected_cycles": 98290.0,
+        "off_cycles": 346978.0,
+        "selected_ratio": 18.9463933259,
+        "off_ratio": 5.36702903354,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "lu",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 42942001.0,
+        "selected_cycles": 2076633.0,
+        "off_cycles": 4732594.0,
+        "selected_ratio": 20.6786663797,
+        "off_ratio": 9.07367101425,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "ludcmp",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 25029603.0,
+        "selected_cycles": 2589634.0,
+        "off_cycles": 4868983.0,
+        "selected_ratio": 9.66530521301,
+        "off_ratio": 5.14062238459,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "mvt",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 201633.0,
+        "selected_cycles": 23750.0,
+        "off_cycles": 95745.0,
+        "selected_ratio": 8.48981052632,
+        "off_ratio": 2.10593764687,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "nussinov",
+        "selected_arm": "ms_allpos",
+        "baseline_cycles": 23295601.0,
+        "selected_cycles": 566802.0,
+        "off_cycles": 1715555.0,
+        "selected_ratio": 41.1000684542,
+        "off_ratio": 13.579046431,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "symm",
+        "selected_arm": "ms_noskills",
+        "baseline_cycles": 2246401.0,
+        "selected_cycles": 171607.0,
+        "off_cycles": 171607.0,
+        "selected_ratio": 13.0903809285,
+        "off_ratio": 13.0903809285,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "syr2k",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 3082401.0,
+        "selected_cycles": 26283.0,
+        "off_cycles": 110321.0,
+        "selected_ratio": 117.277365598,
+        "off_ratio": 27.9402924194,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "syrk",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 3081601.0,
+        "selected_cycles": 26346.0,
+        "off_cycles": 64237.0,
+        "selected_ratio": 116.966560389,
+        "off_ratio": 47.9723679499,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "trisolv",
+        "selected_arm": "ms_curated",
+        "baseline_cycles": 276121.0,
+        "selected_cycles": 26723.0,
+        "off_cycles": 33666.0,
+        "selected_ratio": 10.3327096509,
+        "off_ratio": 8.2017762728,
+        "completed_configurations": 6
+      },
+      {
+        "kernel": "trmm",
+        "selected_arm": "flash_allpos",
+        "baseline_cycles": 4900801.0,
+        "selected_cycles": 19485.0,
+        "off_cycles": 164750.0,
+        "selected_ratio": 251.516602515,
+        "off_ratio": 29.7468952959,
+        "completed_configurations": 6
+      }
+    ]
+  },
+  "cross_model_points": [
+    {
+      "kernel": "atax",
+      "best_supplied_cycles": "17175",
+      "best_supplied_model": "DeepSeek",
+      "best_supplied_arm": "skills",
+      "best_off_cycles": "54445",
+      "best_off_model": "Sonnet",
+      "best_guided_cycles": "17175",
+      "best_guided_model": "DeepSeek",
+      "off_over_best": "3.170014556040757"
+    },
+    {
+      "kernel": "mvt",
+      "best_supplied_cycles": "18512",
+      "best_supplied_model": "Luna",
+      "best_supplied_arm": "noskills",
+      "best_off_cycles": "18512",
+      "best_off_model": "Luna",
+      "best_guided_cycles": "20855",
+      "best_guided_model": "Sonnet",
+      "off_over_best": "1.0"
+    },
+    {
+      "kernel": "2mm",
+      "best_supplied_cycles": "13670",
+      "best_supplied_model": "DeepSeek",
+      "best_supplied_arm": "skills",
+      "best_off_cycles": "175520",
+      "best_off_model": "Grok",
+      "best_guided_cycles": "13670",
+      "best_guided_model": "DeepSeek",
+      "off_over_best": "12.83979517190929"
+    },
+    {
+      "kernel": "3mm",
+      "best_supplied_cycles": "16738",
+      "best_supplied_model": "DeepSeek",
+      "best_supplied_arm": "skills",
+      "best_off_cycles": "347874",
+      "best_off_model": "Grok",
+      "best_guided_cycles": "16738",
+      "best_guided_model": "DeepSeek",
+      "off_over_best": "20.783486677022346"
+    },
+    {
+      "kernel": "heat-3d",
+      "best_supplied_cycles": "46947",
+      "best_supplied_model": "DeepSeek",
+      "best_supplied_arm": "skills",
+      "best_off_cycles": "487787",
+      "best_off_model": "Sonnet",
+      "best_guided_cycles": "46947",
+      "best_guided_model": "DeepSeek",
+      "off_over_best": "10.390163375721558"
+    }
+  ],
+  "selection_rules": {
+    "sweeps": "Preserve archived feasible selections across two modes and three recipe policies; Sonnet doitgen has four completed configurations.",
+    "cross_model": "Minimum across five supplied model aliases; compare best disabled with best over disabled and guided. Preserve original alias labels."
+  }
+}

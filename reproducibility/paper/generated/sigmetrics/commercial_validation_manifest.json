@@ -1,0 +1,267 @@
+{
+  "schema": "hlsmith.sigmetrics.commercial-validation.v2",
+  "inputs": {
+    "generated/newskills_sonnet_snapshot.csv": "5f803841dcd162867283d7c397dd5818784802edd161d8a2007e92bfb5a5c226",
+    "generated/july30_opus_selection.csv": "8647630e726fa1aa864f1c138e8eace521279c4c72e03366a5c5e70b8b904687",
+    "generated/newskills_gpt55_snapshot.csv": "3a4899c8fda4d5a2329d5ad087aec6ea6cf6e1a4c74a3c79671780279d8c97aa",
+    "generated/july30_cosim_expertise.csv": "c2c100b808b956d74c51f16e4a572cf5d63c623e0e7a81733a278b43194e67ca",
+    "generated/sigmetrics/commercial_validation_evidence.csv": "2cf37dd742d06855403cd106096867c9ae2590e182cdbf48e8932361b40d5db9",
+    "generated/sigmetrics/commercial_validation_historical_synthesis.csv": "5ae5364da54a3cf33f65bfd9e130646a70215c8d32632d03ca88a209cb664074"
+  },
+  "source_join_sha256": "e6bb3768d784ea954854fc2dc5b6b2f25d166ed8309b105bc54a4cfc4eb4a8af",
+  "outputs": {
+    "figures/sigmetrics/model_expertise_validation.pdf": "3f484859a70a073efefe70d42a3c6e7c84ef8d81bc2f44e66d6af95dc53a2e31",
+    "figures/sigmetrics/model_expertise_validation.png": "a338bec96681f97e59dbdb61f2fa1afbe325c9bbc5b6ba3b47a6f0599fc5a693",
+    "generated/sigmetrics/commercial_validation_table.tex": "735e0164995e34e25d4338328eb23f43ebc3e6cb2e411023141ff4ae859586c3",
+    "generated/sigmetrics/commercial_validation_points.csv": "33dd05eef48c2c0a1ad40773a4f486b2467a0aa0c2c127cab449f8cb2067b7e6",
+    "generated/sigmetrics/commercial_validation_macros.tex": "37616d7886107bdbe98c0870cfe35ddb55a6df801da0bdf68958a692e518a80d"
+  },
+  "font": {
+    "family": "Times New Roman",
+    "path": "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman.ttf"
+  },
+  "figure_inches": [
+    7.08,
+    4.8
+  ],
+  "metric": "recipe-disabled cycles / selected-design cycles; numerator and denominator from the same evidence tier",
+  "commercial_selection": "Freeze both original HLS-synthesis-selected arms; no RTL reselection",
+  "commercial_summary": "Intersection of original complete setup grids with both-arm RTL passes; same pairs for HLS and RTL",
+  "older_RTL_summary": "Preserve original 22/26 DeepSeek and 21/26 Grok cohorts, including original baseline-availability filter; five asymmetric Grok reruns excluded",
+  "older_synthesis_fields": [
+    "skills_latency_worst",
+    "noskills_latency_worst"
+  ],
+  "older_synthesis_binding": "Checksum-bound companion exports match original RTL source identifiers, cohort, cycles, and pass flags; original selected-report paths retained",
+  "older_synthesis_coverage": "DeepSeek has 26/28 displayed pairs, 21/22 summary pairs; Grok has 27/28 displayed pairs, all 21 summary pairs. No HLS geometric mean is computed over a smaller subset than the RTL mean.",
+  "older_evidence_scope": "Compact reported synthesis and RTL tables; raw generated source and tool reports unavailable",
+  "validation_scope": "Reported Vitis C/RTL consistency; independent original-reference output check not recorded in the commercial bundle",
+  "baseline": "No benchmark-baseline cycles are used in any ratio",
+  "model_identity": "gpt55 deployment alias is retained under the historical GPT-5.5 paper label",
+  "evidence_tier_counts": {
+    "embedded_report_and_PASS_log": 151,
+    "no_completed_RTL": 3,
+    "parsed_cycles_and_PASS_log": 2
+  },
+  "status_counts_by_role": {
+    "passed": 153,
+    "env_error": 1,
+    "timeout": 2
+  },
+  "models": {
+    "Claude Sonnet 4.6": {
+      "eligible": 25,
+      "paired": 24,
+      "synthesis_paired": 24,
+      "synthesis_off_over_selected_gm": 2.8770113497275105,
+      "rtl_off_over_selected_gm": 3.2089400881569343,
+      "rtl_wins": 21,
+      "rtl_ties": 3,
+      "rtl_losses": 0,
+      "included_kernels": [
+        "2mm",
+        "3mm",
+        "atax",
+        "bicg",
+        "correlation",
+        "covariance",
+        "durbin",
+        "fdtd-2d",
+        "floyd-warshall",
+        "gemm",
+        "gemver",
+        "gesummv",
+        "gramschmidt",
+        "jacobi-1d",
+        "jacobi-2d",
+        "lu",
+        "ludcmp",
+        "mvt",
+        "nussinov",
+        "symm",
+        "syr2k",
+        "syrk",
+        "trisolv",
+        "trmm"
+      ],
+      "omitted_kernels": [
+        "cholesky",
+        "doitgen"
+      ],
+      "missing_synthesis_kernels": []
+    },
+    "Claude Opus 4.8": {
+      "eligible": 26,
+      "paired": 25,
+      "synthesis_paired": 25,
+      "synthesis_off_over_selected_gm": 2.737497810204733,
+      "rtl_off_over_selected_gm": 3.009642445525984,
+      "rtl_wins": 21,
+      "rtl_ties": 2,
+      "rtl_losses": 2,
+      "included_kernels": [
+        "2mm",
+        "3mm",
+        "atax",
+        "bicg",
+        "cholesky",
+        "correlation",
+        "covariance",
+        "durbin",
+        "fdtd-2d",
+        "floyd-warshall",
+        "gemm",
+        "gemver",
+        "gesummv",
+        "gramschmidt",
+        "jacobi-1d",
+        "jacobi-2d",
+        "lu",
+        "ludcmp",
+        "mvt",
+        "nussinov",
+        "symm",
+        "syr2k",
+        "syrk",
+        "trisolv",
+        "trmm"
+      ],
+      "omitted_kernels": [
+        "doitgen"
+      ],
+      "missing_synthesis_kernels": []
+    },
+    "GPT-5.5": {
+      "eligible": 23,
+      "paired": 23,
+      "synthesis_paired": 23,
+      "synthesis_off_over_selected_gm": 2.302068183703425,
+      "rtl_off_over_selected_gm": 2.4118873531544414,
+      "rtl_wins": 16,
+      "rtl_ties": 6,
+      "rtl_losses": 1,
+      "included_kernels": [
+        "2mm",
+        "atax",
+        "bicg",
+        "cholesky",
+        "correlation",
+        "covariance",
+        "doitgen",
+        "durbin",
+        "fdtd-2d",
+        "gemm",
+        "gesummv",
+        "gramschmidt",
+        "jacobi-1d",
+        "jacobi-2d",
+        "lu",
+        "ludcmp",
+        "mvt",
+        "nussinov",
+        "symm",
+        "syr2k",
+        "syrk",
+        "trisolv",
+        "trmm"
+      ],
+      "omitted_kernels": [
+        "3mm",
+        "floyd-warshall",
+        "gemver"
+      ],
+      "missing_synthesis_kernels": []
+    },
+    "DeepSeek V4 Flash": {
+      "eligible": 26,
+      "paired": 22,
+      "synthesis_paired": 21,
+      "synthesis_off_over_selected_gm": null,
+      "rtl_off_over_selected_gm": 2.553561897318187,
+      "rtl_wins": 17,
+      "rtl_ties": 0,
+      "rtl_losses": 5,
+      "included_kernels": [
+        "atax",
+        "mvt",
+        "2mm",
+        "3mm",
+        "gemm",
+        "floyd-warshall",
+        "bicg",
+        "doitgen",
+        "fdtd-2d",
+        "cholesky",
+        "covariance",
+        "durbin",
+        "gemver",
+        "gesummv",
+        "jacobi-2d",
+        "lu",
+        "nussinov",
+        "symm",
+        "syr2k",
+        "syrk",
+        "trisolv",
+        "trmm"
+      ],
+      "omitted_kernels": [
+        "heat-3d",
+        "correlation",
+        "gramschmidt",
+        "jacobi-1d",
+        "ludcmp",
+        "seidel-2d"
+      ],
+      "missing_synthesis_kernels": [
+        "ludcmp",
+        "trmm"
+      ]
+    },
+    "Grok 4.5": {
+      "eligible": 26,
+      "paired": 21,
+      "synthesis_paired": 21,
+      "synthesis_off_over_selected_gm": 2.147789297610638,
+      "rtl_off_over_selected_gm": 1.8726536979590611,
+      "rtl_wins": 17,
+      "rtl_ties": 0,
+      "rtl_losses": 4,
+      "included_kernels": [
+        "atax",
+        "mvt",
+        "2mm",
+        "3mm",
+        "jacobi-1d",
+        "gesummv",
+        "correlation",
+        "cholesky",
+        "covariance",
+        "durbin",
+        "gemver",
+        "gramschmidt",
+        "jacobi-2d",
+        "lu",
+        "ludcmp",
+        "nussinov",
+        "symm",
+        "syr2k",
+        "syrk",
+        "trisolv",
+        "trmm"
+      ],
+      "omitted_kernels": [
+        "heat-3d",
+        "gemm",
+        "floyd-warshall",
+        "bicg",
+        "doitgen",
+        "fdtd-2d",
+        "seidel-2d"
+      ],
+      "missing_synthesis_kernels": [
+        "seidel-2d"
+      ]
+    }
+  }
+}

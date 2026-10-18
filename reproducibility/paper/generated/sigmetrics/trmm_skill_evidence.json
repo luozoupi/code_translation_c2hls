@@ -1,0 +1,1440 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-09-29T20:45:06.641328+00:00",
+  "status": "historical_observational_evidence_not_causal_skill_ablation",
+  "input_provenance": {
+    "jsonl": {
+      "path": "/home/luo00466/code_translation-c2hls/artifacts/agentic_no_streamcluster_hlsfactory_multistep_sonnet46_skill_on_trace_cosim1800_20260613.jsonl",
+      "sha256": "425501f2495823d376052b4672cee3f9e54530ed4eff1dc73cea6abd80df7d88"
+    },
+    "existing_case_manifest": {
+      "path": "/home/luo00466/6a3058ea0542c2fa6f168fe8/generated/hlsfactory_case_manifest.json",
+      "sha256": "0cfe9f79a1211a404a43ec7a8f5d658a77238218dd609b934b351815ae9aba29"
+    },
+    "case_generator": {
+      "path": "/home/luo00466/6a3058ea0542c2fa6f168fe8/scripts/generate_hlsfactory_case.py",
+      "sha256": "a103d263e1a8c010f05117f615f5e1b12be03340ffff4d4df99ed7e18cc6e67a"
+    },
+    "preserved_parser": {
+      "path": "/home/luo00466/code_translation-c2hls/hls_eval.py",
+      "sha256": "39fc6502c99b817e3beb315663eff0692307fcedc3d1b328fa9069b17e7be486",
+      "line_start": 1651,
+      "line_end": 1674,
+      "semantics": "Prefer Average-caseLatency into report.latency_cycles, fall back to Worst-caseLatency; separately preserve report.latency_cycles_worst. Historical execution snapshot not pinned."
+    },
+    "preserved_exporter": {
+      "path": "/home/luo00466/code_translation-c2hls/export_schema_jsonl.py",
+      "sha256": "ef9cadf8872f2da327f22833fd1caad227a42c5227fe39f7bdbb17c40ecd8b5f",
+      "line_start": 533,
+      "line_end": 545,
+      "semantics": "Copies report.latency_cycles into all Best/Average/Worst normalized schema fields. Historical execution snapshot not pinned."
+    },
+    "run_log": {
+      "path": "/home/luo00466/code_translation-c2hls/artifacts/hlsfactory_multistep_skill_trace_20260613.log",
+      "sha256": "bf94600c63a08c1573ea3f41f43e0848ded936d688e3a0ab2093c5493e396a9c",
+      "trmm_start_line": 4693,
+      "trmm_end_line": 4873
+    }
+  },
+  "metric_definitions": {
+    "controller_cycles": "implementation.origin_meta.attempt_results[0].report.latency_cycles",
+    "raw_worst_case_cycles": "implementation.origin_meta.attempt_results[0].report.latency_cycles_worst",
+    "loop_ii": "implementation.origin_meta.attempt_results[0].report.feedback.scopes[k].pipeline_ii; loop scopes only, never top-level transaction interval"
+  },
+  "stages": [
+    {
+      "step": "coalescing",
+      "trace_jsonl_line": 191,
+      "controller_cycles": 469321,
+      "raw_worst_case_cycles": 935521,
+      "top_level_interval_cycles": 935522,
+      "normalized_export_best_average_worst_identical": true,
+      "estimated_period_ns": 2.431,
+      "resources": {
+        "BRAM_18K": 34,
+        "DSP": 11,
+        "FF": 12176,
+        "LUT": 13323,
+        "URAM": 0
+      },
+      "route": "selected_skill",
+      "selected_skill_id": "hls-coalescing-partition-lane-buffers",
+      "injected_skill_ids": [
+        "hls-coalescing-partition-lane-buffers"
+      ],
+      "routing_decision": {
+        "step_name": "coalescing",
+        "reason": "matched bottleneck 'ii_target_miss' \u2192 skill 'hls-coalescing-partition-lane-buffers' (confidence=high, adv=0.818)",
+        "bottleneck_kind": "ii_target_miss",
+        "skill_id": "hls-coalescing-partition-lane-buffers",
+        "confidence": "high",
+        "fallback": false,
+        "skills_loaded_count": 56,
+        "skill_store": "/home/luo00466/code_translation-c2hls/skills/skills.json"
+      },
+      "source_path_recorded": "/mnt/data/luo00466/tmp/hls_synth_l7kvx1rt/kernel.cpp",
+      "source_path_exists_now": false,
+      "source_sha256_from_validated_manifest": "5bd00babd495de03e504b7fc968676b275d4266b9ff1c5561145029c9f8ebc0b",
+      "source_change_evidence": {
+        "source_motifs": [
+          "double A_col[60]",
+          "double B_row[80]",
+          "ARRAY_PARTITION variable=B_acc cyclic factor=8"
+        ],
+        "summary": "Local A-column and B-row staging; cyclic factor-eight accumulator banking.",
+        "mechanism": "Local operand reuse and banked accumulator storage; AXI traffic or bank-conflict reduction is not independently measured.",
+        "basis": "Existing validated manifest and generator marker assertions; exact sources unavailable at recorded paths during this audit; no newly reconstructed exact diff."
+      },
+      "loop_witnesses": [
+        {
+          "scope_id": "kernel_trmm/VITIS_LOOP_40_1",
+          "name": "VITIS_LOOP_40_1",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_l7kvx1rt/kernel.cpp:44",
+          "pipeline_ii": null,
+          "pipeline_depth": null,
+          "trip_count": 60,
+          "latency_cycles": null,
+          "interval": null,
+          "pipelined": "no",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_44_2/VITIS_LOOP_44_2",
+          "name": "VITIS_LOOP_44_2",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_l7kvx1rt/kernel.cpp:46",
+          "pipeline_ii": 1,
+          "pipeline_depth": 74,
+          "trip_count": null,
+          "latency_cycles": null,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_50_3/VITIS_LOOP_50_3",
+          "name": "VITIS_LOOP_50_3",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_l7kvx1rt/kernel.cpp:50",
+          "pipeline_ii": 1,
+          "pipeline_depth": 3,
+          "trip_count": 80,
+          "latency_cycles": 81,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_58_5/VITIS_LOOP_58_5",
+          "name": "VITIS_LOOP_58_5",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_l7kvx1rt/kernel.cpp:58",
+          "pipeline_ii": 1,
+          "pipeline_depth": 75,
+          "trip_count": 80,
+          "latency_cycles": 153,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_64_6/VITIS_LOOP_64_6",
+          "name": "VITIS_LOOP_64_6",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_l7kvx1rt/kernel.cpp:64",
+          "pipeline_ii": 1,
+          "pipeline_depth": 19,
+          "trip_count": 80,
+          "latency_cycles": 97,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_71_7/VITIS_LOOP_71_7",
+          "name": "VITIS_LOOP_71_7",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_l7kvx1rt/kernel.cpp:71",
+          "pipeline_ii": 1,
+          "pipeline_depth": 11,
+          "trip_count": 80,
+          "latency_cycles": 89,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        }
+      ],
+      "scheduler_diagnostics": [],
+      "bottlenecks": [
+        {
+          "scope_id": "kernel_trmm",
+          "kind": "interval_exceeds_latency",
+          "evidence": "interval 935522 > latency 935521 cycles on module 'kernel_trmm'",
+          "severity": "high",
+          "metric": {
+            "interval": 935522,
+            "latency_cycles": 935521,
+            "interval_over_latency": 1.0
+          },
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_l7kvx1rt/kernel.cpp:38"
+        }
+      ],
+      "feedback_summary": {
+        "schema": "1.0",
+        "scope_count": 12,
+        "loop_count": 6,
+        "pipelined_loops": 5,
+        "non_pipelined_loops": 1,
+        "scopes_with_timing_violation": 0,
+        "scopes_with_negative_slack": 0,
+        "bottleneck_count": 1,
+        "high_severity_bottlenecks": 1,
+        "top_bottleneck_kinds": [
+          [
+            "interval_exceeds_latency",
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "step": "doublebuffer",
+      "trace_jsonl_line": 193,
+      "controller_cycles": 181621,
+      "raw_worst_case_cycles": 941281,
+      "top_level_interval_cycles": 941282,
+      "normalized_export_best_average_worst_identical": true,
+      "estimated_period_ns": 3.578,
+      "resources": {
+        "BRAM_18K": 34,
+        "DSP": 22,
+        "FF": 16946,
+        "LUT": 15331,
+        "URAM": 0
+      },
+      "route": "selected_skill",
+      "selected_skill_id": "hls-doublebuffer-dataflow-stage-split",
+      "injected_skill_ids": [
+        "hls-doublebuffer-dataflow-stage-split"
+      ],
+      "routing_decision": {
+        "step_name": "doublebuffer",
+        "reason": "matched bottleneck 'interval_exceeds_latency' \u2192 skill 'hls-doublebuffer-dataflow-stage-split' (confidence=high, adv=0.264)",
+        "bottleneck_kind": "interval_exceeds_latency",
+        "skill_id": "hls-doublebuffer-dataflow-stage-split",
+        "confidence": "high",
+        "fallback": false,
+        "skills_loaded_count": 56,
+        "skill_store": "/home/luo00466/code_translation-c2hls/skills/skills.json"
+      },
+      "source_path_recorded": "/mnt/data/luo00466/tmp/hls_synth_xe8mofjj/kernel.cpp",
+      "source_path_exists_now": false,
+      "source_sha256_from_validated_manifest": "404de403dc81b4a310fd938acf1735262f3af9db2bd80481e8534ac36b29610e",
+      "source_change_evidence": {
+        "source_motifs": [
+          "double B_row_0[80]",
+          "double B_row_1[80]",
+          "rel % 2"
+        ],
+        "summary": "Alternating B-row buffers and parity-based selection.",
+        "mechanism": "Intended load/compute overlap; ping-pong buffers do not themselves establish concurrent dataflow or achieved overlap.",
+        "basis": "Existing validated manifest and generator marker assertions; exact sources unavailable at recorded paths during this audit; no newly reconstructed exact diff."
+      },
+      "loop_witnesses": [
+        {
+          "scope_id": "kernel_trmm/VITIS_LOOP_38_1",
+          "name": "VITIS_LOOP_38_1",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_xe8mofjj/kernel.cpp:40",
+          "pipeline_ii": null,
+          "pipeline_depth": null,
+          "trip_count": 60,
+          "latency_cycles": null,
+          "interval": null,
+          "pipelined": "no",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_40_2/VITIS_LOOP_40_2",
+          "name": "VITIS_LOOP_40_2",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_xe8mofjj/kernel.cpp:42",
+          "pipeline_ii": 1,
+          "pipeline_depth": 74,
+          "trip_count": null,
+          "latency_cycles": null,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_46_3/VITIS_LOOP_46_3",
+          "name": "VITIS_LOOP_46_3",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_xe8mofjj/kernel.cpp:46",
+          "pipeline_ii": 1,
+          "pipeline_depth": 3,
+          "trip_count": 80,
+          "latency_cycles": 81,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_54_4/VITIS_LOOP_54_4",
+          "name": "VITIS_LOOP_54_4",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_xe8mofjj/kernel.cpp:54",
+          "pipeline_ii": 1,
+          "pipeline_depth": 3,
+          "trip_count": 80,
+          "latency_cycles": 81,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_71_6/VITIS_LOOP_71_6",
+          "name": "VITIS_LOOP_71_6",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_xe8mofjj/kernel.cpp:71",
+          "pipeline_ii": 1,
+          "pipeline_depth": 3,
+          "trip_count": 80,
+          "latency_cycles": 81,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_77_7/VITIS_LOOP_77_7",
+          "name": "VITIS_LOOP_77_7",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_xe8mofjj/kernel.cpp:77",
+          "pipeline_ii": 1,
+          "pipeline_depth": 19,
+          "trip_count": 80,
+          "latency_cycles": 97,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_85_8/VITIS_LOOP_85_8",
+          "name": "VITIS_LOOP_85_8",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_xe8mofjj/kernel.cpp:85",
+          "pipeline_ii": 1,
+          "pipeline_depth": 3,
+          "trip_count": 80,
+          "latency_cycles": 81,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_91_9/VITIS_LOOP_91_9",
+          "name": "VITIS_LOOP_91_9",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_xe8mofjj/kernel.cpp:91",
+          "pipeline_ii": 1,
+          "pipeline_depth": 19,
+          "trip_count": 80,
+          "latency_cycles": 97,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_99_10/VITIS_LOOP_99_10",
+          "name": "VITIS_LOOP_99_10",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_xe8mofjj/kernel.cpp:99",
+          "pipeline_ii": 1,
+          "pipeline_depth": 11,
+          "trip_count": 80,
+          "latency_cycles": 89,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        }
+      ],
+      "scheduler_diagnostics": [
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-871] Estimated clock period (3.578 ns) exceeds the target (target clock period: 3.330 ns, clock uncertainty: 0.899 ns, effective delay budget: 2.431 ns).",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1016] The critical path in module 'kernel_trmm' consists of the following:",
+          "source_location": null
+        }
+      ],
+      "bottlenecks": [
+        {
+          "scope_id": "kernel_trmm",
+          "kind": "interval_exceeds_latency",
+          "evidence": "interval 941282 > latency 941281 cycles on module 'kernel_trmm'",
+          "severity": "high",
+          "metric": {
+            "interval": 941282,
+            "latency_cycles": 941281,
+            "interval_over_latency": 1.0
+          },
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_xe8mofjj/kernel.cpp:36"
+        }
+      ],
+      "feedback_summary": {
+        "schema": "1.0",
+        "scope_count": 18,
+        "loop_count": 9,
+        "pipelined_loops": 8,
+        "non_pipelined_loops": 1,
+        "scopes_with_timing_violation": 1,
+        "scopes_with_negative_slack": 0,
+        "bottleneck_count": 1,
+        "high_severity_bottlenecks": 1,
+        "top_bottleneck_kinds": [
+          [
+            "interval_exceeds_latency",
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "step": "pipeline",
+      "trace_jsonl_line": 195,
+      "controller_cycles": 159267,
+      "raw_worst_case_cycles": 303267,
+      "top_level_interval_cycles": 303268,
+      "normalized_export_best_average_worst_identical": true,
+      "estimated_period_ns": 2.767,
+      "resources": {
+        "BRAM_18K": 34,
+        "DSP": 11,
+        "FF": 10031,
+        "LUT": 9480,
+        "URAM": 4
+      },
+      "route": "selected_skill",
+      "selected_skill_id": "hls-pipeline-hot-loop-achieve-ii",
+      "injected_skill_ids": [
+        "hls-pipeline-hot-loop-achieve-ii"
+      ],
+      "routing_decision": {
+        "step_name": "pipeline",
+        "reason": "matched bottleneck 'interval_exceeds_latency' \u2192 skill 'hls-pipeline-hot-loop-achieve-ii' (confidence=high, adv=0.000)",
+        "bottleneck_kind": "interval_exceeds_latency",
+        "skill_id": "hls-pipeline-hot-loop-achieve-ii",
+        "confidence": "high",
+        "fallback": false,
+        "skills_loaded_count": 56,
+        "skill_store": "/home/luo00466/code_translation-c2hls/skills/skills.json"
+      },
+      "source_path_recorded": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp",
+      "source_path_exists_now": false,
+      "source_sha256_from_validated_manifest": "b8988d1b7c19aca2df837a3a04e47d546391257611c506459cf4cb7c4d8396ac",
+      "source_change_evidence": {
+        "source_motifs": [
+          "double B_local[60][80]",
+          "DEPENDENCE variable=B_acc inter false",
+          "PIPELINE II=1"
+        ],
+        "summary": "Full B-matrix local staging, pipelined accumulation, and an inter-iteration dependence assertion.",
+        "mechanism": "Fused accumulation loop achieves II=1; previous checkpoints already have II=1 inner loops, so this is not evidence of an II reduction.",
+        "basis": "Existing validated manifest and generator marker assertions; exact sources unavailable at recorded paths during this audit; no newly reconstructed exact diff."
+      },
+      "loop_witnesses": [
+        {
+          "scope_id": "kernel_trmm/VITIS_LOOP_46_3",
+          "name": "VITIS_LOOP_46_3",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:62",
+          "pipeline_ii": null,
+          "pipeline_depth": null,
+          "trip_count": 60,
+          "latency_cycles": null,
+          "interval": null,
+          "pipelined": "no",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_36_1_VITIS_LOOP_37_2/VITIS_LOOP_36_1_VITIS_LOOP_37_2",
+          "name": "VITIS_LOOP_36_1_VITIS_LOOP_37_2",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:36",
+          "pipeline_ii": 1,
+          "pipeline_depth": 4,
+          "trip_count": 4800,
+          "latency_cycles": 4802,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_48_4/VITIS_LOOP_48_4",
+          "name": "VITIS_LOOP_48_4",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:48",
+          "pipeline_ii": 1,
+          "pipeline_depth": 74,
+          "trip_count": 60,
+          "latency_cycles": 132,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_55_5/VITIS_LOOP_55_5",
+          "name": "VITIS_LOOP_55_5",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:55",
+          "pipeline_ii": 1,
+          "pipeline_depth": 3,
+          "trip_count": 80,
+          "latency_cycles": 81,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_62_6_VITIS_LOOP_65_7/VITIS_LOOP_62_6_VITIS_LOOP_65_7",
+          "name": "VITIS_LOOP_62_6_VITIS_LOOP_65_7",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:62",
+          "pipeline_ii": 1,
+          "pipeline_depth": 20,
+          "trip_count": null,
+          "latency_cycles": null,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_74_8/VITIS_LOOP_74_8",
+          "name": "VITIS_LOOP_74_8",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:74",
+          "pipeline_ii": 1,
+          "pipeline_depth": 11,
+          "trip_count": 80,
+          "latency_cycles": 89,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        }
+      ],
+      "scheduler_diagnostics": [
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:68:9) in loop 'VITIS_LOOP_65_7' may become invalid because the loop was flattened with the outer loop 'VITIS_LOOP_62_6'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:68"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:68:9) in loop 'VITIS_LOOP_65_7' may become invalid because the loop was flattened with the outer loop 'VITIS_LOOP_62_6'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:68"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:68:9) in loop 'VITIS_LOOP_65_7' may become invalid because the loop was flattened with the outer loop 'VITIS_LOOP_62_6'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:68"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:68:9) in loop 'VITIS_LOOP_65_7' may become invalid because the loop was flattened with the outer loop 'VITIS_LOOP_62_6'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:68"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-871] Estimated clock period (2.494 ns) exceeds the target (target clock period: 3.330 ns, clock uncertainty: 0.899 ns, effective delay budget: 2.431 ns).",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1016] The critical path in module 'kernel_trmm_Pipeline_VITIS_LOOP_36_1_VITIS_LOOP_37_2' consists of the following:",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-871] Estimated clock period (2.767 ns) exceeds the target (target clock period: 3.330 ns, clock uncertainty: 0.899 ns, effective delay budget: 2.431 ns).",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1016] The critical path in module 'kernel_trmm_Pipeline_VITIS_LOOP_55_5' consists of the following:",
+          "source_location": null
+        }
+      ],
+      "bottlenecks": [
+        {
+          "scope_id": "kernel_trmm",
+          "kind": "interval_exceeds_latency",
+          "evidence": "interval 303268 > latency 303267 cycles on module 'kernel_trmm'",
+          "severity": "high",
+          "metric": {
+            "interval": 303268,
+            "latency_cycles": 303267,
+            "interval_over_latency": 1.0
+          },
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_3ly8bvbn/kernel.cpp:33"
+        }
+      ],
+      "feedback_summary": {
+        "schema": "1.0",
+        "scope_count": 12,
+        "loop_count": 6,
+        "pipelined_loops": 5,
+        "non_pipelined_loops": 1,
+        "scopes_with_timing_violation": 2,
+        "scopes_with_negative_slack": 0,
+        "bottleneck_count": 1,
+        "high_severity_bottlenecks": 1,
+        "top_bottleneck_kinds": [
+          [
+            "interval_exceeds_latency",
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "step": "tiling",
+      "trace_jsonl_line": 197,
+      "controller_cycles": 97914,
+      "raw_worst_case_cycles": 339194,
+      "top_level_interval_cycles": 339195,
+      "normalized_export_best_average_worst_identical": true,
+      "estimated_period_ns": 2.767,
+      "resources": {
+        "BRAM_18K": 42,
+        "DSP": 15,
+        "FF": 11581,
+        "LUT": 11282,
+        "URAM": 4
+      },
+      "route": "selected_skill",
+      "selected_skill_id": "hls-tile-1d-reuse-and-compute-restructure",
+      "injected_skill_ids": [
+        "hls-tile-1d-reuse-and-compute-restructure"
+      ],
+      "routing_decision": {
+        "step_name": "tiling",
+        "reason": "matched bottleneck 'interval_exceeds_latency' \u2192 skill 'hls-tile-1d-reuse-and-compute-restructure' (confidence=high, adv=-0.220)",
+        "bottleneck_kind": "interval_exceeds_latency",
+        "skill_id": "hls-tile-1d-reuse-and-compute-restructure",
+        "confidence": "high",
+        "fallback": false,
+        "skills_loaded_count": 56,
+        "skill_store": "/home/luo00466/code_translation-c2hls/skills/skills.json"
+      },
+      "source_path_recorded": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp",
+      "source_path_exists_now": false,
+      "source_sha256_from_validated_manifest": "564e7014aafcfe1e19d673c387d494e51f13513743095d5585dcaa0b2b839dc7",
+      "source_change_evidence": {
+        "source_motifs": [
+          "const int TILE_I = 8",
+          "double B_acc[8][80]",
+          "for (int i_base = 0; i_base < m; i_base += TILE_I)"
+        ],
+        "summary": "Eight-row tiles and an 8-by-80 accumulator.",
+        "mechanism": "Larger local accumulation region; reuse or traffic improvement remains an interpretation without access counts.",
+        "basis": "Existing validated manifest and generator marker assertions; exact sources unavailable at recorded paths during this audit; no newly reconstructed exact diff."
+      },
+      "loop_witnesses": [
+        {
+          "scope_id": "kernel_trmm/tile_loop",
+          "name": "tile_loop",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:84",
+          "pipeline_ii": null,
+          "pipeline_depth": null,
+          "trip_count": 8,
+          "latency_cycles": null,
+          "interval": null,
+          "pipelined": "no",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_load_B_phase_VITIS_LOOP_72_1/load_B_phase_VITIS_LOOP_72_1",
+          "name": "load_B_phase_VITIS_LOOP_72_1",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:70",
+          "pipeline_ii": 1,
+          "pipeline_depth": 4,
+          "trip_count": 4800,
+          "latency_cycles": 4802,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_92_2/VITIS_LOOP_92_2",
+          "name": "VITIS_LOOP_92_2",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:92",
+          "pipeline_ii": 1,
+          "pipeline_depth": 3,
+          "trip_count": 80,
+          "latency_cycles": 81,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_load_a_col/load_a_col",
+          "name": "load_a_col",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:109",
+          "pipeline_ii": 1,
+          "pipeline_depth": 74,
+          "trip_count": 60,
+          "latency_cycles": 132,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_accum_k_accum_j/accum_k_accum_j",
+          "name": "accum_k_accum_j",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:117",
+          "pipeline_ii": 1,
+          "pipeline_depth": 20,
+          "trip_count": null,
+          "latency_cycles": null,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_scale_j/scale_j",
+          "name": "scale_j",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:131",
+          "pipeline_ii": 1,
+          "pipeline_depth": 11,
+          "trip_count": 80,
+          "latency_cycles": 89,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_147_3/VITIS_LOOP_147_3",
+          "name": "VITIS_LOOP_147_3",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:147",
+          "pipeline_ii": 1,
+          "pipeline_depth": 3,
+          "trip_count": 80,
+          "latency_cycles": 81,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_store_B_phase_VITIS_LOOP_160_4/store_B_phase_VITIS_LOOP_160_4",
+          "name": "store_B_phase_VITIS_LOOP_160_4",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:158",
+          "pipeline_ii": 1,
+          "pipeline_depth": 5,
+          "trip_count": 4800,
+          "latency_cycles": 4803,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        }
+      ],
+      "scheduler_diagnostics": [
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-960] Cannot flatten loop 'init_acc' (/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:89:9) in function 'kernel_trmm' the outer loop is not a perfect loop because there is nontrivial logic before entering the inner loop.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:89"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:124:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:124"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:124:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:124"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:124:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:124"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:124:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:124"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-960] Cannot flatten loop 'writeback_tile' (/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:144:9) in function 'kernel_trmm' the outer loop is not a perfect loop because there is nontrivial logic before entering the inner loop.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:144"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-871] Estimated clock period (2.494 ns) exceeds the target (target clock period: 3.330 ns, clock uncertainty: 0.899 ns, effective delay budget: 2.431 ns).",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1016] The critical path in module 'kernel_trmm_Pipeline_load_B_phase_VITIS_LOOP_72_1' consists of the following:",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-871] Estimated clock period (2.767 ns) exceeds the target (target clock period: 3.330 ns, clock uncertainty: 0.899 ns, effective delay budget: 2.431 ns).",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1016] The critical path in module 'kernel_trmm_Pipeline_VITIS_LOOP_92_2' consists of the following:",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-871] Estimated clock period (2.494 ns) exceeds the target (target clock period: 3.330 ns, clock uncertainty: 0.899 ns, effective delay budget: 2.431 ns).",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1016] The critical path in module 'kernel_trmm_Pipeline_store_B_phase_VITIS_LOOP_160_4' consists of the following:",
+          "source_location": null
+        }
+      ],
+      "bottlenecks": [
+        {
+          "scope_id": "kernel_trmm",
+          "kind": "interval_exceeds_latency",
+          "evidence": "interval 339195 > latency 339194 cycles on module 'kernel_trmm'",
+          "severity": "high",
+          "metric": {
+            "interval": 339195,
+            "latency_cycles": 339194,
+            "interval_over_latency": 1.0
+          },
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_grk08lkt/kernel.cpp:81"
+        }
+      ],
+      "feedback_summary": {
+        "schema": "1.0",
+        "scope_count": 16,
+        "loop_count": 8,
+        "pipelined_loops": 7,
+        "non_pipelined_loops": 1,
+        "scopes_with_timing_violation": 3,
+        "scopes_with_negative_slack": 0,
+        "bottleneck_count": 1,
+        "high_severity_bottlenecks": 1,
+        "top_bottleneck_kinds": [
+          [
+            "interval_exceeds_latency",
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "step": "unroll",
+      "trace_jsonl_line": 199,
+      "controller_cycles": 26233,
+      "raw_worst_case_cycles": 61305,
+      "top_level_interval_cycles": 61306,
+      "normalized_export_best_average_worst_identical": true,
+      "estimated_period_ns": 2.494,
+      "resources": {
+        "BRAM_18K": 82,
+        "DSP": 92,
+        "FF": 21930,
+        "LUT": 18121,
+        "URAM": 0
+      },
+      "route": "static_fallback",
+      "selected_skill_id": null,
+      "injected_skill_ids": [
+        "hls-doublebuffer-dataflow-stage-split",
+        "axi-burst-coalescing-narrow-safe",
+        "hls-pipeline-hot-loop-achieve-ii",
+        "avoid-manual-cse-inside-pipelined-loop",
+        "avoid-manual-loop-interchange-on-perfect-nest"
+      ],
+      "routing_decision": {
+        "step_name": "unroll",
+        "reason": "no actionable bottleneck found; advancing static order",
+        "bottleneck_kind": null,
+        "skill_id": null,
+        "confidence": null,
+        "fallback": true,
+        "skills_loaded_count": 56,
+        "skill_store": "/home/luo00466/code_translation-c2hls/skills/skills.json"
+      },
+      "source_path_recorded": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp",
+      "source_path_exists_now": false,
+      "source_sha256_from_validated_manifest": "159ee8676e62dfcafd477a5c275e0c0b0508f1a7e523c1b8a97526c30528c0e4",
+      "source_change_evidence": {
+        "source_motifs": [
+          "ARRAY_PARTITION variable=B_buf cyclic factor=8",
+          "ARRAY_PARTITION variable=B_acc cyclic factor=8",
+          "UNROLL factor=8"
+        ],
+        "summary": "Factor-eight B-buffer/accumulator banking and loop unrolling.",
+        "mechanism": "More columns per scheduled loop iteration; scale_j trip count falls from 80 to 10 while II and depth remain 1 and 11. Simultaneous storage, banking, and unrolling changes prevent separate attribution.",
+        "basis": "Existing validated manifest and generator marker assertions; exact sources unavailable at recorded paths during this audit; no newly reconstructed exact diff."
+      },
+      "loop_witnesses": [
+        {
+          "scope_id": "kernel_trmm/tile_loop",
+          "name": "tile_loop",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:85",
+          "pipeline_ii": null,
+          "pipeline_depth": null,
+          "trip_count": 8,
+          "latency_cycles": null,
+          "interval": null,
+          "pipelined": "no",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_load_B_phase_VITIS_LOOP_73_1/load_B_phase_VITIS_LOOP_73_1",
+          "name": "load_B_phase_VITIS_LOOP_73_1",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:71",
+          "pipeline_ii": 1,
+          "pipeline_depth": 3,
+          "trip_count": 4800,
+          "latency_cycles": 4801,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_93_2/VITIS_LOOP_93_2",
+          "name": "VITIS_LOOP_93_2",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:93",
+          "pipeline_ii": 1,
+          "pipeline_depth": 2,
+          "trip_count": 10,
+          "latency_cycles": 10,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_load_a_col/load_a_col",
+          "name": "load_a_col",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:111",
+          "pipeline_ii": 1,
+          "pipeline_depth": 74,
+          "trip_count": 60,
+          "latency_cycles": 132,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_accum_k_accum_j/accum_k_accum_j",
+          "name": "accum_k_accum_j",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:119",
+          "pipeline_ii": 1,
+          "pipeline_depth": 20,
+          "trip_count": null,
+          "latency_cycles": null,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_scale_j/scale_j",
+          "name": "scale_j",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:134",
+          "pipeline_ii": 1,
+          "pipeline_depth": 11,
+          "trip_count": 10,
+          "latency_cycles": 19,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_VITIS_LOOP_148_3/VITIS_LOOP_148_3",
+          "name": "VITIS_LOOP_148_3",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:148",
+          "pipeline_ii": 1,
+          "pipeline_depth": 2,
+          "trip_count": 10,
+          "latency_cycles": 10,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        },
+        {
+          "scope_id": "kernel_trmm/kernel_trmm_Pipeline_store_B_phase_VITIS_LOOP_162_4/store_B_phase_VITIS_LOOP_162_4",
+          "name": "store_B_phase_VITIS_LOOP_162_4",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:160",
+          "pipeline_ii": 1,
+          "pipeline_depth": 5,
+          "trip_count": 4800,
+          "latency_cycles": 4803,
+          "interval": 1,
+          "pipelined": "yes",
+          "issue": null,
+          "violation": null
+        }
+      ],
+      "scheduler_diagnostics": [
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-960] Cannot flatten loop 'init_acc' (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:90:9) in function 'kernel_trmm' the outer loop is not a perfect loop because there is nontrivial logic before entering the inner loop.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:90"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127:9) in loop 'accum_j' may become invalid because the loop was flattened with the outer loop 'accum_k'.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:127"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-960] Cannot flatten loop 'writeback_tile' (/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:145:9) in function 'kernel_trmm' the outer loop is not a perfect loop because there is nontrivial logic before entering the inner loop.",
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:145"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-871] Estimated clock period (2.494 ns) exceeds the target (target clock period: 3.330 ns, clock uncertainty: 0.899 ns, effective delay budget: 2.431 ns).",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1016] The critical path in module 'kernel_trmm_Pipeline_load_B_phase_VITIS_LOOP_73_1' consists of the following:",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-871] Estimated clock period (2.494 ns) exceeds the target (target clock period: 3.330 ns, clock uncertainty: 0.899 ns, effective delay budget: 2.431 ns).",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1016] The critical path in module 'kernel_trmm_Pipeline_store_B_phase_VITIS_LOOP_162_4' consists of the following:",
+          "source_location": null
+        }
+      ],
+      "bottlenecks": [
+        {
+          "scope_id": "kernel_trmm",
+          "kind": "interval_exceeds_latency",
+          "evidence": "interval 61306 > latency 61305 cycles on module 'kernel_trmm'",
+          "severity": "high",
+          "metric": {
+            "interval": 61306,
+            "latency_cycles": 61305,
+            "interval_over_latency": 1.0
+          },
+          "source_location": "/mnt/data/luo00466/tmp/hls_synth_utemijyz/kernel.cpp:82"
+        }
+      ],
+      "feedback_summary": {
+        "schema": "1.0",
+        "scope_count": 16,
+        "loop_count": 8,
+        "pipelined_loops": 7,
+        "non_pipelined_loops": 1,
+        "scopes_with_timing_violation": 2,
+        "scopes_with_negative_slack": 0,
+        "bottleneck_count": 1,
+        "high_severity_bottlenecks": 1,
+        "top_bottleneck_kinds": [
+          [
+            "interval_exceeds_latency",
+            1
+          ]
+        ]
+      }
+    }
+  ],
+  "limitations": [
+    "Exact historical skill snapshot and full injected prompt texts unavailable; records bind IDs and store hash only.",
+    "No matched leave-one-skill-out or family ablation; observed changes cannot identify individual skill effects.",
+    "Archived intermediate C-simulation status and prior CPU replay do not establish independent per-checkpoint RTL correctness.",
+    "Normalized Worst-caseLatency is a lossy alias of the controller value, not the distinct archived worst-case field.",
+    "Original recorded source and raw XML paths unavailable at audit time; code motifs are cited from previously validated generator and manifest, not re-read or re-diffed sources.",
+    "Raw worst-case estimate is not observed worst-case runtime; runtime loop bounds and compiler assumptions need reconstruction.",
+    "Final step is static fallback with several injected unrelated/supporting skills; do not credit a retrieved unroll skill."
+  ],
+  "baseline_log_witness": {
+    "source": "run_log",
+    "line": 4716,
+    "controller_cycles": 22598401,
+    "raw_worst_case_cycles_from_diagnostic": 45206401,
+    "top_level_interval_cycles": 45206402,
+    "loop_name": "VITIS_LOOP_23_3",
+    "pipeline_ii": 157,
+    "source_location": "/mnt/data/luo00466/tmp/hls_synth_gotcdij9/kernel.cpp:24",
+    "diagnostic": "Unable to enforce a carried dependence constraint between bus response operations; warning excerpt in log is truncated. Exact source and raw report unavailable; cannot prove loop correspondence to rewritten stages."
+  },
+  "retry_evidence": [
+    {
+      "step": "doublebuffer",
+      "retained": false,
+      "estimated_period_ns": 3.332,
+      "DSP": 33,
+      "controller_cycles": null,
+      "diagnostics": [
+        "Noncanonical dataflow region; dataflow form check issue; process predecessor/input warning.",
+        "Regression detected: timing_not_clean, slack -0.002ns."
+      ],
+      "source": "run_log",
+      "source_lines": [
+        4758,
+        4775
+      ]
+    },
+    {
+      "step": "pipeline",
+      "retained": false,
+      "estimated_period_ns": 3.578,
+      "DSP": 22,
+      "controller_cycles": 181681,
+      "raw_worst_case_cycles_from_diagnostic": 941341,
+      "diagnostics": [
+        "Regression detected: timing_not_clean, slack -0.248ns."
+      ],
+      "source": "run_log",
+      "source_lines": [
+        4797,
+        4814
+      ]
+    }
+  ],
+  "retry_interpretation": "Five recorded selected step checkpoints are not all attempted candidates; run log records two extra repair attempts, compatible with eight recorded model calls including initial translation. No new timing or cost measurements inferred."
+}

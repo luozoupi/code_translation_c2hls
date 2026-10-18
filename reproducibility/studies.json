@@ -1,0 +1,134 @@
+{
+  "paper_commit": "ecd3c750168dea52aa80dd609f463b9b668689b0",
+  "training_requested": false,
+  "actual_new_hardware_or_model_runs": 0,
+  "assets": {
+    "qwen_base": {
+      "path": "/mnt/data/vllm_models/hub/models--Qwen--Qwen3.6-27B/snapshots/6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+      "exists": true,
+      "metadata_sha256": {
+        "config.json": "69db4eb7196bc8190813231b3018ca05d8c2e3abc7b1af19d55c157af44a9d9c",
+        "generation_config.json": "e70c136c1b78ddc1fb0905bac8e733a4dc448d4f852a5dd75143fffc70be550e",
+        "model.safetensors.index.json": "a8ad2c26fb707ff8c245806315b03e3b4b74595528492423af5dae0ce39b4d9b",
+        "tokenizer_config.json": "5186f0defcd7f232382c7f0aebcd2252d073bb921ab240e407b7ae8745d2b29b"
+      },
+      "full_weight_payload_hashed": false,
+      "mutation": "none"
+    },
+    "gemma_base": {
+      "path": "/mnt/data2/li004074/gemma-4-31B-it",
+      "exists": true,
+      "metadata_sha256": {
+        "config.json": "e967dd38bc5cfd38bd09a995a7bf4a754075df2b46aba68f7fbb5a791e6d8dd1",
+        "generation_config.json": "d4226bbe3117d2d253ba4609720ba82c6c4ce4627a9a6ae05387c78983ac03de",
+        "model.safetensors.index.json": "d4aff3b976d69c123a29d1c085d7ba4de1ac3f4ca1726a7f81e1b11462a64ea2",
+        "tokenizer_config.json": "90c3a3ba5bf53818383a58e1a776cbcacd2a038d4812eaa373e1522f2d06f3df"
+      },
+      "full_weight_payload_hashed": false,
+      "mutation": "none"
+    },
+    "qwen_role_adapter": {
+      "path": "/mnt/data2/luo00466/c2hls_sft/runs/qwen3.6-27b_active_llm_actors_qlora_r16_1epoch_3072_20260724/adapter",
+      "exists": true,
+      "metadata_sha256": {
+        "adapter_config.json": "279dc1957c7f1eba014bf2c4810c7253d51e106e0c98eedc97740669dc250436",
+        "tokenizer_config.json": "83febe739ecefd99f984f546dfdc10149cedf293b9ee0291b99894341188b613"
+      },
+      "full_weight_payload_hashed": false,
+      "mutation": "none"
+    },
+    "qwen_translator_adapter": {
+      "path": "/mnt/data2/luo00466/c2hls_sft/runs/qwen3.6-27b_translator_qlora_r16_1epoch_2048_20260717/adapter",
+      "exists": true,
+      "metadata_sha256": {
+        "adapter_config.json": "56919bc574ac90b668407f48d9ccf7781a28931135adbcd1ab30d5b1260cfdbb",
+        "tokenizer_config.json": "83febe739ecefd99f984f546dfdc10149cedf293b9ee0291b99894341188b613"
+      },
+      "full_weight_payload_hashed": false,
+      "mutation": "none"
+    }
+  },
+  "studies": [
+    {
+      "id": "commercial_saved_evidence",
+      "size": "156 selected/comparator roles, 144 distinct archived implementations",
+      "status": "numerical_evidence_verified; hardware_rerun_pending_compute_cap",
+      "evidence": "paper/generated/sigmetrics/commercial_validation_manifest.json",
+      "driver": "scripts/run_historical_cosim.py",
+      "limitation": "Original and later independent harnesses have different validation coverage; preserve both outcomes."
+    },
+    {
+      "id": "open_main",
+      "size": "540 generation cells; 108 fixed selected arms and comparator validation",
+      "status": "frozen_checkpoint_evaluation_preserved_pending_compute_cap",
+      "evidence": "paper/generated/skill_v3_open_models_manifest.json",
+      "drivers": [
+        "scripts/run_setup_tournament.py",
+        "scripts/build_skill_v3_sweep_tables.py"
+      ],
+      "original_registration": "/home/luo00466/code_translation-c2hls-hpca2027/results_sweeps/skill_v3_qwen_gemma_matrix_20260731/manifest.json",
+      "assets": [
+        "qwen_base",
+        "gemma_base"
+      ],
+      "limitation": "Preserve distinct Gemma serving revisions; metadata identity alone does not verify all original weights."
+    },
+    {
+      "id": "setup_router",
+      "size": "27 kernels x 10 setups; fixed 19-kernel development analysis",
+      "status": "frozen_evaluation_preserved_pending_compute_cap",
+      "evidence": "paper/generated/setup_teacher_router_sft_manifest.json",
+      "drivers": [
+        "scripts/run_corrected_setup_matrix.py",
+        "scripts/evaluate_setup_router_lm_fusion.py"
+      ],
+      "limitation": "Do not retrain or change the development split during reproduction."
+    },
+    {
+      "id": "adapter_pilot",
+      "size": "60 agentic cells plus direct conditions",
+      "status": "adapter_available_evaluation_pending_compute_cap",
+      "evidence": "paper/generated/setup_teacher_router_sft_manifest.json",
+      "drivers": [
+        "scripts/compare_orchestrator_sft_ab.py"
+      ],
+      "assets": [
+        "qwen_base",
+        "qwen_role_adapter"
+      ]
+    },
+    {
+      "id": "translator_diagnostic",
+      "size": "four kernels x base/tuned = eight cells",
+      "status": "adapter_available_evaluation_pending_compute_cap",
+      "evidence": "paper/generated/qwen_translator_sft_ab_manifest.json",
+      "drivers": [
+        "scripts/compare_translator_sft_ab.py"
+      ],
+      "assets": [
+        "qwen_base",
+        "qwen_translator_adapter"
+      ]
+    },
+    {
+      "id": "grpo",
+      "size": "24 common tasks x base/SFT/GRPO and external diagnostics",
+      "status": "blocked_missing_original_package",
+      "evidence": "paper/generated/grpo_7b_manifest.json",
+      "missing": [
+        "Original GRPO evaluation package",
+        "Verified task IDs/split",
+        "Raw per-kernel candidate records",
+        "Checkpoint hashes"
+      ],
+      "limitation": "External summary is preserved; a new training campaign would not reproduce it."
+    },
+    {
+      "id": "external_comparisons",
+      "size": "Historical ChatHLS/DeepSeek/Grok and cross-model summaries",
+      "status": "evidence_preserved_original_runnable_packages_incomplete",
+      "evidence": "paper/generated/cross_model_expertise_manifest.json",
+      "limitation": "Inventory unavailable inputs; do not replace them silently."
+    }
+  ]
+}

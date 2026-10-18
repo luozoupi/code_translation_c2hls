@@ -1197,3 +1197,27 @@ Khronos OpenCL headers aren't on the include path. Install
 Ubuntu 22.04 multi-arch glibc issue. Add
 `/usr/include/x86_64-linux-gnu` to `C_INCLUDE_PATH` / `CPLUS_INCLUDE_PATH`
 (handled by `setup_emu_env.sh`).
+
+## Historical branch v4
+
+This branch preserves the **commercial campaign tooling, trajectory exports, portable Vitis runner and resumable sweeps** stage of HLSmith/C2HLS.
+Its original branch was `c2hls_enhanced_l` at commit `ebe0675b16dc35456ffdc4636d24d4d432dced9f`.
+The annotated tag `snapshot/20261018/v4` points to the original code before this documentation commit.
+
+Use this branch to inspect or reproduce that historical workflow with its original
+instructions and dependencies. Continue development on `hlsmith-clean`.
+Version labels follow the recorded development milestones; the tip milestone is
+2026-07-24. Git does not record remote branch creation times, so this is not a
+claim about when the original online branch was created. The HPCA local branch
+reflog records creation on July 13, 2026, and the SIGMETRICS local branch on
+September 28, 2026; other creation dates remain unknown.
+
+Historical results retain their original tool versions, model aliases, prompts,
+input/testbench contracts, failures and timeout policy. A branch snapshot alone
+does not reproduce hosted-model weights or establish current SIGMETRICS quality.
+Do not replace a failed archived design with a newly generated one and call it
+the same experiment. See `CHANGELOG.md` for this snapshot's provenance.
+
+Consolidation archive roots are `/mnt/data1/luo00466/c2hls_archive_20260811` and
+`/mnt/data1/luo00466/c2hls_archive_20261018`; consult their manifests for actual
+coverage. Historical absolute paths are provenance, not portable runtime defaults.

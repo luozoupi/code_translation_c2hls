@@ -6,8 +6,8 @@ Its ignored `runs` link resolves to the private NAS directory
 
 Both campaigns use immutable runtime snapshots under
 `/mnt/data1/luo00466/c2hls_archive_20261018/runtime`: `v6` and
-`hlsmith-clean-79db16f`. The latter is the exact committed clean implementation
-`79db16f28f4681394bdf2c3da50fc50bd6a47a45`. Their member manifests bind every
+`hlsmith-clean-f9e94eb`. The latter is the exact committed clean implementation
+`f9e94ebd945e7db726625da3ba9bed2c554d9f62`. Their member manifests bind every
 committed file and link. The canonical checkout remains available for further
 development; editing it does not silently change the registered evaluators.
 
@@ -18,7 +18,7 @@ the DeepSeek comparison second. Before API use it rechecks the official Flash
 release and pricing; a changed release, changed rates or uncertain billing
 stops the campaign for review. It never changes a branch default.
 
-The durable operational files are under `runs/migration-validation/`:
+The durable operational files are under `runs/migration-validation-r2/`:
 
 - `approved_limits.json` records the user's explicit limits.
 - `controller_status.json` records the supervisor and active stage PIDs.
@@ -33,19 +33,19 @@ accept `DEEPSEEK_API_KEY` through the environment.
 Inspect progress without changing it:
 
 ```bash
-cat runs/migration-validation/controller_status.json
-cat runs/saved-design-validation-20261018/state.json
-cat runs/cleanup-comparison-20261018/state.json
+cat runs/migration-validation-r2/controller_status.json
+cat runs/saved-design-validation-20261018-r2/state.json
+cat runs/cleanup-comparison-20261018-r2/state.json
 ```
 
 To regenerate reports with the pinned implementation, run from its snapshot:
 
 ```bash
-cd /mnt/data1/luo00466/c2hls_archive_20261018/runtime/hlsmith-clean-79db16f
+cd /mnt/data1/luo00466/c2hls_archive_20261018/runtime/hlsmith-clean-f9e94eb
 python -m hlsmith.saved_designs report \
-  --output /mnt/data1/luo00466/c2hls_runs_20261018/saved-design-validation-20261018
+  --output /mnt/data1/luo00466/c2hls_runs_20261018/saved-design-validation-20261018-r2
 python -m hlsmith.experiments report \
-  --output /mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018
+  --output /mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2
 ```
 
 Scratch workspaces and fresh measurements stay on NAS. Reports retain failures,
@@ -60,3 +60,15 @@ dependencies are gone. Frozen checkpoint studies remain separate: their
 available evidence and assets are listed in `reproducibility/studies.json`,
 alongside the missing exact serving/evaluation bindings. No GPU job or training
 run is part of this controller.
+
+
+The initial hardware trial remains at `saved-design-validation-20261018` and
+`migration-validation`. It found a clean-export omission and missing Vitis XML
+clock metadata handling. The frozen candidate's native, CSim and RTL checks
+passed, but the original qualification failure remains unchanged; the clean
+worker failed during import. The corrected source and wheel were checked from
+an independent Git export before creating `r2`. No design was repaired or
+reselected. The original trial consumed 114.64893941092305 worker-seconds, so
+`r2` receives only 249.96815307238586 remaining hours from the approved 250-hour
+total. `saved-design-carry-forward.json` binds the original state and manifest
+hashes. Both trial folders and every old measurement remain in place.

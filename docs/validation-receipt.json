@@ -4,7 +4,7 @@
   "archive_payload_sha256": "db45bbb46836a113e1dfde275853fca3ce60bfb9ef14733beffa79f282bc529c",
   "canonical_git_independent": true,
   "offline_test_suite": {
-    "passed": 853,
+    "passed": 866,
     "skipped": 29,
     "subtests_passed": 127,
     "network_blocked": true,
@@ -30,12 +30,13 @@
   },
   "wheel_installation": {
     "passed": true,
-    "wheel_sha256": "92306e94a6fb49ae1f1c56b3abe56961c41ebfadbfc4dbaa1931c24bce0fddeb",
+    "wheel_sha256": "ccc912910f3fb93712a91f443a182e2a4268bf014b19e9f9779c1d0154d8c01d",
     "legacy_alias_count": 58,
     "test_cwd": "/tmp",
-    "pythonpath": ""
+    "pythonpath": "",
+    "build_source": "independent Git archive of f9e94ebd945e7db726625da3ba9bed2c554d9f62"
   },
-  "runtime_source_tree_sha256": "9cacf72c084c934f3ff998d7e5696541fa07b4e077cc742b30ab5527493e44c5",
+  "runtime_source_tree_sha256": "3667e36b8fb00bbd851f4b19190c6727a50e9f1e834173553c10250d59dd57d6",
   "deterministic_passed": false,
   "deterministic_covered_paths_passed": true,
   "deterministic_gate_limitation": "Original complete search trajectories and all corpus paths were not replayed. Captured-boundary coverage is explicit.",
@@ -46,11 +47,38 @@
   "gpu_jobs_authorized": false,
   "default_branch": "v1",
   "default_promotion": "Pending scientific validation; no equivalence claim",
-  "runtime_commit": "79db16f28f4681394bdf2c3da50fc50bd6a47a45",
-  "runtime_snapshot": "/mnt/data1/luo00466/c2hls_archive_20261018/runtime/hlsmith-clean-79db16f",
-  "runtime_snapshot_archive_sha256": "b4d1ca803793ba41b0f2fa21662639c244bb1ba27a36f335f45754b5096b536a",
+  "runtime_commit": "f9e94ebd945e7db726625da3ba9bed2c554d9f62",
+  "runtime_snapshot": "/mnt/data1/luo00466/c2hls_archive_20261018/runtime/hlsmith-clean-f9e94eb",
+  "runtime_snapshot_archive_sha256": "0db274aca56e6614ef70bf1c03eec2a42ed503a4ec92902e2818c9b49fe986f5",
   "historical_registered_cells": 648,
   "fresh_registered_cells": 1638,
   "live_run_root": "/mnt/data1/luo00466/c2hls_runs_20261018",
-  "supervisor_status_file": "/mnt/data1/luo00466/c2hls_runs_20261018/migration-validation/controller_status.json"
+  "supervisor_status_file": "/mnt/data1/luo00466/c2hls_runs_20261018/migration-validation-r2/controller_status.json",
+  "release_completeness": {
+    "passed": true,
+    "required_files": 406,
+    "runtime_modules_imported": 145,
+    "runtime_python_files": 146,
+    "packaged_resource_files": 257
+  },
+  "prior_trial": {
+    "directory": "/mnt/data1/luo00466/c2hls_runs_20261018/saved-design-validation-20261018",
+    "status": "stopped_execution_error",
+    "job_seconds_charged": 114.64893941092305,
+    "remaining_approved_saved_design_hours": 249.96815307238586,
+    "selected_designs_changed": false,
+    "records_preserved": true,
+    "generation_requests": 0
+  },
+  "initial_r2_hardware_check": {
+    "benchmark": "hlsfactory_nussinov",
+    "frozen_status": "passed",
+    "rtl_cycles": 482203,
+    "requested_clock_ns": 3.33,
+    "estimated_clock_ns": 2.692,
+    "full_campaign_acceptance": false,
+    "clean_status": "passed",
+    "paired_rtl_cycles_equal": true,
+    "scope": "First fixed Nussinov pair only; full campaign acceptance pending"
+  }
 }

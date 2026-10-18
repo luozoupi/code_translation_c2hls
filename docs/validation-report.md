@@ -21,9 +21,10 @@ the historical common Git directory. Byte-preserved benchmark, skill and
 configuration files are packaged with the implementation. Compatibility
 entrypoints retain the original Python module identity and CLI arguments.
 
-The full offline suite passed **853 tests and 127 subtests**, with 29 hardware
+The full offline suite passed **866 tests and 127 subtests**, with 29 hardware
 or legacy tests skipped. The isolated wheel install passed from `/tmp` with an
-empty `PYTHONPATH`, including four CLI help commands, 58 compatibility aliases,
+empty `PYTHONPATH`, built from a clean Git archive and checked against all 406
+required release files, including four CLI help commands, 58 compatibility aliases,
 packaged resources and source provenance. Machine-readable evidence is in
 [validation-receipt.json](validation-receipt.json).
 
@@ -106,3 +107,21 @@ DeepSeek comparison follows in sequence with the supplied private credential
 and an immediate official release/pricing check. See [campaign operations](campaign-operations.md)
 for live state and report commands. These launch records are not passing
 hardware/QoR results; default promotion remains pending.
+
+
+The first live trial exposed two issues beyond the initial offline coverage:
+an ignored required module in the Git export, and a Vitis requested-clock value
+stored under `UserAssignments/TargetClockPeriod` rather than the parser's old
+location. The corrected release now verifies every required source/asset in
+Git, its clean export and the built wheel. Fresh clock evidence is bound to
+actual XML/Tcl values and hashes, with conflicting targets rejected. The
+original trial's statuses and measurements are preserved. Its 114.65 seconds
+are charged against the approved total. Corrected `r2` registrations use source
+commit `f9e94ebd945e7db726625da3ba9bed2c554d9f62`; they do not change selected designs.
+
+
+The first corrected hardware pair passed in both evaluators: the fixed Nussinov
+source produced 482,203 measured RTL cycles, passed native/CSim/RTL output
+checks and met resource/timing eligibility at the recorded 3.33 ns target.
+The queue then advanced to the next design. This is one completed pair, not
+whole-campaign acceptance or evidence of fresh-model equivalence.

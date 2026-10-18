@@ -256,7 +256,12 @@ def test_independent_validation_controller_never_promotes_unchecked_tool_pass(
             return {}, {'status': 'missing'}
         report = tmp_path / 'scratch' / job['id'] / 'rtl/hls_proj/sol1/syn/report/csynth.xml'
         gate.tools.save(report, archived)
-        return archived, {'status': 'recorded', 'path': str(report), 'sha256': gate.tools.sha(report)}
+        tcl = tmp_path / 'scratch' / job['id'] / 'rtl/run_cosim.tcl'
+        tcl.write_text('create_clock -period 3.33 -name default\n')
+        return archived, {'status': 'recorded', 'path': str(report), 'sha256': gate.tools.sha(report),
+                          'requested_clock': {'status': 'verified', 'period_ns': 3.33,
+                                              'sources': [{'kind': 'vitis_tcl', 'path': str(tcl),
+                                                           'sha256': gate.tools.sha(tcl), 'period_ns': 3.33}]}}
     monkeypatch.setattr(gate.tools, 'fresh_rtl_synthesis', synthesis)
     gate.worker(Namespace(output=output, job=job['id']))
     measured = gate.tools.read(folder / 'measurement.json')
@@ -273,6 +278,12 @@ def test_independent_validation_controller_never_promotes_unchecked_tool_pass(
             with pytest.raises((ValueError, AttributeError), match='independent|runner'):
                 gate.report(output)
         gate.tools.save(folder / 'measurement.json', measured)
+        tcl = Path(measured['rtl_synthesis_evidence']['requested_clock']['sources'][0]['path'])
+        original_tcl = tcl.read_bytes()
+        tcl.write_text('create_clock -period 5.0 -name default\n')
+        with pytest.raises(ValueError, match='requested clock provenance changed'):
+            gate.report(output)
+        tcl.write_bytes(original_tcl)
         Path(measured['rtl_synthesis_evidence']['path']).write_text('changed synthesis report')
         with pytest.raises(ValueError, match='fresh synthesis evidence changed'):
             gate.report(output)

@@ -116,12 +116,12 @@ benchmarks_external/
 results_sweeps/
 paper_eval/checkpoints/
 amhed-results/
-c2hls_temp.py
+/c2hls_temp.py
 
 # HLS temp dirs
 /tmp/hls_synth_*/
 
-# Required runtime module; retain despite broad temporary-file patterns.
+# The root compatibility module is required at runtime.
 !/c2hls_temp.py
 
 # Local credentials, new runs and build environments

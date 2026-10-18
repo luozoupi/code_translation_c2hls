@@ -437,6 +437,18 @@ def report(output):
                     or tools.sha(evidence['path']) != evidence['sha256']
                     or tools.content_sha(measured.get('rtl_synthesis', {})) != measured.get('rtl_synthesis_sha256')):
                 raise ValueError('passing saved design fresh synthesis evidence changed')
+            clock = evidence.get('requested_clock') or {}
+            allowed_sources = {'vitis_xml': Path(evidence['path']).resolve(),
+                               'parsed_synthesis_report': Path(evidence['path']).resolve(),
+                               'vitis_tcl': (work / 'run_cosim.tcl').resolve()}
+            requested = measured['rtl_synthesis'].get('requested_clock_period_ns')
+            if (clock.get('status') != 'verified' or clock.get('period_ns') != requested
+                    or not clock.get('sources') or any(
+                        source.get('kind') not in allowed_sources
+                        or Path(source['path']).resolve() != allowed_sources[source['kind']]
+                        or tools.sha(source['path']) != source.get('sha256')
+                        or source.get('period_ns') != requested for source in clock['sources'])):
+                raise ValueError('passing saved design requested clock provenance changed')
         rows.append({**job, 'status': measured.get('status', progress['status']),
                      'materialized_source_sha256': measured.get('rtl_source_evidence', {}).get('materialized_sha256'),
                      'rtl_cycles': tools.measured_cycles(measured.get('rtl', {})) if measured.get('status') == 'passed' else None})

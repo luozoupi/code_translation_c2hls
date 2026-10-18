@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import xml.etree.ElementTree as ET
 
 from hlsmith.research.cleanup_statistics import summarize_cleanup_statistics
 
@@ -146,8 +147,53 @@ def fresh_rtl_synthesis(evaluator, rtl):
                   else evaluator.parse_synthesis_report(report.read_text()))
     except (OSError, ValueError, TypeError, OverflowError) as error:
         return {}, {'status': 'invalid', 'reason': type(error).__name__, 'report_sha256': sha(source)}
-    return parsed, {'status': 'recorded', 'path': str(source.resolve()), 'sha256': sha(source),
-                    'scope': 'fresh synthesis inside the same RTL invocation'}
+    evidence = {'status': 'recorded', 'path': str(source.resolve()), 'sha256': sha(source),
+                'scope': 'fresh synthesis inside the same RTL invocation'}
+    # Vitis 2023.2 puts the requested period under UserAssignments, whereas
+    # the legacy parser looks under SummaryOfTimingAnalysis. Bind the missing
+    # field to actual tool inputs/report values, never the campaign setting.
+    clocks = []
+    try:
+        if xml.is_file():
+            root = ET.parse(xml).getroot()
+            value = root.findtext('UserAssignments/TargetClockPeriod')
+            if value is not None:
+                unit = root.findtext('UserAssignments/unit')
+                if unit is not None and unit.strip() != 'ns':
+                    raise ValueError('unsupported XML target clock unit')
+                clocks.append({'kind': 'vitis_xml', 'path': str(xml.resolve()), 'sha256': sha(xml),
+                               'field': 'UserAssignments/TargetClockPeriod', 'period_ns': positive(value)})
+        if parsed.get('requested_clock_period_ns') is not None:
+            clocks.append({'kind': 'parsed_synthesis_report', 'path': str(source.resolve()), 'sha256': sha(source),
+                           'field': 'requested_clock_period_ns', 'period_ns': positive(parsed['requested_clock_period_ns'])})
+        tcl = Path(work) / 'run_cosim.tcl'
+        if tcl.is_file():
+            commands = [line.strip() for line in tcl.read_text().splitlines()
+                        if re.match(r'^\s*create_clock\b', line)]
+            # The frozen and cleaned evaluators emit this literal command.
+            # Reject dynamic/multiple clocks rather than guessing Tcl values.
+            if len(commands) != 1:
+                raise ValueError('missing or ambiguous Tcl create_clock command')
+            match = re.fullmatch(r'create_clock\s+-period\s+([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)\s+-name\s+default', commands[0])
+            if match is None:
+                raise ValueError('unsupported Tcl create_clock command')
+            clocks.append({'kind': 'vitis_tcl', 'path': str(tcl.resolve()), 'sha256': sha(tcl),
+                           'command': commands[0], 'period_ns': positive(match.group(1))})
+        if not clocks:
+            raise ValueError('requested clock absent from tool report and Tcl')
+        requested = clocks[0]['period_ns']
+        if any(abs(clock['period_ns'] - requested) > 1e-9 for clock in clocks):
+            raise ValueError('requested clock disagrees between tool report and Tcl')
+        parsed['requested_clock_period_ns'] = requested
+        estimated = parsed.get('estimated_clock_period_ns')
+        if estimated is not None:
+            parsed['slack_ns'] = round(requested - positive(estimated), 3)
+        evidence['requested_clock'] = {'status': 'verified', 'period_ns': requested, 'sources': clocks}
+    except (OSError, ValueError, TypeError, OverflowError, ET.ParseError) as error:
+        parsed['requested_clock_period_ns'] = None
+        parsed['slack_ns'] = None
+        evidence.update(status='invalid', reason=str(error), requested_clock={'status': 'invalid', 'sources': clocks})
+    return parsed, evidence
 
 
 def read(path):

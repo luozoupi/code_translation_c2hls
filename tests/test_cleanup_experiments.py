@@ -7,6 +7,8 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import shutil
+import xml.etree.ElementTree as ET
 
 import pytest
 
@@ -412,6 +414,75 @@ def test_selected_report_tampering_is_rejected_without_reselecting(validation_ca
 
 def test_unrecorded_fresh_synthesis_report_is_missing_evidence(tmp_path):
     assert study.fresh_rtl_synthesis(None, {'work_dir': str(tmp_path)})[1]['status'] == 'missing'
+
+
+@pytest.fixture
+def real_vitis_clock_report(tmp_path):
+    """Actual Vitis 2023.2 Nussinov report layout from the stopped trial."""
+    fixture = Path(__file__).parent / 'fixtures/vitis2023_2_nussinov'
+    work = tmp_path / 'rtl'
+    report = work / 'hls_proj/sol1/syn/report/csynth.xml'
+    report.parent.mkdir(parents=True)
+    shutil.copy2(fixture / 'csynth.xml', report)
+    shutil.copy2(fixture / 'run_cosim.tcl', work / 'run_cosim.tcl')
+    return work, report
+
+
+def test_real_vitis_user_assignment_clock_is_bound_to_xml_and_tcl(real_vitis_clock_report):
+    import hls_eval
+    import c2hls
+    work, xml = real_vitis_clock_report
+    assert hls_eval.parse_synthesis_xml(str(xml))['requested_clock_period_ns'] is None
+    parsed, evidence = study.fresh_rtl_synthesis(hls_eval, {'work_dir': str(work)})
+    assert parsed['requested_clock_period_ns'] == 3.33
+    assert parsed['estimated_clock_period_ns'] == 2.692
+    assert parsed['slack_ns'] == .638
+    assert parsed['latency_cycles_worst'] == 1418812
+    assert study.selected_feasibility(c2hls, parsed, {'part': 'xcu280-fsvh2892-2L-e', 'clock_ns': 3.33})['feasible']
+    assert evidence['status'] == 'recorded'
+    clock = evidence['requested_clock']
+    assert clock['status'] == 'verified'
+    assert {s['kind'] for s in clock['sources']} == {'vitis_xml', 'vitis_tcl'}
+    for source in clock['sources']:
+        assert source['period_ns'] == 3.33
+        assert study.sha(source['path']) == source['sha256']
+    assert clock['sources'][0]['field'] == 'UserAssignments/TargetClockPeriod'
+    assert clock['sources'][1]['command'] == 'create_clock -period 3.33 -name default'
+
+
+@pytest.mark.parametrize('xml_period,tcl_period,expected,valid', [
+    ('5.0', '5.0', 5.0, True),
+    ('5.0', '3.33', None, False),
+    ('3.33', '5.0', None, False),
+    (None, None, None, False),
+    (None, '3.33', 3.33, True),
+    ('3.33', None, 3.33, True),
+])
+def test_requested_clock_uses_actual_evidence_and_rejects_wrong_target(
+        real_vitis_clock_report, xml_period, tcl_period, expected, valid):
+    import hls_eval
+    import c2hls
+    work, xml = real_vitis_clock_report
+    tree = ET.parse(xml)
+    assignments = tree.getroot().find('UserAssignments')
+    field = assignments.find('TargetClockPeriod')
+    if xml_period is None:
+        assignments.remove(field)
+    else:
+        field.text = xml_period
+    tree.write(xml)
+    tcl = work / 'run_cosim.tcl'
+    if tcl_period is None:
+        tcl.unlink()
+    else:
+        tcl.write_text(tcl.read_text().replace('-period 3.33', '-period ' + tcl_period))
+    parsed, evidence = study.fresh_rtl_synthesis(hls_eval, {'work_dir': str(work)})
+    assert parsed['requested_clock_period_ns'] == expected
+    assert evidence['requested_clock']['status'] == ('verified' if valid else 'invalid')
+    feasibility = study.selected_feasibility(c2hls, parsed, {'part': 'xcu280-fsvh2892-2L-e', 'clock_ns': 3.33})
+    assert feasibility['feasible'] is (expected == 3.33)
+    if expected != 3.33:
+        assert 'requested_clock_identity_mismatch' in feasibility['reasons']
 
 
 def test_report_rejects_a_bare_tool_pass_without_required_evidence(registration):

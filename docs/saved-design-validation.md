@@ -92,6 +92,12 @@ the materialized testbench/header/support hashes. Reports show any difference
 between evaluator cohorts' materialized sources. Source and public-input
 associations, the launch's verified runner, and fresh synthesis report files
 remain checked when a report is produced.
+The requested clock comes from the actual synthesis report's
+`UserAssignments/TargetClockPeriod` or an existing parsed report field and the
+literal `create_clock` command in that cell's Tcl. Available sources must agree;
+each source path and file hash is retained. Missing, ambiguous, dynamic, or
+conflicting clock evidence cannot qualify a pass. The campaign's configured
+period is never substituted for missing tool evidence.
 A tool's bare success flag cannot qualify a pass. Reports keep all 648 cells,
 the 324 fixed design pairs, five blocked open slots per cohort, failures,
 timeouts, pending work, and paired status/cycle differences. They do not claim
@@ -117,3 +123,16 @@ two distinct historical Gemma serving revisions remain unauthenticated. GRPO
 retains only an external preliminary summary and lacks the original package,
 verified task split, raw candidates, and checkpoint hashes. No retraining was
 requested or performed.
+
+The initial stopped hardware trial exposed a validator parser omission: its
+XML recorded a 3.33 ns target under `UserAssignments`, but the legacy parser
+only looked under `SummaryOfTimingAnalysis`. Native, CSim, and RTL checks had
+passed; qualification incorrectly lacked the requested clock. The validator
+now binds that existing XML field to the recorded Tcl and records their
+hashes. A read-only check of the preserved report confirms target 3.33 ns,
+estimate 2.692 ns, and derived slack 0.638 ns. The original trial measurement
+remains unchanged, including its original failure classification. Its 114.65
+charged seconds remain in the aggregate accounting when registering a new
+validation run. The numerical XML excerpt and exact Tcl are retained in
+`tests/fixtures/vitis2023_2_nussinov`; regression cases cover a different 5 ns
+target, conflicting XML/Tcl periods, missing evidence, and clock-file changes.

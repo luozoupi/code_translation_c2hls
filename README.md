@@ -65,6 +65,7 @@ Registration and cost estimation run without API credentials or tool jobs. Launc
 - [Deterministic replay validation](docs/deterministic-replay-validation.md)
 - [Historical branches and changelogs](docs/history-branches.md)
 - [Local migration and archival](docs/migration.md)
+- [Campaign status and operation](docs/campaign-operations.md)
 - [Research command index](scripts/README.md)
 
 Implementation lives in `hlsmith/`. Root modules are compatibility entrypoints. Packaged benchmark, skill and configuration files retain their original bytes. Generated results are stored outside the tracked source tree.

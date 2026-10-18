@@ -63,9 +63,9 @@ simulate a design. Tool hashes are in [validation-tool-versions.json](validation
 | Archive integrity and representative restores | Passed | Private archive manifests and restore receipts |
 | Offline compatibility and paper numerical replay | Passed within the stated coverage | Test receipt and checksum-bound replay fixtures |
 | Whole-corpus deterministic runtime equivalence | Not established | Broader captured request, selection and tool-boundary replay |
-| Historical selected/comparator hardware replay | Registered, pending execution | Fresh fixed-design native, CSim and RTL records; no repair or reselection |
-| Frozen versus clean DeepSeek paper-profile comparison | Registered, not launched | 26 kernels × 7 configurations × 3 repetitions for each implementation |
-| Readable prompt evaluation | Registered, not launched | Separate clean-profile cohort with the same matrix |
+| Historical selected/comparator hardware replay | Running under the 250-hour cap | Fresh fixed-design native, CSim and RTL records; no repair or reselection |
+| Frozen versus clean DeepSeek paper-profile comparison | Queued after the hardware campaign | 26 kernels × 7 configurations × 3 repetitions for each implementation |
+| Readable prompt evaluation | Queued as a separate DeepSeek cohort | Separate clean-profile cohort with the same matrix |
 | Available frozen-checkpoint studies | Evidence and assets retained; live configurations require binding | See [study inventory](../reproducibility/studies.json) |
 | Default branch promotion | Pending validation | Correctness, resource eligibility and QoR evidence with uncertainty |
 
@@ -98,3 +98,11 @@ coverage or equivalence. An inconclusive comparison cannot justify promotion.
 
 The paper prompt profile remains the default. The readable profile and the
 clean development branch are candidates until their respective gates pass.
+
+
+The durable supervisor has started the historical hardware campaign. It uses
+immutable NAS runtimes rather than the mutable development checkout. The
+DeepSeek comparison follows in sequence with the supplied private credential
+and an immediate official release/pricing check. See [campaign operations](campaign-operations.md)
+for live state and report commands. These launch records are not passing
+hardware/QoR results; default promotion remains pending.

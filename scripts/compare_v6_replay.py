@@ -55,14 +55,58 @@ def load_fixture(root):
         if hashlib.sha256((root / name).read_bytes()).hexdigest() != expected:
             raise ValueError(f"Archived replay fixture changed: {name}")
     fixture = json.loads((root / "snapshot.json").read_text())
-    for item in fixture["cases"] + fixture["selection_candidates"]:
-        if digest(item["reply"]) != item["provenance"]["reply_sha256"]:
+    if fixture.get('schema') == 'hlsmith.saved-boundary-replay.v1':
+        for item in fixture.get('source_cases', []):
+            if not item['provenance'].get('independent_measurement_content_sha256'):
+                raise ValueError(f"Saved-source replay lacks independent measurement identity: {item['id']}")
+    for item in fixture["cases"] + fixture["selection_candidates"] + fixture.get("source_cases", []):
+        if item.get("reply") is not None and digest(item["reply"]) != item["provenance"]["reply_sha256"]:
             raise ValueError(f"Archived reply changed: {item['id']}")
         if hashlib.sha256(item["kernel"].encode()).hexdigest() != item["provenance"]["kernel_sha256"]:
             raise ValueError(f"Archived source changed: {item['id']}")
         if digest(item["report"]) != item["provenance"]["report_sha256"]:
             raise ValueError(f"Archived synthesis report changed: {item['id']}")
+        measurement_digest = item['provenance'].get('independent_measurement_content_sha256')
+        if measurement_digest is not None and digest(item['independent_measurement']) != measurement_digest:
+            raise ValueError(f"Archived independent measurement changed: {item['id']}")
     return fixture
+
+
+def source_report_replay(runtime, item):
+    """Compare real saved-source validation controls without inventing a reply."""
+    orch = make_orchestrator(runtime, item)
+    evidence = item['independent_measurement']
+    calls = []
+
+    def tool(name, result):
+        def call(code, *args, **kwargs):
+            calls.append({'tool': name, 'source_sha256': digest(code)})
+            return copy.deepcopy(result)
+        return call
+
+    with (
+        mock.patch.object(runtime, 'compile_check_cpp', return_value=(True, '')),
+        mock.patch.object(runtime, 'run_csim', side_effect=tool('csim', evidence['csim'])),
+        mock.patch.object(runtime, 'run_cosim', side_effect=tool('cosim', evidence['cosim'])),
+        mock.patch.object(runtime, 'run_hls_synthesis', side_effect=tool('synthesis', {
+            'success': True, 'error': '', 'report': item['report'],
+        })),
+    ):
+        evaluated = runtime._run_synth_csim_cosim(
+            item['kernel'], header_code=orch.header_code, header_name=orch.header_name,
+            top_function=orch.translated_hls_top, part=orch.part, clock_ns=orch.clock_ns,
+            extra_files=[], testbench_code=orch.testbench_code, run_csim_check=True,
+            run_cosim_check=True, cosim_requires_csim_pass=True, correctness_first_override=True,
+        )
+    csim = runtime._summarize_test_result(evidence['csim'], True)
+    cosim = runtime._summarize_test_result(evidence['cosim'], True) if evidence['cosim'].get('ran', True) else None
+    return {'id': item['id'], 'source_sha256': digest(item['kernel']),
+            'report': report_values(item['report']), 'evaluation': evaluated, 'tool_calls': calls,
+            'feasibility': runtime._paper_candidate_feasibility(item['report'], csim=csim, part=orch.part, clock_ns=orch.clock_ns),
+            'csim_status': runtime.C2HLSOrchestrator._candidate_test_status(csim),
+            'cosim_status': runtime.C2HLSOrchestrator._candidate_test_status(cosim),
+            'cosim_measurement_eligible': runtime._selected_cosim_measurement_ok(cosim),
+            'evidence': item['provenance']}
 
 
 def report_values(report):
@@ -216,8 +260,12 @@ def worker(repo, fixture_root):
         ):
             cases = [agent_replay(runtime, item) for item in fixture["cases"]]
             selection = selection_replay(runtime, fixture["selection_candidates"])
-    return {"schema": "hlsmith.v6-deterministic-results.v1", "source_contract_helpers": helper_hashes,
-            "cases": cases, "selection": selection}
+            sources = [source_report_replay(runtime, item) for item in fixture.get('source_cases', [])]
+    result = {"schema": "hlsmith.v6-deterministic-results.v1", "source_contract_helpers": helper_hashes,
+              "cases": cases, "selection": selection}
+    if sources:
+        result['source_cases'] = sources
+    return result
 
 
 def run_worker(repo, fixture_root=DEFAULT_FIXTURE):
@@ -245,7 +293,7 @@ def compare_repositories(frozen, cleaned=ROOT, fixture_root=DEFAULT_FIXTURE):
     if old != new:
         changed = [name for name in old if old[name] != new.get(name)]
         raise ValueError(f"Frozen v6 / cleaned replay differs in: {', '.join(changed)}")
-    return {"status": "passed", "schema": "hlsmith.v6-replay-comparison.v1",
+    result = {"status": "passed", "schema": "hlsmith.v6-replay-comparison.v1",
             "frozen_runtime": str(frozen.resolve()), "cleaned_runtime": str(cleaned.resolve()),
             "result_sha256": digest(new), "fixture_cases": len(new["cases"]),
             "contract_helpers": len(new["source_contract_helpers"]),
@@ -253,6 +301,9 @@ def compare_repositories(frozen, cleaned=ROOT, fixture_root=DEFAULT_FIXTURE):
             "cases": [{key: item[key] for key in ("id", "csim_status", "cosim_status", "phase_b_accepted")}
                       for item in new["cases"]],
             "scope": "Archived-boundary deterministic control replay; no compilation, Vitis, model generation, or full-corpus rerun."}
+    if 'source_cases' in new:
+        result['saved_source_report_cases'] = len(new['source_cases'])
+    return result
 
 
 def main():

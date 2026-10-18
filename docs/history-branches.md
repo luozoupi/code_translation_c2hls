@@ -24,9 +24,12 @@ created July 13, 2026, and the SIGMETRICS branch September 28, 2026; older dates
 - **v5** (2026-08-25 milestone): Reference-isolated HPCA evaluation, skill routing, setup ranking and QoR sweeps.
 - **v6** (2026-10-18 milestone): Preserved SIGMETRICS implementation, validation scheduling and controlled recipe-study tooling.
 
-The protected `c2hls_enhanced_l_pc2_api_layout` branch is unchanged. These refs are prepared
-locally; no remote branches have been renamed/deleted/pushed and the remote default branch
-is unchanged. The active branch and working index were not used by the plumbing transaction.
+The protected `c2hls_enhanced_l_pc2_api_layout` branch remains at
+`2ef022410fa6186ff6e16be25f79da13951bf9b7`. GitHub's native branch rename operation
+preserved redirects, then each historical version received its documentation
+commit by fast-forward. Published tips were checked against this index.
+Renaming `main` made `v1` the interim default; promotion to `hlsmith-clean` awaits
+the hardware and fresh-model acceptance gates.
 Full SHAs, tag objects, source refs and validation receipts are in
 [history-branches.json](history-branches.json).
 

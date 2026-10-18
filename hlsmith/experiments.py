@@ -23,6 +23,8 @@ import sys
 import tempfile
 import time
 
+from hlsmith.research.cleanup_statistics import summarize_cleanup_statistics
+
 SCHEMA = "hlsmith.cleanup-comparison.v1"
 PROVIDER = {
     "provider": "deepseek", "model": "deepseek-flash",
@@ -842,6 +844,13 @@ def report(output):
                'evidence_scope': 'Prospective DeepSeek cleanup comparison only; archived hardware replay, original commercial/open-model cohorts, router/adaptation studies and missing GRPO training are separate work.',
                'acceptance': 'No automatic equivalence/noninferiority claim; evaluate frozen thresholds and all registered outcome counts.',
                'qualification': 'paired ratio covers jointly passing RTL only; retain failures/timeouts/pending cells in coverage; hosted runs are not immutable-weight seed-controlled replicas'}
+    summary['uncertainty'] = summarize_cleanup_statistics(
+        rows, kernels=[entry['benchmark'] for entry in manifest['benchmark_entries']],
+        arms=[arm['id'] for arm in manifest['arms']],
+        repeats=sorted({job['repeat'] for job in manifest['jobs']}),
+        cohorts=[cohort['id'] for cohort in manifest['cohorts']],
+        paired_comparisons=(('frozen-paper', 'clean-paper'), ('clean-paper', 'clean-researcher')),
+        bootstrap_seed=20261018, draws=1000)
     save(output / 'report.json', summary)
     for filename, data in (('cells.csv', rows), ('paired_paper.csv', paired), ('paired_researcher.csv', researcher_pairs)):
         with (output / filename).open('w', newline='') as stream:

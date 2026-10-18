@@ -127,6 +127,14 @@ def test_report_keeps_pending_cells_and_never_infers_a_measured_win(registration
     assert report['paired_paper_denominator'] == 546
     assert report['paired_rtl_passes'] == 0
     assert report['paired_rtl_geomean_speedup'] is None
+    uncertainty = report['uncertainty']
+    assert uncertainty['conclusion'] == 'inconclusive_incomplete_study'
+    assert uncertainty['bootstrap']['registered_kernel_clusters'] == 26
+    assert all(cohort['registered_cells'] == cohort['unobserved_cells'] == 546
+               for cohort in uncertainty['cohorts'].values())
+    assert all(pair['validation_pass_difference_ci95'] is None
+               and pair['geomean_rtl_cycle_ratio_ci95'] is None
+               for pair in uncertainty['comparisons'])
 
 
 def test_public_cli_registration_estimate_preflight_and_report(registration, monkeypatch, capsys):

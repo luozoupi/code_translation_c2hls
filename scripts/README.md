@@ -1,6 +1,8 @@
 # Research commands
 
-The active cleanup workflow uses `rerun_cleanup.py`, `compare_v6_replay.py`, and `check_offline.py`. Run each command with `--help` for its inputs. The paper's portable numerical replay is `../reproducibility/paper/replay.py`.
+The active cleanup workflow uses `rerun_cleanup.py`, `compare_v6_replay.py`, `build_saved_replay.py`, and `check_offline.py`. Run each command with `--help` for its inputs. The paper's portable numerical replay is `../reproducibility/paper/replay.py`.
+
+Fixed archived designs use `python -m hlsmith.saved_designs`; see [the saved-design workflow](../docs/saved-design-validation.md). Fresh DeepSeek generation uses `python -m hlsmith.experiments`. Both require explicit compute limits before launching jobs and keep their results separate.
 
 Training and corpus tools include `build_role_attributed_sft_dataset.py`, `export_model_aware_sft_dataset.py`, `train_agentic_sft_qlora.py`, and `serve_agentic_peft_openai.py`. Training is optional and is not part of the requested frozen-checkpoint rerun.
 

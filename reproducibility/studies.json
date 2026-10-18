@@ -25,7 +25,8 @@
         "tokenizer_config.json": "90c3a3ba5bf53818383a58e1a776cbcacd2a038d4812eaa373e1522f2d06f3df"
       },
       "full_weight_payload_hashed": false,
-      "mutation": "none"
+      "mutation": "none",
+      "identity_limit": "Local metadata does not authenticate both distinct historical flash/multistep serving revisions."
     },
     "qwen_role_adapter": {
       "path": "/mnt/data2/luo00466/c2hls_sft/runs/qwen3.6-27b_active_llm_actors_qlora_r16_1epoch_3072_20260724/adapter",
@@ -35,7 +36,10 @@
         "tokenizer_config.json": "83febe739ecefd99f984f546dfdc10149cedf293b9ee0291b99894341188b613"
       },
       "full_weight_payload_hashed": false,
-      "mutation": "none"
+      "mutation": "none",
+      "declared_base_checkpoint": "/mnt/data/vllm_models/hub/models--Qwen--Qwen3.6-27B/snapshots/6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+      "training_manifest_sha256": "a91ee2b9818017facb14547b92585467529437d9d4452075bc6a99ba7e38bf01",
+      "identity_limit": "Base path and adapter metadata are verified; current adapter weight payload is not authenticated against the historical serving revision."
     },
     "qwen_translator_adapter": {
       "path": "/mnt/data2/luo00466/c2hls_sft/runs/qwen3.6-27b_translator_qlora_r16_1epoch_2048_20260717/adapter",
@@ -45,22 +49,39 @@
         "tokenizer_config.json": "83febe739ecefd99f984f546dfdc10149cedf293b9ee0291b99894341188b613"
       },
       "full_weight_payload_hashed": false,
-      "mutation": "none"
+      "mutation": "none",
+      "declared_base_checkpoint": "/mnt/data/vllm_models/hub/models--Qwen--Qwen3.6-27B/snapshots/6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+      "training_manifest_sha256": "e171109e2b90f7677b3c9db0fe09d01ba2af9911be91fb5831cb05af7cc9c99b",
+      "identity_limit": "Base path and adapter metadata are verified; current adapter weight payload is not authenticated against the historical serving revision."
+    },
+    "qwen_orchestrator_adapter": {
+      "path": "/mnt/data2/luo00466/c2hls_sft/runs/qwen3.6-27b_orchestrator_qlora_r16_1epoch_3072_20260721/adapter",
+      "exists": true,
+      "metadata_sha256": {
+        "adapter_config.json": "b90a5a7c40ce79d3aa26933164b3562163f0dd9e08f6696080466924cd61f92a",
+        "tokenizer_config.json": "83febe739ecefd99f984f546dfdc10149cedf293b9ee0291b99894341188b613"
+      },
+      "full_weight_payload_hashed": false,
+      "mutation": "none",
+      "declared_base_checkpoint": "/mnt/data/vllm_models/hub/models--Qwen--Qwen3.6-27B/snapshots/6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+      "training_manifest_sha256": "04d5deec7f33f50ffe0fdcb88cd379799c249854c4e7cf2e93224715cde1022f",
+      "identity_limit": "Base path and adapter metadata are verified; current adapter weight payload is not authenticated against the historical serving revision."
     }
   },
   "studies": [
     {
       "id": "commercial_saved_evidence",
       "size": "156 selected/comparator roles, 144 distinct archived implementations",
-      "status": "numerical_evidence_verified; hardware_rerun_pending_compute_cap",
+      "status": "numerical_evidence_verified; fresh_saved_design_validation_registered_separately_pending_execution",
       "evidence": "paper/generated/sigmetrics/commercial_validation_manifest.json",
-      "driver": "scripts/run_historical_cosim.py",
-      "limitation": "Original and later independent harnesses have different validation coverage; preserve both outcomes."
+      "driver": "python -m hlsmith.saved_designs",
+      "limitation": "Original and later independent harnesses have different validation coverage; preserve both outcomes.",
+      "historical_driver": "scripts/run_historical_cosim.py (archived per-job backfill; not the new capped gate)"
     },
     {
       "id": "open_main",
       "size": "540 generation cells; 108 fixed selected arms and comparator validation",
-      "status": "frozen_checkpoint_evaluation_preserved_pending_compute_cap",
+      "status": "frozen_evidence_preserved; exact_live_generation_rerun_not_registered",
       "evidence": "paper/generated/skill_v3_open_models_manifest.json",
       "drivers": [
         "scripts/run_setup_tournament.py",
@@ -71,36 +92,65 @@
         "qwen_base",
         "gemma_base"
       ],
-      "limitation": "Preserve distinct Gemma serving revisions; metadata identity alone does not verify all original weights."
+      "limitation": "Preserve distinct Gemma serving revisions; metadata identity alone does not verify all original weights.",
+      "driver_roles": {
+        "scripts/run_setup_tournament.py": "generic per-benchmark live tournament or offline measurement replay; defaults to Sonnet/corrected-v2, not a frozen 540-cell v3 launch",
+        "scripts/build_skill_v3_sweep_tables.py": "offline table export, no model evaluation"
+      },
+      "missing_for_live_rerun": [
+        "Exact 540-cell executable launch matrix and serving configuration",
+        "Authenticated mapping of both historical Gemma serving revisions to local weight payloads",
+        "Bounded serving/GPU and generation budget registration"
+      ]
     },
     {
       "id": "setup_router",
       "size": "27 kernels x 10 setups; fixed 19-kernel development analysis",
-      "status": "frozen_evaluation_preserved_pending_compute_cap",
+      "status": "frozen_evidence_preserved; teacher_and_router_live_evaluation_not_registered",
       "evidence": "paper/generated/setup_teacher_router_sft_manifest.json",
       "drivers": [
         "scripts/run_corrected_setup_matrix.py",
         "scripts/evaluate_setup_router_lm_fusion.py"
       ],
-      "limitation": "Do not retrain or change the development split during reproduction."
+      "limitation": "Do not retrain or change the development split during reproduction.",
+      "driver_roles": {
+        "scripts/run_corrected_setup_matrix.py": "live Sonnet teacher matrix generator; requires original frozen inputs and a new bounded registration",
+        "scripts/evaluate_setup_router_lm_fusion.py": "offline fusion analysis of stored out-of-fold rankings, not model inference"
+      },
+      "missing_for_live_rerun": [
+        "Frozen teacher 27-by-10 generation launch configuration and API cap",
+        "Executable registration binding the preserved benchmark-grouped 19-kernel development split to exact per-fold router checkpoints and serving configuration",
+        "Bounded evaluation command without retraining"
+      ]
     },
     {
       "id": "adapter_pilot",
       "size": "60 agentic cells plus direct conditions",
-      "status": "adapter_available_evaluation_pending_compute_cap",
+      "status": "frozen_evidence_and_checkpoint_metadata_preserved; live_evaluation_driver_unbound",
       "evidence": "paper/generated/setup_teacher_router_sft_manifest.json",
       "drivers": [
         "scripts/compare_orchestrator_sft_ab.py"
       ],
       "assets": [
+        "gemma_base",
         "qwen_base",
-        "qwen_role_adapter"
-      ]
+        "qwen_role_adapter",
+        "qwen_orchestrator_adapter"
+      ],
+      "driver_roles": {
+        "scripts/compare_orchestrator_sft_ab.py": "offline comparison of existing direct and agentic Vitis/CSim summaries; does not execute evaluation"
+      },
+      "missing_for_live_rerun": [
+        "Live 3-model-condition by 4-configuration by 5-kernel evaluation launch manifest",
+        "Per-role adapter/base serving and historical revision bindings",
+        "Bounded GPU/tool evaluation command; no retraining requested"
+      ],
+      "limitation": "Historical pilot uses independent CPU/CSim/synthesis/timing/resource gates, no RTL; direct print-only rows lack the independent output comparator and stay descriptive."
     },
     {
       "id": "translator_diagnostic",
       "size": "four kernels x base/tuned = eight cells",
-      "status": "adapter_available_evaluation_pending_compute_cap",
+      "status": "frozen_evidence_and_checkpoint_metadata_preserved; live_evaluation_driver_unbound",
       "evidence": "paper/generated/qwen_translator_sft_ab_manifest.json",
       "drivers": [
         "scripts/compare_translator_sft_ab.py"
@@ -108,6 +158,14 @@
       "assets": [
         "qwen_base",
         "qwen_translator_adapter"
+      ],
+      "driver_roles": {
+        "scripts/compare_translator_sft_ab.py": "offline comparison of control/treatment result JSON; does not execute model evaluation"
+      },
+      "missing_for_live_rerun": [
+        "Matched eight-cell live evaluator and serving registration",
+        "Authenticate adapter payload against frozen translator revision 3b1938a96a6f09cea7743b4b43ecae4648bbc1336b3ce5dea825e5c147867bed",
+        "Bounded GPU/tool evaluation command; no retraining requested"
       ]
     },
     {
@@ -130,5 +188,20 @@
       "evidence": "paper/generated/cross_model_expertise_manifest.json",
       "limitation": "Inventory unavailable inputs; do not replace them silently."
     }
-  ]
+  ],
+  "saved_design_gate": {
+    "driver": "python -m hlsmith.saved_designs",
+    "scope": "144 commercial distinct designs (156 roles) and 180 distinct open designs (211 linked of 216 slots); five unresolved open comparators retained blocked",
+    "evaluators": [
+      "frozen",
+      "clean"
+    ],
+    "tool_validation_cells": 648,
+    "model_calls": 0,
+    "status": "registration_supported; bounded_launch_authorized_pending_execution; no_new_tool_measurements",
+    "registration_path": "runs/saved-design-validation-20261018",
+    "documentation": "../docs/saved-design-validation.md",
+    "launch_requires": "Explicit positive max-compute-hours and version-verified Vitis 2023.2 settings; fixed full public harnesses and sources are staged, no repair/reselection",
+    "approved_compute_hours": 250
+  }
 }

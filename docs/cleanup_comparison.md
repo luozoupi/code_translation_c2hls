@@ -59,6 +59,22 @@ the presence of a configuration label does not prove its guidance was active.
 Inspect saved prompts before attributing effects to recipe policy. This is a
 development corpus and does not establish held-out generalization.
 
+Reports retain 546 registered cells per cohort for qualified validation outcomes
+and latency eligibility. Pending or missing cells are unobserved, never counted
+as failures; any incomplete cohort makes the study inconclusive. Paired
+comparisons cover frozen paper versus clean paper, and clean paper versus clean
+researcher prompts. They report target-minus-baseline validation-pass differences
+and, among jointly passing designs, baseline/target RTL cycle ratios.
+
+The uncertainty calculation uses 1,000 paired percentile bootstrap draws over
+the 26 kernel clusters, retaining every configuration and repeat within each
+sampled kernel. Its fixed seed, 20261018, controls offline resampling only; hosted
+model seeds remain unsupported. Reports include sample counts and 95% intervals,
+with no interval when fewer than two eligible kernel clusters are observed.
+The latency comparison conditions on joint success and can be biased by that
+selection. These descriptive intervals establish neither equivalence nor
+noninferiority, and never promote a version automatically.
+
 ## Register and inspect without spending
 
 Run from the clean checkout. Supply the verified archive's frozen v6 runtime,

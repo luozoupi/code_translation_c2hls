@@ -500,3 +500,27 @@ AssertionError: Missing Anthropic API key. Set ANTHROPIC_API_KEY env var or crea
 ```
 
 Set the appropriate environment variable or create a `.env` file in the project root.
+
+## Historical branch v1
+
+This branch preserves the **initial C-to-HLS pipeline, 4-ns evaluation target and recorded turn history** stage of HLSmith/C2HLS.
+Its original branch was `main` at commit `630ce11e808b1164fc8f3bab7c79ecf759395cf9`.
+The annotated tag `snapshot/20261018/v1` points to the original code before this documentation commit.
+
+Use this branch to inspect or reproduce that historical workflow with its original
+instructions and dependencies. Continue development on `hlsmith-clean`.
+Version labels follow the recorded development milestones; the tip milestone is
+2026-03-31. Git does not record remote branch creation times, so this is not a
+claim about when the original online branch was created. The HPCA local branch
+reflog records creation on July 13, 2026, and the SIGMETRICS local branch on
+September 28, 2026; other creation dates remain unknown.
+
+Historical results retain their original tool versions, model aliases, prompts,
+input/testbench contracts, failures and timeout policy. A branch snapshot alone
+does not reproduce hosted-model weights or establish current SIGMETRICS quality.
+Do not replace a failed archived design with a newly generated one and call it
+the same experiment. See `CHANGELOG.md` for this snapshot's provenance.
+
+Consolidation archive roots are `/mnt/data1/luo00466/c2hls_archive_20260811` and
+`/mnt/data1/luo00466/c2hls_archive_20261018`; consult their manifests for actual
+coverage. Historical absolute paths are provenance, not portable runtime defaults.

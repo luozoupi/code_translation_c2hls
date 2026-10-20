@@ -125,3 +125,24 @@ source produced 482,203 measured RTL cycles, passed native/CSim/RTL output
 checks and met resource/timing eligibility at the recorded 3.33 ns target.
 The queue then advanced to the next design. This is one completed pair, not
 whole-campaign acceptance or evidence of fresh-model equivalence.
+
+At the October 20 04:17 UTC audit, 195 hardware checks had completed, covering
+97 complete design pairs. Eighty-four pairs passed both evaluators with identical
+RTL cycles and materialized source hashes. Six pairs failed RTL checks, four
+failed native checks and two timed out in both evaluators. One LU design passed
+the frozen run but timed out after 3,600 seconds in the clean run; its source,
+15 generated RTL files and synthesis metrics were identical. The frozen run
+took about 3,514 seconds. This remains a censored wall-time discrepancy, not
+proof of equivalence or a demonstrated cycle regression. A further frozen
+Cholesky cell had timed out while its clean counterpart was still active.
+
+The user subsequently requested parallel Vitis execution. The queue transitions
+to at most four workers after the active serial cell finishes, retaining its
+manifest, selected sources, evaluator runtimes, per-cell timeouts and cumulative
+250 worker-hour cap. A separate scheduling snapshot and timestamped handoff
+receipts record the change. Serial and parallel execution conditions remain
+visible when assessing timeout coverage; earlier measurements are not rewritten
+or rerun. DeepSeek generation remains a later stage under its original limits.
+The scheduler change passed 109 focused offline tests; four private handoff
+checks covered normal progression, hardware-cap reporting, active-cell rejection
+and carry-forward accounting. These checks launched no Vitis or model jobs.

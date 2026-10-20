@@ -4,6 +4,10 @@ import json
 import os
 from pathlib import Path
 import sys
+import signal
+import shutil
+import subprocess
+import threading
 
 import pytest
 
@@ -287,3 +291,313 @@ def test_independent_validation_controller_never_promotes_unchecked_tool_pass(
         Path(measured['rtl_synthesis_evidence']['path']).write_text('changed synthesis report')
         with pytest.raises(ValueError, match='fresh synthesis evidence changed'):
             gate.report(output)
+
+
+def saved_failure(output, job, status='failed_native'):
+    """Save a real-shaped terminal nonpass, never an invented checked pass."""
+    receipt = gate.tools.read(output / 'launch.json')
+    controller = receipt['controller']
+    gate.tools.save(output / 'jobs' / job['id'] / 'measurement.json', {
+        'job': job, 'status': status, 'rtl': {'ran': False}, 'provider_calls': 0,
+        'dispatch_controller': controller, 'execution_epoch': controller['execution_epoch'],
+        'max_workers': controller['max_workers'], 'controller_sha256': controller['sha256']})
+
+
+def test_parallel_reservations_bound_concurrency_and_only_parent_writes_state(saved_registration, tmp_path, monkeypatch):
+    output = saved_registration.output
+    manifest = gate.verify(output)
+    jobs = {job['id']: job for job in manifest['jobs']}
+    settings = version_fixture(tmp_path, monkeypatch)
+    barrier = threading.Barrier(3)
+    mutex = threading.Lock()
+    live, peak, started = set(), 0, []
+    parent = threading.get_ident()
+    original_save = gate.tools.save
+    def save(path, value):
+        if Path(path).name in {'state.json', 'launch.json'}:
+            assert threading.get_ident() == parent
+        original_save(path, value)
+    monkeypatch.setattr(gate.tools, 'save', save)
+    def run(command, **kwargs):
+        nonlocal peak
+        identity = command[command.index('--job') + 1]
+        assert command[1] == str(Path(gate.__file__).resolve())
+        assert kwargs['env']['PYTHONPATH'] == str(saved_registration.clean_source)
+        assert '--execution-epoch' in command
+        with mutex:
+            live.add(identity)
+            started.append(identity)
+            peak = max(peak, len(live))
+        try:
+            barrier.wait(timeout=5)
+            for _ in range(10):
+                state = gate.tools.read(output / 'state.json')
+                assert identity in gate._active_job_ids(state)
+                assert state['job_seconds_charged'] <= 18000
+                reserved = sum(row.get('reserved_seconds', 0) for row in state['jobs'] if row['status'] == 'running')
+                assert reserved <= state['job_seconds_charged']
+            saved_failure(output, jobs[identity])
+            return {'status': 'complete', 'returncode': 0, 'elapsed_seconds': 4800}
+        finally:
+            with mutex:
+                live.remove(identity)
+    monkeypatch.setattr(gate.tools, 'run_process', run)
+    report = gate.launch(Namespace(output=output, max_compute_hours=5, workers=4,
+                    vitis_settings=settings, scratch_root=tmp_path / 'scratch'))
+    assert len(started) == peak == 3  # Four slots, but only three full reservations fit.
+    assert report['campaign_status'] == 'stopped_compute_cap'
+    assert report['job_hours_charged'] == 4
+    assert report['execution_mode_status_counts']['parallel'] == {'failed_native': 3}
+    state = gate.tools.read(output / 'state.json')
+    assert not gate._active_job_ids(state)
+    assert state['job_seconds_charged'] == 14400
+
+
+def test_resume_keeps_completed_bytes_budget_and_serial_parallel_strata(saved_registration, tmp_path, monkeypatch):
+    output = saved_registration.output
+    manifest = gate.verify(output)
+    jobs = {job['id']: job for job in manifest['jobs']}
+    settings = version_fixture(tmp_path, monkeypatch)
+    started = []
+    def run(command, **kwargs):
+        identity = command[command.index('--job') + 1]
+        started.append(identity)
+        saved_failure(output, jobs[identity], 'failed_native' if len(started) == 1 else 'rtl_timeout')
+        return {'status': 'complete', 'returncode': 0, 'elapsed_seconds': 4800}
+    monkeypatch.setattr(gate.tools, 'run_process', run)
+    args = Namespace(output=output, max_compute_hours=4800 / 3600, vitis_settings=settings,
+                     scratch_root=tmp_path / 'scratch')  # Existing programmatic caller: no workers attribute.
+    first = gate.launch(args)
+    old_path = output / 'jobs' / started[0] / 'measurement.json'
+    old_bytes = old_path.read_bytes()
+    assert first['dispatch_controller']['max_workers'] == 1
+    args.max_compute_hours, args.workers = 9600 / 3600, 2
+    second = gate.launch(args)
+    assert started == [job['id'] for job in manifest['jobs'][:2]]
+    assert old_path.read_bytes() == old_bytes
+    assert second['job_hours_charged'] == 9600 / 3600
+    assert second['paired_status_differences'] == second['mixed_execution_pairs'] == 1
+    assert second['paired_execution_modes']['serial/parallel'] == 1
+    assert len(second['execution_epochs']) == 2
+    assert len(list((output / 'launches').glob('*.json'))) == 2
+    args.scratch_root = tmp_path / 'different-scratch'
+    with pytest.raises(ValueError, match='same scratch root and common runner'):
+        gate.launch(args)
+    assert len(started) == 2
+
+
+def test_parallel_signal_drains_owned_cells_and_dispatches_no_replacements(saved_registration, tmp_path, monkeypatch):
+    output = saved_registration.output
+    jobs = {job['id']: job for job in gate.verify(output)['jobs']}
+    settings = version_fixture(tmp_path, monkeypatch)
+    handlers = {}
+    original_signal = signal.signal
+    def install(signum, handler):
+        handlers[signum] = handler
+        return original_signal(signum, handler)
+    monkeypatch.setattr(gate.signal, 'signal', install)
+    barrier = threading.Barrier(2)
+    started, finished = [], []
+    def run(command, **kwargs):
+        identity = command[command.index('--job') + 1]
+        started.append(identity)
+        order = barrier.wait(timeout=5)
+        if order == 0:
+            handlers[signal.SIGTERM](signal.SIGTERM, None)
+        barrier.wait(timeout=5)
+        saved_failure(output, jobs[identity])
+        finished.append(identity)
+        return {'status': 'complete', 'returncode': 0, 'elapsed_seconds': 200}
+    monkeypatch.setattr(gate.tools, 'run_process', run)
+    report = gate.launch(Namespace(output=output, max_compute_hours=10, workers=2,
+                    vitis_settings=settings, scratch_root=tmp_path / 'scratch'))
+    assert len(started) == len(finished) == 2
+    assert report['campaign_status'] == 'stopped_by_signal'
+    assert report['job_hours_charged'] == 400 / 3600
+    assert not gate._active_job_ids(gate.tools.read(output / 'state.json'))
+
+
+def test_whole_cell_timeout_fallback_has_reportable_dispatch_provenance(saved_registration, tmp_path, monkeypatch):
+    output = saved_registration.output
+    settings = version_fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(gate.tools, 'run_process', lambda *a, **k: {
+        'status': 'timeout', 'returncode': None, 'elapsed_seconds': 50})
+    report = gate.launch(Namespace(output=output, max_compute_hours=4800 / 3600, workers=2,
+                    vitis_settings=settings, scratch_root=tmp_path / 'scratch'))
+    assert report['status_counts']['whole_cell_timeout'] == 1
+    assert report['execution_mode_status_counts']['parallel'] == {'whole_cell_timeout': 1}
+    path = next((output / 'jobs').glob('*/measurement.json'))
+    measured = gate.tools.read(path)
+    original = json.loads(json.dumps(measured))
+    measured.pop('dispatch_controller')
+    gate.tools.save(path, measured)
+    with pytest.raises(ValueError, match='metadata lacks its controller'):
+        gate.report(output)
+    gate.tools.save(path, original)
+    state = gate.tools.read(output / 'state.json')
+    state['jobs'][0]['max_workers'] = 999
+    gate.tools.save(output / 'state.json', state)
+    with pytest.raises(ValueError, match='execution metadata changed'):
+        gate.report(output)
+
+
+def test_running_or_unmeasured_partner_is_not_a_paired_status_difference(saved_registration):
+    output = saved_registration.output
+    manifest = gate.verify(output)
+    first = manifest['jobs'][0]
+    gate.tools.save(output / 'jobs' / first['id'] / 'measurement.json', {
+        'job': first, 'status': 'failed_native', 'rtl': {'ran': False}})
+    state = gate.tools.read(output / 'state.json')
+    state['jobs'][0]['status'] = 'complete'
+    state['jobs'][1]['status'] = 'running'
+    gate.tools.save(output / 'state.json', state)
+    report = gate.report(output)
+    assert report['paired_status_differences'] == 0
+    assert not report['pairs'][0]['both_outcomes_observed']
+    assert report['pairs'][0]['mixed_execution_modes'] is None
+
+
+def test_owned_vitis_uses_start_identity_and_ignores_exited_snapshot_entries(monkeypatch):
+    from hlsmith.toolchain import cosim_runtime_monitor as monitor
+    parent = os.getpid()
+    table = {parent: {'ppid': 1, 'start_ticks': 100, 'name': 'python', 'state': 'R'},
+             123: {'ppid': parent, 'start_ticks': 101, 'name': 'xsim', 'state': 'R'},
+             456: {'ppid': 1, 'start_ticks': 102, 'name': 'vitis_hls', 'state': 'R'}}
+    monkeypatch.setattr(gate.tools, 'active_vitis', lambda: [123, 456, 789])
+    monkeypatch.setattr(monitor, '_process_table', lambda: table)
+    identities = {}
+    assert gate._external_vitis(identities) == [456]
+    # The same numeric PID later belongs to an unrelated process: no ownership.
+    table[123] = {'ppid': 1, 'start_ticks': 999, 'name': 'xsim', 'state': 'R'}
+    assert gate._external_vitis(identities) == [123, 456]
+    table[456]['state'] = 'Z'
+    assert gate._external_vitis(identities) == [123]
+
+
+def test_pending_workspace_collision_fails_before_reservation(saved_registration, tmp_path, monkeypatch):
+    output = saved_registration.output
+    job = gate.verify(output)['jobs'][0]
+    (output / 'jobs' / job['id']).mkdir(parents=True)
+    settings = version_fixture(tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match='workspace already exists'):
+        gate.launch(Namespace(output=output, max_compute_hours=10, workers=4,
+                    vitis_settings=settings, scratch_root=tmp_path / 'scratch'))
+    assert gate.tools.read(output / 'state.json')['job_seconds_charged'] == 0
+
+
+@pytest.mark.parametrize('workers', [0, -1, True, 1.5])
+def test_worker_limit_requires_positive_integer(saved_registration, tmp_path, workers):
+    with pytest.raises(ValueError, match='positive integer'):
+        gate.launch(Namespace(output=saved_registration.output, max_compute_hours=10,
+                    workers=workers, vitis_settings=tmp_path / 'unused', scratch_root=tmp_path / 'scratch'))
+
+
+def test_waits_for_reservation_settlement_before_stopping_at_cap(saved_registration, tmp_path, monkeypatch):
+    output = saved_registration.output
+    jobs = {job['id']: job for job in gate.verify(output)['jobs']}
+    settings = version_fixture(tmp_path, monkeypatch)
+    started = []
+    def run(command, **kwargs):
+        identity = command[command.index('--job') + 1]
+        started.append(identity)
+        saved_failure(output, jobs[identity])
+        return {'status': 'complete', 'returncode': 0, 'elapsed_seconds': 100 if len(started) == 1 else 4800}
+    monkeypatch.setattr(gate.tools, 'run_process', run)
+    report = gate.launch(Namespace(output=output, max_compute_hours=5000 / 3600, workers=2,
+                    vitis_settings=settings, scratch_root=tmp_path / 'scratch'))
+    assert len(started) == 2
+    assert report['campaign_status'] == 'stopped_compute_cap'
+    assert report['job_hours_charged'] == 4900 / 3600
+
+
+def test_worker_exception_drains_siblings_and_retains_unknown_reservation(saved_registration, tmp_path, monkeypatch):
+    output = saved_registration.output
+    manifest = gate.verify(output)
+    jobs = {job['id']: job for job in manifest['jobs']}
+    settings = version_fixture(tmp_path, monkeypatch)
+    barrier = threading.Barrier(2)
+    completed = []
+    def run(command, **kwargs):
+        identity = command[command.index('--job') + 1]
+        barrier.wait(timeout=5)
+        if identity == manifest['jobs'][0]['id']:
+            raise RuntimeError('unknown worker billing')
+        saved_failure(output, jobs[identity])
+        completed.append(identity)
+        return {'status': 'complete', 'returncode': 0, 'elapsed_seconds': 200}
+    monkeypatch.setattr(gate.tools, 'run_process', run)
+    args = Namespace(output=output, max_compute_hours=10, workers=2,
+                    vitis_settings=settings, scratch_root=tmp_path / 'scratch')
+    with pytest.raises(RuntimeError, match='unknown worker billing'):
+        gate.launch(args)
+    state = gate.tools.read(output / 'state.json')
+    assert completed == [manifest['jobs'][1]['id']]
+    assert state['job_seconds_charged'] == 5000
+    assert gate._active_job_ids(state) == [manifest['jobs'][0]['id']]
+    assert state['jobs'][1]['status'] == 'complete'
+    with pytest.raises(ValueError, match='interrupted cell'):
+        gate.launch(args)
+
+
+@pytest.mark.parametrize('cohort', ['frozen', 'clean'])
+def test_absolute_controller_script_imports_pinned_evaluators(saved_registration, tmp_path, monkeypatch, cohort):
+    """A new dispatcher must not preload its own numerical hlsmith package."""
+    output = saved_registration.output
+    clean, frozen = saved_registration.clean_source, saved_registration.frozen_source
+    package = clean / 'hlsmith'
+    (package / 'research').mkdir(parents=True)
+    (package / 'toolchain').mkdir()
+    for relative in ('__init__.py', 'research/__init__.py', 'toolchain/__init__.py'):
+        (package / relative).write_text('')
+    shutil.copy2(Path(gate.tools.__file__), package / 'experiments.py')
+    root = Path(gate.__file__).resolve().parent
+    shutil.copy2(root / 'research/cleanup_statistics.py', package / 'research/cleanup_statistics.py')
+    (package / 'saved_designs.py').write_text("raise AssertionError('old dispatcher selected')\n")
+    numerical = ("def _prepare_independent_golden(inputs, **kwargs):\n"
+                 "    return {'success': False, 'output': '', 'provenance': {'evaluator_path': __file__}}\n")
+    (package / 'pipeline.py').write_text(numerical)
+    (package / 'toolchain/hls_eval.py').write_text('EVALUATOR_PATH = __file__\n')
+    (clean / 'c2hls.py').write_text("import sys\nfrom hlsmith import pipeline\nsys.modules[__name__] = pipeline\n")
+    (clean / 'hls_eval.py').write_text("import sys\nfrom hlsmith.toolchain import hls_eval\nsys.modules[__name__] = hls_eval\n")
+    (frozen / 'c2hls.py').write_text(numerical)
+    (frozen / 'hls_eval.py').write_text('EVALUATOR_PATH = __file__\n')
+    for directory in (clean, frozen):
+        (directory / 'golden_output.py').write_text('def compare_hlsfactory_dumps(*args, **kwargs):\n    raise AssertionError("unexpected native work")\n')
+    manifest = gate.tools.read(output / 'manifest.json')
+    manifest['source_files'] = {name: gate.tools.source_manifest(path) for name, path in manifest['sources'].items()}
+    gate.tools.save(output / 'manifest.json', manifest)
+    job = next(job for job in manifest['jobs'] if job['cohort'] == cohort)
+    (output / 'jobs' / job['id']).mkdir(parents=True)
+    controller_file = tmp_path / 'new-controller.py'
+    shutil.copy2(gate.__file__, controller_file)
+    epoch = 'a' * 32
+    controller = {'path': str(controller_file), 'sha256': gate.tools.sha(controller_file),
+                  'max_workers': 4, 'execution_epoch': epoch}
+    settings = version_fixture(tmp_path, monkeypatch)
+    versions = gate.tools.probe_vitis_versions(settings)
+    limits = {'compute_seconds': 10000, 'settings': str(settings), 'settings_sha256': gate.tools.sha(settings),
+              'scratch_root': str(tmp_path / 'scratch'), 'tool_versions': versions,
+              'common_runner': versions['vitis-run'], 'max_workers': 4}
+    gate.tools.save(output / 'launch.json', {'manifest_sha256': gate.tools.sha(output / 'manifest.json'),
+                    'limits': limits, 'controller': controller})
+    state = gate.tools.read(output / 'state.json')
+    state.update(status='running', active_jobs=[job['id']], execution_epoch=epoch,
+                 manifest_sha256=gate.tools.sha(output / 'manifest.json'), job_seconds_charged=4800)
+    gate.tools.save(output / 'state.json', state)
+    env = {key: value for key, value in os.environ.items()
+           if not key.startswith(('C2HLS_', 'HLSMITH_', 'OPENAI_', 'ANTHROPIC_', 'DEEPSEEK_'))}
+    env.update(PYTHONPATH=str(clean), PYTHONDONTWRITEBYTECODE='1', PYTHON_DOTENV_DISABLED='1')
+    command = [sys.executable, str(controller_file), 'worker', '--output', str(output),
+               '--job', job['id'], '--execution-epoch', epoch]
+    result = subprocess.run(command, cwd=clean, env=env, capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    measured = gate.tools.read(output / 'jobs' / job['id'] / 'measurement.json')
+    assert measured['status'] == 'blocked_golden'
+    selected_root = frozen if cohort == 'frozen' else clean
+    assert Path(measured['golden_provenance']['evaluator_path']).is_relative_to(selected_root)
+    assert measured['dispatch_controller'] == controller
+    assert measured['max_workers'] == 4
+    # A stale/missing epoch cannot enter the numerical evaluator.
+    bad = subprocess.run(command[:-1] + ['b' * 32], cwd=clean, env=env,
+                         capture_output=True, text=True, timeout=20)
+    assert bad.returncode != 0 and 'dispatch epoch differs' in bad.stderr

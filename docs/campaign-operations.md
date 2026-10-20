@@ -26,6 +26,30 @@ The durable operational files are under `runs/migration-validation-r2/`:
 - `run_authorized_campaigns.py` and `recheck_deepseek_pricing.py` are private
   machine-specific launch helpers; their checksums are retained beside them.
 
+On October 20 UTC (October 19 in Chicago), the user requested parallel Vitis
+sessions. The saved-design controller supports `--workers`; this queue uses a
+limit of four. Each worker keeps its registered inputs, evaluator snapshot,
+Vitis 2023.2 binary, U280 target, 3.33 ns clock and per-phase timeouts. All scratch
+files remain on NAS. The aggregate 250-hour allowance includes both the stopped
+trial and all serial and parallel worker time.
+
+The handoff first sends SIGTERM only to the old serial controller, whose handler
+finishes its active cell before stopping dispatch. The replacement supervisor
+waits for the old supervisor's lock, verifies that no cell remains active, and
+copies the drained state and original launch receipt into a timestamped
+`parallel-handoff-*` directory. It resumes only pending cells from the same
+manifest. `parallel_transition.json` records the wait, handoff and active stage;
+the new helper is `run_parallel_authorized_campaigns.py`. It retains the
+original sequential DeepSeek runner and all API limits.
+
+The new scheduling code is exported separately and recorded by path and hash.
+It does not replace the registered v6 or `hlsmith-clean-f9e94eb` evaluators. New
+execution epochs distinguish parallel checks from the preceding serial checks.
+Wall-time censoring can change under concurrent load, so compare those segments
+explicitly and retain the earlier LU pass/timeout asymmetry. Four worker slots
+are an execution limit, not a promise of fourfold speedup or evidence of QoR
+equivalence.
+
 The key is read from the user's private local credential file. Its contents are
 excluded from registration, run metadata and Git. Public reproduction commands
 accept `DEEPSEEK_API_KEY` through the environment.
@@ -34,16 +58,27 @@ Inspect progress without changing it:
 
 ```bash
 cat runs/migration-validation-r2/controller_status.json
+cat runs/migration-validation-r2/parallel_transition.json
 cat runs/saved-design-validation-20261018-r2/state.json
 cat runs/cleanup-comparison-20261018-r2/state.json
 ```
 
-To regenerate reports with the pinned implementation, run from its snapshot:
+To regenerate the saved-design report after the parallel handoff, use the
+`controller_runtime` path recorded in `parallel_transition.json`. Running the
+older scheduling module would omit execution-epoch fields from its report.
+Keep the evaluator snapshot on `PYTHONPATH`:
+
+```bash
+export C2HLS_CONTROL_RUNTIME="/path/from/parallel_transition.json"
+PYTHONPATH=/mnt/data1/luo00466/c2hls_archive_20261018/runtime/hlsmith-clean-f9e94eb \
+python "$C2HLS_CONTROL_RUNTIME/hlsmith/saved_designs.py" report \
+  --output /mnt/data1/luo00466/c2hls_runs_20261018/saved-design-validation-20261018-r2
+```
+
+The DeepSeek report still uses its original pinned implementation:
 
 ```bash
 cd /mnt/data1/luo00466/c2hls_archive_20261018/runtime/hlsmith-clean-f9e94eb
-python -m hlsmith.saved_designs report \
-  --output /mnt/data1/luo00466/c2hls_runs_20261018/saved-design-validation-20261018-r2
 python -m hlsmith.experiments report \
   --output /mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2
 ```

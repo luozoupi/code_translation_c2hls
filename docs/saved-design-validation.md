@@ -57,11 +57,18 @@ python -m hlsmith.saved_designs launch \
   --output runs/saved-design-validation-20261018 \
   --vitis-settings /mnt/data/luo00466/Xilinx/Vitis/2023.2/settings64.sh \
   --max-compute-hours "${C2HLS_SAVED_DESIGN_HOURS:?Set the approved worker-hour cap}" \
+  --workers 4 \
   --scratch-root /mnt/data1/luo00466/c2hls_runs_20261018/scratch/saved-designs
 ```
 
-The launch runs one cell at a time and stops before starting a cell whose full
-4,800-second reservation would exceed the remaining allowance. The worker has a
+The launch defaults to one worker. `--workers 4` allows up to four independent
+cells to execute concurrently, each with its own workspace, temporary directory
+and Vitis user directory. The parent controller alone updates campaign state
+and reserves 4,800 seconds for every active cell before dispatch. Reservations
+for all active cells and charges for completed cells share the same aggregate
+allowance; parallel execution does not increase the approved worker-hour cap.
+A pending cell waits if its full reservation would exceed the remaining
+allowance, and dispatch is reconsidered after active cells settle. The worker has a
 4,790-second process limit, with ten seconds reserved for cleanup; measured
 elapsed time, including cleanup, is charged without truncation. An unexpected
 overrun stops the campaign and is retained in accounting. Native compilation and
@@ -72,12 +79,27 @@ open validations used approximately 25.51 and 69.71 summed job-hours; two fresh
 evaluator cohorts may differ substantially. There are no API charges from this
 gate.
 
-A launcher crash retains its full reserved allowance and active-cell identity.
+A launcher crash retains its full reserved allowance and active-cell identities.
 It requires evidence review before resuming; the executor does not silently
 refund or repeat uncertain work. Partial completed runs can resume with a new
 explicit cap, retaining all terminal measurements. Tool workspaces and logs are
 kept under the requested scratch directory for inspection. An interrupted or
 failed tool cell is retained; no candidate is changed or replaced.
+
+SIGTERM or SIGINT sent to the controller stops new dispatch and lets its active
+cells finish within their existing limits. Resume only after the previous
+controller has released its launch lock and state has no active cells. Preserve
+the previous launch receipt and state before changing concurrency. The pinned
+controller path and hash, launch epoch and worker limit identify the execution
+conditions separately from the registered evaluator sources. New workers use
+that controller for scheduling checks while importing the exact frozen and
+clean evaluator trees recorded in the unchanged manifest.
+
+Concurrent CPU and storage activity can affect elapsed time and which cells hit
+the wall-time limit. Keep serial and parallel execution segments visible,
+including any pair split across segments. Preserve all failures and timeouts;
+changing concurrency does not justify rerunning, repairing or replacing a
+design. Measured hardware cycles remain separate from host execution time.
 
 A passing cell requires a full independent CPU oracle with the frozen output
 identity (where recorded), a matching native candidate, CSim and RTL output

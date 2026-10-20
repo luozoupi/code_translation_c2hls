@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 import fcntl
 import hashlib
 import json
@@ -18,6 +19,7 @@ import shlex
 import shutil
 import signal
 import sys
+import uuid
 
 from hlsmith import experiments as tools
 
@@ -196,15 +198,63 @@ def preflight(output, settings=None):
     return result
 
 
+def _active_job_ids(state):
+    active = state.get('active_jobs')
+    if active is None:
+        return [state['active_job']] if state.get('active_job') else []
+    if (not isinstance(active, list) or not all(isinstance(job, str) for job in active)
+            or len(active) != len(set(active))
+            or (state.get('active_job') and state['active_job'] not in active)):
+        raise ValueError('invalid active saved-design job identities')
+    return active
+
+
+def _controller_identity(receipt, *, current=False):
+    controller = receipt.get('controller')
+    if controller is None:
+        return None  # Historical serial receipt.
+    workers = controller.get('max_workers')
+    try:
+        valid_epoch = uuid.UUID(controller.get('execution_epoch', '')).hex == controller.get('execution_epoch')
+    except (ValueError, AttributeError, TypeError):
+        valid_epoch = False
+    if (isinstance(workers, bool) or not isinstance(workers, int) or workers < 1
+            or not valid_epoch
+            or receipt.get('limits', {}).get('max_workers', workers) != workers
+            or tools.sha(controller['path']) != controller.get('sha256')
+            or (current and Path(controller['path']).resolve() != Path(__file__).resolve())):
+        raise ValueError('saved-design dispatch controller identity changed')
+    return controller
+
+
+def _external_vitis(identities):
+    """Exclude only observed descendants with matching PID/start identities."""
+    pids = tools.active_vitis()
+    if not pids:
+        return []
+    from hlsmith.toolchain.cosim_runtime_monitor import _process_table
+    table = _process_table()
+    owned = tools.owned_processes(os.getpid(), identities, table)
+    names = {'vitis_hls', 'vitis-run', 'xsim', 'xsimk', 'v++', 'xelab', 'xvlog'}
+    return [pid for pid in pids if pid in table and table[pid]['name'] in names
+            and table[pid]['state'] != 'Z' and pid not in owned]
+
+
 def launch(args):
     output = Path(args.output).resolve()
     maximum = tools.positive(args.max_compute_hours) * 3600
+    workers = getattr(args, 'workers', 1)
+    if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
+        raise ValueError('workers must be a positive integer')
     lock = (output / 'launch.lock').open('w')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     manifest = verify(output)
     state = tools.read(output / 'state.json')
-    if state.get('active_job'):
+    if _active_job_ids(state) or any(row['status'] == 'running' for row in state['jobs']):
         raise ValueError('interrupted cell requires evidence review; no automatic rerun or budget refund')
+    pending = [(job, row) for job, row in zip(manifest['jobs'], state['jobs']) if row['status'] == 'pending']
+    if any((output / 'jobs' / job['id']).exists() for job, _ in pending):
+        raise ValueError('pending saved-design workspace already exists; never overwrite or rerun it')
     checked = preflight(output, args.vitis_settings)
     if not checked['complete'] or checked['active_vitis_pids']:
         raise ValueError('tool version/resource preflight failed')
@@ -215,59 +265,124 @@ def launch(args):
               'tool_versions': checked['tool_versions'],
               'common_runner': {k: checked['tool_versions']['vitis-run'][k]
                                 for k in ('binary', 'binary_sha256', 'observed_version')}}
-    tools.save(output / 'launch.json', {'manifest_sha256': tools.sha(output / 'manifest.json'),
-                                      'created_at': tools.now(), 'limits': limits, 'provider_calls': 0})
+    previous = tools.read(output / 'launch.json') if (output / 'launch.json').is_file() else None
+    if previous and any(row['status'] != 'pending' for row in state['jobs']):
+        if (previous['limits']['scratch_root'] != limits['scratch_root']
+                or common_runner_identity(previous['limits']) != common_runner_identity(limits)):
+            raise ValueError('resumed saved designs require the same scratch root and common runner')
+    controller = {'path': str(Path(__file__).resolve()), 'sha256': tools.sha(__file__),
+                  'max_workers': workers, 'execution_epoch': uuid.uuid4().hex}
+    limits['max_workers'] = workers
+    receipt = {'manifest_sha256': tools.sha(output / 'manifest.json'), 'created_at': tools.now(),
+               'limits': limits, 'controller': controller, 'provider_calls': 0}
+    tools.save(output / 'launches' / (controller['execution_epoch'] + '.json'), receipt)
+    tools.save(output / 'launch.json', receipt)
     stopping = False
     def stop(signum, frame):
         nonlocal stopping
         stopping = True
-    signal.signal(signal.SIGTERM, stop)
-    signal.signal(signal.SIGINT, stop)
+    handlers = {signum: signal.signal(signum, stop) for signum in (signal.SIGTERM, signal.SIGINT)}
     state['status'] = 'running'
-    for job, row in zip(manifest['jobs'], state['jobs']):
-        if row['status'] != 'pending':
-            continue
-        if stopping:
-            state['status'] = 'stopped_by_signal'
-            break
-        if state['job_seconds_charged'] + job['maximum_seconds'] > maximum:
-            state['status'] = 'stopped_compute_cap'
-            break
-        if tools.active_vitis():
-            state['status'] = 'stopped_external_vitis'
-            break
-        # Reserve the entire cell before spawning. A crash never refunds unknown work.
-        state['job_seconds_charged'] += job['maximum_seconds']
-        state.update(active_job=job['id'])
-        row.update(status='running', reserved_seconds=job['maximum_seconds'])
+    state['execution_epoch'] = controller['execution_epoch']
+    active, uncertain = {}, []
+    cursor, stop_reason, failure = 0, None, None
+    owned = {}
+
+    def save_state():
+        ids = [job['id'] for job, _ in active.values()] + uncertain
+        if ids:
+            state['active_jobs'] = ids
+        else:
+            state.pop('active_jobs', None)
+        # Keep scalar compatibility for old inspection tools and serial runs.
+        if len(ids) == 1:
+            state['active_job'] = ids[0]
+        else:
+            state.pop('active_job', None)
         tools.save(output / 'state.json', state)
-        folder = output / 'jobs' / job['id']
-        folder.mkdir(parents=True, exist_ok=False)
-        environment = {k: v for k, v in os.environ.items()
-                       if not k.startswith(('C2HLS_', 'HLSMITH_', 'OPENAI_', 'ANTHROPIC_', 'DEEPSEEK_'))}
-        environment.update(PYTHONDONTWRITEBYTECODE='1', PYTHON_DOTENV_DISABLED='1',
-                           PYTHONPATH=manifest['sources']['clean'])
-        result = tools.run_process([sys.executable, '-m', 'hlsmith.saved_designs', 'worker',
-                                    '--output', str(output), '--job', job['id']],
-                                   cwd=manifest['sources']['clean'], env=environment,
-                                   timeout=TIMEOUTS['process'], log=folder / 'worker.log')
-        elapsed = tools.positive(result['elapsed_seconds'])
-        state['job_seconds_charged'] -= job['maximum_seconds'] - elapsed
-        row.update(result, elapsed_seconds=elapsed)
-        if not (folder / 'measurement.json').exists():
-            tools.save(folder / 'measurement.json', {'job': job, 'status': 'whole_cell_timeout' if result['status'] == 'timeout'
-                       else 'execution_error', 'rtl': {'ran': False}, 'provider_calls': 0})
-        state.pop('active_job', None)
-        tools.save(output / 'state.json', state)
-        if elapsed > job['maximum_seconds']:
-            state['status'] = 'stopped_accounting_overrun'
-            break
-        if result['status'] != 'complete':
-            state['status'] = 'stopped_execution_error'
-            break
-    else:
-        state['status'] = 'complete'
-    tools.save(output / 'state.json', state)
+
+    try:
+        save_state()
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix='saved-design') as pool:
+            while cursor < len(pending) or active:
+                changed = False
+                for future in [future for future in active if future.done()]:
+                    changed = True
+                    job, row = active.pop(future)
+                    try:
+                        result = future.result()
+                        elapsed = tools.positive(result['elapsed_seconds'])
+                    except Exception as error:
+                        # Unknown work retains its full reservation and blocks resume.
+                        uncertain.append(job['id'])
+                        failure = failure or error
+                        stop_reason = 'stopped_execution_error'
+                        continue
+                    state['job_seconds_charged'] -= job['maximum_seconds'] - elapsed
+                    row.update(result, elapsed_seconds=elapsed)
+                    folder = output / 'jobs' / job['id']
+                    if not (folder / 'measurement.json').exists():
+                        tools.save(folder / 'measurement.json', {
+                            'job': job, 'status': 'whole_cell_timeout' if result['status'] == 'timeout' else 'execution_error',
+                            'rtl': {'ran': False}, 'provider_calls': 0, 'dispatch_controller': controller,
+                            'execution_epoch': controller['execution_epoch'], 'max_workers': workers,
+                            'controller_sha256': controller['sha256']})
+                    if elapsed > job['maximum_seconds']:
+                        stop_reason = 'stopped_accounting_overrun'
+                    elif result['status'] != 'complete':
+                        stop_reason = stop_reason or 'stopped_execution_error'
+                if stopping:
+                    stop_reason = stop_reason or 'stopped_by_signal'
+                if stop_reason is None and _external_vitis(owned):
+                    stop_reason = 'stopped_external_vitis'
+                if changed:
+                    save_state()
+                while stop_reason is None and not stopping and len(active) < workers and cursor < len(pending):
+                    job, row = pending[cursor]
+                    if state['job_seconds_charged'] + job['maximum_seconds'] > maximum:
+                        # Other cells may settle below their reservations. Wait for
+                        # them before deciding that the aggregate allowance is spent.
+                        if not active:
+                            stop_reason = 'stopped_compute_cap'
+                        break
+                    folder = output / 'jobs' / job['id']
+                    folder.mkdir(parents=True, exist_ok=False)
+                    state['job_seconds_charged'] += job['maximum_seconds']
+                    row.update(status='running', reserved_seconds=job['maximum_seconds'],
+                               execution_epoch=controller['execution_epoch'], max_workers=workers,
+                               controller_sha256=controller['sha256'])
+                    # Publish authorization and the full reservation atomically
+                    # before a worker can read state or perform any work.
+                    state['active_jobs'] = [item[0]['id'] for item in active.values()] + [job['id']]
+                    if len(state['active_jobs']) == 1:
+                        state['active_job'] = job['id']
+                    else:
+                        state.pop('active_job', None)
+                    tools.save(output / 'state.json', state)
+                    environment = {k: v for k, v in os.environ.items()
+                                   if not k.startswith(('C2HLS_', 'HLSMITH_', 'OPENAI_', 'ANTHROPIC_', 'DEEPSEEK_'))}
+                    environment.update(PYTHONDONTWRITEBYTECODE='1', PYTHON_DOTENV_DISABLED='1',
+                                       PYTHONPATH=manifest['sources']['clean'])
+                    future = pool.submit(tools.run_process,
+                        [sys.executable, controller['path'], 'worker', '--output', str(output),
+                         '--job', job['id'], '--execution-epoch', controller['execution_epoch']],
+                        cwd=manifest['sources']['clean'], env=environment,
+                        timeout=TIMEOUTS['process'], log=folder / 'worker.log')
+                    active[future] = (job, row)
+                    cursor += 1
+                if active:
+                    wait(active, timeout=.2, return_when=FIRST_COMPLETED)
+                elif stop_reason:
+                    break
+        state['status'] = stop_reason or 'complete'
+        save_state()
+        if failure is not None:
+            raise failure
+    finally:
+        # Signals stop dispatch and drain active bounded watchdogs; their owned
+        # descendant cleanup finishes before the parent releases its launch lock.
+        for signum, handler in handlers.items():
+            signal.signal(signum, handler)
     return report(output)
 
 
@@ -275,9 +390,13 @@ def worker(args):
     output = Path(args.output).resolve()
     manifest = verify(output)
     state, receipt = tools.read(output / 'state.json'), tools.read(output / 'launch.json')
-    if (state.get('status') != 'running' or state.get('active_job') != args.job
+    if (state.get('status') != 'running' or args.job not in _active_job_ids(state)
             or receipt['manifest_sha256'] != tools.sha(output / 'manifest.json')):
         raise ValueError('worker requires an active bounded launch')
+    controller = _controller_identity(receipt, current=True)
+    if controller is not None and (getattr(args, 'execution_epoch', None) != controller['execution_epoch']
+                                   or state.get('execution_epoch') != controller['execution_epoch']):
+        raise ValueError('worker dispatch epoch differs from its active launch')
     limits = receipt['limits']
     if (state['job_seconds_charged'] > tools.positive(limits['compute_seconds'])
             or tools.sha(limits['settings']) != limits['settings_sha256']):
@@ -327,6 +446,9 @@ def worker(args):
               'golden_provenance': golden.get('provenance', {}), 'common_runner': runner,
               'input_hashes': design['input_hashes'], 'target': TARGET, 'provider_calls': 0,
               'csim': {'ran': False}, 'rtl': {'ran': False}}
+    if controller is not None:
+        record.update(dispatch_controller=controller, execution_epoch=controller['execution_epoch'],
+                      max_workers=controller['max_workers'], controller_sha256=controller['sha256'])
     golden_sha = hashlib.sha256(golden.get('output', '').encode()).hexdigest()
     record['golden_output_sha256'] = golden_sha
     if golden.get('success') is True and design['expected_golden_sha256'] and golden_sha != design['expected_golden_sha256']:
@@ -388,11 +510,39 @@ def report(output):
     state = tools.read(Path(output) / 'state.json')
     rows = []
     designs = {d['id']: d for d in manifest['designs']}
+    latest_receipt = tools.read(Path(output) / 'launch.json') if (Path(output) / 'launch.json').is_file() else None
+    latest_controller = _controller_identity(latest_receipt) if latest_receipt else None
+    epochs = {}
     for job, progress in zip(manifest['jobs'], state['jobs']):
         path = Path(output) / 'jobs' / job['id'] / 'measurement.json'
         measured = tools.read(path) if path.exists() else {}
         if measured and measured.get('job') != job:
             raise ValueError('saved-design measured job identity mismatch')
+        controller = measured.get('dispatch_controller')
+        if measured and controller is None and any(
+                record.get(key) is not None for record in (measured, progress)
+                for key in ('execution_epoch', 'max_workers', 'controller_sha256')):
+            raise ValueError('saved-design execution metadata lacks its controller')
+        if controller is not None:
+            epoch = controller.get('execution_epoch')
+            if epoch not in epochs:
+                _controller_identity({'controller': controller})
+                dispatch = tools.read(Path(output) / 'launches' / (epoch + '.json'))
+                _controller_identity(dispatch)
+                if (dispatch.get('controller') != controller
+                        or dispatch['manifest_sha256'] != tools.sha(Path(output) / 'manifest.json')
+                        or latest_receipt is None
+                        or dispatch['limits']['scratch_root'] != latest_receipt['limits']['scratch_root']
+                        or common_runner_identity(dispatch['limits']) != common_runner_identity(latest_receipt['limits'])):
+                    raise ValueError('saved-design execution epoch provenance changed')
+                epochs[epoch] = controller
+            if (epochs[epoch] != controller or measured.get('execution_epoch') != epoch
+                    or measured.get('max_workers') != controller['max_workers']
+                    or measured.get('controller_sha256') != controller['sha256']
+                    or progress.get('execution_epoch') != epoch
+                    or progress.get('max_workers') != controller['max_workers']
+                    or progress.get('controller_sha256') != controller['sha256']):
+                raise ValueError('saved-design execution metadata changed')
         if measured.get('status') == 'passed':
             golden_sha = measured.get('golden_output_sha256')
             design = designs[job['design']]
@@ -449,13 +599,24 @@ def report(output):
                         or tools.sha(source['path']) != source.get('sha256')
                         or source.get('period_ns') != requested for source in clock['sources'])):
                 raise ValueError('passing saved design requested clock provenance changed')
+        maximum_workers = controller['max_workers'] if controller else progress.get('max_workers')
+        mode = ('parallel' if maximum_workers > 1 else 'serial') if maximum_workers else ('legacy_serial' if measured else 'not_started')
         rows.append({**job, 'status': measured.get('status', progress['status']),
+                     'measurement_observed': bool(measured) and measured.get('status') not in (None, 'pending', 'running'),
+                     'execution_mode': mode, 'execution_epoch': controller['execution_epoch'] if controller else progress.get('execution_epoch'),
+                     'max_workers': maximum_workers or (1 if measured else None),
+                     'controller_sha256': controller['sha256'] if controller else progress.get('controller_sha256'),
                      'materialized_source_sha256': measured.get('rtl_source_evidence', {}).get('materialized_sha256'),
                      'rtl_cycles': tools.measured_cycles(measured.get('rtl', {})) if measured.get('status') == 'passed' else None})
     pairs = []
     for index in range(0, len(rows), 2):
         frozen, clean = rows[index:index + 2]
         pairs.append({'design': frozen['design'], 'frozen_status': frozen['status'], 'clean_status': clean['status'],
+                      'frozen_execution_mode': frozen['execution_mode'], 'clean_execution_mode': clean['execution_mode'],
+                      'frozen_execution_epoch': frozen['execution_epoch'], 'clean_execution_epoch': clean['execution_epoch'],
+                      'both_outcomes_observed': frozen['measurement_observed'] and clean['measurement_observed'],
+                      'mixed_execution_modes': (frozen['execution_mode'] != clean['execution_mode']
+                          if frozen['measurement_observed'] and clean['measurement_observed'] else None),
                       'materialized_sources_match': (frozen['materialized_source_sha256'] == clean['materialized_source_sha256']
                           if frozen['materialized_source_sha256'] and clean['materialized_source_sha256'] else None),
                       'frozen_over_clean_rtl_cycles': (frozen['rtl_cycles'] / clean['rtl_cycles']
@@ -466,10 +627,15 @@ def report(output):
               'blocked_open_slots_per_cohort': [s for s in manifest['open_slots'] if s['status'] == 'blocked_identity'],
               'paired_denominator': len(pairs), 'paired_rtl_passes': sum(p['frozen_over_clean_rtl_cycles'] is not None for p in pairs),
               'paired_status_differences': sum(p['frozen_status'] != p['clean_status']
-                   for p in pairs if p['frozen_status'] != 'pending' and p['clean_status'] != 'pending'),
+                   for p in pairs if p['both_outcomes_observed']),
               'paired_cycle_differences': sum(p['frozen_over_clean_rtl_cycles'] != 1
                    for p in pairs if p['frozen_over_clean_rtl_cycles'] is not None),
               'paired_materialized_source_differences': sum(p['materialized_sources_match'] is False for p in pairs),
+              'mixed_execution_pairs': sum(p['mixed_execution_modes'] is True for p in pairs),
+              'paired_execution_modes': dict(Counter(p['frozen_execution_mode'] + '/' + p['clean_execution_mode'] for p in pairs)),
+              'execution_mode_status_counts': {mode: dict(Counter(r['status'] for r in rows if r['execution_mode'] == mode))
+                                             for mode in sorted({r['execution_mode'] for r in rows})},
+              'dispatch_controller': latest_controller, 'execution_epochs': epochs,
               'pairs': pairs, 'cells': rows, 'job_hours_charged': state['job_seconds_charged'] / 3600,
               'campaign_status': state['status'], 'provider_calls': 0, 'complete_paper_reproduction': False,
               'limitations': manifest['limitations']}
@@ -491,8 +657,10 @@ def main(argv=None):
         if action == 'launch':
             command.add_argument('--max-compute-hours', type=float, required=True)
             command.add_argument('--scratch-root', type=Path, required=True)
+            command.add_argument('--workers', type=int, default=1)
         if action == 'worker':
             command.add_argument('--job', required=True)
+            command.add_argument('--execution-epoch')
     args = parser.parse_args(argv)
     if args.action == 'register':
         result = register(args)

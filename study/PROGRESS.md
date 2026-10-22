@@ -449,3 +449,17 @@ Root: `/scratch/asa582/workspaces/c2hls_claude_code/study/`. Earlier work stays 
   - OTUS_RUNBOOK.md is marked superseded for the full move.
 - 2026-10-22 **Study git repo:** `git init -b main` in c2hls_claude_code with a code-only `.gitignore`. The first commit is 3bf6d39: 3,131 files, 2.2 MB packed. Ignored: logs/runs/ablation results, Vitis trees, reports and logs, generated SODA/LUD designs, transcripts and configs, and the clean AutoSA clone (its commit is in `study/lud/upstream/AutoSA.commit`). Two files with personal data stay out of git: `ds_anthropic_proxy.py` (its guard lists the user's addresses) and the fork `.bundle` (author email). The fork patches now carry a noreply author and still rebuild tree da0dae7f (tested in a temporary worktree). The repo-local identity is `ahmadsb101 <ahmadsb101@users.noreply.github.com>`. Staged blobs were scanned for keys and emails: clean. No remote yet; the user pushes.
 - 2026-10-22 **Migration plan fix (side-agent note):** step 5 copied results with `--exclude '*_work/'`, which would have dropped every agent-backend session check: 212 `checks/N_*_work/kernel.cpp` and 104 `N_*_work/hls_proj/*/syn/report/csynth.xml`. make_story_v13 `fallbacks()` and posthoc_csim/enumerate*.py read those. The rsync now excludes only Vitis internals (.autopilot, verilog, vhdl, systemc, impl, csim/build, *.o, *.vcd, *.wdb). Dry run on Fir: 107,727 files and 5.47 GB, against 97,961 and 4.29 GB before; the sample check folder keeps kernel.cpp and syn/report/csynth.xml.
+- 2026-10-22 **Otus move, last gaps:**
+  - **Agent checks** were still on Fir's container and account.
+    - `study/agentfw/tools/hls_otus`: the free-agent tool, for C r4 and C/D. Tested in a throwaway copy of the r4 workspace with a fake sbatch: it writes an Otus job (account, partition, native Vitis, the runner from bin/).
+    - `agent/hls_check_otus.sh.template` and `agent/hls_check_otus.py`: HLSmith with an agent backend, for experiment B. The template was rendered as the shim does, and the outer and inner shells parse.
+    - `hls_eval_job_otus.py` now finds study/ by walking up to `jobs/keep_copy.sh`, so it works from a workspace's bin/.
+  - **Flash job:** the driver's `sbatch_flash_cc.sh` is replaced on Otus by `otus/sbatch_flash_cc_otus.sh`.
+  - **Hardened bench:** `verify_hard.py` reads `/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include`, which is now in the step-5 rsync, with a symlink fallback to `$XILINX_HLS/include`.
+  - **Installer:** `otus/apply_otus_site.sh [--dry-run]` installs everything above and also:
+    - copies the tools into the unfinished workspaces (mm1024_hlsm_r4, smoke_base);
+    - sets the shim's `--agent-account` default;
+    - rewrites the claude binary path;
+    - restores the judge skill snapshot with an md5 check.
+    It refuses to run on Fir; the dry run on Fir was checked.
+  - **Judge skill files:** not committed, at the user's choice. The snapshot is in `study/judge_skills_fir_20261022/` (3 JSON files, README with md5s and diff sizes, MD5SUMS). The judge repo is unchanged. OTUS_MIGRATION step 2 was rewritten to match.

@@ -6,7 +6,8 @@ judge); node-local work falls back to OTUS_LOCAL_TMP or /tmp/$USER/$SLURM_JOB_ID
 import json, os, re, shutil, subprocess, sys
 from datetime import datetime, timezone
 from pathlib import Path
-STUDY = Path(__file__).resolve().parents[2]            # study/ (this file is study/agentfw/tools/)
+# study/: the first parent with jobs/keep_copy.sh (this file runs from agentfw/tools/ or a workspace's bin/)
+STUDY = next(p for p in Path(__file__).resolve().parents if (p / "jobs" / "keep_copy.sh").is_file())
 sys.path.insert(0, os.environ.get("C2HLS_ROOT") or str(STUDY.parents[1] / "code_translation_c2hls"))
 import hls_eval  # noqa: E402
 

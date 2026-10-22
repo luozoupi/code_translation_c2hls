@@ -40,28 +40,18 @@ squeue -u asa582                           # should be empty
 
 If you'd rather let the 19+2 post-hoc csynths finish on Fir, cancel by name instead and keep `posthoc_csynth` and `afw_post`.
 
-## 2. Git: the judge (`code_translation_c2hls`)
+## 2. The judge (`code_translation_c2hls`): no commit
 
-Remote: `git@github.com:luozoupi/code_translation_c2hls.git`, branch `c2hls_enhanced_l_pc2_api_layout`. No commits are waiting to be pushed. Seven tracked files are modified:
+The judge repo stays as it is: nothing is committed or pushed. On Otus it's cloned from GitHub (step 5); the remote is `git@github.com:luozoupi/code_translation_c2hls.git`, branch `c2hls_enhanced_l_pc2_api_layout`, with no unpushed commits.
 
-| File | Commit? |
-|---|---|
-| `hls_full_optimization_skills_schema_1_1_package/skills_ii_target_miss_solutions_added(90skills).json` | **Yes.** The study uses it; the runs rewrote it after the last commit. |
-| `…(90skills)_plus_gemm_flatten_v2.json` | **Yes.** The study uses it (549-line diff). |
-| `…(90skills)_gemm_flatten_v1.json` | **Yes**, so the library matches Fir exactly. |
-| `fir.env.example`, `nibi.env` | Optional. These are Vitis-jobs notes. |
-| `scripts/fir/gpu_serve.sbatch.sh` | Optional. This is a vLLM fix, not used by the study. |
-| `rl/eval/batch_parallel_heldout_u280_fir.json` | Only if it's yours (`heldout_base` → `heldout_dpo`). |
-| `experiments_registry.json` (untracked) | Optional. |
+Three skill libraries in its working tree differ from that commit. The study reads two of them by path. A snapshot is in the study repo, `study/judge_skills_fir_20261022/`, with a README, the md5s and the diff sizes:
+- `(90skills).json`: only its `saved_at` timestamp differs;
+- `(90skills)_plus_gemm_flatten_v2.json`: +278/−271 lines;
+- `(90skills)_gemm_flatten_v1.json`: +1,479/−211 lines.
 
-```bash
-cd /scratch/asa582/workspaces/code_translation_c2hls
-git add hls_full_optimization_skills_schema_1_1_package/*.json
-git commit -m "Skill library as used by the c2hls_claude_code study, 2026-10-22"
-git push
-```
+Who or what changed them isn't known. `otus/apply_otus_site.sh` (step 6) copies the snapshot into the Otus clone and checks the md5s, so Otus runs use the same libraries as Fir.
 
-Never commit `.env`; it's git-ignored and holds secrets. If the c2hls flow needs it on Otus, copy it by `scp` (step 4). The study's refined skill files (`…_refined.json`, `…_refined_v2.json`, `…_refined_v2_neutral.json`) aren't in the judge. They come along with the study tree.
+The judge's other local changes (`fir.env.example`, `nibi.env`, `scripts/fir/gpu_serve.sbatch.sh`, `rl/eval/batch_parallel_heldout_u280_fir.json`, untracked `experiments_registry.json`) aren't used by the study and aren't carried over. Never commit `.env`; it's git-ignored and holds secrets. If the c2hls flow needs it on Otus, copy it by `scp` (step 4). The study's refined skill files (`…_refined.json`, `…_refined_v2.json`, `…_refined_v2_neutral.json`) are in the study tree.
 
 ## 3. Git: the study (`c2hls_claude_code`), a new private repo
 
@@ -126,6 +116,10 @@ rsync -a --info=progress2 --exclude '.git' --exclude '__pycache__' \
   $FIR:/scratch/asa582/workspaces/c2hls_claude_code/ $W/c2hls_claude_code/
 # also needed: SODA sources (SODA runs), AutoSA (only if you regenerate designs), dse_v4_claude
 rsync -a $FIR:/scratch/asa582/workspaces/soda_src $FIR:/scratch/asa582/workspaces/dse_v4_claude $W/
+# Vitis 2023.2 headers the hardened bench compiles against (study/bench_hard/verify_hard.py; 5.4 MB, outside workspaces/).
+# If you skip this, step 6's apply_otus_site.sh links that path to Otus's $XILINX_HLS/include instead.
+mkdir -p ${W%/workspaces}/tmp/c2hls
+rsync -a $FIR:/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include ${W%/workspaces}/tmp/c2hls/
 # packed SODA projects the LightningSim jobs read (3.8 GB, outside workspaces/; 158 projects, one tarball each)
 mkdir -p ${W%/workspaces}/tmp/c2hls/lsim
 rsync -a $FIR:/scratch/asa582/tmp/c2hls/lsim/soda ${W%/workspaces}/tmp/c2hls/lsim/
@@ -152,7 +146,10 @@ grep -rlI --exclude-dir=.git -e 'account=def-zhenman' . | xargs -d '\n' sed -i '
 grep -rlI --exclude-dir=.git -e /cvmfs/soft.computecanada.ca . | xargs -d '\n' sed -i 's|/cvmfs/soft.computecanada.ca/[^ "]*/python3|python3|g'
 # login host (driver.py HOST, shim_url.txt, controlled/ds_proxy_url.txt, agentic_ablation/serial_driver.py, start_shim*.sh)
 grep -rlI --exclude-dir=.git --exclude-dir=logs -e login2 . | xargs -d '\n' sed -i "s|login2|<otus-login-node>|g"
-git diff --stat; git commit -am "Otus site: paths, account, python, login host"
+# install the Otus copies of the Fir-only pieces (agent tools and checks, flash job, claude path, judge skill libraries,
+# hardened-bench headers); --dry-run first shows each copy
+otus/apply_otus_site.sh --dry-run && otus/apply_otus_site.sh
+git diff --stat; git commit -am "Otus site: paths, account, python, login host, Otus tools"
 ```
 
 The `sed` can't fix these. Edit them by hand:
@@ -165,7 +162,8 @@ The `sed` can't fix these. Edit them by hand:
 | `$SLURM_TMPDIR` | `sbatch_flash_cc.sh`, `study/lud/job_vitis.sh`, SODA/lsim/xclbin jobs | keep it if step 0 showed it's set; otherwise a node-local path |
 | LightningSim fork (built on Fir) | `/scratch/asa582/tools/lightningsim` | rebuild once on an Otus login node: `bash cosim/lsim/otus/setup_lsim_otus.sh`. It builds the same envs from Fir's exact package lists, clones upstream, applies the 3 fork commits, checks the source tree hash against Fir's, and rebuilds the Rust core. Then `cosim/lsim/otus/resubmit_lsim_otus.sh --check`: the cycle count must equal Fir's. |
 | U280 platform for `v++` | xclbin job | only if step 0 found it (`sbatch_build_otus.sh` searches the usual dirs, or set `OTUS_U280_XPFM`) |
-| c2hls venv (`/scratch/asa582/packages/c2hls-venv`) | every flash job (`sbatch_flash_cc.sh`, the driver, `sd_heat3d_ds`) | `bash otus/setup_venv_otus.sh` (exact versions from Fir, no torch). `otus/sbatch_flash_cc_otus.sh` can replace `sbatch_flash_cc.sh` on Otus: the same command line, native Vitis, paths from the submit dir. |
+| c2hls venv (`/scratch/asa582/packages/c2hls-venv`) | every flash job (`sbatch_flash_cc.sh`, the driver, `sd_heat3d_ds`) | `bash otus/setup_venv_otus.sh` (exact versions from Fir, no torch). `otus/apply_otus_site.sh` installs `otus/sbatch_flash_cc_otus.sh` as `sbatch_flash_cc.sh`: the same command line, native Vitis, paths from the submit dir. |
+| Agent-session checks: `study/agentfw/tools/hls` (free agent, C/D; a copy already sits in `runs/mm1024_hlsm_r4/bin/`) and `agent/hls_check.sh.template` + `hls_check.py` (HLSmith with an agent backend, experiment B) | C r4, experiment B, any new agent run | `otus/apply_otus_site.sh` installs the `_otus` copies: Otus account and partition, native Vitis, paths from their own location. It also installs them into unfinished workspaces (`mm1024_hlsm_r4`, `smoke_base`) and sets the shim's `--agent-account` default. |
 | DeepSeek proxy for the controlled runs (`controlled/ds_proxy.py`, Fir login2:18094, **not running on Fir now**) | `sd_*_ds` runs | `bash otus/start_ds_proxy_otus.sh` (writes `controlled/ds_proxy_url.txt`) |
 | `--claude-bin /home/asa582/.local/bin/claude` | `logs/start_shim_*.sh`, `start_shim.sh` | `$(command -v claude)` |
 

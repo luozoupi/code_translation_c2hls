@@ -4,6 +4,7 @@
 set -euo pipefail
 HERE=$(dirname "$(readlink -f "$0")")          # c2hls_claude_code/otus
 W=$(dirname "$(dirname "$HERE")")             # workspaces
+[ -f "$W/hls_eval.py" ] && W=$(dirname "$W")   # combined branch: the study is a subfolder of the judge clone
 VENV=${VENV:-$(dirname "$W")/packages/c2hls-venv}
 module load lang Python/3.11.5-GCCcore-13.2.0
 [ -x "$VENV/bin/python" ] || python3 -m venv "$VENV"

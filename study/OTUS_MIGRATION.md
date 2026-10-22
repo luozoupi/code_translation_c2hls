@@ -118,8 +118,11 @@ cd $W
 git clone -b c2hls_enhanced_l_pc2_api_layout git@github.com:luozoupi/code_translation_c2hls.git
 git clone git@github.com:<you>/c2hls_claude_code.git
 FIR=asa582@fir.alliancecan.ca
-# results on top of the clone (keeps .git; no Vitis work trees)
-rsync -a --info=progress2 --exclude '.git' --exclude '__pycache__' --exclude '*_work/' \
+# results on top of the clone (keeps .git). *_work/ folders are copied: the page builders and posthoc_csim/enumerate*.py
+# read checks/N_*_work/kernel.cpp and N_*_work/hls_proj/*/syn/report/csynth.xml. Only Vitis internals are left out.
+rsync -a --info=progress2 --exclude '.git' --exclude '__pycache__' \
+  --exclude '.autopilot/' --exclude 'verilog/' --exclude 'vhdl/' --exclude 'systemc/' --exclude 'impl/' \
+  --exclude 'csim/build/' --exclude '*.o' --exclude '*.vcd' --exclude '*.wdb' \
   $FIR:/scratch/asa582/workspaces/c2hls_claude_code/ $W/c2hls_claude_code/
 # also needed: SODA sources (SODA runs), AutoSA (only if you regenerate designs), dse_v4_claude
 rsync -a $FIR:/scratch/asa582/workspaces/soda_src $FIR:/scratch/asa582/workspaces/dse_v4_claude $W/
@@ -134,7 +137,7 @@ rsync -a $FIR:/scratch/asa582/tools/lightningsim/src/ ${W%/workspaces}/tools/lig
 rsync -a $FIR:.claude/projects/-scratch-asa582-workspaces-dse-v4-claude/memory/ ~/.claude/projects/<otus-key>/memory/
 ```
 
-I left `hls_proj/` in on purpose: the page builders read `hls_proj/*/syn/report/csynth.xml` for worst-case latency. Check your file quota on Otus first; the full tree is about 140k files. If that's too many, tar `logs/shim_*` per folder, but the pages read `logs/<shim>/call_*/workspace/checks/`, so keep those unpacked.
+I kept the `*_work/` and `hls_proj/` folders on purpose. The page builders choose each run's counted design and its fallback from the session checks: the kernel in `checks/N_*_work/kernel.cpp` and the worst-case latency from `N_*_work/hls_proj/*/syn/report/csynth.xml`. On Fir that's 212 check kernels and 104 reports. Dropping `*_work/` would have lost all of them and quietly changed numbers on the pages. With only the Vitis internals left out, the copy is about 108k files and 5.5 GB (a dry run on Fir). Check your file quota on Otus first. If that's too many, tar `logs/shim_*` per folder, but the pages read `logs/<shim>/call_*/workspace/checks/`, so keep those unpacked.
 
 ## 6. Make the code Otus-native (one commit on Otus)
 

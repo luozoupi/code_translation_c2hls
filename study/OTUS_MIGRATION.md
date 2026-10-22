@@ -65,44 +65,31 @@ Never commit `.env`; it's git-ignored and holds secrets. If the c2hls flow needs
 
 ## 3. Git: the study (`c2hls_claude_code`), a new private repo
 
-This folder isn't under git. Give it a code-only repo. The results go by rsync in step 5.
+**Done on 2026-10-22.** The repo is local, on branch `main`, with a first commit (3,131 files, 2.2 MB packed). Its `.gitignore` keeps out:
+- logs (but not `logs/start_*.sh`), run outputs (`runs*/`) and `ablation/` results;
+- Vitis work trees, reports (`*.xml`, `*.rpt`) and logs, including gzipped ones;
+- the generated SODA and LUD designs;
+- transcripts (`*.jsonl`) and agent configs;
+- `.bak_*`, `.out`, `.err` and `.pid` files and archives;
+- the clean AutoSA clone, whose commit is recorded in `study/lud/upstream/AutoSA.commit`.
+
+Two files hold personal data, so they stay out of git; rsync carries them:
+- `study/exp_hlsmith/ds_anthropic_proxy.py`: its privacy guard spells out your addresses;
+- `cosim/lsim/otus/lightningsim_vitis2023-axi.bundle`: its commits carry the author's email.
+
+The fork patches name the author with a noreply address and rebuild exactly Fir's tree (`da0dae7f`, tested). The commit identity is repo-local: `ahmadsb101 <ahmadsb101@users.noreply.github.com>`.
+
+What's left for you:
 
 ```bash
 cd /scratch/asa582/workspaces/c2hls_claude_code
-git init -b main
-cat > .gitignore <<'EOF'
-logs/
-ablation/
-runs/
-runs_controlled/
-runs_deepseek/
-**/runs/
-**/*_work/
-**/hls_proj/
-**/csim_work/
-**/csynth_work/
-__pycache__/
-*.bak_*
-*.out
-*.err
-*.pid
-*.jsonl
-*.tar
-*.tar.gz
-*.zip
-*.xclbin
-*.vcd
-*.wdb
-EOF
-git add -A -n . | wc -l        # check: a few thousand files, not tens of thousands
-git add -A && du -sh .git      # aim for under ~200 MB; if bigger, find the culprit with:
-#   git ls-files -s | awk '{print $4}' | xargs -d '\n' du -k | sort -n | tail
-git commit -m "c2hls_claude_code study, Fir state 2026-10-22"
-# create an empty PRIVATE repo on GitHub first, then:
-git remote add origin git@github.com:<you>/c2hls_claude_code.git && git push -u origin main
+# create an empty PRIVATE repo on GitHub first (no README), then:
+git remote add origin git@github.com:<you>/c2hls_claude_code.git
+git push -u origin main
+# later edits on Fir before the move: git add -A && git commit -m "..." && git push
 ```
 
-Do the same for `dse_v4_claude` if you want the `st0_c1` work there too. It's small; the xclbin job lives in the study tree.
+To use your real address on the commits instead: `git config user.email <address>` and `git commit --amend --reset-author --no-edit`.
 
 ## 4. Home directory on Otus
 

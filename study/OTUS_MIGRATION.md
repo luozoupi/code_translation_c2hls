@@ -69,14 +69,12 @@ Two files hold personal data, so they stay out of git; rsync carries them:
 
 The fork patches name the author with a noreply address and rebuild exactly Fir's tree (`da0dae7f`, tested). The commit identity is repo-local: `ahmadsb101 <ahmadsb101@users.noreply.github.com>`.
 
-What's left for you:
+Pushed on 2026-10-22 as its own branch, `c2hls_claude_code_study`, in the judge's GitHub repo (`luozoupi/code_translation_c2hls`). It has its own history, separate from `c2hls_enhanced_l_pc2_api_layout`, which wasn't touched. Local `main` tracks it:
 
 ```bash
 cd /scratch/asa582/workspaces/c2hls_claude_code
-# create an empty PRIVATE repo on GitHub first (no README), then:
-git remote add origin git@github.com:<you>/c2hls_claude_code.git
-git push -u origin main
-# later edits on Fir before the move: git add -A && git commit -m "..." && git push
+# later edits on Fir before the move:
+git add -A && git commit -m "..." && git push    # goes to origin/c2hls_claude_code_study
 ```
 
 To use your real address on the commits instead: `git config user.email <address>` and `git commit --amend --reset-author --no-edit`.
@@ -106,7 +104,7 @@ My memory files go across with rsync in step 5. Claude Code keys project memory 
 W=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces; mkdir -p $W ../tmp/c2hls ../cache
 cd $W
 git clone -b c2hls_enhanced_l_pc2_api_layout git@github.com:luozoupi/code_translation_c2hls.git
-git clone git@github.com:<you>/c2hls_claude_code.git
+git clone -b c2hls_claude_code_study git@github.com:luozoupi/code_translation_c2hls.git c2hls_claude_code
 FIR=asa582@fir.alliancecan.ca
 # results on top of the clone (keeps .git). *_work/ folders are copied: the page builders and posthoc_csim/enumerate*.py
 # read checks/N_*_work/kernel.cpp and N_*_work/hls_proj/*/syn/report/csynth.xml. Only Vitis internals are left out.

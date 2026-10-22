@@ -15,7 +15,9 @@ import sys
 from pathlib import Path
 
 CC = Path(__file__).resolve().parents[1]           # c2hls_claude_code (this file is agent/hls_check.py)
-sys.path.insert(0, os.environ.get("C2HLS_ROOT", str(CC.parent / "code_translation_c2hls")))
+# the judge: next to c2hls_claude_code/ (Fir layout) or its parent (study as a subfolder of the judge clone)
+_J = CC.parent if (CC.parent / "hls_eval.py").is_file() else CC.parent / "code_translation_c2hls"
+sys.path.insert(0, os.environ.get("C2HLS_ROOT", str(_J)))
 import hls_eval  # noqa: E402
 
 PART = os.environ.get("AGENT_PART", "xcu280-fsvh2892-2L-e")

@@ -8,7 +8,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 # study/: the first parent with jobs/keep_copy.sh (this file runs from agentfw/tools/ or a workspace's bin/)
 STUDY = next(p for p in Path(__file__).resolve().parents if (p / "jobs" / "keep_copy.sh").is_file())
-sys.path.insert(0, os.environ.get("C2HLS_ROOT") or str(STUDY.parents[1] / "code_translation_c2hls"))
+# the judge: next to c2hls_claude_code/ (Fir layout) or its parent (study as a subfolder of the judge clone)
+_J = STUDY.parents[1] if (STUDY.parents[1] / "hls_eval.py").is_file() else STUDY.parents[1] / "code_translation_c2hls"
+sys.path.insert(0, os.environ.get("C2HLS_ROOT") or str(_J))
 import hls_eval  # noqa: E402
 
 mode, d, task = sys.argv[1], Path(sys.argv[2]), json.loads(Path(sys.argv[3]).read_text())

@@ -42,7 +42,7 @@ If you'd rather let the 19+2 post-hoc csynths finish on Fir, cancel by name inst
 
 ## 2. The judge (`code_translation_c2hls`): no commit
 
-The judge repo stays as it is: nothing is committed or pushed. On Otus it's cloned from GitHub (step 5); the remote is `git@github.com:luozoupi/code_translation_c2hls.git`, branch `c2hls_enhanced_l_pc2_api_layout`, with no unpushed commits.
+The judge checkout on Fir stays as it is: nothing is committed or pushed from it. Its remote is `git@github.com:luozoupi/code_translation_c2hls.git`, branch `c2hls_enhanced_l_pc2_api_layout` (`2ef0224`), with no unpushed commits. On Otus the judge comes from the combined branch `c2hls_enhanced_l_pc2_api_layout_study` (step 3): that commit's files plus the study in `c2hls_claude_code/`.
 
 Three skill libraries in its working tree differ from that commit. The study reads two of them by path. A snapshot is in the study repo, `study/judge_skills_fir_20261022/`, with a README, the md5s and the diff sizes:
 - `(90skills).json`: only its `saved_at` timestamp differs;
@@ -69,12 +69,16 @@ Two files hold personal data, so they stay out of git; rsync carries them:
 
 The fork patches name the author with a noreply address and rebuild exactly Fir's tree (`da0dae7f`, tested). The commit identity is repo-local: `ahmadsb101 <ahmadsb101@users.noreply.github.com>`.
 
-Pushed on 2026-10-22 as its own branch, `c2hls_claude_code_study`, in the judge's GitHub repo (`luozoupi/code_translation_c2hls`). It has its own history, separate from `c2hls_enhanced_l_pc2_api_layout`, which wasn't touched. Local `main` tracks it:
+On GitHub (`luozoupi/code_translation_c2hls`, **a public repo**), two branches; `c2hls_enhanced_l_pc2_api_layout` isn't touched:
+- `c2hls_claude_code_study`: the study alone, with its own history. Local `main` tracks it.
+- `c2hls_enhanced_l_pc2_api_layout_study`: **the one Otus uses.** A merge of `c2hls_enhanced_l_pc2_api_layout` (`2ef0224`) and the study, with the study in the subfolder `c2hls_claude_code/`. Both histories are kept.
 
 ```bash
 cd /scratch/asa582/workspaces/c2hls_claude_code
-# later edits on Fir before the move:
+# later edits on Fir before the move: commit and push the study ...
 git add -A && git commit -m "..." && git push    # goes to origin/c2hls_claude_code_study
+# ... then merge it into the combined branch again, in a clone of that branch:
+#   git pull -s subtree origin c2hls_claude_code_study && git push
 ```
 
 To use your real address on the commits instead: `git config user.email <address>` and `git commit --amend --reset-author --no-edit`.
@@ -103,8 +107,9 @@ My memory files go across with rsync in step 5. Claude Code keys project memory 
 ```bash
 W=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces; mkdir -p $W ../tmp/c2hls ../cache
 cd $W
-git clone -b c2hls_enhanced_l_pc2_api_layout git@github.com:luozoupi/code_translation_c2hls.git
-git clone -b c2hls_claude_code_study git@github.com:luozoupi/code_translation_c2hls.git c2hls_claude_code
+# one clone: the judge, with the study in c2hls_claude_code/; the link gives the Fir layout the scripts expect
+git clone -b c2hls_enhanced_l_pc2_api_layout_study git@github.com:luozoupi/code_translation_c2hls.git
+ln -s code_translation_c2hls/c2hls_claude_code c2hls_claude_code
 FIR=asa582@fir.alliancecan.ca
 # results on top of the clone (keeps .git). *_work/ folders are copied: the page builders and posthoc_csim/enumerate*.py
 # read checks/N_*_work/kernel.cpp and N_*_work/hls_proj/*/syn/report/csynth.xml. Only Vitis internals are left out.
@@ -147,6 +152,7 @@ grep -rlI --exclude-dir=.git --exclude-dir=logs -e login2 . | xargs -d '\n' sed 
 # install the Otus copies of the Fir-only pieces (agent tools and checks, flash job, claude path, judge skill libraries,
 # hardened-bench headers); --dry-run first shows each copy
 otus/apply_otus_site.sh --dry-run && otus/apply_otus_site.sh
+# one repo now: -a also takes the judge skill libraries apply_otus_site.sh restored (same md5s as Fir)
 git diff --stat; git commit -am "Otus site: paths, account, python, login host, Otus tools"
 ```
 

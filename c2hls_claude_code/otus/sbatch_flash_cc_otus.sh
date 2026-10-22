@@ -15,7 +15,9 @@
 set -euo pipefail
 D=${CC_DIR:-$SLURM_SUBMIT_DIR}
 [ -f "$D/run_flash_cc.py" ] || { echo "submit from c2hls_claude_code (or set CC_DIR)"; exit 1; }
-W=$(dirname "$D"); B=$(dirname "$W")              # workspaces, projects root
+W=$(dirname "$D")                                 # workspaces
+[ -f "$W/hls_eval.py" ] && W=$(dirname "$W")   # combined branch: the study is a subfolder of the judge clone
+B=$(dirname "$W")                                 # projects root
 # what dse_v3_claude/env.sh set on Fir
 export C2HLS_ROOT=$W/code_translation_c2hls
 export PYTHONPATH="${C2HLS_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"

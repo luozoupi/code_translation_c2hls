@@ -11,7 +11,9 @@ set -eo pipefail
 STUDY=${STUDY_DIR:?}
 module load lang Python/3.11.5-GCCcore-13.2.0 2>/dev/null || true
 export C2HLS_VITIS_SETTINGS=${OTUS_VITIS_SETTINGS:-/opt/software/FPGA/Xilinx/Vitis/2023.2/settings64.sh}
-B=$(dirname "$(dirname "$(dirname "$STUDY")")")           # projects root (study -> c2hls_claude_code -> workspaces -> ..)
+W=$(dirname "$(dirname "$STUDY")")                        # workspaces (study -> c2hls_claude_code -> ..)
+[ -f "$W/hls_eval.py" ] && W=$(dirname "$W")   # combined branch: the study is a subfolder of the judge clone
+B=$(dirname "$W")                                          # projects root
 export C2HLS_TMP_ROOT=$B/tmp/c2hls; mkdir -p "$C2HLS_TMP_ROOT"
 unset C2HLS_USE_CONTAINER XILINX_SIF C2HLS_DSE_V3 C2HLS_DSE_V3_HARNESS C2HLS_DSE_V4 C2HLS_DSE_V2_GRID C2HLS_SITE C2HLS_VITIS_JOBS C2HLS_VITIS_JOBS_FROM_SLURM DSE_V3_TRIAL_ROOT
 export C2HLS_CSIM_TIMEOUT=200000 C2HLS_SYNTH_TIMEOUT=200000

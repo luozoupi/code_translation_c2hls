@@ -11,7 +11,9 @@
 #   6. hardened-bench headers: checks <projects>/tmp/c2hls/vitis_hls_2023.2_include (verify_hard.py's INC after the
 #      step-6 path sed); if missing, links it to $XILINX_HLS/include (the same Vitis 2023.2 headers)
 set -euo pipefail
-CC=$(dirname "$(dirname "$(readlink -f "$0")")"); W=$(dirname "$CC"); B=$(dirname "$W")
+CC=$(dirname "$(dirname "$(readlink -f "$0")")"); W=$(dirname "$CC")
+[ -f "$W/hls_eval.py" ] && W=$(dirname "$W")   # combined branch: the study is a subfolder of the judge clone
+B=$(dirname "$W")
 DRY=0; [ "${1:-}" = --dry-run ] && DRY=1
 [ "${CC_CLUSTER:-}" = fir ] && [ $DRY = 0 ] && { echo "this is Fir: only --dry-run here"; exit 1; }
 cp_() { echo "  $1 -> $2"; [ $DRY = 1 ] || cp "$1" "$2"; }
@@ -51,4 +53,4 @@ else
 fi
 grep -q "$B/tmp/c2hls/vitis_hls_2023.2_include" study/bench_hard/verify_hard.py \
   || echo "  NOTE: study/bench_hard/verify_hard.py still has the Fir include path: run the step-6 path sed first"
-echo; [ $DRY = 1 ] && echo "dry run: nothing changed" || { git -C "$CC" status --short | head -30; echo "review, then: git -C $CC commit -am 'Otus site: tools, checks, flash job, claude path'"; }
+echo; [ $DRY = 1 ] && echo "dry run: nothing changed" || { { git -C "$CC" status --short | head -30 || true; }; echo "review, then: git -C $CC commit -am 'Otus site: tools, checks, flash job, claude path'"; }

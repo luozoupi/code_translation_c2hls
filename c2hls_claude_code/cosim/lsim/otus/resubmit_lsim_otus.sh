@@ -12,6 +12,7 @@ HERE=$(dirname "$(readlink -f "$0")")        # cosim/lsim/otus
 LS=$(dirname "$HERE")                         # cosim/lsim
 CC=$(dirname "$(dirname "$LS")")              # c2hls_claude_code
 W=$(dirname "$CC")                            # workspaces
+[ -f "$W/hls_eval.py" ] && W=$(dirname "$W")   # combined branch: the study is a subfolder of the judge clone
 ROOT=${LSIM_ROOT:-$(dirname "$W")/tmp/c2hls/lsim/soda}
 LSIM_T=${LSIM_T:-/scratch/hpc-prf-llmfpga/asa582/projects/tools/lightningsim}
 MODE=${1:-}

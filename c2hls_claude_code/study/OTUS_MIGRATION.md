@@ -10,6 +10,22 @@ Git and rsync carry different things:
 
 On Otus everything goes under `W=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces`. That folder takes the place of `/scratch/asa582/workspaces`, so a single `sed` fixes most paths.
 
+**The Otus side is one script, `otus/otus_setup.sh <stage>`.** Run the stages in this order; each one prints the next:
+
+| Stage | Plan step | What it does |
+|---|---|---|
+| `check` | 0 | network, Vitis, U280 platform, a 5-minute test job, ssh to Fir, disk and file quota; changes nothing |
+| `clone` | 5 | makes `$W` and `$B/{tmp/c2hls,cache,packages,tools}`, clones the combined branch, links `c2hls_claude_code` |
+| `home` | 4 | Claude Code if missing, the non-secret `~/.bashrc` lines, checks `DeepSeek_API` is there (never printed) |
+| `copy` | 5 | every rsync from Fir; refuses while Fir has jobs queued or the driver running (`SKIP_FIR_CHECK=1` overrides) |
+| `site` | 6 | the path/account/python/login-host `sed` (`OTUS_LOGIN=<node>` required), `apply_otus_site.sh`, one commit |
+| `venv`, `lsim` | 6 | the c2hls venv; LightningSim with the fork (into `$LSIM_T`, default `$B/tools/lightningsim`) |
+| `verify`, `compare` | 6 | team v3 csynth on Otus, then the field-by-field comparison with Fir; stop if it differs |
+| `dryrun` | 7 | `--dry-run` of every resubmit script and the driver-state preview |
+
+Before the clone exists, fetch the script alone (the repo is public):
+`curl -fsSLO https://raw.githubusercontent.com/luozoupi/code_translation_c2hls/c2hls_enhanced_l_pc2_api_layout_study/c2hls_claude_code/otus/otus_setup.sh`. Then `bash otus_setup.sh check` and `bash otus_setup.sh clone`; after that, use `$W/c2hls_claude_code/otus/otus_setup.sh`. Logging in to Claude Code, adding the DeepSeek key, freezing Fir (step 1) and the services and real resubmits (step 7) stay manual. The sections below explain each step.
+
 ## 0. Check Otus first (about 10 minutes)
 
 These checks decide whether the agent runs can work on Otus at all. Do them before you stop anything on Fir.
@@ -31,6 +47,9 @@ What each check needs to show:
 ## 1. Freeze Fir (you run these: I can't cancel jobs)
 
 ```bash
+# first save every pending job's command, arguments, working folder and --export (step 7 reads them; the copy carries them)
+squeue -u asa582 -h -o '%i|%j|%o|%Z' > /scratch/asa582/workspaces/c2hls_claude_code/study/fir_pending_20261022.txt
+for j in $(squeue -u asa582 -h -o %i); do scontrol show job -o $j; done > /scratch/asa582/workspaces/c2hls_claude_code/study/fir_pending_20261022_full.txt
 ssh login2 'pkill -f "python3 driver.py"; pkill -f claude_code_shim.py; pkill -f ds_anthropic_proxy.py'
 scancel -u asa582 --state=PENDING          # all 113 jobs; every one is resubmitted on Otus in step 7
 squeue -u asa582                           # should be empty
@@ -139,22 +158,18 @@ I kept the `*_work/` and `hls_proj/` folders on purpose. The page builders choos
 ## 6. Make the code Otus-native (one commit on Otus)
 
 ```bash
-cd $W/c2hls_claude_code
-# paths
-grep -rlI --exclude-dir=.git --exclude-dir=logs --exclude='*.jsonl' -e /scratch/asa582/workspaces -e /scratch/asa582/tmp . \
-  | xargs -d '\n' sed -i -e "s|/scratch/asa582/workspaces|$W|g" -e "s|/scratch/asa582/tmp|${W%/workspaces}/tmp|g"
-# Slurm account
-grep -rlI --exclude-dir=.git -e 'account=def-zhenman' . | xargs -d '\n' sed -i 's|--account=def-zhenman[_a-z]*|--account=hpc-prf-llmfpga\n#SBATCH --partition=normal|'
-# Compute Canada python
-grep -rlI --exclude-dir=.git -e /cvmfs/soft.computecanada.ca . | xargs -d '\n' sed -i 's|/cvmfs/soft.computecanada.ca/[^ "]*/python3|python3|g'
-# login host (driver.py HOST, shim_url.txt, controlled/ds_proxy_url.txt, agentic_ablation/serial_driver.py, start_shim*.sh)
-grep -rlI --exclude-dir=.git --exclude-dir=logs -e login2 . | xargs -d '\n' sed -i "s|login2|<otus-login-node>|g"
-# install the Otus copies of the Fir-only pieces (agent tools and checks, flash job, claude path, judge skill libraries,
-# hardened-bench headers); --dry-run first shows each copy
-otus/apply_otus_site.sh --dry-run && otus/apply_otus_site.sh
-# one repo now: -a also takes the judge skill libraries apply_otus_site.sh restored (same md5s as Fir)
-git diff --stat; git commit -am "Otus site: paths, account, python, login host, Otus tools"
+OTUS_LOGIN=<otus login node> $W/c2hls_claude_code/otus/otus_setup.sh site
 ```
+
+What it does, in the clone only (tested on a copy of the combined layout on Fir: 992 files changed, no Fir path or `login2` host left):
+- **paths**: `/scratch/asa582/workspaces` → `$W` and `/scratch/asa582/tmp` → `$B/tmp`, through placeholders so neither replacement rewrites the other. `logs/` (15 GB of transcripts) and `*.jsonl` are left out, except `logs/start_*.sh`.
+- **account**: `--account=def-zhenman…` → `--account=hpc-prf-llmfpga` plus `#SBATCH --partition=normal` on `#SBATCH` lines, and `--account=hpc-prf-llmfpga --partition=normal` inline (`srun`, `sbatch` command lines).
+- **python**: the Compute Canada `python3` path → `python3`.
+- **login host**: the bare word `login2` → `$OTUS_LOGIN` (`driver.py` HOST, `shim_url.txt`, `controlled/ds_proxy_url.txt`, `serial_driver.py`, `run_agent_ds.sh`). Names that contain it, such as `logs/shim_20261020_login2/` and `start_shim_38585_login2.sh`, stay, because the pages read those folders; `*.md` files keep Fir's history as written.
+- `otus/apply_otus_site.sh --dry-run`, then for real: agent tools and checks, flash job, claude path, judge skill libraries (md5-checked), hardened-bench headers.
+- one commit of the tracked changes, the judge skill libraries included.
+
+`otus_setup.sh`, this file, `OTUS_RUNBOOK.md` and `judge_skills_fir_20261022/` aren't touched: they hold Fir-side commands and records.
 
 The `sed` can't fix these. Edit them by hand:
 
@@ -208,14 +223,7 @@ Then resubmit the other job groups. Each line below loops over the folders that 
 | `xclbin_v4_systolic_st0_c1` | 1 | `xclbin/v4_systolic_st0_c1/resubmit_xclbin_otus.sh` (32 cpus, 448G, 2 days; `MEM=`, `TIME=`, `PARTITION=` override). `sbatch_build_otus.sh` stops early if it can't find the U280 platform; set `OTUS_U280_XPFM` if it lives elsewhere. |
 | `pl_refv2_cc_r2`, then C r4 and the rest of A/B | queue | `driver.py` |
 
-Not every SODA, lsim and flash job script records its submit arguments. Before the `scancel` in step 1, run this on Fir to save them:
-
-```bash
-squeue -u asa582 -h -o '%i|%j|%o|%Z' > /scratch/asa582/workspaces/c2hls_claude_code/study/fir_pending_20261022.txt
-scontrol show job -o $(squeue -u asa582 -h -o %i | paste -sd,) > /scratch/asa582/workspaces/c2hls_claude_code/study/fir_pending_20261022_full.txt
-```
-
-Those two files go across with the step 5 rsync and hold the exact command, arguments, working folder and `--export` of every job.
+Not every SODA, lsim and flash job script records its submit arguments. Step 1 saves them on Fir before the `scancel`, in `study/fir_pending_20261022.txt` and `study/fir_pending_20261022_full.txt`; the step 5 copy carries them.
 
 ## 8. After the move
 

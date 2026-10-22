@@ -1,0 +1,69 @@
+{
+  "benchmark": "heat3d",
+  "source_repo": "soda",
+  "algorithm_source_path": "/scratch/asa582/workspaces/soda_src/soda/tests/src/heat3d.soda",
+  "gold_hls_source_path": "",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "plain.cpp",
+  "header_file": "heat3d.h",
+  "baseline_variant": "heat3d_0_baseline",
+  "variants": [
+    {
+      "name": "heat3d_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": ""
+    }
+  ],
+  "variant_source_paths": {},
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "workload",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 0,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_baseline_sha256": "1cd27a7a54fb9b0ca739fdf9b4cb8d6ccd7fd997bd800d0e9c03703e557bd99b",
+    "plain_c_sha256": "127ce64ff2ca7a09c0318016a2bd2ea04f2a4a708a5bdd4936b3ea8813fd6b4f",
+    "plain_derived_from_gold_hls": false,
+    "generator": "study/bench_soda/gen_bench.py"
+  },
+  "soda": {
+    "iterate": 5,
+    "sizes": [
+      256,
+      256,
+      256
+    ],
+    "dtype": "in:float -> out:float",
+    "valid_region": {
+      "x": [
+        5,
+        "WIDTH-5"
+      ],
+      "y": [
+        5,
+        "HEIGHT-5"
+      ],
+      "z": [
+        5,
+        "DEPTH-5"
+      ]
+    },
+    "layout": "arr[z][y][x], SODA first index = x (fastest)"
+  }
+}

@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+"""hls: the agent's HLS tool (U280 xcu280-fsvh2892-2L-e, 3.33 ns, Vitis HLS 2023.2 on Slurm).
+
+  hls submit csim|csynth [--tag NAME]   snapshot ./kernel.cpp into exp/<NAME>/ and submit a Slurm job; prints job id
+  hls wait JOB [--max 540]              block up to --max seconds; prints state; call again if still running
+  hls result NAME                       csim verdict or csynth summary (latency, II, DSP/LUT/FF/BRAM/URAM, est. clock)
+  hls diag NAME                         dataflow / ping-pong diagnosis of a csynth run (dfdiag)
+  hls floor DSP                         compute floor in cycles for this task (total MACs / (DSP/5))
+  hls list                              all experiments and their state
+Csynth wall time follows the study rule: 1 h, then 3 h, then 6 h on TIMEOUT (automatic resubmit by `hls wait`).
+Every action is appended to exp/log.jsonl.
+Budget mode (task.json "budget": {"checks": N}; experiment C/D, matched to HLSmith's agent): at most N submissions in
+total, one job at a time (a submit is refused while an earlier job is pending or running), and no wall-time escalation
+(a TIMEOUT at 1 h is final), the same terms as HLSmith's blocking hls_check.sh (12 checks, 1 h each).
+"""
+import json, os, re, subprocess, sys, time
+from pathlib import Path
+
+WS = Path(os.environ.get("HLS_WS", os.getcwd())).resolve()
+TASK = json.loads((WS / "task.json").read_text())
+EXP = WS / "exp"
+EXP.mkdir(exist_ok=True)
+LOG = EXP / "log.jsonl"
+TIERS = ["01:00:00", "03:00:00", "06:00:00"]
+ENV = "/scratch/asa582/workspaces/dse_v3_claude/env.sh"
+DFDIAG = "/scratch/asa582/workspaces/c2hls_claude_code/study/dfdiag/dfdiag.py"
+EVAL = Path(__file__).resolve().parent / "hls_eval_job.py"   # sits next to this script (workspace bin/)
+
+
+def log(**k):
+    with open(LOG, "a") as fp:
+        fp.write(json.dumps({"t": time.strftime("%Y-%m-%dT%H:%M:%S"), **k}) + "\n")
+
+
+def sbatch(d: Path, mode: str, tier: int) -> str:
+    cpus, mem = ("2", "16G") if mode == "csim" else ("8", "64G")
+    script = d / f"job_{mode}.sh"
+    script.write_text(f"""#!/bin/bash
+#SBATCH --job-name=afw_{mode}
+#SBATCH --account=def-zhenman
+#SBATCH --cpus-per-task={cpus}
+#SBATCH --mem={mem}
+#SBATCH --time={TIERS[tier]}
+#SBATCH --output={d}/{mode}-%j.out
+#SBATCH --error={d}/{mode}-%j.err
+set -eo pipefail
+source {ENV}
+dse_v3_source_vitis
+unset C2HLS_DSE_V3 C2HLS_DSE_V3_HARNESS C2HLS_DSE_V4 C2HLS_DSE_V2_GRID C2HLS_SITE C2HLS_VITIS_JOBS C2HLS_VITIS_JOBS_FROM_SLURM DSE_V3_TRIAL_ROOT
+export C2HLS_CSIM_TIMEOUT=86400 C2HLS_SYNTH_TIMEOUT=86400
+"$PY" {EVAL} {mode} {d} {WS / 'task.json'}
+""")
+    out = subprocess.run(["sbatch", "--parsable", str(script)], capture_output=True, text=True)
+    if out.returncode:
+        sys.exit("sbatch failed: " + out.stderr)
+    return out.stdout.strip()
+
+
+def state(job):
+    o = subprocess.run(["sacct", "-X", "-n", "-P", "-j", job, "-o", "State,Elapsed"], capture_output=True, text=True).stdout
+    return (o.split("|")[0].split() or ["PENDING"])[0] if o.strip() else "PENDING"
+
+
+def jobs_file(d):
+    p = d / "jobs.json"
+    return json.loads(p.read_text()) if p.exists() else {}
+
+
+def main():
+    a = sys.argv[1:]
+    if not a:
+        print(__doc__); return
+    cmd = a[0]
+    if cmd == "submit":
+        mode = a[1]
+        budget = (TASK.get("budget") or {}).get("checks")
+        if budget:
+            subs = [json.loads(l) for l in LOG.read_text().splitlines() if l.strip()] if LOG.exists() else []
+            subs = [s for s in subs if s.get("action") == "submit"]
+            if len(subs) >= budget:
+                sys.exit(f"check budget used up ({budget} submissions); finish with your best verified design")
+            busy = [s for s in subs if state(s["job"]) in ("PENDING", "RUNNING", "CONFIGURING", "COMPLETING", "REQUEUED")]
+            if busy:
+                sys.exit(f"one job at a time: {busy[-1]['name']} ({busy[-1]['mode']}, job {busy[-1]['job']}) is still "
+                         f"running; use bin/hls wait {busy[-1]['job']} first")
+        name = a[a.index("--tag") + 1] if "--tag" in a else time.strftime("e%m%d_%H%M%S")
+        d = EXP / name
+        d.mkdir(exist_ok=True)
+        (d / "kernel.cpp").write_text((WS / "kernel.cpp").read_text())
+        j = sbatch(d, mode, 0)
+        js = jobs_file(d); js[mode] = {"job": j, "tier": 0}
+        (d / "jobs.json").write_text(json.dumps(js))
+        log(action="submit", mode=mode, name=name, job=j, tier=TIERS[0])
+        print(f"{name} {mode} job {j} (limit {TIERS[0]})")
+    elif cmd == "wait":
+        job = a[1]
+        mx = int(a[a.index("--max") + 1]) if "--max" in a else 540
+        t0 = time.time()
+        while True:
+            s = state(job)
+            if s not in ("PENDING", "RUNNING", "REQUEUED", "CONFIGURING", "COMPLETING"):
+                break
+            if time.time() - t0 > mx:
+                print(f"{job} still {s}; call `hls wait {job}` again"); return
+            time.sleep(30)
+        if s == "TIMEOUT" and (TASK.get("budget") or {}).get("checks"):
+            log(action="timeout_final", job=job)
+            print(f"{job} TIMEOUT at 1 h: final in budget mode (no escalation)"); return
+        if s == "TIMEOUT":  # escalate
+            for d in EXP.iterdir():
+                js = jobs_file(d) if d.is_dir() else {}
+                for mode, r in js.items():
+                    if r["job"] == job:
+                        if r["tier"] + 1 >= len(TIERS):
+                            log(action="timeout_final", name=d.name, mode=mode, job=job)
+                            print(f"{job} TIMEOUT at 6 h: counted as failure"); return
+                        nj = sbatch(d, mode, r["tier"] + 1)
+                        js[mode] = {"job": nj, "tier": r["tier"] + 1, "prev": job}
+                        (d / "jobs.json").write_text(json.dumps(js))
+                        log(action="escalate", name=d.name, mode=mode, old=job, job=nj, tier=TIERS[r["tier"] + 1])
+                        print(f"{job} TIMEOUT; resubmitted as {nj} with {TIERS[r['tier'] + 1]}"); return
+        log(action="done", job=job, state=s)
+        print(f"{job} {s}")
+    elif cmd == "result":
+        d = EXP / a[1]
+        for f in ("csim_summary.txt", "csynth_summary.txt"):
+            if (d / f).exists():
+                print(f"== {f}\n" + (d / f).read_text()[:3000])
+    elif cmd == "diag":
+        d = EXP / a[1]
+        wd = json.loads((d / "csynth_summary.json").read_text()).get("work_dir")
+        subprocess.run([sys.executable, DFDIAG, wd, "--src", str(d / "kernel.cpp")])
+    elif cmd == "floor":
+        dsp = float(a[1]); macs = TASK["total_macs"]
+        print(f"compute floor = {macs} / ({dsp:g}/5) = {macs / (dsp / 5):,.0f} cycles")
+    elif cmd == "list":
+        for d in sorted(p for p in EXP.iterdir() if p.is_dir()):
+            js = jobs_file(d)
+            st = {m: state(r["job"]) for m, r in js.items()}
+            print(d.name, st)
+    else:
+        print(__doc__)
+
+
+if __name__ == "__main__":
+    main()

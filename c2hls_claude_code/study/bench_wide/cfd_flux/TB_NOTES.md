@@ -1,0 +1,13 @@
+# TB_NOTES: cfd_flux
+- Arg classification (from plain.cpp): result[SIZE*NVAR] pure output; elements_surrounding_elements, normals, variables, fc_momentum_x/y/z, fc_density_energy inputs.
+- Golden: plain.cpp cfd_flux()+helpers+workload() copied as *_ref (static) on srand(42) inputs. Inputs physically meaningful: density 0.8-1.4, momentum <=1.5, energy 3.5-5.5 (pressure>0), fc_* computed from the state, neighbours random with ~10% wall (-1) and ~10% far-field (-2). Any NaN/inf in ref or DUT is an error.
+- Tolerance: float 1e-3*fmax(1,|ref|) (SPEC)
+- Poison: result = 12345.0f
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- No original testbench existed (new file); metadata.json still says supports_csim=false, testbench_file=null (not edited).
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 5120 errors!
+- Control 3 (one bug, must fail): Failed with 5 errors! (last element skipped)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: New testbench (no support headers needed; the build only needs cfd_flux.h). Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/cfd_flux/).

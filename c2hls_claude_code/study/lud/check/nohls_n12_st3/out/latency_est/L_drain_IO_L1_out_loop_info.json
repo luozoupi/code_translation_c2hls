@@ -1,0 +1,29 @@
+{
+	"module_name":	"L_drain_IO_L1_out",
+	"module_prop":	{
+		"double_buffer":	0,
+		"in":	0
+	},
+	"if":	{
+		"then":	{
+			"mark":	{
+				"mark_name":	"array",
+				"child":	{
+					"mark":	{
+						"mark_name":	"io_L3",
+						"child":	{
+							"mark":	{
+								"mark_name":	"io_L2",
+								"child":	{
+									"user":	{
+										"user_expr":	"io_module.intra_inter.0.0()"
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

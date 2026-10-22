@@ -1,0 +1,69 @@
+{
+  "benchmark": "jacobi3d",
+  "source_repo": "soda",
+  "algorithm_source_path": "/scratch/asa582/workspaces/soda_src/soda/tests/src/jacobi3d.soda",
+  "gold_hls_source_path": "",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "plain.cpp",
+  "header_file": "jacobi3d.h",
+  "baseline_variant": "jacobi3d_0_baseline",
+  "variants": [
+    {
+      "name": "jacobi3d_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": ""
+    }
+  ],
+  "variant_source_paths": {},
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "workload",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 0,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_baseline_sha256": "120dcf6c828d9c0d0537d277d66725cb427a940780850e353e6031be67469ce0",
+    "plain_c_sha256": "5a893c65271167344a043bf2416f84b9225568c27a2b39afe2815d457f030f3c",
+    "plain_derived_from_gold_hls": false,
+    "generator": "study/bench_soda/gen_bench.py"
+  },
+  "soda": {
+    "iterate": 6,
+    "sizes": [
+      128,
+      128,
+      128
+    ],
+    "dtype": "t1:float -> t0:float",
+    "valid_region": {
+      "x": [
+        6,
+        "WIDTH-6"
+      ],
+      "y": [
+        6,
+        "HEIGHT-6"
+      ],
+      "z": [
+        6,
+        "DEPTH-6"
+      ]
+    },
+    "layout": "arr[z][y][x], SODA first index = x (fastest)"
+  }
+}

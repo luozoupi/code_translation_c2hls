@@ -1,0 +1,13 @@
+# TB_NOTES: srad
+- Arg classification (from plain.cpp): J[] in-out (real data, rows 1..ROWS rewritten); Jout[] rows 1..ROWS pure output (written before read); Jout rows 0, ROWS+1, ROWS+2 are READ by plain.cpp's second pass without ever being written, so they are in-out border data (copy of J).
+- Golden: plain.cpp srad_core1/2, srad_kernel2, workload copied as *_ref (replaces the old hand-written naive ref); ALL (ROWS+3)*COLS elements of J and Jout compared (covers every row plain.cpp writes plus the untouched rows).
+- Tolerance: float 1e-3*fmax(1,|ref|) (SPEC); original 1e-2 with Out preset to J. hls_baseline and plain pass at SPEC tol.
+- Poison: Jout rows 1..ROWS = 12345.0f; border rows keep the J copy
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 130512 errors!
+- Control 3 (one bug, must fail): Failed with 999 errors! (first-pass writeback one row short)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/srad/).

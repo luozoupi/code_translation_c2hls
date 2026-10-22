@@ -1,0 +1,13 @@
+# TB_NOTES: machsuite_backprop
+- Arg classification (from plain.cpp): six weights/biases arrays all in-out (updated in place from input.data); training_data/targets inputs. No pure output.
+- Golden: check.data (covers all six outputs); harness check_data replaced by per-element counting.
+- Tolerance: double 1e-6*fmax(1,|ref|) (SPEC); harness used 1e-6 abs
+- Poison: none (no pure output)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 5251 errors!
+- Control 3 (one bug, must fail): Failed with 3728 errors! (last training set skipped)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Only testbench.cpp edited; local_support.c untouched. Prints Passed!/Failed with N errors! instead of Success./incorrect.
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> support.c local_support.c (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/machsuite_backprop/).

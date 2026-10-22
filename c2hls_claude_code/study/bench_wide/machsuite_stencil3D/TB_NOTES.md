@@ -1,0 +1,13 @@
+# TB_NOTES: machsuite_stencil3D
+- Arg classification (from plain.cpp): C, orig inputs; sol pure output (every element written: both z planes, boundaries, interior).
+- Golden: check.data (covers sol).
+- Tolerance: exact ints
+- Poison: sol = 0x5A5A5A5A after input load, before run_benchmark, done in testbench.cpp only
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 16384 errors!
+- Control 3 (one bug, must fail): Failed with 420 errors! (last interior plane skipped)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: local_support.c untouched.
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> support.c local_support.c (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/machsuite_stencil3D/).

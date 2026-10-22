@@ -1,0 +1,142 @@
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <stdlib.h>
+
+#include "syr2k.h"
+
+
+void init_array(int n, int m,
+		double *alpha,
+		double *beta,
+		double C[ N + 0][N + 0],
+		double A[ N + 0][M + 0],
+		double B[ N + 0][M + 0])
+{
+  int i, j;
+
+  *alpha = 1.5;
+  *beta = 1.2;
+  for (i = 0; i < n; i++)
+    for (j = 0; j < m; j++) {
+      A[i][j] = (double) ((i*j+1)%n) / n;
+      B[i][j] = (double) ((i*j+2)%m) / m;
+    }
+  for (i = 0; i < n; i++)
+    for (j = 0; j < n; j++) {
+      C[i][j] = (double) ((i*j+3)%n) / m;
+    }
+}
+
+
+void print_array(int n,
+		 double C[ N + 0][N + 0])
+{
+  int i, j;
+
+  fprintf(stderr, "==BEGIN DUMP_ARRAYS==\n");
+  fprintf(stderr, "begin dump: %s", "C");
+  for (i = 0; i < n; i++)
+    for (j = 0; j < n; j++) {
+	if ((i * n + j) % 20 == 0) fprintf (stderr, "\n");
+	fprintf (stderr, "%0.6lf ", C[i][j]);
+    }
+  fprintf(stderr, "\nend   dump: %s\n", "C");
+  fprintf(stderr, "==END   DUMP_ARRAYS==\n");
+}
+
+/* ---- strict checker (bench_wide SPEC) ---- */
+/* golden: static copy of plain.cpp top function, run on identical input copies */
+
+
+
+static void kernel_syr2k_ref( 
+		  double alpha,
+		  double beta,
+		  double C[ N + 0][N + 0],
+		  double A[ N + 0][M + 0],
+		  double B[ N + 0][M + 0])
+{
+
+
+    const int n = N;
+    const int m = M;
+
+  int i, j, k;
+  for (i = 0; i < n; i++) {
+    for (j = 0; j <= i; j++)
+      C[i][j] *= beta;
+    for (k = 0; k < m; k++)
+      for (j = 0; j <= i; j++)
+	{
+	  C[i][j] += A[j][k]*alpha*B[i][k] + B[j][k]*alpha*A[i][k];
+	}
+  }
+
+}
+static int g_errs = 0;
+static void chk_d(const char *nm, const double *d, const double *r, size_t n)
+{
+  for (size_t q = 0; q < n; q++) {
+    int bad = 0;
+    if (isnan(d[q]) || isnan(r[q])) bad = 1; /* NaN in kernel (or golden) output is an error */
+    else bad = !(fabs(d[q] - r[q]) <= 1e-6 * fmax(1.0, fabs(r[q])));
+    if (bad) { if (g_errs < 10) printf("MISMATCH %s[%zu]: got %.9g expected %.9g\n", nm, q, d[q], r[q]); g_errs++; }
+  }
+}
+static void chk_i(const char *nm, const int *d, const int *r, size_t n)
+{
+  for (size_t q = 0; q < n; q++)
+    if (d[q] != r[q]) { if (g_errs < 10) printf("MISMATCH %s[%zu]: got %d expected %d\n", nm, q, d[q], r[q]); g_errs++; }
+}
+static void chk_c(const char *nm, const char *d, const char *r, size_t n)
+{
+  for (size_t q = 0; q < n; q++)
+    if (d[q] != r[q]) { if (g_errs < 10) printf("MISMATCH %s[%zu]: got %d expected %d\n", nm, q, (int)d[q], (int)r[q]); g_errs++; }
+}
+
+int main(int argc, char** argv)
+{
+
+  int n = N;
+  int m = M;
+
+
+  double alpha;
+  double beta;
+  double C[ N + 0][N + 0];
+  double A[ N + 0][M + 0];
+  double B[ N + 0][M + 0];
+
+
+  init_array (n, m, &alpha, &beta,
+	      C,
+	      A,
+	      B);
+
+
+    /* reference copies */
+  static double C_ref[ N + 0][N + 0];
+  static double A_ref[ N + 0][M + 0];
+  static double B_ref[ N + 0][M + 0];
+  /* poison pure outputs */
+  memcpy(&C_ref, &C, sizeof(C));
+  memcpy(&A_ref, &A, sizeof(A));
+  memcpy(&B_ref, &B, sizeof(B));
+  /* golden */
+  kernel_syr2k_ref (
+		alpha, beta,
+		C_ref,
+		A_ref,
+		B_ref);
+  /* kernel under test */
+  kernel_syr2k (
+		alpha, beta,
+		C,
+		A,
+		B);
+  chk_d("C", (const double*)&C, (const double*)&C_ref, sizeof(C)/sizeof(double));
+  if (g_errs) { printf("Failed with %d errors!\n", g_errs); return 1; }
+  printf("Passed!\n");
+  return 0;
+}

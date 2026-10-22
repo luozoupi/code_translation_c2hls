@@ -1,0 +1,268 @@
+<title>HLS Agent Workbench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* Layout: one reading column. The loop diagram is the hero; then the parts of the loop, a real run as a timeline,
+   and how it differs from the c2hls flows. Same type family and palette as the 1M-Cycle Ladder page. */
+:root{
+  --bg:#f4f6f8; --surface:#ffffff; --ink:#15202b; --muted:#5a6573; --rule:#d9dfe6;
+  --agent:#0b7a6e; --tool:#2f6db3; --node:#a8551b; --ok:#1d7a3a; --bad:#b42318; --soft:rgba(11,122,110,.08);
+  --display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1319; --surface:#151c25; --ink:#e5eaf0; --muted:#97a2b1; --rule:#2a3441;
+  --agent:#39c0ae; --tool:#6fa6e8; --node:#e3a15d; --ok:#5cc47e; --bad:#f2786f; --soft:rgba(57,192,174,.10); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1319; --surface:#151c25; --ink:#e5eaf0; --muted:#97a2b1; --rule:#2a3441;
+  --agent:#39c0ae; --tool:#6fa6e8; --node:#e3a15d; --ok:#5cc47e; --bad:#f2786f; --soft:rgba(57,192,174,.10); color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:17px/1.6 var(--body);margin:0}
+.page{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 64px;display:flex;flex-direction:column;gap:48px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(2rem,5vw,3rem);font-weight:600}
+h2{font-size:1.6rem;font-weight:600}
+h3{font-size:1.08rem;font-weight:600}
+p{margin:0;max-width:68ch}
+code{font-family:var(--mono);font-size:.86em}
+.eyebrow{font:500 .74rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.meta{color:var(--muted);font-size:.9rem}
+header{display:flex;flex-direction:column;gap:14px}
+.thesis{font-size:1.2rem;line-height:1.5;max-width:62ch}
+section{display:flex;flex-direction:column;gap:16px;min-width:0}
+.figure{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:16px;overflow-x:auto}
+.figure svg{display:block;width:100%;height:auto;min-width:720px}
+svg text{font-family:var(--mono);font-size:13px;fill:var(--ink)}
+svg .lab{font-family:var(--body);font-size:14px;font-weight:600}
+svg .sm{font-size:12px;fill:var(--muted)}
+svg .box{fill:var(--surface);stroke:var(--rule);stroke-width:1.5}
+svg .box.agent{stroke:var(--agent);stroke-width:2}
+svg .box.tool{stroke:var(--tool);stroke-width:2}
+svg .box.node{stroke:var(--node);stroke-width:2}
+svg .arrow{stroke:var(--muted);stroke-width:1.6;fill:none}
+svg .arrowhead{fill:var(--muted)}
+svg .zone{fill:var(--soft);stroke:none}
+svg .ztext{font-size:11.5px;fill:var(--muted);letter-spacing:.06em}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.part{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.part ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.tag{font:600 .7rem/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--agent)}
+.tag.tool{color:var(--tool)} .tag.node{color:var(--node)}
+.tablewrap{overflow-x:auto;border:1px solid var(--rule);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--rule);vertical-align:top}
+thead th{font:600 .72rem/1.2 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:var(--bg);white-space:nowrap}
+tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
+td code{white-space:nowrap}
+.cmd{font-family:var(--mono);font-size:.85rem;white-space:nowrap;color:var(--tool)}
+.timeline{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.timeline li{display:grid;grid-template-columns:4.2rem 1fr minmax(0,15rem);gap:4px 16px;padding:12px 0;border-top:1px solid var(--rule);align-items:baseline}
+.timeline li:first-child{border-top:0}
+.tl-time{font:500 .82rem/1.4 var(--mono);color:var(--muted)}
+.tl-what{display:flex;flex-direction:column;gap:3px;min-width:0}
+.tl-what b{font-family:var(--mono);font-weight:600;font-size:.88rem}
+.tl-res{font:500 .85rem/1.4 var(--mono);text-align:right}
+.bar{height:6px;border-radius:3px;background:var(--rule);margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--agent)}
+.res-ok{color:var(--ok)} .res-bad{color:var(--bad)} .res-mid{color:var(--muted)}
+.chip{display:inline-block;font:600 .68rem/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:4px 6px;border-radius:3px;border:1px solid currentColor;margin-right:6px}
+.note{border-left:3px solid var(--node);padding:4px 0 4px 14px;display:flex;flex-direction:column;gap:6px;max-width:72ch}
+a{color:var(--tool)} a:focus-visible{outline:2px solid var(--agent);outline-offset:2px}
+footer{color:var(--muted);font-size:.82rem;border-top:1px solid var(--rule);padding-top:16px;display:flex;flex-direction:column;gap:4px}
+@media (max-width:620px){.timeline li{grid-template-columns:1fr}.tl-res{text-align:left}}
+</style>
+
+<main class="page">
+<header>
+  <span class="eyebrow">study/agentfw &middot; Claude Code (Opus 5.5) &middot; Vitis HLS 2023.2 &middot; Alveo U280 &middot; 3.33 ns</span>
+  <h1>HLS Agent Workbench</h1>
+  <p class="thesis">A general agentic flow for HLS: Claude Code gets a goal, a workspace and one tool that runs real
+  Vitis csim and csynth. There is no recipe, no fixed prompt sequence and no step order. The agent decides what to
+  read, what to build, what to measure and when it is done.</p>
+  <p class="meta">This is separate from c2hls and HLSmith. The c2hls flows send fixed prompts and judge each reply; here
+  the only fixed parts are the brief, the tool and the finish criteria.</p>
+</header>
+
+<section aria-labelledby="loop-h">
+  <h2 id="loop-h">The loop</h2>
+  <p>One headless Claude Code session runs on a login node. It edits <code>kernel.cpp</code>, submits it through
+  <code>bin/hls</code>, and reads back what Vitis reports. Every csim and csynth runs as its own Slurm job on a compute
+  node, so the agent can run several experiments at once and keep thinking while they run.</p>
+  <div class="figure" role="img" aria-label="Diagram: the brief starts a Claude Code session; it edits kernel.cpp, submits csim and csynth through bin/hls to Slurm compute nodes running Vitis HLS, and reads results and dataflow diagnoses back, repeating until it writes REPORT.md.">
+    <svg viewBox="0 0 980 360">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <rect x="10" y="20" width="560" height="320" rx="6" class="zone"/>
+      <text x="24" y="42" class="ztext">LOGIN NODE &middot; WORKSPACE (runs/&lt;task&gt;_&lt;variant&gt;_rN/)</text>
+      <rect x="640" y="20" width="330" height="320" rx="6" class="zone"/>
+      <text x="654" y="42" class="ztext">SLURM COMPUTE NODES</text>
+
+      <rect x="30" y="64" width="170" height="74" rx="5" class="box"/>
+      <text x="44" y="90" class="lab">CLAUDE.md</text>
+      <text x="44" y="110" class="sm">goal, constraints,</text>
+      <text x="44" y="126" class="sm">tools, finish rule</text>
+
+      <rect x="250" y="64" width="290" height="112" rx="5" class="box agent"/>
+      <text x="266" y="90" class="lab">Claude Code, headless</text>
+      <text x="266" y="110" class="sm">claude -p, Opus 5.5, stream-json</text>
+      <text x="266" y="128" class="sm">Read Write Edit Glob Grep, Bash</text>
+      <text x="266" y="146" class="sm">+ web (know), + subagents (team)</text>
+      <text x="266" y="164" class="sm">decides what to try next</text>
+
+      <rect x="30" y="200" width="170" height="74" rx="5" class="box"/>
+      <text x="44" y="226" class="lab">kernel.cpp</text>
+      <text x="44" y="246" class="sm">starts as the reference;</text>
+      <text x="44" y="262" class="sm">the agent rewrites it</text>
+
+      <rect x="250" y="210" width="290" height="110" rx="5" class="box tool"/>
+      <text x="266" y="236" class="lab">bin/hls</text>
+      <text x="266" y="256" class="sm">submit csim | csynth  &rarr; exp/NAME/</text>
+      <text x="266" y="274" class="sm">wait, result, diag, floor, list</text>
+      <text x="266" y="292" class="sm">timeouts: 1 h &rarr; 3 h &rarr; 6 h</text>
+      <text x="266" y="310" class="sm">every action &rarr; exp/log.jsonl</text>
+
+      <rect x="660" y="64" width="290" height="96" rx="5" class="box node"/>
+      <text x="676" y="90" class="lab">csim job (2 CPU, 16 GB)</text>
+      <text x="676" y="110" class="sm">fixed testbench, outputs poisoned,</text>
+      <text x="676" y="128" class="sm">every output checked</text>
+      <text x="676" y="146" class="sm">&rarr; correct=True / Failed with N</text>
+
+      <rect x="660" y="190" width="290" height="130" rx="5" class="box node"/>
+      <text x="676" y="216" class="lab">csynth job (8 CPU, 64 GB)</text>
+      <text x="676" y="236" class="sm">xcu280-fsvh2892-2L-e, 3.33 ns</text>
+      <text x="676" y="254" class="sm">runs in node-local storage;</text>
+      <text x="676" y="272" class="sm">keeps reports, sources, logs</text>
+      <text x="676" y="290" class="sm">&rarr; latency, II, DSP LUT FF</text>
+      <text x="676" y="308" class="sm">   BRAM URAM, module reports</text>
+
+      <path d="M200,101 L248,101" class="arrow" marker-end="url(#ah)"/>
+      <path d="M300,176 C300,190 200,200 202,230" class="arrow" marker-end="url(#ah)"/>
+      <text x="236" y="196" class="sm">edit</text>
+      <path d="M200,250 L248,250" class="arrow" marker-end="url(#ah)"/>
+      <text x="206" y="244" class="sm">snapshot</text>
+      <path d="M540,240 C600,240 600,112 658,112" class="arrow" marker-end="url(#ah)"/>
+      <path d="M540,262 C600,262 600,255 658,255" class="arrow" marker-end="url(#ah)"/>
+      <text x="566" y="232" class="sm">sbatch</text>
+      <path d="M658,300 C600,330 520,340 470,322" class="arrow" marker-end="url(#ah)"/>
+      <text x="560" y="342" class="sm">summaries, dfdiag</text>
+      <path d="M440,210 L440,178" class="arrow" marker-end="url(#ah)"/>
+      <text x="448" y="198" class="sm">results</text>
+    </svg>
+  </div>
+  <p class="meta">The session ends when the agent stops on its own (best design left in <code>kernel.cpp</code>, findings in
+  <code>REPORT.md</code>) or when the wall-time cap (10 h) is reached. A session stopped by a Claude usage limit is resumed
+  with <code>RESUME=1</code>, which continues the same conversation.</p>
+</section>
+
+<section aria-labelledby="parts-h">
+  <h2 id="parts-h">What the agent is given</h2>
+  <div class="grid3">
+    <div class="part"><span class="tag">The brief</span><h3>CLAUDE.md</h3>
+      <p>Goal only: write the <code>kernel.cpp</code> with the lowest worst-case csynth latency that</p>
+      <ul><li>passes csim on the fixed bench (outputs pre-filled with garbage, so read-modify-write fails);</li>
+      <li>synthesizes with every resource below 100% of the U280;</li>
+      <li>keeps the exact top signature.</li></ul>
+      <p>No architecture hints and no resource target. It ends with what to leave behind: the design and a report.</p></div>
+    <div class="part"><span class="tag">The task</span><h3>Workspace files</h3>
+      <ul><li><code>task.json</code>: kernel, top, part, clock, pass and fail patterns</li>
+      <li><code>plain.cpp</code>: the reference implementation</li>
+      <li><code>kernel.h</code>, <code>testbench.cpp</code></li>
+      <li><code>bin/</code>: the tool, copied in (not linked)</li>
+      <li><code>knowledge/</code>: only for know and team</li></ul>
+      <p>Tasks so far: <code>mm1024</code> (C = A&middot;B<sup>T</sup>, 1024&sup3; fp32) and <code>lud32</code>.</p></div>
+    <div class="part"><span class="tag">The rules</span><h3>Permissions</h3>
+      <ul><li>Vitis and g++ only through <code>bin/hls</code>; the shell is otherwise read-only (ls, cat, grep, sed -n, awk, diff).</li>
+      <li>One command per shell call, no pipes or chaining, so the allow-list can be checked.</li>
+      <li>No MCP servers, no user settings, no slash commands; edits auto-accepted inside the workspace.</li></ul></div>
+  </div>
+</section>
+
+<section aria-labelledby="tool-h">
+  <h2 id="tool-h">The one tool: <code>bin/hls</code></h2>
+  <p>Everything the agent learns about hardware comes through these six commands. Each submit snapshots the current
+  <code>kernel.cpp</code> into its own experiment folder, so a result always belongs to the exact source that produced it.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
+    <tbody>
+      <tr><td class="cmd">hls submit csim --tag NAME</td><td>Copies <code>kernel.cpp</code> to <code>exp/NAME/</code> and submits a Slurm csim on the task's testbench. Prints the job id.</td></tr>
+      <tr><td class="cmd">hls submit csynth --tag NAME</td><td>Same, for Vitis HLS csynth on xcu280 at 3.33 ns. Several jobs can run at once.</td></tr>
+      <tr><td class="cmd">hls wait JOB</td><td>Blocks up to 9 minutes and prints the job state. On a timeout it resubmits at the next tier (1 h, 3 h, 6 h).</td></tr>
+      <tr><td class="cmd">hls result NAME</td><td>The csim verdict (<code>correct=True</code> or <code>Failed with N errors</code>) or the csynth summary: best and worst latency, II, DSP, LUT, FF, BRAM, URAM, per-loop bottlenecks.</td></tr>
+      <tr><td class="cmd">hls diag NAME</td><td>Runs the DATAFLOW diagnostic on the module-level reports: do load, compute and store really overlap, and which stage sets the pace.</td></tr>
+      <tr><td class="cmd">hls floor DSP</td><td>Compute floor for a DSP count: total multiply-adds / (DSP / 5). Lets the agent see how far a design is from its own limit.</td></tr>
+    </tbody></table></div>
+</section>
+
+<section aria-labelledby="var-h">
+  <h2 id="var-h">Three variants: what changes is what the agent may reach</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th scope="col">Variant</th><th scope="col">Adds</th><th scope="col">Question it answers</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">base</th><td>Files, read-only shell, <code>bin/hls</code></td><td>How far does one agent get with nothing but real csim and csynth feedback?</td></tr>
+      <tr><th scope="row">know</th><td>+ <code>knowledge/</code> (stock and neutral skill packs, DATAFLOW and ping-pong notes, how the diagnosis works) + WebSearch and WebFetch</td><td>Does looking things up help, and does the agent actually do it?</td></tr>
+      <tr><th scope="row">team</th><td>+ subagents (the Agent tool)</td><td>Does it organize itself into a team, and at what cost?</td></tr>
+    </tbody></table></div>
+</section>
+
+<section aria-labelledby="run-h">
+  <h2 id="run-h">One real run, step by step</h2>
+  <p>The base variant on mm1024, 13 October (times PDT). Every step below is from <code>exp/log.jsonl</code> and the
+  agent's own <code>REPORT.md</code>. Bars show worst-case latency against the first full design.</p>
+  <ol class="timeline">
+    <li><span class="tl-time">15:07</span><span class="tl-what"><b>probe_widen</b><span>A tiny probe: will Vitis turn 16-float chunk reads and writes into 512-bit beats?</span></span><span class="tl-res res-mid">yes, II=1</span></li>
+    <li><span class="tl-time">15:11</span><span class="tl-what"><b>v1_ti16</b><span>First architecture at 16 rows, only to check the loop reaches II=1.</span></span><span class="tl-res res-mid">4,195,475 cycles</span></li>
+    <li><span class="tl-time">15:14</span><span class="tl-what"><b>v1_ti103 + csim</b><span>103 rows &times; 16 lanes, default operators (5 DSP per multiply-add). First correct full design.</span><div class="bar"><i style="width:100%"></i></div></span><span class="tl-res res-ok">662,186 &middot; 91% DSP &middot; correct</span></li>
+    <li><span class="tl-time">15:14</span><span class="tl-what"><b>probe_ops</b><span>Measures every fmul and fadd implementation. fmul <code>fulldsp</code> costs 2 DSP instead of the default 3; fadd in <code>fabric</code> costs 0 DSP and about 340 LUT.</span></span><span class="tl-res res-mid">cost table</span></li>
+    <li><span class="tl-time">15:21</span><span class="tl-what"><b>v2_ti128_fmulfull</b><span>128 rows with the cheaper fmul bound on an array. The agent sees 10,240 DSP and marks it invalid: the binding was ignored.</span><div class="bar"><i style="width:80.5%"></i></div></span><span class="tl-res res-bad">532,739 &middot; 113% DSP &middot; rejected</span></li>
+    <li><span class="tl-time">15:30</span><span class="tl-what"><b>v3_ti147_f4</b><span>One flat loop instead of prologue, main and epilogue (saves 108K LUT of muxing). Same binding bug.</span><div class="bar"><i style="width:70.7%"></i></div></span><span class="tl-res res-bad">468,426 &middot; 130% DSP &middot; rejected</span></li>
+    <li><span class="tl-time">16:58</span><span class="tl-what"><b>v3b_ti16_f4</b><span>Moves the binding onto scalar temporaries inside small inline functions, at 16 rows, to test the fix cheaply.</span></span><span class="tl-res res-mid">896 DSP, as predicted</span></li>
+    <li><span class="tl-time">16:58</span><span class="tl-what"><b>v3b_ti147_f4 + csim</b><span>The fixed binding at 147 rows, 4 adders per row in LUTs.</span><div class="bar"><i style="width:70.7%"></i></div></span><span class="tl-res res-ok">468,427 &middot; 91% DSP &middot; correct</span></li>
+    <li><span class="tl-time">17:02</span><span class="tl-what"><b>v4_ti171_f7 + csim</b><span>171 rows, 7 of each row's adders in LUTs: 2,736 multiply-adds per cycle in 8,552 DSP. Final design.</span><div class="bar"><i style="width:61.1%"></i></div></span><span class="tl-res res-ok">404,451 &middot; 95% DSP &middot; correct</span></li>
+    <li><span class="tl-time">19:45</span><span class="tl-what"><b>resume and report</b><span>The session had stopped on a Claude usage limit. Resumed, it read its finished jobs, kept v4_ti171_f7 and wrote <code>REPORT.md</code>, including why it stopped: latency only drops in whole 65,536-cycle blocks, and 5 blocks would need about 3,280 multiply-adds, beyond the DSP and LUT left.</span></span><span class="tl-res res-mid">57 s</span></li>
+  </ol>
+  <p class="meta">9 csynths and 5 csims, 2.2 hours of active session, $7.14 in total. 404,451 cycles is 2.6 times faster than
+  AutoSA st0_c6 (1,054,811 worst case).</p>
+  <div class="note"><h3>What to keep in mind about this result</h3>
+    <p>It is a csynth estimate. Two <code>DEPENDENCE false</code> pragmas are argued from index analysis but cannot be
+    checked by csim, so cosim should confirm them. At 95% DSP and 87% LUT the design is unlikely to place and route at
+    300 MHz. And it is one run.</p></div>
+</section>
+
+<section aria-labelledby="so-far-h">
+  <h2 id="so-far-h">All three pilots</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th scope="col">Variant</th><th scope="col" class="num">Best correct, fitting design</th><th scope="col" class="num">DSP</th>
+    <th scope="col" class="num">csynths</th><th scope="col" class="num">Web</th><th scope="col" class="num">Subagents</th><th scope="col" class="num">Cost</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">base</th><td class="num">404,451</td><td class="num">8,552 (94.8%)</td><td class="num">9</td><td class="num">0</td><td class="num">0</td><td class="num">$7.14</td></tr>
+      <tr><th scope="row">know</th><td class="num">658,279</td><td class="num">8,960 (99.3%)</td><td class="num">7</td><td class="num">1</td><td class="num">0</td><td class="num">$11.04</td></tr>
+      <tr><th scope="row">team</th><td class="num">none</td><td class="num">&nbsp;</td><td class="num">5</td><td class="num">0</td><td class="num">0</td><td class="num">$9.35</td></tr>
+    </tbody></table></div>
+  <p>The extra reach went unused: one web search and no subagent calls across both variants. team's four csim-verified
+  kernels never finished csynth, first on time limits and then when the /scratch file quota filled; its fastest synthesized
+  design uses 113% of the DSP and was never csim-checked. know and team were both cut short by that quota, so these are
+  pilots. Three replicates per variant, and the LUD task, come next.</p>
+</section>
+
+<section aria-labelledby="diff-h">
+  <h2 id="diff-h">How it differs from the c2hls flows</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th scope="col"></th><th scope="col">c2hls controlled (plain)</th><th scope="col">c2hls agent mode</th><th scope="col">HLS Agent Workbench</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Who sets the steps</th><td>The flow: flash prompt, then fix and gate prompts</td><td>The flow; the agent works inside each prompt</td><td>The agent</td></tr>
+      <tr><th scope="row">What the model sees</th><td>One prompt with the code and skills</td><td>The prompt plus a workspace</td><td>A goal and a workspace</td></tr>
+      <tr><th scope="row">Hardware feedback</th><td>Only after replying, through the flow's gates</td><td><code>./hls_check.sh</code>, 12 checks per prompt, one at a time</td><td><code>bin/hls</code>, no check budget, many jobs in parallel</td></tr>
+      <tr><th scope="row">Resource target</th><td>Set by the rung (floor, window, words)</td><td>Set by the rung</td><td>None; only &ldquo;fit the device&rdquo;</td></tr>
+      <tr><th scope="row">Who judges the answer</th><td>c2hls (csim, csynth, gates)</td><td>c2hls</td><td>The fixed rules: csim correct, every resource below 100%</td></tr>
+      <tr><th scope="row">Knowledge</th><td>Skills pasted into the prompt</td><td>Same</td><td>Files the agent may open, and the web (know, team)</td></tr>
+    </tbody></table></div>
+</section>
+
+<footer>
+  <span>Sources: <code>study/agentfw/</code> (DESIGN.md, new_task.py, run_agent.sh, tools/hls), each run's
+  <code>transcript*.jsonl</code>, <code>exp/log.jsonl</code> and <code>REPORT.md</code>.</span>
+  <span>Cycles and resources are Vitis HLS 2023.2 csynth estimates for xcu280-fsvh2892-2L-e at 3.33 ns.</span>
+</footer>
+</main>

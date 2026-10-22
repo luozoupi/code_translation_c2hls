@@ -1,0 +1,13 @@
+# TB_NOTES: sort_merge
+- Arg classification (from plain.cpp): a[] in-out (sorted in place); no pure output.
+- Golden: plain.cpp workload()+merge helpers copied as *_ref (static) on the same srand(42) input, plus stdlib qsort cross-check; all 2048 elements compared.
+- Tolerance: exact ints
+- Poison: none
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 2047 errors!
+- Control 3 (one bug, must fail): Failed with 1 errors! (last element not written back)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage). Original: sortedness + sum only.
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/sort_merge/).

@@ -1,0 +1,74 @@
+{
+	"module_name":	"L_drain_IO_L1_out_inter_trans",
+	"module_prop":	{
+		"double_buffer":	0,
+		"in":	0
+	},
+	"loop":	{
+		"loop_info":	{
+			"iter":	"c0",
+			"lb":	"p0",
+			"ub":	"10",
+			"stride":	"1"
+		},
+		"child":	{
+			"mark":	{
+				"mark_name":	"io_L1",
+				"child":	{
+					"if":	{
+						"then":	{
+							"mark":	{
+								"mark_name":	"access_coalesce",
+								"child":	{
+									"loop":	{
+										"loop_info":	{
+											"iter":	"c2",
+											"lb":	"0",
+											"ub":	"-p0 + 10",
+											"stride":	"1"
+										},
+										"child":	{
+											"mark":	{
+												"mark_name":	"hls_pipeline",
+												"child":	{
+													"user":	{
+														"user_expr":	"out_trans.fifo_L_drain.fifo_L_drain.1.1.1.2.11(p0, p0, p0 + c2 + 1)"
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						},
+						"else":	{
+							"mark":	{
+								"mark_name":	"access_coalesce",
+								"child":	{
+									"loop":	{
+										"loop_info":	{
+											"iter":	"c2",
+											"lb":	"0",
+											"ub":	"-c0 + 10",
+											"stride":	"1"
+										},
+										"child":	{
+											"mark":	{
+												"mark_name":	"hls_pipeline",
+												"child":	{
+													"user":	{
+														"user_expr":	"out_trans.fifo_L_drain.fifo_L_drain.0.1.1.2.11(c0, c0, c0 + c2 + 1)"
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

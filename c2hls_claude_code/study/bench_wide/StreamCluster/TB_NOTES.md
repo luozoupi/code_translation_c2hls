@@ -1,0 +1,13 @@
+# TB_NOTES: StreamCluster
+- Arg classification (from plain.cpp): coord, weight, cost, target, assign, center_table, num, numcenter inputs; switch_membership (flag set only when cost<0), work_mem (-=) and cost_of_opening_x[0] (+=) are IN-OUT accumulators, never zeroed by plain.cpp, so not poisoned: same real initial data for ref and DUT (flags 0, work_mem and cost_x 0..100).
+- Golden: TB's own streamcluster_ref (plain.cpp algorithm), srand(42). cost range widened to 0..8000 so current_cost takes both signs (the old range made switch_membership always 0 and cost_x unchanged).
+- Tolerance: switch_membership exact; floats 1e-3*fmax(1,|ref|) (SPEC)
+- Poison: none (accumulators)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 242 errors!
+- Control 3 (one bug, must fail): Failed with 1 errors! (last point skipped)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/StreamCluster/).

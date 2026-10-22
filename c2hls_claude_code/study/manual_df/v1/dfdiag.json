@@ -1,0 +1,83 @@
+{
+ "work_dir": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z",
+ "top": "autosa_mm",
+ "latency": 1071597,
+ "interval": 1071598,
+ "class": "PINGPONG",
+ "overlap_grade": "FULL",
+ "serial_phases": [
+  [
+   "dataflow_in_loop_tile_i_1",
+   70884
+  ]
+ ],
+ "serial_outside_regions": 1,
+ "regions": [
+  {
+   "region": "dataflow_in_loop_tile_i_1",
+   "processes": [
+    {
+     "module": "entry_proc",
+     "latency": 0
+    },
+    {
+     "module": "load_A",
+     "latency": 4170
+    },
+    {
+     "module": "compute",
+     "latency": 66713
+    },
+    {
+     "module": "store_C",
+     "latency": 4168
+    }
+   ],
+   "latency": 70884,
+   "interval": 66714,
+   "sum_processes": 75051,
+   "max_process": 66713,
+   "intra_overlap": 0.5,
+   "bottleneck_process": "compute",
+   "across_iterations": {
+    "calls": 16,
+    "loop_latency": 1071596,
+    "if_pipelined": 1071594,
+    "if_serial": 1134144,
+    "pipelined": true
+   },
+   "region_total": 1071596
+  }
+ ],
+ "pingpong_evidence": {
+  "pipo_channels": [
+   "autosa_mm_dataflow_in_loop_tile_i_1_A_t_RAM_AUTO_1R1W",
+   "autosa_mm_dataflow_in_loop_tile_i_1_C_t_RAM_AUTO_1R1W"
+  ],
+  "explicit_buffers": [],
+  "stream_of_blocks": 0
+ },
+ "log": {
+  "dataflow_funcs": [
+   {
+    "func": "dataflow_in_loop_tile_i.1",
+    "processes": 4
+   }
+  ],
+  "fifo_depth_raised": [],
+  "dataflow_warnings": [
+   "WARNING: [HLS 200-1449] Process compute has both a predecessor and reads an input from its caller (see the GUI dataflow viewer). This may lead to lower throughput. Consider copying th",
+   "WARNING: [HLS 200-1449] Process dataflow_in_loop_tile_i.1 has both a predecessor and reads an input from its caller (see the GUI dataflow viewer). This may lead to lower throughput. C",
+   "WARNING: [HLS 200-656] Deadlocks can occur since process load_A is instantiated in a dataflow region with ap_ctrl_none or without start propagation and contains an auto-rewind pipeli"
+  ]
+ },
+ "source": {
+  "dataflow_pragmas": 1,
+  "dataflow_in_loop": true,
+  "explicit_pingpong": [],
+  "pingpong_index": false,
+  "stream_of_blocks": 0,
+  "streams": 0
+ },
+ "findings": []
+}

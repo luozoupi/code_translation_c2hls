@@ -1,0 +1,13 @@
+# TB_NOTES: machsuite_bfs_queue
+- Arg classification (from plain.cpp): level[] in-out (MAX_LEVEL init); level_counts[] in-out (zero init, ++ accumulates); nodes/edges/starting_node inputs.
+- Golden: plain.cpp bfs() (queue version) copied as bfs_ref; every level[] and level_counts[] entry vs ref, level_counts also vs check.data.
+- Tolerance: exact ints
+- Poison: none (no pure output)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 237 errors!
+- Control 3 (one bug, must fail): Failed with 6 errors! (skip last edge)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Original checked only level_counts.
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> support.c local_support.c (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/machsuite_bfs_queue/).

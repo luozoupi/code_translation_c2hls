@@ -1,0 +1,137 @@
+
+<p>Everything below is generated from the flow itself: the prompts and resource block are what c2hls renders for the
+Expertise step and for this step, compared line by line. Lines not shown are identical.</p>
+<details open><summary>System prompt (4 changes)</summary><div class='tablewrap'><table class='diff'><thead><tr><th scope='col'></th><th scope='col'>Stock c2hls flash (Expertise)</th><th scope='col'>Refined-Expertise (neutral)</th></tr></thead><tbody><tr><td class='kind'>Changed</td><td><pre class='verb old'>You produce one complete, aggressively optimized kernel in a single rewrite (flash mode).</pre></td><td><pre class='verb new'>You produce one complete, high-performance kernel in a single rewrite (flash mode).</pre></td></tr><tr><td class='kind'>Changed</td><td><pre class='verb old'>Key optimization techniques you may combine when they fit:
+- Local tiling / staging, pipelining (`#pragma HLS PIPELINE II=1`), modest unroll,
+  array partition on small buffers, DATAFLOW only when buffering stays simple,
+  and legal m_axi burst/outstanding pragmas with narrow host ABI.</pre></td><td><pre class='verb new'>Key optimization techniques you may combine:
+- Tiling and on-chip staging, pipelining (`#pragma HLS PIPELINE II=1`), unrolling and array partitioning
+  (any factor, as long as every resource stays below 100% of the device), DATAFLOW / ping-pong buffering to
+  overlap load, compute and store, and wide 512-bit m_axi access (`max_widen_bitwidth=512`, or packed
+  internal types such as `ap_uint&lt;512&gt;` / `hls::vector`) while the top-level argument types stay unchanged.
+- Balance compute and data movement: for the datapath you choose, per-tile compute cycles must exceed
+  per-tile transfer cycles. Keep reused operands resident on chip across tiles, move every array
+  (including the output read-modify-write) in 512-bit beats at II=1, and overlap loads and stores with
+  compute. A datapath that waits on memory is not done.</pre></td></tr><tr><td class='kind'>Changed</td><td><pre class='verb old'>- Preserve algorithm correctness and the single `extern &quot;C&quot;` testbench-visible top.</pre></td><td><pre class='verb new'>- Preserve algorithm correctness and the single `extern &quot;C&quot;` testbench-visible top and its argument types.</pre></td></tr><tr><td class='kind'>Changed</td><td><pre class='verb old'>  Prefer surgical pragma/bundle edits on the existing structure. Truncated
+  partial kernels are unusable; if cut off, continue from where you stopped.</pre></td><td><pre class='verb new'>  Restructure as much as the design needs; you are not limited to edits of the existing structure.
+  Truncated partial kernels are unusable; if cut off, continue from where you stopped.</pre></td></tr></tbody></table></div></details>
+<details open><summary>User prompt (3 changes)</summary><div class='tablewrap'><table class='diff'><thead><tr><th scope='col'></th><th scope='col'>Stock c2hls flash (Expertise)</th><th scope='col'>Refined-Expertise (neutral)</th></tr></thead><tbody><tr><td class='kind'>Changed</td><td><pre class='verb old'>3. Unroll small data-parallel loops with a bounded power-of-two factor,
+   usually 2, 4, 8, 16, 32, 64, or 128 if the trip count, memory ports,
+   and device budget allow it, and match any local-buffer array
+   partitioning to the unroll factor.
+4. Use local scalar or array staging for repeated accesses; partition only
+   small hot buffers, not large global-size arrays.
+5. Add DATAFLOW/load-compute-store structure only when the added buffering
+   is simple and the kernel has clear streaming phases.
+6. Improve contiguous AXI access with legal burst/outstanding m_axi pragmas
+   and local staging while preserving the narrow host/testbench ABI by
+   default. Do NOT introduce `ap_uint&lt;512&gt;`, `MARS_WIDE_BUS_TYPE`, or
+   `memcpy_wide_bus_*` helpers unless the benchmark context explicitly says
+   the active harness supports a wide-bus ABI.</pre></td><td><pre class='verb new'>3. Unroll data-parallel loops, and add spatial parallelism (rows/columns of
+   processing elements), with any factor you choose; the only limit is that
+   every resource stays below 100% of the device. Match local-buffer
+   array partitioning to the unroll factor.
+4. Stage reused data on chip (tiles, line buffers, or whole arrays when they
+   fit the device&#x27;s BRAM/URAM); partition the dimensions that are accessed in
+   parallel.
+5. Overlap memory traffic with compute: DATAFLOW load-compute-store stages,
+   ping-pong (double) buffers or streams when the kernel has separable phases.
+6. Make AXI access wide and contiguous: legal burst/outstanding m_axi
+   pragmas, `max_widen_bitwidth=512` and 16-float (512-bit) beats. Keep the
+   top-level argument types (the host/testbench ABI) unchanged; inside the
+   kernel you may pack data into wide types such as `ap_uint&lt;512&gt;` or
+   `hls::vector`.</pre></td></tr><tr><td class='kind'>Changed</td><td><pre class='verb old'>Prefer a compact, synthesizable implementation over a heroic rewrite. For
+small PolyBench/HLSFactory-style kernels, simple pipelining, modest unroll,
+and a few local buffers often beat complex tiling/dataflow.</pre></td><td><pre class='verb new'>Restructure the code as much as needed — a full
+rewrite is allowed.
+
+Balance compute and data movement for the datapath you choose: estimate per-tile
+compute cycles (work per tile / parallel MACs) and per-tile transfer cycles
+(words moved / 16 floats per beat). Transfers must stay below compute: keep the
+operand that is reused across tiles resident on chip instead of reloading it
+every tile, move every array — including C&#x27;s read-modify-write — in 512-bit
+beats at II=1, and overlap the next tile&#x27;s loads and the previous tile&#x27;s stores
+with the current tile&#x27;s compute (DATAFLOW or ping-pong). The flow rejects a
+design whose latency is far above total work / parallel MACs.</pre></td></tr><tr><td class='kind'>Changed</td><td><pre class='verb old'>- Prefer surgical edits (pragmas, bundles, II, modest unroll, local buffers)
+  on the existing structure over inventing a shorter incomplete rewrite.</pre></td><td><pre class='verb new'>- Restructure freely (new tiling, dataflow stages, wide buffers), but keep the
+  result complete and synthesizable; a shorter incomplete rewrite is rejected.</pre></td></tr></tbody></table></div></details>
+<details open><summary>Resource block shown to the model (sample report, 1 changes)</summary><div class='tablewrap'><table class='diff'><thead><tr><th scope='col'></th><th scope='col'>Stock c2hls flash (Expertise)</th><th scope='col'>Refined-Expertise (neutral)</th></tr></thead><tbody><tr><td class='kind'>Changed</td><td><pre class='verb old'>RESOURCE CONSTRAINTS for the `flash` step (enforced by the synthesis regression guard — exceeding these causes automatic revert and retry):
+  latency_ns: current=25818000000 → max=38727000000 (limit 1.50× current)
+  dsp   : current=     5 → max=     60 (limit 12.00×)  device_cap=9024
+  bram  : current=    30 → max=    180 (limit 6.00×)  device_cap=4032
+  ff    : current= 18633 → max= 149064 (limit 8.00×)  device_cap=2607360
+  lut   : current=  9731 → max=  58386 (limit 6.00×)  device_cap=1303680
+Two-tier override: if your optimization reduces latency_ns by ≥2× AND every resource stays below device capacity, the step is accepted even if per-step ratio limits are exceeded. Use this when aggressive parallelization (e.g. DSP unrolling) genuinely halves latency.
+Strategy guidance for II violations from AXI bus dependencies: prefer LOCAL BUFFER staging (load tile into local array, then compute) over aggressive unrolling — local buffers resolve memory port conflicts without DSP growth, and stay well within the tiling/pipeline ceilings. Reserve DSP-heavy unrolling for the `unroll` and later steps where the DSP ceiling is 8× or more.</pre></td><td><pre class='verb new'>DEVICE LIMITS for the `flash` step (xcu280-fsvh2892-2L-e):
+  latency_ns: current=25818000000 — the new design must be faster
+  dsp  : current=5  device_capacity=9024 (must stay below 100%)
+  bram : current=30  device_capacity=4032 (must stay below 100%)
+  uram : device_capacity=960 (must stay below 100%)
+  ff   : current=18633  device_capacity=2607360 (must stay below 100%)
+  lut  : current=9731  device_capacity=1303680 (must stay below 100%)
+Accept rule: latency improves AND every resource stays strictly below 100% of the device. There is no growth cap relative to the current design.</pre></td></tr></tbody></table></div></details>
+<details open><summary>Skill pack: 134 &rarr; 136 skills (11 wording changes, 2 skills added)</summary>
+<p class='meta'>Compared with the source pack <code>&hellip;plus_gemm_flatten_v2.json</code>, which the refined pack is built from.
+The Expertise step itself uses the 90-skill + gemm-flatten v1 pack. Every wording change is listed, including each
+place where &ldquo;resource explosion&rdquo; is redefined.</p>
+<div class='tablewrap'><table class='diff'><thead><tr><th scope='col'></th><th scope='col'>Source pack</th><th scope='col'>Neutral refined pack</th></tr></thead><tbody><tr><td class='kind'>Changed<br><code>axi-burst-coalescing-narrow-safe</code><br>template</td><td><pre class='verb old'>#pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem max_widen_bitwidth=512 max_read_burst_length=64 num_read_outstanding=16
+#pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem max_widen_bitwidth=512 max_write_burst_length=64 num_write_outstanding=16
+// Keep pointer element types unchanged unless the active variant explicitly allows a packed wide-bus ABI.
+// After widening, restructure computation around LANES = 512 / element_bitwidth when legal.</pre></td><td><pre class='verb new'>#pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem max_widen_bitwidth=512 max_read_burst_length=64 num_read_outstanding=16
+#pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem max_widen_bitwidth=512 max_write_burst_length=64 num_write_outstanding=16
+// Keep top-level pointer element types unchanged; inside the kernel pack 16 floats per 512-bit beat (max_widen_bitwidth=512, ap_uint&lt;512&gt; or hls::vector).
+// After widening, restructure computation around LANES = 512 / element_bitwidth when legal.</pre></td></tr><tr><td class='kind'>Changed<br><code>axi-burst-widening-512</code><br>strategy</td><td><pre class='verb old'>request 512-bit m_axi widening using max_widen_bitwidth=512; if a packed wide-bus ABI is explicitly allowed, use ap_uint&lt;512&gt; words; in both cases, unpack/stage into lane-partitioned local buffers and rewrite computation to exploit parallel lanes rather than continuing scalar one-element-at-a-time compute LANES = 512 / element_bitwidth (16 for 32-bit). Load/store must step by LANES with matching consecutive-dim partition. k+=4 / factor=4 is not done when max_widen_bitwidth=512 on a 32-bit ABI.</pre></td><td><pre class='verb new'>request 512-bit m_axi widening using max_widen_bitwidth=512; use ap_uint&lt;512&gt; (or hls::vector) words inside the kernel for 512-bit beats while the top-level argument types stay unchanged; in both cases, unpack/stage into lane-partitioned local buffers and rewrite computation to exploit parallel lanes rather than continuing scalar one-element-at-a-time compute LANES = 512 / element_bitwidth (16 for 32-bit). Load/store must step by LANES with matching consecutive-dim partition. k+=4 / factor=4 is not done when max_widen_bitwidth=512 on a 32-bit ABI.</pre></td></tr><tr><td class='kind'>Changed<br><code>hls-avoid-single-gmem-for-independent-streams</code><br>guards</td><td><pre class='verb old'>- separate only when host/platform support exists</pre></td><td><pre class='verb new'>- Vitis on Alveo U280 supports one m_axi bundle per pointer port; give independent streams distinct bundles</pre></td></tr><tr><td class='kind'>Changed<br><code>hls-pipeline-hot-loop-achieve-ii</code><br>guards</td><td><pre class='verb old'>- do not pipeline an outer loop if it causes unintended full unrolling or resource explosion — instead flatten a perfect (i,j) nest with PIPELINE on the nest and fully unroll k, or rewrite as a single ij loop</pre></td><td><pre class='verb new'>- do not pipeline an outer loop if it causes unintended full unrolling or resource explosion (exceeding device capacity or failing timing, not growth relative to the starting design) — instead flatten a perfect (i,j) nest with PIPELINE on the nest and fully unroll k, or rewrite as a single ij loop</pre></td></tr><tr><td class='kind'>Changed<br><code>hls-pipeline-realistic-ii-selection</code><br>guards</td><td><pre class='verb old'>- do not ignore resource explosion caused by aggressive II targets</pre></td><td><pre class='verb new'>- do not ignore resource explosion (exceeding device capacity or failing timing, not growth relative to the starting design) caused by aggressive II targets</pre></td></tr><tr><td class='kind'>Changed<br><code>hls-pipeline-unroll-small-inner-loops</code><br>required_steps</td><td><pre class='verb old'>- unroll inner loops conservatively or completely if small</pre></td><td><pre class='verb new'>- unroll inner loops completely if small, otherwise partially, with any factor that keeps every resource below 100% of the device</pre></td></tr><tr><td class='kind'>Changed<br><code>hls-prefer-full-workspace-staging-when-fits</code><br>required_steps</td><td><pre class='verb old'>- compare against conservative BRAM budget for the target FPGA</pre></td><td><pre class='verb new'>- compare against the target FPGA&#x27;s on-chip capacity (U280: 4032 BRAM_18K, 960 URAM)</pre></td></tr><tr><td class='kind'>Changed<br><code>hls-tile-compute-inner-parallelism</code><br>required_steps</td><td><pre class='verb old'>- apply conservative UNROLL to the independent inner loop</pre></td><td><pre class='verb new'>- apply UNROLL to the independent inner loop, sized to the local buffer ports</pre></td></tr><tr><td class='kind'>Changed<br><code>ii-avoid-complete-partition-large-buffer-ff-explosion</code><br>required_steps</td><td><pre class='verb old'>- validate whether the alternative resolves II without resource explosion</pre></td><td><pre class='verb new'>- validate whether the alternative resolves II without resource explosion (exceeding device capacity or failing timing, not growth relative to the starting design)</pre></td></tr><tr><td class='kind'>Changed<br><code>prompt-pipeline</code><br>guards</td><td><pre class='verb old'>- do not pipeline an outer loop if it causes unintended full unrolling or resource explosion; for static GEMM (i,j) nests prefer LOOP_FLATTEN with k unrolled instead of leaving outer i sequential</pre></td><td><pre class='verb new'>- do not pipeline an outer loop if it causes unintended full unrolling or resource explosion (exceeding device capacity or failing timing, not growth relative to the starting design); for static GEMM (i,j) nests prefer LOOP_FLATTEN with k unrolled instead of leaving outer i sequential</pre></td></tr><tr><td class='kind'>Changed<br><code>prompt-unroll</code><br>strategy</td><td><pre class='verb old'>For small static nests (atax/bicg/mvt/gesummv-sized), prefer complete unroll of the independent inner dimension with matching complete/cyclic partition. Reserve partial/conservative factors for large trip counts or proven resource pressure. Match array partitioning to the unroll factor exactly. For m_axi 512-bit widening, the load/store unroll and consecutive-dim partition are LANES, not a conservative 4.</pre></td><td><pre class='verb new'>For small static nests (atax/bicg/mvt/gesummv-sized), prefer complete unroll of the independent inner dimension with matching complete/cyclic partition. Use partial factors for large trip counts, sized so no resource reaches 100% of the device. Match array partitioning to the unroll factor exactly. For m_axi 512-bit widening, the load/store unroll and consecutive-dim partition are LANES, not a conservative 4.</pre></td></tr><tr><td class='kind'>Added</td><td><pre class='verb old'><span class='none'>(new skill)</span></pre></td><td><pre class='verb new'>id: hls-balance-compute-and-transfer
+pattern: the parallel datapath is wide enough that each tile&#x27;s compute takes few cycles, while operand loads and result stores per tile take as long or longer
+strategy: for the chosen datapath, budget transfers per tile against compute per tile: keep operands resident on chip across the tiles that reuse them (load each operand once per reuse window), move every array, including the output read-modify-write, in 512-bit beats at II=1, and overlap loads and stores with compute (DATAFLOW stages or ping-pong buffers) so the datapath never waits
+required_steps: - estimate per-tile compute cycles (work per tile / parallel operators) and per-tile transfer cycles (words moved / words per cycle)
+- if transfers per tile approach or exceed compute per tile, enlarge the reuse window: keep the operand that is reused across tiles resident on chip instead of reloading it every tile
+- make every load and store loop move one 512-bit beat per cycle (II=1, unrolled 16-float lanes, max_widen_bitwidth=512); an II of 16 on a 512-bit port means one float per beat
+- overlap the next tile&#x27;s loads and the previous tile&#x27;s stores with the current tile&#x27;s compute (DATAFLOW load/compute/store or ping-pong buffers)
+- check csynth: latency should be close to total work / parallel operators; if a load or store loop dominates, the design is transfer-bound
+guards: - every resource must stay strictly below 100% of the device
+- keep the top-level ABI unchanged
+- DATAFLOW needs a legal producer/consumer structure (single producer and consumer per buffer or stream)
+template: // per tile: compute = (TI*TJ*K)/(PE_I*PE_J*KL) cycles; transfer = words/16 beats
+// keep transfer &lt; compute: B strip resident across row tiles, C moved in 512-bit beats, DATAFLOW overlap</pre></td></tr><tr><td class='kind'>Added</td><td><pre class='verb old'><span class='none'>(new skill)</span></pre></td><td><pre class='verb new'>id: avoid-transfer-bound-datapath
+pattern: latency is far above work / parallel operators, and the longest loops are loads or stores (operands reloaded every tile, output moved one element per beat, no overlap)
+strategy: rebalance transfers (hls-balance-compute-and-transfer) before accepting the design
+required_steps: - compare csynth latency against total work / parallel operators
+- find the loops that dominate latency; if they are load/store loops, rebalance
+guards: - more DSP does not help a transfer-bound design</pre></td></tr></tbody></table></div></details>
+<details open><summary>Balance gate (new check after csynth)</summary>
+<table class='diff'><tbody>
+<tr><td class='kind'>Rule</td><td colspan='2'><pre class='verb new'>latency_cycles &gt; 1.5 × compute floor, where compute floor = (I·J·K) / (DSP / 5)  →  reject</pre></td></tr>
+<tr><td class='kind'>Rejection reason</td><td colspan='2'><pre class='verb new'>compute/transfer imbalance: latency {lat} cycles is {ratio}x the compute floor {floor} cycles (= {macs} MACs / ({dsp} DSP / 5 DSP per MAC)); the limit is 1.5x. The datapath is waiting on memory. Longest pipelined loops per call: {5 longest loops with latency, II and trip count}.</pre></td></tr>
+<tr><td class='kind'>Repair prompt</td><td colspan='2'><pre class='verb new'>HARD REJECT — the flash design is waiting on memory. Do not reuse this kernel.
+
+Csynth: DSP={dsp}, latency {latency_cycles} cycles.
+
+Why it was rejected:
+{reject_reason}
+
+Fix the cause named above. The datapath is waiting on memory: keep reused operands resident on chip across tiles
+(load each operand once per reuse window), move every array, including C, in 512-bit beats at II=1, and overlap
+loads/stores with compute (DATAFLOW or ping-pong). Per-tile compute must exceed per-tile transfers.
+Stay strictly below 100% of DSP/BRAM/FF/LUT/URAM. Keep the exact `extern &quot;C&quot;` top and kernel.h ABI.
+
+Previous (rejected) code:
+```cpp
+{hls_code}
+```
+
+{attempt_history}Header:
+```cpp
+{header_code}
+```
+
+Before the fence, one sentence: (a) the cause and (b) your fix. Then the complete kernel in ```cpp.
+</pre></td></tr>
+</tbody></table></details>
+<details open><summary>Flow settings</summary><table class='diff'><tbody>
+<tr><td class='kind'>Changed</td><td><pre class='verb old'>STEP_REGRESSION_THRESHOLDS["flash"] = {"latency": 1.50, "resources": {"dsp": 12.0, "bram": 6.0, "ff": 8.0, "lut": 6.0, "default": 4.0}}
+(a flash design may be up to 1.5&times; slower; DSP may grow at most 12&times;, BRAM/LUT 6&times;, FF 8&times;, others 4&times;)</pre></td>
+<td><pre class='verb new'>C2HLS_STEP_REGRESSION_THRESHOLDS_JSON = {&quot;flash&quot;: {&quot;latency&quot;: 1.0, &quot;resources&quot;: {&quot;default&quot;: 1000000000.0}}}
+(latency must not get worse; resource ratios removed)</pre></td></tr>
+<tr><td class='kind'>Added</td><td><pre class='verb old'><span class='none'>(no device cap)</span></pre></td><td><pre class='verb new'>C2HLS_FLASH_MAX_DSP = 9024 (reject a design above the device)</pre></td></tr>
+<tr><td class='kind'>Unchanged</td><td colspan='2'><pre class='verb'>No DSP floor, no fill gate (C2HLS_FLASH_DSP_REDO, C2HLS_FLASH_MIN_DSP, C2HLS_FLASH_DSP_FILL_PCT unset)</pre></td></tr>
+</tbody></table></details>

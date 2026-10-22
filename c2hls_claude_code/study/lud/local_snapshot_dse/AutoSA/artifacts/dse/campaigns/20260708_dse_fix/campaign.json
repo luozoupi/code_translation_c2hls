@@ -1,0 +1,57 @@
+{
+  "stamp": "20260708_dse_fix",
+  "campaign_root": "/scratch/hpc-prf-llmfpga/asa582/projects/AutoSA/artifacts/dse/campaigns/20260708_dse_fix",
+  "top_k": 5,
+  "odyssey_stop_after_time_s": 3600,
+  "exhaustive_search_timeout_min": 720,
+  "pilot_kernels": [],
+  "kernels": [
+    {
+      "id": "mm",
+      "kernel_c": "autosa_tests/mm/kernel.c",
+      "simd_info": "autosa_tests/mm/simd_info.json",
+      "param_names": "autosa_tests/mm/param_names.json",
+      "space_time": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "odyssey_workload": "mm",
+      "odyssey_enabled": true
+    },
+    {
+      "id": "cnn",
+      "kernel_c": "autosa_tests/cnn/kernel.c",
+      "simd_info": "autosa_tests/cnn/simd_info.json",
+      "param_names": "autosa_tests/cnn/param_names.json",
+      "space_time": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "odyssey_workload": "cnn_autosa_tests",
+      "odyssey_enabled": true
+    },
+    {
+      "id": "lu",
+      "kernel_c": "autosa_tests/lu/kernel.c",
+      "simd_info": "autosa_tests/lu/simd_info.json",
+      "param_names": null,
+      "space_time": [
+        3
+      ],
+      "odyssey_workload": null,
+      "odyssey_enabled": false
+    }
+  ]
+}

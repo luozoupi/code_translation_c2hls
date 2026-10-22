@@ -1,0 +1,13 @@
+# TB_NOTES: machsuite_spmv_ellpack
+- Arg classification (from plain.cpp): nzval, cols, vec inputs; out in-out (sum starts from out[i]; input_to_data memset 0 kept).
+- Golden: check.data (covers out).
+- Tolerance: double 1e-6*fmax(1,|ref|) (SPEC)
+- Poison: none (accumulator)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 494 errors!
+- Control 3 (one bug, must fail): Failed with 1 errors! (L-1 columns)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Only testbench.cpp edited.
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> support.c local_support.c (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/machsuite_spmv_ellpack/).

@@ -1,0 +1,18 @@
+success=True
+  latency_cycles: 1062797
+  latency_ns: 3786000.0
+  interval: 1071582
+  requested_clock_period_ns: 3.33
+  estimated_clock_period_ns: 3.562
+  slack_ns: -0.232
+  bram: 602
+  dsp: 5120
+  ff: 573618
+  lut: 317597
+  uram: 256
+  fmax_mhz: 280.74
+  per_loop_bottlenecks (top issues limiting performance):
+    - None: dataflow_blocked | WARNING: [HLS 200-1449] Process compute has both a predecessor and reads an input from its caller (see the GUI dataflow viewer). This may lead to lower throughput. Consider copying this input via a predecessor process.
+    - None: dataflow_blocked | WARNING: [HLS 200-1449] Process dataflow_in_loop_tile_i.1 has both a predecessor and reads an input from its caller (see the GUI dataflow viewer). This may lead to lower throughput. Consider copying this input via a predecessor process.
+    - None: dataflow_blocked | WARNING: [SYN 201-103] Legalizing function name 'dataflow_in_loop_tile_i.1' to 'dataflow_in_loop_tile_i_1'.
+    - autosa_mm: interval_exceeds_latency | interval 1071582 > latency 1071581 cycles on module 'autosa_mm' [/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v2/csynth_work/20261013T224819Z/kernel.cpp:111]

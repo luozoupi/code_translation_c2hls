@@ -1,0 +1,7 @@
+Job 63954765 (2026-10-09/10, 13.8 h): all 5 implementation runs failed routing: "Design is not routable as its global congestion level is 7".
+Not a LUT problem (LUT 42/49/42% per SLR). Block RAM tiles are 93.9% / 92.9% / 88.4% per SLR; URAM 0%.
+Cause: on-chip B buffer Bl[22][48][1024] fp32 (~4.3 MB), ARRAY_PARTITION complete dim=2 x cyclic 32 dim=3
+= 1,536 banks (~2 BRAM_18K each, ~3,072 BRAM_18K), each feeding the compute array -> BRAM columns full and
+thousands of narrow memory ports to wire.
+Fix would be a design change (re-pack Bl, e.g. 2 floats per 72-bit URAM word -> ~768 URAM, fewer/wider banks),
+followed by strict csim + csynth, then a new build. Not done unattended.

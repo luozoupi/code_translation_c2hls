@@ -1,0 +1,59 @@
+# c2hls_claude_code study: code in git; results, logs and Vitis trees go to Otus by rsync (study/OTUS_MIGRATION.md step 5).
+
+# logs and run outputs (keep the shim start scripts)
+logs/*
+!logs/start_*.sh
+ablation/*
+!ablation/*.py
+!ablation/*.md
+runs/
+runs_controlled/
+runs_deepseek/
+**/runs/
+
+# Vitis / HLS work trees
+**/*_work/
+**/hls_proj/
+**/hls_prj*/
+**/_x*/
+**/.Xil/
+
+# agent configs and transcripts
+.claude/
+**/.claude_cfg/
+*.jsonl
+
+# bulky or generated files
+__pycache__/
+*.pyc
+*.bak_*
+*.out
+*.err
+*.pid
+*.log
+# (gzipped Vitis logs too)
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.xclbin
+*.xo
+*.vcd
+*.wdb
+*.rpt.gz
+
+# Vitis reports and generated designs (results: rsync, not git)
+*.xml
+*.rpt
+study/soda/dse/designs*/
+study/lud/dse/
+study/lud/gen_test2/
+# clean upstream clones and papers (commit recorded in study/lud/upstream/AutoSA.commit)
+study/lud/upstream/AutoSA/
+*.pdf
+
+# kept out of git because they hold personal data (rsync carries them to Otus):
+# the fork bundle's commits carry the author's email; the proxy's privacy guard spells out the user's addresses
+*.bundle
+study/exp_hlsmith/ds_anthropic_proxy.py
+*.log.gz

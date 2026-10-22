@@ -1,0 +1,13 @@
+# TB_NOTES: machsuite_md_grid
+- Arg classification (from plain.cpp): n_points, position inputs; force in-out (read into running sums first, untouched slots p_idx>=n_points stay as loaded = 0).
+- Golden: check.data (covers force, all slots).
+- Tolerance: double 1e-6*fmax(1,|ref|) (SPEC)
+- Poison: none (accumulator)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 768 errors!
+- Control 3 (one bug, must fail): Failed with 201 errors! (last b0.x block row skipped)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Only testbench.cpp edited.
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> support.c local_support.c (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/machsuite_md_grid/).

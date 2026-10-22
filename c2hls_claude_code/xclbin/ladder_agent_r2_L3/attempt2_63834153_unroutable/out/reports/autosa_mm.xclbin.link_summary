@@ -1,0 +1,630 @@
+<ENTRY>
+{
+ "thisFile": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/autosa_mm.xclbin.link_summary",
+ "connectId": "",
+ "serverToken": "",
+ "timestamp": "0"
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 09:51:50 2026",
+ "timestampMillis": "1791564710387",
+ "buildStep": {
+  "cmdId": "761d1344-4b58-41ea-a190-04d2d9d10b31",
+  "name": "v++",
+  "logFile": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/link.steps.log",
+  "commandLine": "/opt/Xilinx/Vitis/2023.2/bin/unwrapped/lnx64.o/v++  --vivado.prop \"run.__KERNEL__.{STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS}={-directive sdx_optimization_effort_high}\" --advanced.misc \"report=type report_timing_summary name impl_report_timing_summary_route_design_summary steps {route_design} runs {impl_1} options {-max_paths 10}\" --advanced.misc \"report=type report_timing_summary name impl_report_timing_summary_post_route_phys_opt_design_summary steps {post_route_phys_opt_design} runs {impl_1} options {-max_paths 10}\" -l -t hw --platform /opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --config link.cfg autosa_mm.xo -o autosa_mm.xclbin --temp_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l --log_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/logs_l --report_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/reports_l ",
+  "args": [
+   "-l",
+   "-t",
+   "hw",
+   "--platform",
+   "/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+   "--config",
+   "link.cfg",
+   "autosa_mm.xo",
+   "-o",
+   "autosa_mm.xclbin",
+   "--temp_dir",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l",
+   "--log_dir",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/logs_l",
+   "--report_dir",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/reports_l"
+  ],
+  "iniFiles": [
+   {
+    "path": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/link.cfg",
+    "content": "# v++ --link config for autosa_mm (agent ladder r2 L3), xilinx_u280_gen3x16_xdma_1_202211_1, 300 MHz default kernel clock.\n[connectivity]\nnk=autosa_mm:1:autosa_mm_1\n# A and C are light (4 MB each, A panel loaded once, C written once): HBM pseudo-channels in SLR0.\nsp=autosa_mm_1.A:HBM[0]\nsp=autosa_mm_1.C:HBM[1]\n# B streams one 512-bit beat per cycle (32 MB in ~1.8 ms = 19.2 GB/s at 300 MHz). One HBM pseudo-channel peaks at\n# ~14.4 GB/s; one DDR4-2400 channel peaks at 19.2 GB/s. DDR[1] sits in SLR1, away from the HBM side in SLR0.\nsp=autosa_mm_1.B:DDR[1]\n# No SLR pinning: the kernel (~88% of the dynamic region's LUTs) must spread across all three SLRs.\n\n[vivado]\n# Kernel synthesis: v++ already passes its own synth_design -directive to kernel runs, so a second DIRECTIVE\n# fails (\"'directive' can only be specified once\", attempt 1). Keep v++'s directive; add global retiming\n# (FFs are at ~48%, so retiming registers are affordable).\nprop=run.__KERNEL__.STEPS.SYNTH_DESIGN.ARGS.GLOBAL_RETIMING=on\n# Implementation: four strategies run in parallel; v++ keeps the best result.\nimpl.strategies=Congestion_SSI_SpreadLogic_high,Performance_HighUtilSLRs,Performance_ExplorePostRoutePhysOpt,Performance_NetDelay_high\nimpl.jobs=4\nsynth.jobs=16\n"
+   }
+  ],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 09:51:50 2026",
+ "timestampMillis": "1791564710388",
+ "status": {
+  "cmdId": "761d1344-4b58-41ea-a190-04d2d9d10b31",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_FlowMetaData",
+ "dateTimestamp": "Fri Oct  9 09:51:54 2026",
+ "timestampMillis": "1791564714982",
+ "buildSummary": {
+  "hardwarePlatform": "xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+  "hardwareDsa": "",
+  "platformDirectory": "/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1",
+  "runtime": "OpenCL",
+  "systemConfig": "Linux",
+  "flow": "BF_LINK",
+  "target": "TT_HW",
+  "binaryContainer": {
+   "base": {
+    "type": "BT_UKNOWN",
+    "name": "autosa_mm",
+    "file": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/autosa_mm.xclbin",
+    "reports": [],
+    "uuid": ""
+   },
+   "kernels": []
+  },
+  "kernels": [
+   {
+    "base": {
+     "type": "KERNEL",
+     "name": "autosa_mm",
+     "file": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/autosa_mm.xo",
+     "reports": [],
+     "uuid": ""
+    },
+    "sources": [
+     "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/xo/autosa_mm/autosa_mm/cpu_sources/kernel.cpp"
+    ],
+    "psSources": [],
+    "cuNames": [
+     "autosa_mm_1"
+    ],
+    "type": "HLS",
+    "frequency": 0,
+    "freqUnits": ""
+   }
+  ],
+  "toolVersion": "Vitis V++ Compiler Release 2023.2. SW Build 4026344 on 2023-10-11-15:42:10"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct  9 09:51:55 2026",
+ "timestampMillis": "1791564715428",
+ "buildStep": {
+  "cmdId": "bcfaef16-14b0-4bbf-992d-d9ed4941411b",
+  "name": "system_link",
+  "logFile": "",
+  "commandLine": "system_link --xo /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/autosa_mm.xo --config /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/syslinkConfig.ini --xpfm /opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --target hw --output_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int --temp_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/sys_link",
+  "args": [
+   "--xo",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/autosa_mm.xo",
+   "--config",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/syslinkConfig.ini",
+   "--xpfm",
+   "/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+   "--target",
+   "hw",
+   "--output_dir",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int",
+   "--temp_dir",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/sys_link"
+  ],
+  "iniFiles": [
+   {
+    "path": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/syslinkConfig.ini",
+    "content": "nk=autosa_mm:1:autosa_mm_1\nsp=autosa_mm_1.A:HBM[0]\nsp=autosa_mm_1.C:HBM[1]\nsp=autosa_mm_1.B:DDR[1]\n\n"
+   }
+  ],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 09:51:55 2026",
+ "timestampMillis": "1791564715429",
+ "status": {
+  "cmdId": "bcfaef16-14b0-4bbf-992d-d9ed4941411b",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 09:52:09 2026",
+ "timestampMillis": "1791564729420",
+ "status": {
+  "cmdId": "bcfaef16-14b0-4bbf-992d-d9ed4941411b",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct  9 09:52:09 2026",
+ "timestampMillis": "1791564729425",
+ "buildStep": {
+  "cmdId": "b5546a36-b809-444f-ba8a-fc8f202091b1",
+  "name": "cf2sw",
+  "logFile": "",
+  "commandLine": "cf2sw -sdsl /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/sdsl.dat -rtd /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/cf2sw.rtd -nofilter /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/cf2sw_full.rtd -xclbin /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/xclbin_orig.xml -o /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/xclbin_orig.1.xml",
+  "args": [
+   "-sdsl",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/sdsl.dat",
+   "-rtd",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/cf2sw.rtd",
+   "-nofilter",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/cf2sw_full.rtd",
+   "-xclbin",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/xclbin_orig.xml",
+   "-o",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/xclbin_orig.1.xml"
+  ],
+  "iniFiles": [],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 09:52:09 2026",
+ "timestampMillis": "1791564729425",
+ "status": {
+  "cmdId": "b5546a36-b809-444f-ba8a-fc8f202091b1",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 09:52:11 2026",
+ "timestampMillis": "1791564731957",
+ "status": {
+  "cmdId": "b5546a36-b809-444f-ba8a-fc8f202091b1",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct  9 09:52:11 2026",
+ "timestampMillis": "1791564731962",
+ "buildStep": {
+  "cmdId": "77b75316-7c32-4a00-b76e-38c25c18c9c9",
+  "name": "rtd2_system_diagram",
+  "logFile": "",
+  "commandLine": "rtd2SystemDiagram",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 09:52:11 2026",
+ "timestampMillis": "1791564731962",
+ "status": {
+  "cmdId": "77b75316-7c32-4a00-b76e-38c25c18c9c9",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct  9 09:52:12 2026",
+ "timestampMillis": "1791564732260",
+ "report": {
+  "path": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/systemDiagramModel.json",
+  "name": "",
+  "fileType": "JSON",
+  "reportType": "SYSTEM_DIAGRAM",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 09:52:12 2026",
+ "timestampMillis": "1791564732262",
+ "status": {
+  "cmdId": "77b75316-7c32-4a00-b76e-38c25c18c9c9",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct  9 09:52:12 2026",
+ "timestampMillis": "1791564732267",
+ "buildStep": {
+  "cmdId": "9394b629-b5ec-4ff5-b698-7a1a55b38528",
+  "name": "vpl",
+  "logFile": "",
+  "commandLine": "vpl -t hw -f /opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --remote_ip_cache /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/.ipcache --output_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int --log_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/logs_l/link --report_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/reports_l/link --config /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/vplConfig.ini -k /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/kernel_info.dat --webtalk_flag Vitis --temp_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link --no-info --iprepo /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/xo/ip_repo/xilinx_com_hls_autosa_mm_1_0 --messageDb /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/run_link/vpl.pb /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/dr.bd.tcl",
+  "args": [
+   "-t",
+   "hw",
+   "-f",
+   "/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+   "--remote_ip_cache",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/.ipcache",
+   "--output_dir",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int",
+   "--log_dir",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/logs_l/link",
+   "--report_dir",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/reports_l/link",
+   "--config",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/vplConfig.ini",
+   "-k",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/kernel_info.dat",
+   "--webtalk_flag",
+   "Vitis",
+   "--temp_dir",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link",
+   "--no-info",
+   "--iprepo",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/xo/ip_repo/xilinx_com_hls_autosa_mm_1_0",
+   "--messageDb",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/run_link/vpl.pb",
+   "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/dr.bd.tcl"
+  ],
+  "iniFiles": [
+   {
+    "path": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/vplConfig.ini",
+    "content": "[advanced]\nmisc=report=type report_timing_summary name impl_report_timing_summary_route_design_summary steps {route_design} runs {impl_1} options {-max_paths 10}\nmisc=report=type report_timing_summary name impl_report_timing_summary_post_route_phys_opt_design_summary steps {post_route_phys_opt_design} runs {impl_1} options {-max_paths 10}\nparam=compiler.enablePerformanceTrace=1\nparam=compiler.vppCurrentWorkingDir=/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153\nmisc=BinaryName=autosa_mm\n\n[connectivity]\nnk=autosa_mm:1:autosa_mm_1\n\n[vivado]\nprop=run.__KERNEL__.{STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS}={-directive sdx_optimization_effort_high}\nsynth.jobs=16\nimpl.jobs=4\nimpl.strategies=Congestion_SSI_SpreadLogic_high,Performance_HighUtilSLRs,Performance_ExplorePostRoutePhysOpt,Performance_NetDelay_high\nprop=run.__KERNEL__.STEPS.SYNTH_DESIGN.ARGS.GLOBAL_RETIMING=on\n\n"
+   }
+  ],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 09:52:12 2026",
+ "timestampMillis": "1791564732267",
+ "status": {
+  "cmdId": "9394b629-b5ec-4ff5-b698-7a1a55b38528",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 09:52:12 2026",
+ "timestampMillis": "1791564732943",
+ "buildStep": {
+  "cmdId": "db1acacd-49fd-4006-8e12-260d7cd5b01c",
+  "name": "vpl",
+  "logFile": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/link.steps.log",
+  "commandLine": "/opt/Xilinx/Vitis/2023.2/bin/unwrapped/lnx64.o/vpl -t hw -f /opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --remote_ip_cache /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/.ipcache --output_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int --log_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/logs_l/link --report_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/reports_l/link --config /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/vplConfig.ini -k /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/kernel_info.dat --webtalk_flag Vitis --temp_dir /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link --no-info --iprepo /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/xo/ip_repo/xilinx_com_hls_autosa_mm_1_0 --messageDb /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/run_link/vpl.pb /scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/dr.bd.tcl ",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/run_link"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 09:52:12 2026",
+ "timestampMillis": "1791564732943",
+ "status": {
+  "cmdId": "db1acacd-49fd-4006-8e12-260d7cd5b01c",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_VivadoProject",
+ "dateTimestamp": "Fri Oct  9 09:52:16 2026",
+ "timestampMillis": "1791564736693",
+ "vivadoProject": {
+  "openDir": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl",
+  "openScript": "openprj.tcl",
+  "relativeProject": "prj/prj.xpr"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct  9 09:52:16 2026",
+ "timestampMillis": "1791564736694",
+ "buildStep": {
+  "cmdId": "9b6c3809-8f5d-4215-a005-ddf31c86517b",
+  "name": "vivado",
+  "logFile": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl/vivado.log",
+  "commandLine": "vivado -log vivado.log -applog -m64 -messageDb vivado.pb -mode batch -source vpl.tcl -notrace",
+  "args": [
+   "-log",
+   "vivado.log",
+   "-applog",
+   " -m64",
+   "-messageDb",
+   "vivado.pb",
+   "-mode",
+   "batch",
+   "-source",
+   "vpl.tcl",
+   "-notrace"
+  ],
+  "iniFiles": [],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/run_link"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 09:52:16 2026",
+ "timestampMillis": "1791564736695",
+ "status": {
+  "cmdId": "9b6c3809-8f5d-4215-a005-ddf31c86517b",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct  9 09:54:12 2026",
+ "timestampMillis": "1791564852838",
+ "report": {
+  "path": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/int/automation_summary_pre_synthesis.txt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "VITIS_DESIGN_FLOW",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040505",
+ "buildStep": {
+  "cmdId": "24396f6b-b77f-4070-ab8a-fb85dc9df5ad",
+  "name": "vivado.impl",
+  "logFile": "",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040508",
+ "status": {
+  "cmdId": "24396f6b-b77f-4070-ab8a-fb85dc9df5ad",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040508",
+ "buildStep": {
+  "cmdId": "106e7c1e-da71-4cad-9336-6331abe101d4",
+  "name": "vivado.impl.impl_1",
+  "logFile": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl/prj/prj.runs/impl_1/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl/prj/prj.runs/impl_1"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040509",
+ "status": {
+  "cmdId": "106e7c1e-da71-4cad-9336-6331abe101d4",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040509",
+ "buildStep": {
+  "cmdId": "57847c53-027d-41aa-9c7c-0f840ce9ac80",
+  "name": "vivado.impl.impl_Congestion_SSI_SpreadLogic_high",
+  "logFile": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl/prj/prj.runs/impl_Congestion_SSI_SpreadLogic_high/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl/prj/prj.runs/impl_Congestion_SSI_SpreadLogic_high"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040509",
+ "status": {
+  "cmdId": "57847c53-027d-41aa-9c7c-0f840ce9ac80",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040510",
+ "buildStep": {
+  "cmdId": "c429eb31-81cf-42b4-ac57-87c199bd8846",
+  "name": "vivado.impl.impl_Performance_HighUtilSLRs",
+  "logFile": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_HighUtilSLRs/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_HighUtilSLRs"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040510",
+ "status": {
+  "cmdId": "c429eb31-81cf-42b4-ac57-87c199bd8846",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040510",
+ "buildStep": {
+  "cmdId": "14aee43c-cd80-427d-8a92-8df2b0f9764d",
+  "name": "vivado.impl.impl_Performance_ExplorePostRoutePhysOpt",
+  "logFile": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_ExplorePostRoutePhysOpt/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_ExplorePostRoutePhysOpt"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040510",
+ "status": {
+  "cmdId": "14aee43c-cd80-427d-8a92-8df2b0f9764d",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040510",
+ "buildStep": {
+  "cmdId": "4806d1d4-fb65-4250-975f-23e45a3ae73f",
+  "name": "vivado.impl.impl_Performance_NetDelay_high",
+  "logFile": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_NetDelay_high/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_63834153/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_NetDelay_high"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 11:54:00 2026",
+ "timestampMillis": "1791572040510",
+ "status": {
+  "cmdId": "4806d1d4-fb65-4250-975f-23e45a3ae73f",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 18:44:20 2026",
+ "timestampMillis": "1791596660431",
+ "status": {
+  "cmdId": "106e7c1e-da71-4cad-9336-6331abe101d4",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 18:44:20 2026",
+ "timestampMillis": "1791596660436",
+ "status": {
+  "cmdId": "4806d1d4-fb65-4250-975f-23e45a3ae73f",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 22:20:04 2026",
+ "timestampMillis": "1791609604133",
+ "status": {
+  "cmdId": "14aee43c-cd80-427d-8a92-8df2b0f9764d",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 10 04:03:03 2026",
+ "timestampMillis": "1791630183312",
+ "status": {
+  "cmdId": "57847c53-027d-41aa-9c7c-0f840ce9ac80",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 10 05:25:58 2026",
+ "timestampMillis": "1791635158422",
+ "status": {
+  "cmdId": "c429eb31-81cf-42b4-ac57-87c199bd8846",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>

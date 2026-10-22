@@ -1,0 +1,20 @@
+{
+	"module_name":	"U_drain_IO_L1_out_boundary",
+	"module_prop":	{
+		"double_buffer":	0,
+		"in":	0
+	},
+	"mark":	{
+		"mark_name":	"array",
+		"child":	{
+			"mark":	{
+				"mark_name":	"io_L2",
+				"child":	{
+					"user":	{
+						"user_expr":	"io_module.intra_inter.1.0()"
+					}
+				}
+			}
+		}
+	}
+}

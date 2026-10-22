@@ -1,0 +1,47 @@
+Mon Oct 12 14:28:19 PDT 2026
+== endpoints
+shim: {"ok": true, "calls": 112, "errors": 0, "busy": 0}
+ds_proxy: {"ok": true, "calls": 10, "errors": 0, "active": 0}
+== slurm
+ctl_cc_zs_smoke    64511964  COMPLETED  00:02:07
+ctl_ds_zs_smoke    64511965  COMPLETED  00:02:58
+ctl_cc_refv2_r1    64512428  PENDING    00:00:00
+ctl_ds_refv2_r1    64512429  PENDING    00:00:00
+ctl_cc_win7080_r1  64512430  PENDING    00:00:00
+ctl_ds_win7080_r1  64512431  PENDING    00:00:00
+ctl_cc_refv2_r2    64512434  PENDING    00:00:00
+ctl_ds_refv2_r2    64512435  PENDING    00:00:00
+ctl_cc_win7080_r2  64512436  PENDING    00:00:00
+ctl_ds_win7080_r2  64512437  PENDING    00:00:00
+ctl_cc_refv2_r3    64512440  PENDING    00:00:00
+ctl_ds_refv2_r3    64512441  PENDING    00:00:00
+ctl_cc_win7080_r3  64512442  PENDING    00:00:00
+ctl_ds_win7080_r3  64512443  PENDING    00:00:00
+ctl_cc_zs_r1       64524941  COMPLETED  00:02:25
+ctl_ds_zs_r1       64524942  COMPLETED  00:01:43
+ctl_cc_zs_r2       64524943  COMPLETED  00:01:35
+ctl_ds_zs_r2       64524944  COMPLETED  00:03:06
+ctl_cc_zs_r3       64524945  COMPLETED  00:01:37
+ctl_ds_zs_r3       64524946  COMPLETED  00:02:16
+== runs (cell: flash ok | latency | dsp | ctrl calls ok/trunc/empty/txerr)
+zero_shot_cc_zs_smoke_20261012T104035Z: flash_ok=True lat=35,750,152 dsp=320 | calls 1/0/0/0
+zero_shot_ctl_cc_zs_r1_20261012T123819Z: flash_ok=True lat=69,257,160 dsp=160 | calls 1/0/0/0
+zero_shot_ctl_cc_zs_r2_20261012T123830Z: flash_ok=True lat=144,380,744 dsp=80 | calls 1/0/0/0
+zero_shot_ctl_cc_zs_r3_20261012T123830Z: flash_ok=True lat=35,751,176 dsp=320 | calls 1/0/0/0
+zero_shot_ctl_ds_zs_r1_20261012T123830Z: flash_ok=True lat=4,346,994,689 dsp=3 | calls 1/0/0/0
+zero_shot_ctl_ds_zs_r2_20261012T123830Z: flash_ok=True lat=79,370,753 dsp=80 | calls 1/0/0/0
+zero_shot_ctl_ds_zs_r3_20261012T123829Z: flash_ok=True lat=4,346,306,561 dsp=3 | calls 1/0/0/0
+zero_shot_ds_zs_smoke_20261012T104034Z: flash_ok=True lat=171,893,761 dsp=24 | calls 1/0/0/0
+== errors in slurm logs (last 3 per job)
+[64511964] 2026-10-12 03:41:22,395 - c2hls.py - 6095 - ERROR - [Phase C] No synthesis report from Phase B
+[64511965] 2026-10-12 03:41:19,133 - c2hls.py - 6095 - ERROR - [Phase C] No synthesis report from Phase B
+[64524941] 2026-10-12 05:39:06,858 - c2hls.py - 6095 - ERROR - [Phase C] No synthesis report from Phase B
+[64524942] 2026-10-12 05:39:02,598 - c2hls.py - 6095 - ERROR - [Phase C] No synthesis report from Phase B
+[64524943] 2026-10-12 05:39:02,627 - c2hls.py - 6095 - ERROR - [Phase C] No synthesis report from Phase B
+[64524944] 2026-10-12 05:39:02,605 - c2hls.py - 6095 - ERROR - [Phase C] No synthesis report from Phase B
+[64524945] 2026-10-12 05:39:02,624 - c2hls.py - 6095 - ERROR - [Phase C] No synthesis report from Phase B
+[64524946] 2026-10-12 05:39:02,671 - c2hls.py - 6095 - ERROR - [Phase C] No synthesis report from Phase B
+== proxy: count of HTTP 200 calls, then any non-200 lines
+10
+== quota
+                 /scratch (user asa582)       582GiB/  19TiB         506K/1000K

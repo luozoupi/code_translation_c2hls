@@ -1,0 +1,1623 @@
+{
+  "success": true,
+  "error": "",
+  "report": {
+    "latency_cycles": 1246225,
+    "latency_ns": 4150000.0000000005,
+    "bram": 346,
+    "dsp": 5120,
+    "ff": 571725,
+    "lut": 311780,
+    "uram": 256,
+    "fmax_mhz": 400.96,
+    "interval": 1246226,
+    "estimated_clock_period_ns": 2.494,
+    "requested_clock_period_ns": 3.33,
+    "slack_ns": 0.836,
+    "latency_cycles_worst": 1246225,
+    "latency_ns_worst": 4150000.0000000005,
+    "feedback": {
+      "schema": "1.0",
+      "scopes": [
+        {
+          "scope_id": "autosa_mm",
+          "kind": "module",
+          "name": "autosa_mm",
+          "parent": null,
+          "depth": 0,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 1246225,
+          "latency_ns": 4150000.0000000005,
+          "iteration_latency": null,
+          "interval": 1246226,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 346,
+          "dsp": 5120,
+          "ff": 571725,
+          "lut": 311780,
+          "uram": 256,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:53",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/tile_i",
+          "kind": "loop",
+          "name": "tile_i",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": 2.43,
+          "latency_cycles": 1180544,
+          "latency_ns": 3931211.0,
+          "iteration_latency": 73784,
+          "interval": null,
+          "trip_count": 16,
+          "pipelined": "no",
+          "pipeline_ii": null,
+          "pipeline_depth": 73784,
+          "bram": null,
+          "dsp": null,
+          "ff": null,
+          "lut": null,
+          "uram": null,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:53"
+        },
+        {
+          "scope_id": "autosa_mm/autosa_mm_Pipeline_load_B_row_load_B_beat",
+          "kind": "module",
+          "name": "autosa_mm_Pipeline_load_B_row_load_B_beat",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 65539,
+          "latency_ns": 218000.0,
+          "iteration_latency": null,
+          "interval": 65539,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 0,
+          "dsp": 0,
+          "ff": 568,
+          "lut": 200,
+          "uram": 0,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:43",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/autosa_mm_Pipeline_load_B_row_load_B_beat/load_B_row_load_B_beat",
+          "kind": "loop",
+          "name": "load_B_row_load_B_beat",
+          "parent": "autosa_mm/autosa_mm_Pipeline_load_B_row_load_B_beat",
+          "depth": 2,
+          "issue": null,
+          "violation": null,
+          "slack_ns": 2.43,
+          "latency_cycles": 65537,
+          "latency_ns": 218000.0,
+          "iteration_latency": null,
+          "interval": 1,
+          "trip_count": 65536,
+          "pipelined": "yes",
+          "pipeline_ii": 1,
+          "pipeline_depth": 3,
+          "bram": null,
+          "dsp": null,
+          "ff": null,
+          "lut": null,
+          "uram": null,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:42"
+        },
+        {
+          "scope_id": "autosa_mm/autosa_mm_Pipeline_load_AC_row_load_AC_beat",
+          "kind": "module",
+          "name": "autosa_mm_Pipeline_load_AC_row_load_AC_beat",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 4099,
+          "latency_ns": 13650.0,
+          "iteration_latency": null,
+          "interval": 4099,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 0,
+          "dsp": 0,
+          "ff": 556,
+          "lut": 182,
+          "uram": 0,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:58",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/autosa_mm_Pipeline_load_AC_row_load_AC_beat/load_AC_row_load_AC_beat",
+          "kind": "loop",
+          "name": "load_AC_row_load_AC_beat",
+          "parent": "autosa_mm/autosa_mm_Pipeline_load_AC_row_load_AC_beat",
+          "depth": 2,
+          "issue": null,
+          "violation": null,
+          "slack_ns": 2.43,
+          "latency_cycles": 4097,
+          "latency_ns": 13643.0,
+          "iteration_latency": null,
+          "interval": 1,
+          "trip_count": 4096,
+          "pipelined": "yes",
+          "pipeline_ii": 1,
+          "pipeline_depth": 3,
+          "bram": null,
+          "dsp": null,
+          "ff": null,
+          "lut": null,
+          "uram": null,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:57"
+        },
+        {
+          "scope_id": "autosa_mm/autosa_mm_Pipeline_compute_kb_compute_ii_compute_jb",
+          "kind": "module",
+          "name": "autosa_mm_Pipeline_compute_kb_compute_ii_compute_jb",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 65579,
+          "latency_ns": 218000.0,
+          "iteration_latency": null,
+          "interval": 65579,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 0,
+          "dsp": 5120,
+          "ff": 558885,
+          "lut": 289101,
+          "uram": 0,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:72",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/autosa_mm_Pipeline_compute_kb_compute_ii_compute_jb/compute_kb_compute_ii_compute_jb",
+          "kind": "loop",
+          "name": "compute_kb_compute_ii_compute_jb",
+          "parent": "autosa_mm/autosa_mm_Pipeline_compute_kb_compute_ii_compute_jb",
+          "depth": 2,
+          "issue": null,
+          "violation": null,
+          "slack_ns": 2.43,
+          "latency_cycles": 65577,
+          "latency_ns": 218000.0,
+          "iteration_latency": null,
+          "interval": 1,
+          "trip_count": 65536,
+          "pipelined": "yes",
+          "pipeline_ii": 1,
+          "pipeline_depth": 43,
+          "bram": null,
+          "dsp": null,
+          "ff": null,
+          "lut": null,
+          "uram": null,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:70"
+        },
+        {
+          "scope_id": "autosa_mm/autosa_mm_Pipeline_store_C_row_store_C_beat",
+          "kind": "module",
+          "name": "autosa_mm_Pipeline_store_C_row_store_C_beat",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": "Timing Violation",
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 4100,
+          "latency_ns": 13653.0,
+          "iteration_latency": null,
+          "interval": 4100,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 0,
+          "dsp": 0,
+          "ff": 560,
+          "lut": 520,
+          "uram": 0,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:109",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/autosa_mm_Pipeline_store_C_row_store_C_beat/store_C_row_store_C_beat",
+          "kind": "loop",
+          "name": "store_C_row_store_C_beat",
+          "parent": "autosa_mm/autosa_mm_Pipeline_store_C_row_store_C_beat",
+          "depth": 2,
+          "issue": null,
+          "violation": null,
+          "slack_ns": 2.43,
+          "latency_cycles": 4098,
+          "latency_ns": 13646.0,
+          "iteration_latency": null,
+          "interval": 1,
+          "trip_count": 4096,
+          "pipelined": "yes",
+          "pipeline_ii": 1,
+          "pipeline_depth": 4,
+          "bram": null,
+          "dsp": null,
+          "ff": null,
+          "lut": null,
+          "uram": null,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:108"
+        }
+      ],
+      "scheduler_blame": [
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-40] Environment variable 'C_INCLUDE_PATH' is set to /usr/include/x86_64-linux-gnu.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-40] Environment variable 'CPLUS_INCLUDE_PATH' is set to /usr/include/x86_64-linux-gnu.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74:9) in loop 'compute_ii_compute_jb' may become invalid because the loop was flattened with the outer loop 'compute_kb'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:74"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-2042] Usage of URAM can potentially cause worse II as Vitis HLS does not exploit read-first mode for URAMs. Consider using BRAMs instead.",
+          "source_location": null
+        }
+      ],
+      "bottlenecks": [
+        {
+          "scope_id": "autosa_mm",
+          "kind": "interval_exceeds_latency",
+          "evidence": "interval 1246226 > latency 1246225 cycles on module 'autosa_mm'",
+          "severity": "high",
+          "metric": {
+            "interval": 1246226,
+            "latency_cycles": 1246225,
+            "interval_over_latency": 1.0
+          },
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:53"
+        }
+      ],
+      "summary": {
+        "schema": "1.0",
+        "scope_count": 10,
+        "loop_count": 5,
+        "pipelined_loops": 4,
+        "non_pipelined_loops": 1,
+        "scopes_with_timing_violation": 1,
+        "scopes_with_negative_slack": 0,
+        "bottleneck_count": 1,
+        "high_severity_bottlenecks": 1,
+        "top_bottleneck_kinds": [
+          [
+            "interval_exceeds_latency",
+            1
+          ]
+        ]
+      },
+      "static_extras": {
+        "schema": "1.0",
+        "bursts": {
+          "schema": "1.0",
+          "passed": [
+            {
+              "group": "BURST_VERBOSE_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of length 1048576 has been inferred",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:42:14",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": "read",
+              "length": 1048576,
+              "width": null,
+              "loop_name": "load_B_row",
+              "parent_func": "autosa_mm"
+            },
+            {
+              "group": "BURST_VERBOSE_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of length 1048576 has been inferred",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:53:11",
+              "bundle": "gmem0",
+              "var": "A",
+              "direction": "read",
+              "length": 1048576,
+              "width": null,
+              "loop_name": "tile_i",
+              "parent_func": "autosa_mm"
+            },
+            {
+              "group": "BURST_VERBOSE_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential write of length 1048576 has been inferred",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:53:11",
+              "bundle": "gmem2",
+              "var": "C",
+              "direction": "write",
+              "length": 1048576,
+              "width": null,
+              "loop_name": "tile_i",
+              "parent_func": "autosa_mm"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential write of 1048576 x 32bit words has been widened by 16: 65536 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:109:21",
+              "bundle": "gmem2",
+              "var": "C",
+              "direction": "write",
+              "length": 65536,
+              "width": null,
+              "loop_name": "store_C_beat",
+              "parent_func": "autosa_mm"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of 1048576 x 32bit words has been widened by 16: 65536 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:58:21",
+              "bundle": "gmem0",
+              "var": "A",
+              "direction": "read",
+              "length": 65536,
+              "width": null,
+              "loop_name": "load_AC_beat",
+              "parent_func": "autosa_mm"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of 1048576 x 32bit words has been widened by 16: 65536 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:43:18",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": "read",
+              "length": 65536,
+              "width": null,
+              "loop_name": "load_B_beat",
+              "parent_func": "autosa_mm"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_MISSED",
+              "severity": "INFO",
+              "msg": "Could not widen since type i512 size is greater than or equal to the max_widen_bitwidth threshold of 512",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:109:21",
+              "bundle": "gmem2",
+              "var": "C",
+              "direction": null,
+              "length": null,
+              "width": null,
+              "loop_name": "store_C_beat",
+              "parent_func": "autosa_mm"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_MISSED",
+              "severity": "INFO",
+              "msg": "Could not widen since type i512 size is greater than or equal to the max_widen_bitwidth threshold of 512",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:58:21",
+              "bundle": "gmem0",
+              "var": "A",
+              "direction": null,
+              "length": null,
+              "width": null,
+              "loop_name": "load_AC_beat",
+              "parent_func": "autosa_mm"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_MISSED",
+              "severity": "INFO",
+              "msg": "Could not widen since type i512 size is greater than or equal to the max_widen_bitwidth threshold of 512",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:43:18",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": null,
+              "length": null,
+              "width": null,
+              "loop_name": "load_B_beat",
+              "parent_func": "autosa_mm"
+            }
+          ],
+          "widened": [
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential write of 1048576 x 32bit words has been widened by 16: 65536 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:109:21",
+              "bundle": "gmem2",
+              "var": "C",
+              "direction": "write",
+              "length": 65536,
+              "width": null,
+              "loop_name": "store_C_beat",
+              "parent_func": "autosa_mm"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of 1048576 x 32bit words has been widened by 16: 65536 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:58:21",
+              "bundle": "gmem0",
+              "var": "A",
+              "direction": "read",
+              "length": 65536,
+              "width": null,
+              "loop_name": "load_AC_beat",
+              "parent_func": "autosa_mm"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of 1048576 x 32bit words has been widened by 16: 65536 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:43:18",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": "read",
+              "length": 65536,
+              "width": null,
+              "loop_name": "load_B_beat",
+              "parent_func": "autosa_mm"
+            }
+          ],
+          "failed": [],
+          "summary": [
+            {
+              "group": "BURST_SUMMARY",
+              "severity": "INFO",
+              "msg": "Multiple burst reads of length 65536 and bit width 512 in loop 'load_B_row' has been inferred on bundle 'gmem1'. These burst requests might be further partitioned into multiple requests during RTL generation, based on max_read_burst_length or max_write_burst_length settings.",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:42:14",
+              "bundle": "gmem1",
+              "var": null,
+              "direction": "read",
+              "length": 65536,
+              "width": 512,
+              "loop_name": "load_B_row",
+              "parent_func": null
+            },
+            {
+              "group": "BURST_SUMMARY",
+              "severity": "INFO",
+              "msg": "Multiple burst reads of length 65536 and bit width 512 in loop 'tile_i' has been inferred on bundle 'gmem0'. These burst requests might be further partitioned into multiple requests during RTL generation, based on max_read_burst_length or max_write_burst_length settings.",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:53:11",
+              "bundle": "gmem0",
+              "var": null,
+              "direction": "read",
+              "length": 65536,
+              "width": 512,
+              "loop_name": "tile_i",
+              "parent_func": null
+            },
+            {
+              "group": "BURST_SUMMARY",
+              "severity": "INFO",
+              "msg": "Multiple burst writes of length 65536 and bit width 512 in loop 'tile_i' has been inferred on bundle 'gmem2'. These burst requests might be further partitioned into multiple requests during RTL generation, based on max_read_burst_length or max_write_burst_length settings.",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:53:11",
+              "bundle": "gmem2",
+              "var": null,
+              "direction": "write",
+              "length": 65536,
+              "width": 512,
+              "loop_name": "tile_i",
+              "parent_func": null
+            }
+          ],
+          "counts": {
+            "passed": 9,
+            "widened": 3,
+            "failed": 0,
+            "summary": 3
+          }
+        },
+        "diagnostic": {
+          "schema": "1.0",
+          "warnings": 30,
+          "errors": 0,
+          "info": 21,
+          "rejected_pragmas": [],
+          "examples": [
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/run_synth.tcl:8:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:17:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:18:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:19:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:20:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:21:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:22:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z/kernel.cpp:23:9",
+              "body": "HLS pragma dump"
+            }
+          ]
+        },
+        "design_size": {
+          "schema": "1.0",
+          "phases": {
+            "Compile/Link": {
+              "_total": 315
+            }
+          },
+          "compile_to_hw_growth": 1.0,
+          "max_phase_growth": 1.0
+        },
+        "summary": {
+          "bursts_passed": 9,
+          "bursts_widened": 3,
+          "bursts_failed": 0,
+          "rejected_pragmas": 0,
+          "warnings": 30,
+          "errors": 0,
+          "compile_to_hw_growth": 1.0,
+          "max_phase_growth": 1.0
+        }
+      }
+    },
+    "work_dir": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z"
+  },
+  "work_dir": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v0/csynth_work/20261013T215719Z"
+}

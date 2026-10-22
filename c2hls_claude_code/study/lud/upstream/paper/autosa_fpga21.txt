@@ -1,0 +1,864 @@
+               AutoSA: A Polyhedral Compiler for High-Performance
+                             Systolic Arrays on FPGA
+                         Jie Wang                                                  Licheng Guo                                     Jason Cong
+     University of California, Los Angeles                         University of California, Los Angeles             University of California, Los Angeles
+            jiewang@cs.ucla.edu                                             lcguo@cs.ucla.edu                                 cong@cs.ucla.edu
+
+ABSTRACT                                                                                      for the target platform, and tune the design to achieve the optimal
+While systolic array architectures have the potential to deliver                              performance. Each step will take significant efforts, raising the bar
+tremendous performance, it is notoriously challenging to customize                            to reap the benefits of such an architecture.
+an efficient systolic array processor for a target application. De-                              To lower the programming efforts of systolic arrays, there is
+signing systolic arrays requires knowledge for both high-level char-                          an active research domain to automate the systolic array genera-
+acteristics of the application and low-level hardware details, thus                           tion [3, 7, 10, 15, 17, 30, 46, 48, 52]. Previous works [3, 4, 7, 17, 46]
+making it a demanding and inefficient process. To relieve users from                          have proposed various compilation flows that use the polyhedral
+the manual iterative trial-and-error process, we present AutoSA, an                           model [4, 49] to generate systolic array designs. These works per-
+end-to-end compilation framework for generating systolic arrays                               form the dependence analysis on the program and transform the
+on FPGA. AutoSA is based on the polyhedral framework, and fur-                                program using the space-time transformation [27, 31] to generate
+ther incorporates a set of optimizations on different dimensions to                           systolic arrays. Although the polyhedral model based compilers can
+boost performance. An efficient and comprehensive design space                                analyze the program and perform transformations automatically,
+exploration is performed to search for high-performance designs.                              most of them suffer from low performance that does not match
+We have demonstrated AutoSA on a wide range of applications, on                               the hand-written designs. The key problem is that many important
+which AutoSA achieves high performance within a short amount                                  hardware optimization techniques are missing in these tools. For
+of time. As an example, for matrix multiplication, AutoSA achieves                            example, the framework MMAlpha [17] does not support array
+934 GFLOPs, 3.41 TOPs, and 6.95 TOPs in floating point, 16-bit and                            partitioning, which is essential in handling large-scale programs
+8-bit integer data types on Xilinx Alveo U250.                                                given the limited hardware. The recent work PolySA [10] is the
+                                                                                              first work that covers the most optimization techniques and gener-
+KEYWORDS                                                                                      ates designs with comparable performance to the manual designs.
+                                                                                              However, PolySA suffers from low generality as the framework
+polyhedral model; systolic array; compilation; FPGA
+                                                                                              only supports programs with a single statement in perfectly nested
+ACM Reference Format:                                                                         loops.
+Jie Wang, Licheng Guo, and Jason Cong. 2021. AutoSA: A Polyhedral Com-                           Apart from the polyhedral compilers, there have been several
+piler for High-Performance Systolic Arrays on FPGA. In Proceedings of the
+                                                                                              recent works [30, 48] that develop domain-specific language (DSL)
+2021 ACM/SIGDA International Symposium on Field Programmable Gate Ar-
+                                                                                              compilers for systolic arrays based on the Halide [43] infrastruc-
+rays (FPGA ’21), February 28-March 2, 2021, Virtual Event, USA. ACM, New
+York, NY, USA, 12 pages. https://doi.org/10.1145/3431920.3439292                              ture and achieve comparable performance to the manual designs.
+                                                                                              However, these tools require programmers to analyze the program
+1     INTRODUCTION                                                                            and write the DSL to set the legal program transformations manu-
+                                                                                              ally prior to the compilation. In addition, there is no auto-tuning
+The systolic array architecture is capable of delivering high perfor-                         support in these works and programmers need to examine different
+mance for a wide range of applications, such as linear algebra [37],                          transformations manually to find the best design. This task can be
+machine learning [52], and genomics [20]. In recent years, we have                            as challenging as finding out the legal transformations given the
+also seen a wide adoption of systolic array architectures in the field                        vast design space. All of these hurdles have raised barriers for pro-
+of deep learning [1, 8, 9, 15, 23, 26, 52, 54].                                               grammers to access such tools and stretched out the development
+   However, designing high-performance systolic arrays is never                               cycles, decreasing the productivity.
+an easy task. It requires the expert knowledge for both the target ap-                           In summary, we found that previous works are faced with the
+plication and the hardware. Specifically, designers need to identify                          following limitations that prohibit them from being used in practice:
+the systolic array execution pattern from the application, transform
+the algorithm to describe a systolic array, write the hardware code                               • Limited generality. Works such as [7, 10] place rigid restric-
+                                                                                                    tions on the input programs that limit the application scope
+Permission to make digital or hard copies of all or part of this work for personal or
+classroom use is granted without fee provided that copies are not made or distributed               of the compiler.
+for profit or commercial advantage and that copies bear this notice and the full citation         • Limited performance. Works such as [3, 7, 17, 46] support
+on the first page. Copyrights for components of this work owned by others than ACM                  limited program optimizations that limit the performance of
+must be honored. Abstracting with credit is permitted. To copy otherwise, or republish,
+to post on servers or to redistribute to lists, requires prior specific permission and/or a         the generated designs.
+fee. Request permissions from permissions@acm.org.                                                • Limited productivity. Works such as [30, 48, 55] require pro-
+FPGA ’21, February 28-March 2, 2021, Virtual Event, USA                                             grammers to analyze the program and to describe and ex-
+© 2021 Association for Computing Machinery.
+ACM ISBN 978-1-4503-8218-2/21/02. . . $15.00                                                        plore the program transformations manually. This, in turn,
+https://doi.org/10.1145/3431920.3439292                                                             leads to long development cycles.
+   In this paper, we propose a new compilation framework, AutoSA,                            Table 1: Comparison between different frameworks.
+to overcome the previous limitations. AutoSA is a polyhedral model                        Feature                     AutoSA   MMAlpha [17]   [7]    PolySA [10]   SuSy [30]
+based compilation framework. The top priority for us is to improve                        Generality
+the generality by compiling any programs to systolic arrays, as                           Imperfectly Nested Loops    Yes      No             No     No            No
+                                                                                          Multi-Statement             Yes      Yes            No     No            Yes
+long as they can be supported by the polyhedral framework and
+                                                                                          Performance
+can legally be mapped to a systolic array. AutoSA supports SCoP                           Array Partitioning          Auto     No             Auto   Auto          Semi-Auto
+programs1 with imperfectly nested loops and multiple statements.                          Latency Hiding              Auto     No             No     Auto          Semi-Auto
+                                                                                          SIMD Vectorization          Auto     No             No     Limited       Semi-Auto
+To compile such programs to systolic arrays, we propose techniques                        Double Buffering            Auto     No             No     Auto          Semi-Auto
+and optimizations for automatic translation of regular sequential                         Data Packing                Auto     No             No     Limited       Semi-Auto
+programs to parallel ones that describe a complete system of sys-                         Productivity
+                                                                                          Input                       C        DSL            C      C             DSL
+tolic arrays, including both the processing elements (PEs) and the                        Auto-Tuning                 Yes      No             No     Yes           No
+on-chip I/O network. We would like to emphasize that the compila-                         Space-Time Transformation   Auto     Semi-Auto      Auto   Auto          Semi-Auto
+tion of even this restricted class of programs is very challenging
+and that no automatic and general solution exists despite decades of                                systolic arrays within a short amount of time. For example,
+research. To support these transformations, previous works either                                   AutoSA achieves up to 934 GFLOPs, 3.41 TOPs, and 6.95
+rely on a semi-automatic workflow that requires users to deter-                                     TOPs for the floating point/16-bit integer/8-bit integer matrix
+mine the transformation manually prior to the compilation (e.g.,                                    multiplication on Xilinx Alveo U250, respectively.
+MMAlpha [17], SuSy [30]), or restrain themselves to a narrow set
+of programs and techniques (e.g., [7], PolySA [10]). In this paper,                      2    RELATED WORK
+we demonstrate that AutoSA is not only able to handle applications                       Polyhedral compilers: The polyhedral model is a compilation
+with regular dependence structure such as matrix multiplication                          framework for loop transformation [4, 32, 33, 41, 49]. Most prior
+and convolution, but also supports applications with complicated                         systolic array compilers are built upon the polyhedral framework [3,
+and irregular dependence structure such as LU decomposition.                             7, 10, 17, 46]. The commonality of these frameworks is the use of
+   In addition, AutoSA further improves performance and produc-                          space-time transformation [27, 31] to convert an algorithm into a
+tivity. AutoSA covers a superset of all the previous optimization                        new program that describes the architecture and execution of the
+techniques that have been applied on systolic arrays and extend                          systolic array. These compilers are all fully automatic and improve
+with new techniques to further improve the performance. Several                          the productivity, but most of them fail to deliver the performance
+representative techniques that AutoSA supports can be found in                           on par with manual designs because they miss several hardware
+Table 1. For example, SIMD vectorization is an important technique                       optimization techniques that help increase the compute and com-
+to increase parallelism and resource efficiency. AutoSA supports                         munication efficiency. The first four columns of Table 1 compare
+auto-detection of vectorizable loops with rigid dependence and                           AutoSA with three other representative polyhedral frameworks.
+access analysis and performs automatic program transformation                            Among the previous works, PolySA [10] covers the largest set of op-
+and code generation to produce a vectorized design. In comparison,                       timization techniques. However, PolySA is limited in its generality
+such a feature is either not supported in the previous work, or re-                      as it only supports the program with a single statement in perfectly
+quires human intervention to analyze and transform the program.                          nested loops. Besides, PolySA is limited in its implementation which
+This could lead to the missing of such an optimization opportunity                       is built upon Matlab and is unscalable in handling complex designs.
+with sub-optimal performance.                                                            As mentioned in its paper, it takes up to 23 minutes to perform the
+   AutoSA takes C code as the input that requires the minimal lines                      polyhedral transformation on a single layer of CNN, which finishes
+of code to describe an algorithm. The entire compilation flow is                         within seconds in AutoSA.
+automated with minimal human intervention. Besides, an auto-                                DSLs: There are several recent works that implement a domain-
+tuning module is implemented to ease the efforts of design space                         specific language (DSL) based compiler for generating systolic ar-
+exploration. In the evaluation section, we show that programmers                         rays [30, 48, 55]. T2S-Tensor [48] is a DSL compiler extended from
+are able to generate high-performance systolic arrays with AutoSA                        Halide [43] for generating systolic arrays for tensor programs. Fol-
+within a short amount of time.                                                           lowing the similar design principle of Halide, T2S-Tensor decouples
+   The contributions of this paper are as follows:                                       the compute and communication optimization of systolic arrays.
+     • Automation: We introduce a new open-source compilation                            The recent work SuSy [30] has further improved T2S-Tensor by sup-
+       framework2 , AutoSA, that generates systolic arrays on FP-                        porting general applications that can be mapped to systolic arrays.
+       GAs automatically.                                                                Both T2S-Tensor and SuSy are able to achieve high performance.
+     • Algorithms: We propose a set of efficient and effective algo-                     However, since Halide does not have dependence analysis and re-
+       rithms based on the polyhedral framework to construct and                         lies on conservative rules to determine the legality of program
+       optimize systolic arrays.                                                         transformation, these compilers are semi-automatic and require
+     • Experiments: We evaluate AutoSA on a suite of benchmarks.                         programmers to analyze the systolic array execution pattern from
+       We show that AutoSA is able to generate high-performance                          the algorithms and specify the necessary transformation required
+                                                                                         to generate the desired array. For instance, SuSy [30] requires pro-
+1 SCoP, as an abbreviation for Static Control Part, is a category of programs that can   grammers to transform the program into a form with perfected
+be supported by the polyhedral model. Details will be introduced in Section 3.           nested loops to satisfy the language requirement. Data reuse should
+2 https://github.com/UCLA-VAST/AutoSA                                                    be explicitly described in SuSy. As we will show later, such a job is
+challenging when handling complicated applications with irregular                       for (int i = 0; i < M; ++i)
+                                                                                            for (int j = 0; j < N; ++j)
+dependence structure. Furthermore, neither tools implement the                                  for (int k = 0; k < K; ++k)
+auto-tuning. All of these limitations have reduced the productivity                     S0:         C[i][j] += A[i][k] * B[k][j];
+
+of using such tools.                                                           Figure 1: Example code of matrix multiplication.
+   Other frameworks: There are some other frameworks that tar-
+get a specific domain of applications [13–16, 22, 37, 52]. Gem-                        DOMAIN : {𝑆0 𝑖, 𝑗, 𝑘 : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾}
+                                                                                        BAND : {𝑆0 𝑖, 𝑗, 𝑘 → [𝑖, 𝑗, 𝑘]}
+mini [15] is a framework for generating systolic arrays for matrix
+multiplication. It uses a code template that can be reconfigured to        Figure 2: Initial schedule of MM in schedule tree form.
+generate different arrays. Wei et al. [52] implement a template-based                                                                    𝐵              𝑗
+generator for convolution kernels in deep neural networks. These
+frameworks achieve high performance with many application-                 // space loops                                       PE     PE ⋯        PE
+                                                                           for (int i = 0; i < M; ++i)
+specific optimization techniques. However, the mapping mythology             for (int j = 0; j < N; ++j)
+                                                                               // time loop                                𝐴    PE     PE ⋯        PE
+is only limited to specific applications and cannot extend to gen-             for (int k = 0; k < K; ++k)
+                                                                                                                                                            𝑀
+
+
+
+
+                                                                                                                                ⋯
+
+
+                                                                                                                                       ⋯
+
+
+
+
+                                                                                                                                                   ⋯
+eral ones. Lastly, apart from systolic arrays, there is also an active     S0:   C[i][j] += A[i][k] * B[k][j];
+
+research domain on mapping applications to CGRAs [25, 28, 34,             (a) Optimized code after space-                       PE     PE ⋯        PE
+40, 42, 53]. CGRAs differ from systolic arrays with more flexible         time transformation.                             𝑖
+
+PE architecture and I/O interconnects. The techniques proposed in                                                                          𝑁
+
+this work will be helpful in addressing some similar issues such as                                                       (b) 2D systolic array for MM.
+computation scheduling and I/O mapping.                                        Figure 3: Example of space-time transformation.
+
+3     BACKGROUND                                                         schedules at each loop dimension. The isl library manipulates the
+                                                                         schedule tree of the program to perform the loop transformation.
+In this section, we describe the polyhedral model, which is the
+                                                                         To generate the final code, an AST is obtained from the schedule
+foundation of the algorithms that we proposed in AutoSA. We also
+                                                                         tree which is then lowered to the target code (e.g., C).
+introduce the space-time transformation, which is the basis of the
+automatic systolic array compilation.
+                                                                         3.2    Space-Time Transformation
+3.1      Polyhedral Model                                                Space-time transformation [27, 31, 36, 45] is the foundation of the
+                                                                         automatic systolic array synthesis. It applies loop transformations
+The polyhedral model is a mathematical framework for loop nest
+                                                                         on the target program and assigns new semantics (space and time)
+optimization. Loop nests that satisfy the requirements of the poly-
+                                                                         to the generated loops. Space loops map loop instances to differ-
+hedral model are called Static Control Part (SCoP) [4, 6]. A SCoP is
+                                                                         ent PEs that execute concurrently, while time loops describe the
+defined as a set of statements with loop bounds and conditions as
+                                                                         computation inside each PE.
+affine functions of the enclosing loop iterators and variables that
+                                                                            To generate a legal systolic array, the following constraints
+are constant during the SCoP execution.
+                                                                         should be satisfied by the loop transformation: First, the trans-
+    A program in the polyhedral model is typically represented by
+                                                                         formation should be semantics-preserving. Second, all dependences
+three components: iteration domains, access relations, and a sched-
+                                                                         should be uniform (with constant dependence distance). Third, the
+ule. We use a running example of matrix multiplication (MM) to
+                                                                         dependence distances on space loops should be no greater than one
+illustrate these concepts. Figure 1 shows the example code3 .
+                                                                         so that the data communication only happens between neighbor
+    The iteration domain contains the loop instances of the state-
+                                                                         PEs. Note that for the first and second constraints, we consider
+ments in the program. The iteration domain of the statement 𝑆0 in
+                                                                         all types of dependences (flow, anti, output and input/read depen-
+the example program has the form {𝑆0[𝑖, 𝑗, 𝑘] : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤
+                                                                         dences). We take into account the read dependences since the data
+𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾 }. Throughout the paper, to represent the com-
+                                                                         transfer needs to be managed explicitly in systolic arrays including
+ponents of the polyhedral model, we use the same format as integer
+                                                                         the read-only data. As for the third constraint, we only examine the
+set library (isl) [49], which is a library for polyhedral compilation.
+                                                                         flow and read dependences which are associated with the inter-PE
+    The access relation maps a statement instance to an array in-
+                                                                         communication. Since each PE has its own address space, anti and
+dex. For example, the access relations for the read accesses in the
+                                                                         output dependences do not contribute to the data communication
+statement 𝑆0 have the form {𝑆0[𝑖, 𝑗, 𝑘] → 𝐴[𝑖, 𝑘]; 𝑆0[𝑖, 𝑗, 𝑘] →
+                                                                         between PEs [5].
+𝐵 [𝑘, 𝑗]; 𝑆0[𝑖, 𝑗, 𝑘] → 𝐶 [𝑖, 𝑗]}.
+                                                                            For the MM example in Figure 1, we obtain one flow dependence
+    Finally, a schedule maps instance sets to multi-dimensional time.
+                                                                         (domain constraints omitted for brevity) as 𝐷1 := {𝑆0[𝑖, 𝑗, 𝑘] →
+The statement instances are executed following the lexicographic
+                                                                         𝑆0[𝑖, 𝑗, 𝑘 + 1]}, and two read dependences for array references
+order of the multi-dimensional time. As an example, the schedule of
+                                                                         A[i][k] and B[k][j] as 𝐷2 := {𝑆0[𝑖, 𝑗, 𝑘] → 𝑆0[𝑖, 𝑗 + 1, 𝑘]} and
+the statement 𝑆0 has the form {𝑆1[𝑖, 𝑗, 𝑘] → [𝑖, 𝑗, 𝑘]}. The schedule
+                                                                         𝐷3 := {𝑆0[𝑖, 𝑗, 𝑘] → 𝑆0[𝑖 + 1, 𝑗, 𝑘]}, respectively. One possible
+of a SCoP program can be represented by schedule trees [51]. Fig-
+                                                                         space-time transformation is 𝑆 := {𝑆0[𝑖, 𝑗, 𝑘] → [𝑖, 𝑗, 𝑘]}, which is
+ure 2 shows the schedule tree of the example program. The schedule
+                                                                         an identity mapping that keeps the original loop. We could calculate
+tree starts with a domain node that defines the iteration domain
+                                                                         the dependence distances for the above-mentioned three depen-
+of the program, followed with band nodes that encode the partial
+                                                                         dences 𝐷1, 𝐷2, and 𝐷3 under the schedule 𝑆, which are (0, 0, 1),
+3 The matrix initialization is omitted for brevity.                      (0, 1, 0), and (1, 0, 0). All dependences are uniform (we omit the
+                                   C
+                                                                           Algorithm 1: Space-time transformation.
+                           Model Extraction                                   Inputs : A schedule tree 𝑠
+                             Polyhedral IR                                    Outputs : A list of schedule trees 𝑆
+                                                                              Initialize the space loop candidate pool 𝑃 ← ∅;
+                            Legality Check                                    Extract the outermost permutable loop band 𝑑 from 𝑠;
+ Manual               Computation Management                       Auto       for each loop 𝑙 in the band 𝑑 do
+    User-Specified          (Section 5)                   Auto-Tuner               if all flow/read dependence distances on loop 𝑙 ≤ 1 then
+    Optimization     Communication Management             (Section 7)                   𝑃 ← 𝑃 ∪ 𝑙;
+                            (Section 6)
+                                                                              /* Generate 2D systolic array.                                  */
+                                   AST
+                                                                              for each pair of loops (𝑙 1 , 𝑙 2 ) in the pool 𝑃 do
+                           Code Generation                                        Duplicate the schedule tree 𝑠 ′ ← 𝑠;
+                                                                                  Modify 𝑠 ′ by permuting the loops 𝑙 1 , 𝑙 2 to outermost;
+                           HLS C         ...
+                                                                                  𝑆 ← 𝑆 ∪ 𝑠 ′;
+                                                                              /* Generate 1D systolic array (omitted), similar to 2D case
+         Figure 4: Overview of AutoSA compilation flow.
+                                                                                  with only one space loop selected.                          */
+discussion about output and anti dependences for brevity). Besides,
+dependence distances on all three loops are no greater than one.
+Therefore, all three loops are eligible to be selected as the space       these two components into two stages: computation and communi-
+loops. As an example, we select the first two loops 𝑖 and 𝑗 as space      cation management. The stage of computation management con-
+loops and leave the loop 𝑘 as the time loop. The transformed code         structs the PE and optimizes its micro-architecture. After that, the
+after space-time transformation is shown in Figure 3a. This trans-        stage of communication management builds the I/O network for
+formation leads to a 2D systolic array with the dimensions of 𝑀 ×𝑁 .      transferring data between PEs and the external memory. Details of
+Each PE in this array computes one array element C[i][j]. In ad-          these two stages will be covered in Sections 5 and 6, respectively.
+dition, according to the two read dependences 𝐷2 and 𝐷3, data of             Code generation: After the previous stages, AutoSA generates
+matrices 𝐴 and 𝐵 are reused along the loops 𝑗 and 𝑖, respectively.        the AST from the optimized program. The AST is then traversed to
+Therefore, horizontal and vertical interconnects between PEs are          generate the final design for the target hardware.
+inserted to transfer the reused data. The complete array is depicted         Auto-tuner: The stages of computation and communication
+in Figure 3b.                                                             management involve multiple optimization techniques, each intro-
+                                                                          ducing several tuning options. AutoSA implements tunable knobs
+4      FRAMEWORK OVERVIEW                                                 for these techniques which can be set by users manually or tuned
+In this section, we first clarify the application scope that AutoSA       by an auto-tuner. Details of the auto-tuner are covered in Section 7.
+covers. Then, we give a bird’s-eye view of the overall compilation
+flow of AutoSA.                                                           5     COMPUTATION MANAGEMENT
+                                                                          The stage of computation management consists of four steps: space-
+4.1       The Scope of AutoSA                                             time transformation, array partitioning, latency hiding, and SIMD
+AutoSA is built on the polyhedral framework, which takes SCoP             vectorization. We will go though each step in the following subsec-
+programs as the input. In addition, AutoSA assumes all the depen-         tions.
+dences of the input programs have been rendered uniform before
+the compilation. Prior studies on uniformization such as [35] which       5.1      Space-Time Transformation
+converts affine dependences to uniform dependences can be inte-           This step performs the space-time transformation to map the input
+grated as a pre-processing step to relax this contraint. This work is     program to a systolic array. Algorithm 1 describes how AutoSA ap-
+orthogonal to our framework and will be left for future work.             plies the space-time transformation. AutoSA searches for the loops
+                                                                          in the outermost loop band with flow/read dependence distances no
+4.2       Compilation Flow                                                greater then one. Those loops are put into a pool as the candidate
+Figure 4 presents the overall compilation flow of AutoSA.                 space loops. Next, AutoSA enumerates all space loop combinations
+   Model extraction: This step extracts the polyhedral model con-         from the candidate pool. The selected space loops are permuted
+sisted of the iteration domains, access relations, schedule, and data     outermost. All the loops below the space loops are assigned as time
+dependences from the input C program.                                     loops. At present, AutoSA generates 1D and 2D systolic arrays. This
+   Legality check: This step checks to see if the input program can       constraint can be relaxed to generate higher-dimensional arrays if
+legally be mapped to a systolic array. Specifically, we check the three   necessary. There will be multiple systolic arrays generated from this
+constraints as mentioned in Section 3.2. If the new schedule fails        step, each with a unique schedule. Users can choose which array to
+to meet any of those constraints, AutoSA will skip the following          process manually, or leave it to be explored by the auto-tuner.
+steps and dump out a CPU code from the current schedule.
+   Computation and communication management: A com-                       5.2      Array Partitioning
+plete systolic array architecture consists of both the PE array and       Given the limited on-chip resource, array partitioning is mandatory
+the on-chip I/O network. AutoSA separates the process of building         when mapping a large array to FPGA. To achieve this, AutoSA tiles
+                                                                                                        DOMAIN : {𝑆0 𝑖, 𝑗, 𝑘 : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾}
+the outermost permutable loop band in the schedule tree which
+                                                                                                         BAND : {𝑆0 𝑖, 𝑗, 𝑘 → [ 𝑖/4 , 𝑗/4 , 𝑘/4 ]}
+contains the space loops. The tiling factors can be chosen by the                                                                                    Space loops
+                                                                                                           BAND : 𝑆0 𝑖, 𝑗, 𝑘 → 𝑖 𝑚𝑜𝑑 4, 𝑗 𝑚𝑜𝑑 4
+users or set by the auto-tuner during the design space exploration.                                         BAND: 𝑆0 𝑖, 𝑗, 𝑘 → 𝑘 𝑚𝑜𝑑 4
+Figure 5a shows one example in which we tile the outermost loop                                                      (a) Array partitioning.
+band in the MM example (shown in Figure 2) with the tiling factors                                     DOMAIN : {𝑆0 𝑖, 𝑗, 𝑘 : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾}
+of (4, 4, 4). The point loops from the original loops 𝑖 and 𝑗 are kept                                  BAND : {𝑆0 𝑖, 𝑗, 𝑘 → [ 𝑖/4 , 𝑗/4 , 𝑘/4 ]}
+as the space loops. This will lead to a 2D systolic array with the                                        BAND : 𝑆0 𝑖, 𝑗, 𝑘 → 𝑖/2 − 2 𝑖/4 , 𝑗/2 − 2 𝑗/4
+dimensions of 4 × 4.                                                                                        BAND: 𝑆0 𝑖, 𝑗, 𝑘 → 𝑘 𝑚𝑜𝑑 4
+                                                                                                             BAND : 𝑆0 𝑖, 𝑗, 𝑘 → 𝑖 𝑚𝑜𝑑 2, 𝑗 𝑚𝑜𝑑 2     Latency hiding loops
+
+5.3     Latency Hiding                                                                                                  (b) Latency hiding.
+                                                                                                       DOMAIN : {𝑆0 𝑖, 𝑗, 𝑘 : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾}
+Latency hiding helps hide the pipeline stalls caused by the loop-                                       BAND : {𝑆0 𝑖, 𝑗, 𝑘 → [ 𝑖/4 , 𝑗/4 , 𝑘/4 ]}
+carried dependence of the compute statements. In the MM example,                                          BAND : 𝑆0 𝑖, 𝑗, 𝑘 → 𝑖/2 − 2 𝑖/4 , 𝑗/2 − 2 𝑗/4
+the multiply-and-add (MAC) operation in the statement 𝑆0 intro-                                            BAND : 𝑆0 𝑖, 𝑗, 𝑘 → 𝑘/2 − 2 𝑘/4
+duces loop-carried dependence on the loop 𝑘, resulting in an initial                                         BAND : 𝑆0 𝑖, 𝑗, 𝑘 → 𝑖 𝑚𝑜𝑑 2, 𝑗 𝑚𝑜𝑑 2
+interval (II) greater than one. To resolve this issue, AutoSA looks                                           BAND : 𝑆0 𝑖, 𝑗, 𝑘 → 𝑘 𝑚𝑜𝑑 2 (𝑢𝑛𝑟𝑜𝑙𝑙)       SIMD loops
+
+for parallel loops in the schedule tree, strip-mines them and per-                                                  (c) SIMD vectorization.
+mutes the point loops innermost. As an example, loops 𝑖 and 𝑗 are                         Figure 5: Optimized schedules with different PE optimiza-
+parallel loops in the MM example. We will strip-mine them with the                        tion techniques.
+tiling factors of (2, 2) and permute the point loops innermost. Since
+there is no loop-carried dependence on the innermost loop, the PE                         for the MM example, we could transfer data elements from matrix
+could now achieve II=1. The newly generated schedule is shown                             𝐴 and 𝐵 via horizontal and vertical interconnects.
+in Figure 5b. Similar as the previous stage, AutoSA allows users                             Outer-array communication: This refers to the data commu-
+to specify the loops to be tiled and the tiling factors. Alternatively,                   nication between PEs and the external memory (e.g., DRAM). In the
+such choices will be explored by the auto-tuner to maximize the                           MM example, the I/O network needs to fetch the data elements of
+performance.                                                                              matrices 𝐴 and 𝐵 to feed the array, drain the final results of matrix
+                                                                                          𝐶 from the array and write out to the external memory.
+5.4     SIMD Vectorization                                                                   The stage of communication management in AutoSA analyzes
+SIMD vectorization duplicates the compute units inside each PE,                           the program and constructs the I/O network as mentioned above.
+which still share the same control logic. This helps amortize the                         We show that I/O network can be built automatically via data de-
+control overheads and improve the resource efficiency of the design.                      pendence analysis in the polyhedral model. Furthermore, as the
+At present, AutoSA detects the vectorizable loop by examining the                         topology of the I/O network plays an important role in the fre-
+following two criteria: 1) The loop should be a parallel loop or a                        quency of the design, we extend the algorithm to build an I/O net-
+reduction loop4 . 2) All array references within the loop are stride-                     work that only involves local interconnects, hence, guaranteeing
+one or stride-zero in regard to this loop. In the MM example, the                         the sustained high frequency.
+loop 𝑘 is a reduction loop. Array references C[i][j] and A[i][k]                             The following subsections explain our approaches in detail. Sec-
+are stride-zero and stride-one with regard to loop 𝑘. The array                           tion 6.1 describes how we analyze the dependences in the program
+reference B[k][j] requires a layout transformation to B[j][k] so                          to extract the necessary information for constructing the I/O net-
+that it becomes a stride-one access that enables the vectorization.                       work. Section 6.2 builds the I/O network using the information
+Figure 5c shows the vectorized code in which we strip-mine the                            extracted from the previous step. Section 6.3 discusses several I/O
+loop 𝑘 with a factor of 2. The point loop is permuted innermost and                       optimization techniques to further improve the I/O performance.
+marked unroll which will be handled by HLS tools at last. During
+the compilation, AutoSA examines each loop and enumerates all the                         6.1     I/O Analysis
+possible layout transformations to expose the SIMD opportunities.
+                                                                                          The data communication is associated with the data dependences.
+Users may choose one loop to proceed or let the auto-tuner take
+                                                                                          Previous works such as [5, 12] have demonstrated how to imple-
+over and make the choice.
+                                                                                          ment the data transfer scheme for MPI programs using the polyhe-
+                                                                                          dral model. Our algorithms for building the I/O network of systolic
+6     COMMUNICATION MANAGEMENT                                                            arrays are inspired by that thread of work but with further exten-
+So far we have finished the PE construction and optimization. How-                        sion to take into account the uniqueness of systolic arrays. To build
+ever, the current array is still not functional as we are missing                         the I/O network, AutoSA analyzes the following three types of data
+the other key component, the I/O network. The I/O network is a                            dependences:
+network on chip that supports two types of data communication:
+                                                                                                • Read dependence: For transferring the read-only data.
+   Inner-array communication: This refers to the data commu-
+                                                                                                • Flow dependence: For transferring the intermediate results.
+nication between PEs. An an example, in Figure 3b, we show that
+                                                                                                • Output dependence: For transferring the final results.
+4 The current polyhedral framework that AutoSA builds on lacks the capability to            Table 2 lists the dependences extracted from the MM example.
+detect the reduction loop, which requires the user annotation prior to the compilation.   The step of I/O analysis interprets such dependences and extracts a
+      Table 2: Dependence relations of the MM example.                     Algorithm 2: I/O group construction.
+       Type     Dependence Relation                        Array Access     Inputs : Access relations 𝐴, dependence relations 𝐷𝑟𝑒𝑎𝑑 , 𝐷 𝑓 𝑙𝑜𝑤 ,
+       Read     𝐷1 := {𝑆0[𝑖, 𝑗, 𝑘 ] → 𝑆0[𝑖, 𝑗 + 1, 𝑘 ] }   A[i][k]
+                                                                                        𝐷𝑜𝑢𝑡𝑝𝑢𝑡 , schedule 𝑠
+       Read     𝐷2 := {𝑆0[𝑖, 𝑗, 𝑘 ] → 𝑆0[𝑖 + 1, 𝑗, 𝑘 ] }   B[k][j]          Outputs : A set of I/O groups 𝐺
+       Flow     𝐷3 := {𝑆0[𝑖, 𝑗, 𝑘 ] → 𝑆0[𝑖, 𝑗, 𝑘 + 1] }    C[i][j]          Initialize the I/O group set 𝐺 ← ∅;
+       Output   𝐷4 := {𝑆0[𝑖, 𝑗, 𝑘 ] → 𝑆0[𝑖, 𝑗, 𝑘 + 1] }    C[i][j]          /* Populate the I/O groups.                                      */
+                                                                            for each array access 𝑎𝑐𝑐 in 𝐴 do
+                                                                                 for each dependence 𝑑 in 𝐷𝑟𝑒𝑎𝑑 , 𝐷 𝑓 𝑙𝑜𝑤 , 𝐷𝑜𝑢𝑡𝑝𝑢𝑡 do
+data structure named I/O group that contains the necessary informa-                   if 𝑎𝑐𝑐 is associated with 𝑑 then
+tion required to construct the I/O network. Algorithm 2 describes                         Construct a new I/O group 𝑔 (𝑎𝑐𝑐, 𝑑);
+the details of this step.                                                                 Compute the properties of the group 𝑔: I/O direction
+   An I/O group 𝑔 is defined as a tuple of 𝑔 = (𝐴, 𝐷) where 𝐴 is a                          𝑔.𝑑𝑖𝑟 and I/O type 𝑔.𝑡 𝑦𝑝𝑒;
+set of array accesses that are associated with the current group and                      𝐺 ← 𝐺 ∪ 𝑔;
+𝐷 is the set of data dependences associated with the array accesses
+in 𝐴. In Algorithm 2, we first populate the initial I/O group set           /* Merge the I/O groups.                                                  */
+𝐺. A single I/O group is constructed for each array access and its          for each pair of I/O groups (𝑔1 , 𝑔2 ) in 𝐺 do
+associated data dependence. For each I/O group, the following two               if is_shared(𝑔1 , 𝑔2 ) then
+                                                                                     Merge the two I/O groups 𝑔 ← 𝑚𝑒𝑟𝑔𝑒 (𝑔1 , 𝑔2 );
+properties are computed:
+                                                                                     Update the I/O group set 𝐺 ← 𝐺 \ (𝑔1 ∪ 𝑔2 ) ∪ 𝑔;
+   I/O direction: This is the component of the dependence distance
+vector on the space loops.                                                  /* Compute the I/O group copy-in/copy-out sets.                           */
+   I/O type: The I/O group is classified as exterior I/O if the depen-      for each I/O group 𝑔 in 𝐺 do
+dence is carried by the space loops. Otherwise, it is classified as             if g is associated with read dependences then
+interior I/O.                                                                        𝑔.𝑊𝑖𝑛 ← ∪𝑑𝑖 (𝑠𝑟𝑐 (𝑑𝑖 ) ∪ 𝑑𝑠𝑡 (𝑑𝑖 ));
+   As an example, in the MM example, for the array access B[k][j],               if g is associated with flow dependences then
+we construct an I/O group 𝑔 from the array access B[k][j] and its                     𝑔.𝑊𝑖𝑛 ← ∪𝑑𝑖 𝑑𝑠𝑡 (𝑑𝑖 );
+associated dependence 𝐷2 as shown in Table 2. The dependence                          𝑔.𝑊𝑜𝑢𝑡 ← ∪𝑑𝑖 𝑠𝑟𝑐 (𝑑𝑖 );
+distance of 𝐷2 on the space loops is (1, 0). Therefore, we assign the            if g is associated with output dependences then
+I/O direction as 𝑔.𝑑𝑖𝑟 = (1, 0) and the I/O type as 𝑔.𝑡𝑦𝑝𝑒 = 𝑒𝑥𝑡𝑒𝑟𝑖𝑜𝑟 .               𝑔.𝑊𝑜𝑢𝑡 ← ∪𝑑𝑖 (𝑑𝑠𝑡 (𝑑𝑖 ) − 𝑠𝑟𝑐 (𝑑𝑖 ));
+   The next step of our algorithm merges the I/O groups that share
+the same properties. I/O groups are merged together if satisfying
+                                                                                      Table 3: I/O groups of the MM example.
+the following constraints: 1) They have the same I/O direction and
+I/O type. 2) They are associated with the same array and the same          No.   𝐴         𝐷    𝑊𝑖𝑛 /𝑊𝑜𝑢𝑡
+type of dependence. Later, AutoSA will allocate a set of I/O modules       𝑔1    A[i][k]   𝐷1   𝑊𝑖𝑛 := 𝑆0[𝑖, 𝑗, 𝑘] : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾 }
+for each I/O group, as will be discussed in detail in Section 6.2.         𝑔2    B[k][j]   𝐷2   𝑊𝑖𝑛 := 𝑆0[𝑖, 𝑗, 𝑘] : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾 }
+                                                                           𝑔3    C[i][j]   𝐷2   𝑊𝑖𝑛 := 𝑆0[𝑖, 𝑗, 𝑘] : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 < 𝑘 < 𝐾 }
+   The last step is to compute the statement instances that require                             𝑊𝑜𝑢𝑡 := 𝑆0[𝑖, 𝑗, 𝑘] : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾 − 1}
+such data. We divide them into two sets: copy-in set 𝑊𝑖𝑛 and copy-         𝑔4    C[i][j]   𝐷3   𝑊𝑜𝑢𝑡 := 𝑆0[𝑖, 𝑗, 𝑘 = 𝐾 − 1] : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁
+out set𝑊𝑜𝑢𝑡 . These sets contain the statement instances that require
+the data to be copied in or copied out, respectively. For I/O groups       Algorithm 3: I/O construction.
+with read dependences, we compute the copy-in set as the union of           Inputs : Schedule 𝑠, I/O groups 𝐺, number of space loops 𝑑𝑖𝑚
+all source and destination domains of the dependences as all the            Outputs : A list of schedules for I/O modules 𝐿
+data are required. The copy-out set is left empty. For I/O groups           𝐿 ← ∅;
+with flow dependences, the copy-in set consists of the destination          /* Copy-in modules                                           */
+domains of the dependences and the copy-out domain consists of              for each I/O group 𝑔 in 𝐺 do
+the source domains. Lastly, for I/O groups with output dependences,             Duplicate the schedule 𝑠 ′ ← 𝑠;
+we compute the copy-out set by subtracting the source domains                   Insert the domain filter 𝑔.𝑊𝑖𝑛 into the schedule 𝑠 ′ ;
+from the destination domains as we are only interested in the last              𝑖𝑜_𝑙𝑒𝑣𝑒𝑙 ← 1;
+updated elements. The copy-in set is left empty. Table 3 includes               while 𝑖𝑜_𝑙𝑒𝑣𝑒𝑙 ≤ 𝑑𝑖𝑚 do
+the final I/O groups extracted from the MM example and their copy-                  Perform I/O module clustering on the first
+in/copy-out sets. They will be used for I/O network construction in                    (𝑑𝑖𝑚 − 𝑖𝑜_𝑙𝑒𝑣𝑒𝑙 + 1) space loops
+                                                                                      𝑠 ′ = 𝑖𝑜_𝑐𝑙𝑢𝑠𝑡𝑒𝑟𝑖𝑛𝑔 (𝑠 ′, 𝑑𝑖𝑚 − 𝑖𝑜_𝑙𝑒𝑣𝑒𝑙 + 1, 𝑔);
+the next section.
+                                                                                    Add 𝑠 ′ to 𝐿;
+                                                                                    𝑖𝑜_𝑙𝑒𝑣𝑒𝑙 ← 𝑖𝑜_𝑙𝑒𝑣𝑒𝑙 + 1;
+6.2    I/O Construction
+This step constructs the I/O modules based on the I/O grouping              /* Copy-out modules (omitted for brevity)                                 */
+information extracted from the previous step. For each I/O group,
+AutoSA allocates a set of I/O modules for transferring the data
+between PEs and the external memory. Algorithm 3 describes the              We start with the optimized schedule from the computation
+detailed procedure of this step.                                          management. In the first step, we isolate the statement instances
+                         DOMAIN : {𝑆0 𝑖, 𝑗, 𝑘 : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾}                                               DOMAIN : {𝑆0 𝑖, 𝑗, 𝑘 : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾}
+                              FILTER : {𝑆0 𝑖, 𝑗, 𝑘 : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾}                                           FILTER : {𝑆0 𝑖, 𝑗, 𝑘 : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾}
+                               BAND : {𝑆0 𝑖, 𝑗, 𝑘 → [ 𝑖/4 , 𝑗/4 , 𝑘/4 ]}                                                             BAND : {𝑆0 𝑖, 𝑗, 𝑘 → [ 𝑖/4 , 𝑗/4 , 𝑘/4 ]}
+                                 BAND : 𝑆0 𝑖, 𝑗, 𝑘 → 𝑖/2 − 2 𝑖/4 , 𝑗/2 − 2 𝑗/4                        Space loops                     BAND : 𝑆0 𝑖, 𝑗, 𝑘 → 𝑖𝑑𝑦, 𝑖𝑑𝑥
+
+Figure 6: Insert the filter to isolate the statement instances                                                      Figure 9: Updated schedule for the clustered L1 I/O module
+of group 𝑔2 .                                                                                                       by applying the transformation 𝑇 1 := [𝑐0, 𝑐1] → [𝑐1, 𝑐0] on
+                                               𝑦
+                                                                                                                    the space loops in the original schedule as shown in Figure 7.
+                                      𝑥
+                                                                                                                                                                                L3
+                                                    Schedule for the I/O module of group 𝑔2 :                                                                                        A
+                                                                                                                                                                                L3                 L2
+                                                     DOMAIN : {𝑆0 𝑖, 𝑗, 𝑘 : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾}
+                     PE                   PE
+        DRAM
+
+
+
+
+                                                                                                                                                          𝒈𝟏 (𝑨 𝒊 [𝒌])           B
+                                                       FILTER : {𝑆0 𝑖, 𝑗, 𝑘 : 0 ≤ 𝑖 < 𝑀 ∧ 0 ≤ 𝑗 < 𝑁 ∧ 0 ≤ 𝑘 < 𝐾}
+                                                                                                                                PE          PE                                           PE        PE
+
+
+
+
+                                                                                                                     DRAM
+
+
+
+
+                                                                                                                                                                         DRAM
+                                                                                                                                                          𝒈𝟐 (𝑩 𝒌 [𝒋])
+                                                         BAND : {𝑆0 𝑖, 𝑗, 𝑘 → [ 𝑖/4 , 𝑗/4 , 𝑘/4 ]}
+                                                                                                                                                          𝒈𝟑 (𝑪 𝒊 [𝒋])                                  L1
+                                                            BAND : 𝑆0 𝑖, 𝑗, 𝑘 → 𝑖𝑑𝑥, 𝑖𝑑𝑦
+                     PE                   PE                                                                                                              𝒈𝟒 (𝑪 𝒊 [𝒋])
+                                                                                                                                PE          PE                                  L2       PE        PE
+                                                                                                                                                                                C L3          L2
+Figure 7: PE array with the I/O module for 𝑔2 and its loop
+schedule.                                                                                                                       (a) Initial array.                              (b) Optimized array.
+                                                                                  L3   L2             L2
+                                                   Prev
+                                                                                                                    Figure 10: A complete 2D systolic array for the MM example.
+               L2        L2                        I/O module
+                                                                                            L1             L1
+               L1                L1
+                                                                                                                    as shown in Figure 8b. Eventually, we reduce the memory fan-outs
+                                                       Keep
+                                                                                                 PE         PE      from four to one.
+                                                                           DRAM
+
+
+
+
+                    PE             PE
+ DRAM
+
+
+
+
+                                                      Buf                                   L1             L1          I/O clustering is realized by applying loop transformation on the
+               L1                L1                             PE
+                                                                                                 PE         PE      space loops. For example, when clustering the L1 I/O modules for
+                    PE             PE              Next                                                             the group 𝑔2 , since the group 𝑔2 has the I/O type as exterior I/O
+                                                   I/O module
+
+                                                                          (b) Clustering L2 I/O mod-
+                                                                                                                    and I/O direction as (1, 0), indicating that data are reused along the
+           (a) Clustering L1 I/O modules.                                                                           𝑥-axis, we will cluster the I/O modules along the (1, 0) direction.
+                                                                          ules.
+               Figure 8: I/O clustering example for group 𝑔2 .                                                      This is achieved by applying a partial schedule transformation
+                                                                                                                    𝑇 1 := {[𝑐 0, 𝑐 1 ] → [𝑐 1, 𝑐 0 ]} on the space loops. Figure 9 shows the
+that are involved with the data communication from the current                                                      updated schedule for the L1 I/O module. Next, when clustering
+group by inserting a filter node into the schedule tree with the copy-                                              the L2 I/O modules, only the first space dimension is involved. For
+in/copy-out set. The filter node restrains the iteration domains of                                                 simplicity, we apply an identity transformation 𝑇 2 := {[𝑐0] →
+its children nodes by intersecting the current iteration domain with                                                [𝑐0]} that clusters the L2 I/O modules along the 𝑦-axis. Note that,
+the filter set [49, 51]. As an example, Figure 6 shows the updated                                                  when choosing the I/O clustering directions for the L1 I/O modules
+schedule with the filtered domain for the I/O group 𝑔2 in Table 3                                                   of the I/O groups with exterior I/O, AutoSA uses the default I/O
+(loops inside the space loops are omitted for brevity). At this stage,                                              direction of the group. As for the rest of the cases, at present, AutoSA
+we could already generate a set of I/O modules that load the data                                                   simply clusters the I/O modules vertically or horizontally. However,
+from the external memory and send the data directly to each PE.                                                     users can also provide their own inputs to direct the I/O clustering
+This can be realized by equating the space loops to the PE indices                                                  manually. Figure 10a depicts the final array architecture after the
+𝑖𝑑𝑥 and 𝑖𝑑𝑦 in the updated schedule and using it to generate the                                                    I/O clustering for all the I/O groups in Table 3.
+code inside each I/O module. Figure 7 shows the generated array
+and the corresponding schedule for each I/O module.                                                                 6.3     I/O Optimization
+    However, this architecture may not be scalable as the data are                                                  In this step, AutoSA applies multiple passes to further optimize the
+scattered directly from the external memory which causes high                                                       I/O network.
+fan-outs and could lead to routing failure. To resolve this issue, we                                                   I/O module embedding: L1 I/O modules with exterior I/O are
+choose to localize the I/O network by using a daisy-chain architec-                                                 embedded into the PEs to save the resource.
+ture that have been seen in many previous works [11, 37, 48, 52].                                                       I/O module pruning: When transferring the data between dif-
+In this architecture, each I/O module fetches data from the upper-                                                  ferent sub-array tiles, AutoSA checks if the copy-out set of the
+stream I/O modules. The I/O module works as a filter that keeps                                                     previous tile equals the copy-in set of the current tile at the PE level.
+the data belonging to the PEs that it is associated with and passes                                                 If two sets are equal at the PE level, it indicates the data are located
+the rest of the data to the down-stream I/O modules. As for the                                                     on-chip and hence the data transfer from the external memory is
+architecture in Figure 7, we name the I/O modules that are directly                                                 unnecessary. For such a case, the I/O modules for this I/O group
+connected to PEs as level-one (L1) I/O modules. We could first clus-                                                are pruned away to save the off-chip communication and on-chip
+ter the L1 I/O modules along the 𝑥-axis, as shown in Figure 8a.                                                     resource. As an example, for the MM example, the I/O modules for
+Every two L1 modules along the 𝑥-axis are connected to an upper-                                                    the group 𝑔3 will be pruned away since the data of matrix 𝐶 are
+level (L2) I/O modules, which helps to reduce the memory fan-outs                                                   accumulated locally inside each PE. Figure 10b shows the optimized
+from four to two. We name such a process as I/O clustering. I/O                                                     array by applying two techniques as mentioned above.
+clustering can be applied multiple times in a hierarchical way. For                                                     Data packing: To reduce the data transfer latency between the
+example, we could apply the I/O clustering again on the L2 I/O                                                      I/O modules, AutoSA performs data packing between I/O modules.
+modules, generating one L3 I/O module that connects to the DRAM,                                                    Packing more data helps reduce the data transfer latency, however,
+it leads to FIFOs with a larger width and higher resource usage.                            Table 4: Benchmark description.
+Therefore, AutoSA offers options to set the data packing factor at           Application             Problem Size                                    #Stmts   LOC
+each I/O level, which can also be set by the auto-tuner during the
+                                                                             Matrix Multiplication   [𝑖, 𝑗, 𝑘] : [1024, 1024, 1024]                    2      7
+design space exploration.                                                    CNN                     [𝑖, 𝑜, ℎ, 𝑤, 𝑝, 𝑞] : [512, 512, 56, 56, 3, 3]     2      10
+    Double buffering: By default, AutoSA allocates a local buffer            MTTKRP [48]             [𝑖, 𝑘, 𝑙, 𝑗] : [512, 512, 512, 512]               2      9
+inside the L1 I/O modules for I/O groups with interior I/O or inside         TTMc [48]               [𝑖, 𝑗, 𝑘, 𝑙, 𝑚] : [128, 128, 128, 128, 128]       2      9
+the L2 I/O modules for I/O groups with the exterior I/O. For such            LU Decomposition        [𝑛] : [12/16/20/24]                               9      27
+I/O modules with local buffers inside, AutoSA offers options to
+enable the double buffering that helps overlap the memory transfer          The auto-tuner examines all designs using exhaustive search.
+with the PE computation.                                                 We have also applied several pruning strategies to shrink the de-
+                                                                         sign space. Besides, the auto-tuning is multi-processed to further
+7 AUTO-TUNING                                                            speedup the procedure. With these optimizations, the auto-tuning
+                                                                         can finish within hours on a normal work station for all the experi-
+7.1 Problem Statement                                                    ments evaluated in this paper. In the future, we will improve the
+The optimizations described in the previous sections introduce           tuning efficiency by considering recent design space exploration
+many design factors that compose a large design space which is           works that leverage the machine learning techniques [2, 24, 38, 47].
+impractical to explore manually. AutoSA provides an auto-tuner to
+find a good design with high performance.                                8      EVALUATION
+   Given an input program 𝑃 and a target FPGA device 𝐷, AutoSA
+searches for the design with the least latency without over-utilizing    AutoSA is built upon PPCG [50]. The core of AutoSA is imple-
+the on-chip resource. The optimization problem is summarized as:         mented in C/C++ with about 30K lines of code. The auto-tuner
+                                                                         is written in Python. We use Xilinx Vitis 2019.2 for synthesizing
+                 minimize     𝑙𝑎𝑡𝑒𝑛𝑐𝑦 (𝑥)                                and implementing the FPGA designs and target Xilinx Alveo U250
+                 𝑥 ∈𝐷𝐹 (𝑃 )
+                                                                         board. We also adopt AutoBridge [18, 19] to improve the design
+                 subject to   𝑟𝑒𝑠𝑜𝑢𝑟𝑐𝑒𝑖 (𝑥) ≤ 𝑏𝑖 (𝐷),
+                                                                         frequency. Table 4 describes the details of the benchmarks that we
+                              𝑖 = FF, LUT, DSP, BRAM
+                                                                         used to evaluate AutoSA.
+where 𝐷𝐹 (𝑃) includes all legal design factor choices of the program        In the following sections, we first perform two case studies on
+𝑃, and 𝑏𝑖 (𝐷) is the resource limit for different types of resource 𝑖    matrix multiplication and LU decomposition. We use the case study
+on-chip. 𝑙𝑎𝑡𝑒𝑛𝑐𝑦 (𝑥) and 𝑟𝑒𝑠𝑜𝑢𝑟𝑐𝑒𝑖 (𝑥) are the latency and resource      of matrix multiplication to assess the performance of AutoSA and
+usage of the design optimized with the design factor 𝑥.                  the case study of LU decomposition to assess the generality of
+                                                                         the AutoSA. Lastly, we present the rest of the results on the other
+7.2    Resource and Latency Modeling                                     benchmarks and evaluate the productivity of our tool.
+AutoSA builds analytical models to estimate the resource and la-
+tency of the target design.                                              8.1       Case Study 1: Matrix Multiplication
+   Resource modeling: AutoSA randomly samples the design space           AutoSA is able to generate six different systolic arrays for MM.
+to build a suite of training samples (16 samples for the current im-     This is realized by selecting loops ➊𝑖, ➋𝑗, and ➌𝑘 as the space
+plementation). Then, we run HLS synthesis to collect the resource        loop for 1D arrays, and loops ➍(𝑖, 𝑗), ➎(𝑖, 𝑘), and ➏( 𝑗, 𝑘) as space
+usage of each design. Based on the collected synthesis results, Au-      loops for 2D arrays. We denote these six arrays as designs 1-6 in
+toSA builds a linear regression model to predict the resource usage      sequence. Among these six designs, designs 1 and 2, designs 5 and
+of FF, LUT, and DSP. As for input features, based on our experi-         6 are symmetric. Finally, we choose to conduct experiments on
+ments, three features including the SIMD factor, data packing factor,    designs 1, 4, and 5 for simplicity. Figures 11a, 11b, and 11c depict
+and local buffer sizes suffice to provide an acceptable prediction       the architecture of these three designs.
+accuracy. BRAM usage is directly calculated based on the local               In design 1, as shown in Figure 11a, loop 𝑖 is assigned as the
+buffer sizes. The resource models achieve an error rate within 10%       space loop. As a result, matrix 𝐴 is associated with interior I/O and
+on all the evaluated benchmarks.                                         is fed to each PE directly. The elements of matrix 𝐵 are reused along
+   Latency modeling: The latency of a pipelined loop can be cal-         the 𝑖-axis. Each PE accumulates the elements of matrix 𝐶 locally.
+culated as 𝑙𝑜𝑜𝑝_𝑐𝑜𝑢𝑛𝑡𝑠 × 𝐼𝐼 + 𝑙𝑜𝑜𝑝_𝑑𝑒𝑝𝑡ℎ. AutoSA extracts the            Therefore, we allocate a local buffer for matrix 𝐶 (as denoted by
+𝑙𝑜𝑜𝑝_𝑐𝑜𝑢𝑛𝑡𝑠 from the generated AST for each module. We set 𝐼𝐼            bufC) in the PE to store the intermediate results. After the compu-
+as one by default. For the 𝑙𝑜𝑜𝑝_𝑑𝑒𝑝𝑡ℎ, we set it as one as an es-        tation is finished, the final results of matrix 𝐶 are drained out and
+timation for loops without any statements accessing the DRAM.            sent to the DRAM. Such an architecture can be found in previous
+For loops with statements accessing the DRAM, AutoSA further             works like [13, 21].
+examines the memory coalescing and sets the 𝑙𝑜𝑜𝑝_𝑑𝑒𝑝𝑡ℎ as 182 ns             Design 4, as shown in Figure 11b, is generated by selecting loops
+as an approximation for the non-coalesced access obtained from a         𝑖 and 𝑗 as the space loops. The elements of matrix 𝐴 and 𝐵 are
+recent work [29]. As the entire systolic array is implemented using      reused along the 𝑗-axis and 𝑖-axis, respectively. The data of matrix
+a dataflow architecture, the final design latency is calculated as the   𝐶 are accumulated inside PEs and will be drained out after the
+maximum of all the modules. The latency model achieves an error          computation is completed. Such an architecture can be found in
+rate within 5% on all the evaluated benchmarks.                          previous works [10, 30, 37, 48].
+                                𝑖                                                                        𝑗
+             L2 A L1       L1                                           L3 L3 L2                𝑖                           Table 6: MM performance comparison with previous works.
+                                                regA                                                                 regB
+                                             regB
+                                                                        B A                                        regA                       PolySA [10]    SuSy [30]              [37]              [22]            AutoSA
+         B
+  DRAM
+
+
+
+
+                                                                        L2         PE          PE
+
+
+
+
+                                                                 DRAM
+                  PE      PE                 MAC                                                                   MAC       Data Type            FP32           FP32        FP32 int16 int8      FP32 int16     FP32 int16 int8
+             L2                                                                                     L1                       Platform         Xilinx VU9P   Intel Arria 10      Intel Arria 10    Xilinx VU9P     Xilinx Alveo U250
+         C                                   bufC                                                                  bufC      MHz                   229            202         315     N/A N/A      265    323     300     250   300
+                                            PE                                     PE          PE                 PE         DSP                   89%           93%         100% N/A N/A         75%     60%    68%     67% 52%
+             L2   L1       L1                                           C L3                                 L2              LUTs/ALMs             49%           40%         N/A N/A N/A          78%      5%    52%     38% 45%
+                                                                                                                             TOPs                  0.56          0.55         0.8     1.53 3.83   0.68    2.64   0.93 3.41 6.95
+                   (a) Design 1.                                                   (b) Design 4.                             DSP Efficiency        98%           96%          99%                 100%           94%
+
+                                                       L2           𝑘
+                                       L3    A L2            𝑖
+
+                                       L3                                               regB                                of the new metrics in the auto-tuner to provide more architectural
+                                                                        L1
+                                       B         PE     PE                         regA                                     insights into the systolic array architecture.
+                                DRAM
+
+
+
+
+                                       L1                                          MAC                                         Furthermore, we compare the best designs generated by AutoSA
+                                                 PE     PE                        PE                                        with other systolic array compilation frameworks. AutoSA supports
+                                       C                                     L2                                             different data types. Table 6 shows the best results that AutoSA
+                                                  (c) Design 5.                                                             achieved in the floating point, 16-bit and 8-bit integer types, as well
+  Figure 11: The array architecture of MM designs 1, 4, 5.                                                                  as numbers from the previous works.
+                                                                                                                               AutoSA achieves 934 GFLOPs for the floating point. As for int16,
+Table 5: Performance comparison of different MM designs.                                                                    since the number of DSPs for each MAC operation is reduced from
+     Designs           SA Sizes             MHz       GFLOPs                 LUT         FF         BRAM           DSP      5 (in FP32) to 1, the performance is improved to 3.41 TOPs. For
+             1          128×8               346        555                   38%        31%          10%           42%
+                                                                                                                            int8, we combine the logic and DSPs to implement the MACs and
+             4         13×16×8              300        934                   52%        42%          41%           68%      achieve 6.95 TOPs. AutoSA achieves higher throughput compared
+             5         13×12×8              300        660                   46%        37%          10%           51%      to the previous works with more DSPs utilized or higher frequency.
+   Design 5, as shown in Figure 11c, is generated by choosing loops                                                         To better understand the performance, we also compare the DSP
+𝑖 and 𝑘 as the space loops. The key difference between design 5 and                                                         efficiency for FP32 designs, AutoSA achieves similar DSP efficiency
+design 4 is that the elements of matrix 𝐶 are now accumulated along                                                         compared to the previous works.
+the 𝑘-axis. Therefore, the local buffer (bufC) is saved. However, the
+data from matrix 𝐴 need to be sent directly to each PE. The data of                                                         8.2      Case Study 2: LU Decomposition
+matrix 𝐵 are reused along the 𝑖-axis. This architecture can be seen                                                         LU decomposition is an important kernel that has been used in
+in previous works [15, 23].                                                                                                 solving the systems of linear equations. It factorizes a matrix 𝐴 as
+   We use designs 1 and 4 to study the impacts of different array                                                           the product of a lower triangular matrix 𝐿 and an upper triangular
+dimensions, and use designs 4 and 5 to study the impacts of different                                                       matrix 𝑈 (𝐴 = 𝐿 × 𝑈 ). We choose the algorithm implemented in
+space mappings. All the experiments are in floating point. Table 5                                                          PolyBench [56]. Figure 12a shows the dependence graph of the
+shows the detailed results of these three designs.                                                                          LU algorithm. In the dependence graph, each node represents a
+   We observe several interesting trade-offs from this table:                                                               loop instance in the program. Nodes are connected if there is any
+   Design 1 vs. Design 4: 1D systolic array limits the design space                                                         dependence associated with the loop instance they represent. The
+with one less space dimension to be explored. The best 1D systolic                                                          dependence structure of LU decomposition has introduced sev-
+array we found has 128 PEs with a SIMD factor as 8. Placing more                                                            eral new challenges to the systolic array compilation frameworks
+PEs will either lead to routing failure or wasted cycles for computing                                                      compared to other regular kernels such as matrix multiplication:
+the padded elements that lowers the effective GFLOPs. However, 1D
+                                                                                                                                  • The iteration domain is in a pyramid shape which cannot be
+systolic array achieves a higher frequency than the 2D counterpart,
+                                                                                                                                    handled by the current Halide-based frameworks that only
+which is contributed by both a more regular architecture and less
+                                                                                                                                    support rectangular domains.
+resource.
+                                                                                                                                  • The statement instances are non-uniform and conduct dif-
+   Design 4 vs. Design 5: We are able to place more PEs for design 4
+                                                                                                                                    ferent computations. As shown in Figure 12a, there are three
+compared to design 5, albeit this requires more resource. This is due
+                                                                                                                                    types of nodes marked by different shades. This has intro-
+to a simpler I/O network. As shown in Figure 11b, design 4 exploits
+                                                                                                                                    duced a more complex dependence structure which is chal-
+both the data reuse of matrix 𝐴 and 𝐵 and therefore only generates
+                                                                                                                                    lenging to analyze manually.
+L2 I/O modules at the PE boundary. However, design 5 (shown in
+Figure 11c) only exploits the reuse of matrix 𝐵. Data elements of                                                              We use the LU decomposition as a stress test to assess the ro-
+matrix 𝐴 need to be sent separately to each PE via L1 I/O modules.                                                          bustness of our framework. With the general algorithms we have
+This increases the routing complexity and limits the design scale                                                           proposed in the previous sections, AutoSA is able to compile such
+that we could explore.                                                                                                      an application and generate the systolic array. Figure 12b shows an
+   We found that design 4 achieves a balance in terms of the re-                                                            example array generated by AutoSA by choosing the loops 𝑗 and
+source and routing complexity and therefore achieves the highest                                                            𝑘 as the space loops. This mapping leads to a 2D systolic array in
+performance among these designs. The comprehensive design space                                                             a triangular shape. In this array, data of matrix 𝐴 are fed only to
+that AutoSA provides and the generality of both the front-end and                                                           the first row of the array. The final results of matrix 𝐿 are drained
+back-end of AutoSA enable us to explore such as a design space                                                              out from all the PEs, while the results of matrix 𝑈 are drained only
+for various studies. This case study shows one example for archi-                                                           from the PEs on the diagonal of the array. Such an architecture can
+tectural exploration. We are also working on adding power as one                                                            be found in several previous manual designs [27, 44].
+                                                           Table 7: Comparison results for CNN, MTTKRP, and TTMc.
+           Benchmark                         Platform               SA Sizes (Row×Col×SIMD)       Data Type   LUT       FF    BRAM       DSP         GFLOPs          MHz       DSP Efficiency       Input Code LOC
+              CNN            [52]        Intel Arria 10                      8×19×8                 FP32      59%       40%   47%        81%           602.8         253               97%                      10
+                             Ours      Xilinx Alveo U250                    16×14×8                 FP32      58%       46%   30%        73%           950.2         272               97%                      10
+            MTTKRP           [48]        Intel Arria 10                      8×9×16                 FP32      N/A       N/A   56%        81%            700          204               99%                      32
+                             Ours      Xilinx Alveo U250                     16×8×8                 FP32      42%       32%   26%        67%           896.7         296               99%                      9
+             TTMc            [48]        Intel Arria 10                     8×10×16                 FP32      N/A       N/A   62%        90%            738          205               94%                      38
+                             Ours      Xilinx Alveo U250                     16×8×8                 FP32      42%       32%   21%        67%           886.2         290               99%                      9
+
+
+              𝑘                        PE                                                                                                    1.0x
+                                                                                                                                CNN              2.8x
+                    𝑗                                           L                                                                                                              14.4x
+                                                                                      PE                                                                                                           23.6x
+                               PE       PE
+      𝑖                                                                                                                                      1.0x
+                                                                                                                              MTTKRP                3.0x
+                                                                                                                                                                              13.5x
+                                                        DRAM
+
+                        PE     PE      PE                                        PE   PE                                                                                                                        26.9x
+                                                                                                                                             1.0x
+                                                                U                                                               TTMc                3.0x
+                                                                                                                                                                                                21.7x
+                                                                          PE     PE   PE                                                                                                                24.3x
+                                                                      A
+                                                                                                                                       0.0           5.0         10.0        15.0        20.0      25.0              30.0
+                                                                                                                                                                            Speedup
+           (a) Dependence graph.                                (b) Generated array.                                           Array Partitioning          Latency Hiding    SIMD Vectorization    Double Buffering
+
+
+Figure 12: The dependence graph of LU decomposition and                                                             Figure 13: Ablation analysis of several hardware optimiza-
+the mapped array.                                                                                                   tion techniques.
+    Table 8: LU performance comparison with LAPACK.
+                                                                                                                    from the figure, all the techniques in the computation management
+          Matrix Size          12              16              20           24        Geo. Mean
+                                                                                                                    combined together bring an average speedup of 16.1×. The double
+          LAPACK             11.69us         41.06us    78.09us           83.38us                                   buffering in the communication management further increases the
+          Ours               3.42us           5.23us    7.68us            10.44us
+          Speedup             3.4×             7.8×      10.2×             8.0×            6.8×                     throughput, on average, by 1.5×. The benefits of double buffering on
+                                                                                                                    TTMc is minimal as the application is more compute-intensive. This
+   As there is no reported numbers for LU decomposition in the                                                      indicates the needs for an auto-tuner to make the right trade-offs
+previous automation frameworks due to its high irregularity, we                                                     between different design factors.
+compare the performance of the generated arrays with LAPACK                                                            AutoSA requires minimal lines of code as the input (i.e., C). The
+benchmark [39]. The comparison results are shown in Table 8.                                                        polyhedral compilation takes a few seconds, and the training and
+The FPGA results here are collected from RTL simulation with the                                                    searching of the auto-tuner takes one to two hours. Taking into
+assumed frequency of 250MHz. The LAPACK routine is evaluated                                                        account the time for FPGA tools to synthesize and implement the
+on a server with an Intel Xeon E5-2699 v3 CPU and 189 GB of                                                         designs, which usually finishes within one day, AutoSA is able to
+main memory. We call the functions 10000 times and calculate the                                                    generate high-performance designs within one or two days, which
+average as the final results.                                                                                       significantly boosts the productivity of developing systolic arrays.
+   The systolic array achieves an average speedup of 6.8× compared
+to the LAPACK baseline. This result is not surprising as all the PEs
+                                                                                                                    9     CONCLUSION
+are fully-pipelined and the systolic array extracts the maximal
+pipeline parallelism from the application with the dataflow-like                                                    This paper presents AutoSA, an open-source compiler framework
+architecture.                                                                                                       for generating high-performance systolic arrays on FPGA. We
+                                                                                                                    present general techniques and optimizations implemented in the
+8.3        Other Results                                                                                            polyhedral framework that help improve the compute and commu-
+                                                                                                                    nication efficiency of systolic array designs. We evaluate AutoSA
+We have further evaluated AutoSA on three other benchmarks, in-
+                                                                                                                    on a suite of benchmarks and achieve high performance. AutoSA
+cluding the convolutional kernel from the convolutional neural net-
+                                                                                                                    strikes a balance between generality, performance, and productiv-
+work (CNN) and two tensor contraction kernels, matricized tensor
+                                                                                                                    ity. We hope such a tool can facilitate more architectural studies
+times Khatri-Rao product (MTTKRP), and tensor times matrix-chain
+                                                                                                                    and applications on systolic arrays. Future work includes the back-
+(TTMc) as studied by previous works [30, 48]. Table 7 presents the
+                                                                                                                    end support to Intel platforms, adding the power metric to the
+detailed results of these benchmarks and compares them with the
+                                                                                                                    auto-tuner, and improving the auto-tuning efficiency.
+results from the other systolic array compilation works.
+   As seen in the table, AutoSA achieves higher throughput than
+the previous work on all the benchmarks with more DSPs utilized                                                     ACKNOWLEDGMENTS
+and higher frequency. With the wide coverage of different hard-                                                     We would like to thank Marci Baun for helping edit the paper and the
+ware optimization techniques and the help of an auto-tuner, the                                                     anonymous reviewers for their valuable feedbacks. This work is partially
+designs generated by AutoSA achieve an average DSP efficiency                                                       supported by the Intel and NSF joint research center for Computer Assisted
+of 99%. Figure 13 presents an ablation study of a few optimization                                                  Programming for Heterogeneous Architectures (CAPA), NSF NeuroNex
+techniques applied by AutoSA. All the other techniques are enabled                                                  Award DBI-1707408, and the members from the CDSC Industrial Partnership
+by default. We collect the design latency by incrementally apply-                                                   Program. We acknowledge the valuable support of the Xilinx Adaptive
+ing each technique. All the performance numbers are normalized                                                      Compute Clusters (XACC) Program. We also appreciate the authors of
+against the baseline applied with array partitioning. As can be seen                                                PPCG for open-sourcing the tool.
+REFERENCES                                                                                    the 44th Annual International Symposium on Computer Architecture. 1–12.
+ [1] Amazon. 2020. AWS Inferentia. https://aws.amazon.com/machine-learning/              [24] Sheng-Chun Kao, Geonhwa Jeong, and Tushar Krishna. 2020. ConfuciuX: Au-
+     inferentia                                                                               tonomous Hardware Resource Assignment for DNN Accelerators using Rein-
+ [2] Jason Ansel, Shoaib Kamil, Kalyan Veeramachaneni, Jonathan Ragan-Kelley,                 forcement Learning. In 2020 53rd Annual IEEE/ACM International Symposium on
+     Jeffrey Bosboom, Una-May O’Reilly, and Saman Amarasinghe. 2014. Opentuner:               Microarchitecture (MICRO). IEEE, 622–636.
+     An extensible framework for program autotuning. In Proceedings of the 23rd          [25] David Koeplinger, Matthew Feldman, Raghu Prabhakar, Yaqi Zhang, Stefan Hadjis,
+     international conference on Parallel architectures and compilation. 303–316.             Ruben Fiszel, Tian Zhao, Luigi Nardi, Ardavan Pedram, Christos Kozyrakis, et al.
+ [3] Marcus Bednara and Jürgen Teich. 2003. Automatic synthesis of FPGA processor             2018. Spatial: A language and compiler for application accelerators. In Proceedings
+     arrays from loop algorithms. The Journal of Supercomputing 26, 2 (2003), 149–165.        of the 39th ACM SIGPLAN Conference on Programming Language Design and
+ [4] Mohamed-Walid Benabderrahmane, Louis-Noël Pouchet, Albert Cohen, and                     Implementation. 296–311.
+     Cédric Bastoul. 2010. The polyhedral model is more widely applicable than you       [26] HT Kung, Bradley McDanel, and Sai Qian Zhang. 2019. Packing sparse convo-
+     think. In International Conference on Compiler Construction. Springer, 283–303.          lutional neural networks for efficient systolic array implementations: Column
+ [5] Uday Bondhugula. 2013. Compiling affine loop nests for distributed-memory                combining under joint optimization. In Proceedings of the Twenty-Fourth Inter-
+     parallel architectures. In SC’13: Proceedings of the International Conference on         national Conference on Architectural Support for Programming Languages and
+     High Performance Computing, Networking, Storage and Analysis. IEEE, 1–12.                Operating Systems. 821–834.
+ [6] Uday Bondhugula, Albert Hartono, Jagannathan Ramanujam, and Ponnuswamy              [27] Sun Yuan Kung. 1988. VLSI array processors. ph (1988).
+     Sadayappan. 2008. A practical automatic polyhedral parallelizer and locality        [28] Hyoukjun Kwon, Prasanth Chatarasi, Vivek Sarkar, Tushar Krishna, Michael
+     optimizer. In Proceedings of the 29th ACM SIGPLAN Conference on Programming              Pellauer, and Angshuman Parashar. 2020. MAESTRO: A Data-Centric Approach
+     Language Design and Implementation. 101–113.                                             to Understand Reuse, Performance, and Hardware Cost of DNN Mappings. IEEE
+ [7] Uday Bondhugula, Jagannathan Ramanujam, and Ponnuswamy Sadayappan.                       Micro 40, 3 (2020), 20–29.
+     2007. Automatic mapping of nested loops to FPGAs. In Proceedings of the 12th        [29] Young kyu Choi, Yuze Chi, Jie Wang, Licheng Guo, and Jason Cong. 2020.
+     ACM SIGPLAN symposium on Principles and practice of parallel programming.                When HLS Meets FPGA HBM: Benchmarking and Bandwidth Optimization.
+     101–111.                                                                                 arXiv:2010.06075 [cs.AR]
+ [8] Xiaoming Chen, Yinhe Han, and Yu Wang. 2020. Communication Lower Bound              [30] Yi-Hsiang Lai, Hongbo Rong, Size Zheng, Weihao Zhang, Xiuping Cui, Yunshan
+     in Convolution Accelerators. In 2020 IEEE International Symposium on High                Jia, Jie Wang, Brendan Sullivan, Zhiru Zhang, Yun Liang, Jason Cong, Nithin
+     Performance Computer Architecture (HPCA). IEEE, 529–541.                                 George, Jose Alvarez, Christopher Hughes, and Pradeep Dubey. 2020. SuSy: A
+ [9] Yu-Hsin Chen, Joel Emer, and Vivienne Sze. 2016. Eyeriss: A spatial architecture         Programming Model for Productive Construction of High-Performance Systolic
+     for energy-efficient dataflow for convolutional neural networks. ACM SIGARCH             Arrays on FPGAs. In 2020 IEEE/ACM International Conference on Computer-Aided
+     Computer Architecture News 44, 3 (2016), 367–379.                                        Design (ICCAD).
+[10] Jason Cong and Jie Wang. 2018. PolySA: Polyhedral-based systolic array auto-        [31] Dominique Lavenier, Patrice Quinton, and Sanjay Rajopadhye. 1999. Advanced
+     compilation. In 2018 IEEE/ACM International Conference on Computer-Aided De-             systolic design. Digital Signal Processing for Multimedia Systems (1999), 657–692.
+     sign (ICCAD). IEEE, 1–8.                                                            [32] Amy W Lim and Monica S Lam. 1997. Maximizing parallelism and minimizing
+[11] Jason Cong, Peng Wei, Cody Hao Yu, and Peipei Zhou. 2018. Latte: Locality aware          synchronization with affine transforms. In Proceedings of the 24th ACM SIGPLAN-
+     transformation for high-level synthesis. In 2018 IEEE 26th Annual International          SIGACT symposium on Principles of programming languages. 201–214.
+     Symposium on Field-Programmable Custom Computing Machines (FCCM). IEEE,             [33] Junyi Liu, John Wickerson, Samuel Bayliss, and George A Constantinides. 2017.
+     125–128.                                                                                 Polyhedral-based dynamic loop pipelining for high-level synthesis. IEEE Trans-
+[12] Roshan Dathathri, Chandan Reddy, Thejas Ramashekar, and Uday Bondhugula.                 actions on Computer-Aided Design of Integrated Circuits and Systems 37, 9 (2017),
+     2013. Generating efficient data movement code for heterogeneous architectures            1802–1815.
+     with distributed-memory. In Proceedings of the 22nd international conference on     [34] Divya Mahajan, Jongse Park, Emmanuel Amaro, Hardik Sharma, Amir Yaz-
+     Parallel architectures and compilation techniques. IEEE, 375–386.                        danbakhsh, Joon Kyung Kim, and Hadi Esmaeilzadeh. 2016. Tabla: A unified
+[13] Johannes de Fine Licht, Grzegorz Kwasniewski, and Torsten Hoefler. 2020. Flexible        template-based framework for accelerating statistical machine learning. In 2016
+     Communication Avoiding Matrix Multiplication on FPGA with High-Level Syn-                IEEE International Symposium on High Performance Computer Architecture (HPCA).
+     thesis. In The 2020 ACM/SIGDA International Symposium on Field-Programmable              IEEE, 14–26.
+     Gate Arrays. 244–254.                                                               [35] Manju Manjunathaiah, Graham M Megson, S Rajopadhye, and Tanguy Risset.
+[14] Tiziano De Matteis, Johannes de Fine Licht, and Torsten Hoefler. 2019. FBLAS:            2001. Uniformization of affine dependence programs for parallel embedded
+     streaming linear algebra on FPGA. arXiv preprint arXiv:1907.07929 (2019).                system design. In International Conference on Parallel Processing, 2001. IEEE,
+[15] Hasan Genc, Ameer Haj-Ali, Vighnesh Iyer, Alon Amid, Howard Mao, John                    205–213.
+     Wright, Colin Schmidt, Jerry Zhao, Albert Ou, Max Banister, et al. 2019. Gemmini:   [36] Dan I Moldovan. 1983. On the design of algorithms for VLSI systolic arrays. Proc.
+     An Agile Systolic Array Generator Enabling Systematic Evaluations of Deep-               IEEE 71, 1 (1983), 113–120.
+     Learning Architectures. arXiv preprint arXiv:1911.09925 (2019).                     [37] Duncan JM Moss, Srivatsan Krishnan, Eriko Nurvitadhi, Piotr Ratuszniak, Chris
+[16] Paolo Gorlani, Tobias Kenter, and Christian Plessl. 2019. OpenCL implementation          Johnson, Jaewoong Sim, Asit Mishra, Debbie Marr, Suchit Subhaschandra, and
+     of Cannon’s matrix multiplication algorithm on Intel Stratix 10 FPGAs. In 2019           Philip HW Leong. 2018. A customizable matrix multiplication framework for the
+     International Conference on Field-Programmable Technology (ICFPT). IEEE, 99–             Intel HARPv2 Xeon+ FPGA platform: A deep learning case study. In Proceedings
+     107.                                                                                     of the 2018 ACM/SIGDA International Symposium on Field-Programmable Gate
+[17] Anne-Claire Guillou, Fabien Quilleré, Patrice Quinton, S Rajopadhye, and Tanguy          Arrays. 107–116.
+     Risset. 2001. Hardware design methodology with the Alpha language. FDL’01           [38] Luigi Nardi, Artur Souza, David Koeplinger, and Kunle Olukotun. 2019. Hy-
+     (2001).                                                                                  perMapper: a Practical Design Space Exploration Framework. In 2019 IEEE 27th
+[18] Licheng Guo, Yuze Chi, Jie Wang, Jason Lau, Weikang Qiao, Ecenur Ustun,                  International Symposium on Modeling, Analysis, and Simulation of Computer and
+     Zhiru Zhang, and Jason Cong. 2021. AutoBridge: Coupling Coarse-Grained                   Telecommunication Systems (MASCOTS). IEEE, 425–426.
+     Floorplanning and Pipelining for High-Frequency HLS Design on Multi-Die             [39] Netlib. 2020. LAPACK — Linear Algebra PACKage. http://www.netlib.org/lapack/
+     FPGAs. In Proceedings of the 2021 ACM/SIGDA international symposium on Field-       [40] Tony Nowatzki, Newsha Ardalani, Karthikeyan Sankaralingam, and Jian Weng.
+     programmable gate arrays.                                                                2018. Hybrid optimization/heuristic instruction scheduling for programmable
+[19] Licheng Guo, Jason Lau, Yuze Chi, Jie Wang, Cody Hao Yu, Zhe Chen, Zhiru                 accelerator codesign. In Proceedings of the 27th International Conference on Parallel
+     Zhang, and Jason Cong. 2020. Analysis and Optimization of the Implicit Broad-            Architectures and Compilation Techniques. 1–15.
+     casts in FPGA HLS to Improve Maximum Frequency. In 57th ACM/IEEE Design             [41] Louis-Noel Pouchet, Peng Zhang, Ponnuswamy Sadayappan, and Jason Cong.
+     Automation Conference.                                                                   2013. Polyhedral-based data reuse optimization for configurable computing. In
+[20] Intel. 2017.       Accelerating Genomics Research with OpenCL and FP-                    Proceedings of the ACM/SIGDA international symposium on Field programmable
+     GAs.       https://www.intel.com/content/www/us/en/healthcare-it/solutions/              gate arrays. 29–38.
+     documents/genomics-research-with-opencl-and-fpgas-paper.html                        [42] Raghu Prabhakar, Yaqi Zhang, David Koeplinger, Matt Feldman, Tian Zhao,
+[21] Ju-Wook Jang, Seonil B Choi, and Viktor K Prasanna. 2005. Energy-and time-               Stefan Hadjis, Ardavan Pedram, Christos Kozyrakis, and Kunle Olukotun. 2017.
+     efficient matrix multiplication on FPGAs. IEEE Transactions on Very Large Scale          Plasticine: A reconfigurable architecture for parallel patterns. In 2017 ACM/IEEE
+     Integration (VLSI) Systems 13, 11 (2005), 1305–1319.                                     44th Annual International Symposium on Computer Architecture (ISCA). IEEE,
+[22] Liancheng Jia, Liqiang Lu, Xuechao Wei, and Yun Liang. 2020. Generating Systolic         389–402.
+     Array Accelerators With Reusable Blocks. IEEE Micro 40, 4 (2020), 85–92.            [43] Jonathan Ragan-Kelley, Connelly Barnes, Andrew Adams, Sylvain Paris, Frédo
+[23] Norman P Jouppi, Cliff Young, Nishant Patil, David Patterson, Gaurav Agrawal,            Durand, and Saman Amarasinghe. 2013. Halide: a language and compiler for
+     Raminder Bajwa, Sarah Bates, Suresh Bhatia, Nan Boden, Al Borchers, et al. 2017.         optimizing parallelism, locality, and recomputation in image processing pipelines.
+     In-datacenter performance analysis of a tensor processing unit. In Proceedings of        Acm Sigplan Notices 48, 6 (2013), 519–530.
+[44] SV Rajopadhye. 1988. Systolic arrays for LU decomposition. In 1988., IEEE Inter-        (2013), 1–23.
+     national Symposium on Circuits and Systems. IEEE, 2513–2516.                       [51] Sven Verdoolaege, Serge Guelton, Tobias Grosser, and Albert Cohen. 2014. Sched-
+[45] Sailesh K Rao and Thomas Kailath. 1988. Regular iterative algorithms and their          ule trees. In International Workshop on Polyhedral Compilation Techniques, Date:
+     implementation on processor arrays. Proc. IEEE 76, 3 (1988), 259–269.                   2014/01/20-2014/01/20, Location: Vienna, Austria.
+[46] Robert Schreiber, Shail Aditya, Scott Mahlke, Vinod Kathail, B Ramakrishna         [52] Xuechao Wei, Cody Hao Yu, Peng Zhang, Youxiang Chen, Yuxin Wang, Han
+     Rau, Darren Cronquist, and Mukund Sivaraman. 2002. PICO-NPA: High-level                 Hu, Yun Liang, and Jason Cong. 2017. Automated systolic array architecture
+     synthesis of nonprogrammable hardware accelerators. Journal of VLSI signal              synthesis for high throughput CNN inference on FPGAs. In Proceedings of the
+     processing systems for signal, image and video technology 31, 2 (2002), 127–142.        54th Annual Design Automation Conference 2017. 1–6.
+[47] Atefeh Sohrabizadeh, Cody Hao Yu, Min Gao, and Jason Cong. 2020. Au-               [53] Jian Weng, Sihao Liu, Vidushi Dadu, Zhengrong Wang, Preyas Shah, and Tony
+     toDSE: Enabling Software Programmers Design Efficient FPGA Accelerators.                Nowatzki. 2020. Dsagen: Synthesizing programmable spatial accelerators. In
+     arXiv:2009.14381 [cs.AR]                                                                2020 ACM/IEEE 47th Annual International Symposium on Computer Architecture
+[48] Nitish Srivastava, Hongbo Rong, Prithayan Barua, Guanyu Feng, Huanqi Cao,               (ISCA). IEEE, 268–281.
+     Zhiru Zhang, David Albonesi, Vivek Sarkar, Wenguang Chen, Paul Petersen, et al.    [54] WikiChip. 2020. FSD Chip - Tesla. https://en.wikichip.org/wiki/tesla_(car_
+     2019. T2S-Tensor: Productively generating high-performance spatial hardware             company)/fsd_chip
+     for dense tensor computations. In 2019 IEEE 27th Annual International Symposium    [55] Xuan Yang, Mingyu Gao, Qiaoyi Liu, Jeff Setter, Jing Pu, Ankita Nayak, Steven
+     on Field-Programmable Custom Computing Machines (FCCM). IEEE, 181–189.                  Bell, Kaidi Cao, Heonjae Ha, Priyanka Raina, et al. 2020. Interstellar: Using
+[49] Sven Verdoolaege. 2010. isl: An integer set library for the polyhedral model. In        Halide’s Scheduling Language to Analyze DNN Accelerators. In Proceedings of the
+     International Congress on Mathematical Software. Springer, 299–302.                     Twenty-Fifth International Conference on Architectural Support for Programming
+[50] Sven Verdoolaege, Juan Carlos Juega, Albert Cohen, Jose Ignacio Gomez, Christian        Languages and Operating Systems. 369–383.
+     Tenllado, and Francky Catthoor. 2013. Polyhedral parallel code generation for      [56] Tomofumi Yuki and Louis-Noël Pouchet. 2020. PolyBench/C 4.2.             https://
+     CUDA. ACM Transactions on Architecture and Code Optimization (TACO) 9, 4                sourceforge.net/projects/polybench/
+

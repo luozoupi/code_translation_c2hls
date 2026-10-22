@@ -1,0 +1,22 @@
+#!/bin/bash
+# ./hls_check.sh compile|csim|csynth — check ./kernel.cpp on a compute node (Vitis HLS, same part,
+# clock and testbench the flow judges with). Blocks until done and prints a summary.
+# Budget for this session: __MAX_CHECKS__ checks in total.
+set -uo pipefail
+MODE="${1:-}"
+case "$MODE" in compile|csim|csynth) ;; *) echo "usage: ./hls_check.sh compile|csim|csynth"; exit 2;; esac
+WS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+USED=$(cat "$WS/.checks_used" 2>/dev/null || echo 0)
+if [ "$USED" -ge __MAX_CHECKS__ ]; then echo "check budget used up (__MAX_CHECKS__); finish with your best kernel"; exit 3; fi
+echo $((USED + 1)) > "$WS/.checks_used"; mkdir -p "$WS/checks"
+case "$MODE" in compile) T=00:30:00;; csim) T=__CSIM_TIME__;; csynth) T=__CSYNTH_TIME__;; esac
+echo "[check $((USED + 1))/__MAX_CHECKS__: $MODE on a compute node, time limit $T]"
+srun --account=__ACCOUNT__ --cpus-per-task=8 --mem=64G --time="$T" --job-name=flash_agent_$MODE \
+  --chdir="$WS" --quiet bash -c "
+  source /scratch/asa582/workspaces/dse_v3_claude/env.sh >/dev/null 2>&1
+  dse_v3_source_vitis >/dev/null 2>&1
+  unset C2HLS_DSE_V3 C2HLS_DSE_V3_HARNESS C2HLS_DSE_V4 DSE_V3_TRIAL_ROOT C2HLS_VITIS_JOBS C2HLS_VITIS_JOBS_FROM_SLURM
+  export C2HLS_CSIM_TIMEOUT=86400 C2HLS_SYNTH_TIMEOUT=86400 AGENT_CHECK_N=$((USED + 1))
+  export AGENT_PART='__PART__' AGENT_CLOCK_NS='__CLOCK__' AGENT_TOP='__TOP__' AGENT_HEADER='__HEADER__'
+  \"\$PY\" __CHECK_PY__ $MODE 2>>\"$WS/checks/stderr.log\"
+"

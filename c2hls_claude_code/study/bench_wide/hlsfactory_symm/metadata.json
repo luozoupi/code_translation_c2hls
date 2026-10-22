@@ -1,0 +1,56 @@
+{
+  "benchmark": "hlsfactory_symm",
+  "source_repo": "HLSFactory",
+  "algorithm_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/symm/src/symm.cpp",
+  "gold_hls_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/symm/src/symm.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "symm.cpp",
+  "header_file": "symm.h",
+  "baseline_variant": "hlsfactory_symm_0_baseline",
+  "variants": [
+    {
+      "name": "hlsfactory_symm_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/symm/src/symm.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "hlsfactory_symm_0_baseline": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/symm/src/symm.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "kernel_symm",
+  "hls_top": "kernel_symm",
+  "translated_hls_top": "kernel_symm",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 1,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "0deb6fe418dea74533f04882ed56afb40a20296e435b1d238a4383687ff829cc",
+    "gold_hls_baseline_sha256": "0deb6fe418dea74533f04882ed56afb40a20296e435b1d238a4383687ff829cc",
+    "plain_c_sha256": "0f45447a9831084cfe6089076d5b38dd69390ae81ab004b0cc4e61f17788c8a7",
+    "plain_derived_from_gold_hls": true
+  },
+  "header_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/symm/src/symm.h",
+  "cosim_size_overrides": {
+    "M": 8,
+    "N": 8
+  },
+  "cosim_testbench_file": "testbench_cosim.cpp",
+  "cosim_support_files": [
+    "gold_kernel_for_cosim.cpp"
+  ]
+}

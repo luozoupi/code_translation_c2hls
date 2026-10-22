@@ -1,0 +1,13 @@
+# TB_NOTES: hotspot
+- Arg classification (from plain.cpp): result[] pure output (first hotspot call writes it before reading); temp[] in-out (ping-ponged, real init); power input.
+- Golden: plain.cpp hotspot()+workload() copied as *_ref on identical srand(42) data; all of result[] and temp[] compared.
+- Tolerance: float 1e-3*fmax(1,|ref|) (SPEC). Original used 1e-2; the reference-as-kernel (plain, baseline) passes at the SPEC tolerance so no relaxation.
+- Poison: result = 12345.0f
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 524288 errors!
+- Control 3 (one bug, must fail): Failed with 524186 errors! (one timestep pair fewer)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/hotspot/).

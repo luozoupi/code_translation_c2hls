@@ -1,0 +1,69 @@
+{
+  "name": "12_ladder_agent_r2_L3_partial40k",
+  "kernel": "/scratch/asa582/workspaces/c2hls_claude_code/verify/ladder_agent_r2_20261009T052542Z_L3/kernel.cpp",
+  "size": 1024,
+  "work_dir_deleted": "/localscratch/asa582.63989936.0/c2hls/fastcosim_12_ladder_agent_r2_L3_partial40k_20261010T054343Z",
+  "wall_s": {
+    "csynth": 1219.2,
+    "gen_data": 1.4,
+    "vivado": 17191.8
+  },
+  "csynth": {
+    "latency_cycles": 533101,
+    "latency_cycles_worst": 533101,
+    "dsp": 6688,
+    "estimated_clock_period_ns": 2.65
+  },
+  "tb_size_line": "TB_SIZE I=1024 J=1024 K=1024",
+  "axi": {
+    "gmem0": {
+      "port": "A",
+      "data_width": 512,
+      "beats": 65536
+    },
+    "gmem1": {
+      "port": "B",
+      "data_width": 512,
+      "beats": 65536
+    },
+    "gmem2": {
+      "port": "C",
+      "data_width": 512,
+      "beats": 65536
+    }
+  },
+  "vivado_rc": 0,
+  "timeout": true,
+  "compare": {
+    "dumped": true,
+    "errors": 1048576,
+    "first_bad": [
+      [
+        0,
+        264.40283203125,
+        0.0
+      ],
+      [
+        1,
+        256.4539794921875,
+        0.0
+      ],
+      [
+        2,
+        248.0229034423828,
+        0.0
+      ],
+      [
+        3,
+        269.20361328125,
+        0.0
+      ],
+      [
+        4,
+        262.4736022949219,
+        0.0
+      ]
+    ]
+  },
+  "correct": false
+}

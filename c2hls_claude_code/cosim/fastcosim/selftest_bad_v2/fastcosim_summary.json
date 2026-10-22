@@ -1,0 +1,52 @@
+{
+  "name": "selftest_bad_v2",
+  "kernel": "/scratch/asa582/workspaces/c2hls_claude_code/cosim/selftest/bad_bundles.cpp",
+  "size": 16,
+  "work_dir_deleted": "/scratch/asa582/tmp/c2hls/fastcosim_selftest_bad_v2_20261009T092423Z",
+  "wall_s": {
+    "csynth": 28.4,
+    "gen_data": 0.4,
+    "vivado": 49.4
+  },
+  "csynth": {
+    "latency_cycles": 65030,
+    "latency_cycles_worst": 65030,
+    "dsp": 5,
+    "estimated_clock_period_ns": 2.574
+  },
+  "tb_size_line": "TB_SIZE I=16 J=16 K=16",
+  "axi": {
+    "gmem0": {
+      "port": "A",
+      "data_width": 32,
+      "beats": 256
+    },
+    "gmem1": {
+      "port": "B",
+      "data_width": 32,
+      "beats": 256
+    },
+    "gmem2": {
+      "port": "C",
+      "data_width": 32,
+      "beats": 256
+    }
+  },
+  "vivado_rc": 0,
+  "rtl_cycles": 65047,
+  "rtl_cycles_from_time": 65046,
+  "rtl_cycles_consistent": true,
+  "timeout": false,
+  "compare": {
+    "dumped": true,
+    "errors": 1,
+    "first_bad": [
+      [
+        53,
+        3.342296838760376,
+        1.0
+      ]
+    ]
+  },
+  "correct": false
+}

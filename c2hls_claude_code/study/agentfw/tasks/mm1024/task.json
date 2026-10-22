@@ -1,0 +1,23 @@
+{
+ "name": "mm1024",
+ "top": "autosa_mm",
+ "header": "kernel.h",
+ "testbench": "testbench.cpp",
+ "reference": "plain.cpp",
+ "part": "xcu280-fsvh2892-2L-e",
+ "clock_ns": 3.33,
+ "total_macs": 1073741824,
+ "device": {
+  "dsp": 9024,
+  "lut": 1303680,
+  "ff": 2607360,
+  "bram_18k": 4032,
+  "uram": 960
+ },
+ "brief": "C[i][j] = sum_k A[i][k] * B[j][k] (C = A * B^T, overwrite C), I = J = K = 1024, fp32. Keep the exact top signature extern \"C\" void autosa_mm(data_t A[I][K], data_t B[J][K], data_t C[I][J]).",
+ "seed": "hls_baseline.cpp",
+ "dsp_window": [
+  6317,
+  7219
+ ]
+}

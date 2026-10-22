@@ -1,0 +1,242 @@
+<ENTRY>
+{
+ "thisFile": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/autosa_mm.xo.compile_summary",
+ "connectId": "",
+ "serverToken": "",
+ "timestamp": "0"
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 21:00:36 2026",
+ "timestampMillis": "1791604836743",
+ "buildStep": {
+  "cmdId": "63ef9779-9210-49ec-82f1-0ea8c91062ec",
+  "name": "v++",
+  "logFile": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/_x_c/autosa_mm/autosa_mm.steps.log",
+  "commandLine": "/opt/Xilinx/Vitis/2023.2/bin/unwrapped/lnx64.o/v++  --vivado.prop \"run.__KERNEL__.{STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS}={-directive sdx_optimization_effort_high}\" --advanced.misc \"report=type report_timing_summary name impl_report_timing_summary_route_design_summary steps {route_design} runs {impl_1} options {-max_paths 10}\" --advanced.misc \"report=type report_timing_summary name impl_report_timing_summary_post_route_phys_opt_design_summary steps {post_route_phys_opt_design} runs {impl_1} options {-max_paths 10}\" -c -t hw --platform /opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm -k autosa_mm -I. kernel.cpp -o autosa_mm.xo --temp_dir /localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/_x_c --log_dir /localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/logs_c --report_dir /localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/reports_c ",
+  "args": [
+   "-c",
+   "-t",
+   "hw",
+   "--platform",
+   "/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+   "-k",
+   "autosa_mm",
+   "-I.",
+   "kernel.cpp",
+   "-o",
+   "autosa_mm.xo",
+   "--temp_dir",
+   "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/_x_c",
+   "--log_dir",
+   "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/logs_c",
+   "--report_dir",
+   "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/reports_c"
+  ],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:00:36 2026",
+ "timestampMillis": "1791604836743",
+ "status": {
+  "cmdId": "63ef9779-9210-49ec-82f1-0ea8c91062ec",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_FlowMetaData",
+ "dateTimestamp": "Fri Oct  9 21:00:39 2026",
+ "timestampMillis": "1791604839473",
+ "buildSummary": {
+  "hardwarePlatform": "xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+  "hardwareDsa": "",
+  "platformDirectory": "/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1",
+  "runtime": "OpenCL",
+  "systemConfig": "Linux",
+  "flow": "BF_COMPILE",
+  "target": "TT_HW",
+  "kernels": [
+   {
+    "base": {
+     "type": "KERNEL",
+     "name": "autosa_mm",
+     "file": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/autosa_mm.xo",
+     "reports": [],
+     "uuid": ""
+    },
+    "sources": [
+     "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/kernel.cpp"
+    ],
+    "psSources": [],
+    "cuNames": [],
+    "type": "HLS",
+    "frequency": 0,
+    "freqUnits": ""
+   }
+  ],
+  "toolVersion": "Vitis V++ Compiler Release 2023.2. SW Build 4026344 on 2023-10-11-15:42:10"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct  9 21:00:39 2026",
+ "timestampMillis": "1791604839480",
+ "buildStep": {
+  "cmdId": "1ef7422b-9107-4a6f-bb6e-78450b7d3c8f",
+  "name": "vitis_hls",
+  "logFile": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/_x_c/autosa_mm/autosa_mm/vitis_hls.log",
+  "commandLine": "vitis_hls -f /localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/_x_c/autosa_mm/autosa_mm/autosa_mm.tcl -messageDb vitis_hls.pb",
+  "args": [
+   "vitis_hls",
+   "-f",
+   "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/_x_c/autosa_mm/autosa_mm/autosa_mm.tcl",
+   "-messageDb",
+   "vitis_hls.pb"
+  ],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:00:39 2026",
+ "timestampMillis": "1791604839480",
+ "status": {
+  "cmdId": "1ef7422b-9107-4a6f-bb6e-78450b7d3c8f",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 23:38:45 2026",
+ "timestampMillis": "1791614325586",
+ "status": {
+  "cmdId": "1ef7422b-9107-4a6f-bb6e-78450b7d3c8f",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct  9 23:38:45 2026",
+ "timestampMillis": "1791614325671",
+ "report": {
+  "path": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/_x_c/autosa_mm/autosa_mm/autosa_mm/solution/.autopilot/db/autosa_mm.design.xml",
+  "name": "autosa_mm",
+  "fileType": "XML",
+  "reportType": "KERNEL_HLS_REPORT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct  9 23:38:45 2026",
+ "timestampMillis": "1791614325671",
+ "report": {
+  "path": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/_x_c/autosa_mm/autosa_mm/autosa_mm/solution/.autopilot/db/.message_syn.xml",
+  "name": "autosa_mm",
+  "fileType": "XML",
+  "reportType": "KERNEL_HLS_DRC_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct  9 23:38:45 2026",
+ "timestampMillis": "1791614325671",
+ "report": {
+  "path": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/reports_c/autosa_mm/hls_reports/autosa_mm_csynth.rpt",
+  "name": "autosa_mm",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_HLS_CSYNTH",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct  9 23:38:45 2026",
+ "timestampMillis": "1791614325672",
+ "report": {
+  "path": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/_x_c/autosa_mm/autosa_mm/autosa_mm/solution/syn/report/autosa_mm_csynth.xml",
+  "name": "autosa_mm",
+  "fileType": "XML",
+  "reportType": "KERNEL_HLS_CSYNTH",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct  9 23:38:45 2026",
+ "timestampMillis": "1791614325843",
+ "report": {
+  "path": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/reports_c/autosa_mm/system_estimate_autosa_mm.xtxt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_SYSTEM_ESTIMATE",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 23:38:47 2026",
+ "timestampMillis": "1791614327709",
+ "status": {
+  "cmdId": "63ef9779-9210-49ec-82f1-0ea8c91062ec",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct  9 23:38:47 2026",
+ "timestampMillis": "1791614327790",
+ "report": {
+  "path": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/reports_c/autosa_mm/v++_compile_autosa_mm_guidance.html",
+  "name": "",
+  "fileType": "HTML",
+  "reportType": "GLOBAL_RULECHECK_GUIDANCE",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct  9 23:38:47 2026",
+ "timestampMillis": "1791614327790",
+ "report": {
+  "path": "/localscratch/asa582.63954764.0/xclbin_ladder_agent_r3_L3/_x_c/v++_compile_autosa_mm_guidance.pb3",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_RULECHECK_GUIDANCE",
+  "cmdId": ""
+ }
+}
+</ENTRY>

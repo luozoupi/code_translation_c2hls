@@ -1,0 +1,998 @@
+                                                    Search for Optimal Systolic Arrays: A Comprehensive
+                                                   Automated Exploration Framework and Lessons Learned
+                                                                                Jie Wang                                                                                Jason Cong
+                                                             University of California, Los Angeles                                                    University of California, Los Angeles
+                                                                    jiewang@cs.ucla.edu                                                                        cong@cs.ucla.edu
+
+                                         ABSTRACT
+                                         Systolic arrays have been widely used for accelerating HPC and
+                                         deep learning applications. There is a plethora of previous works
+arXiv:2111.14252v1 [cs.AR] 28 Nov 2021
+
+
+
+
+                                         on the performance tuning of systolic arrays, but usually based on
+                                         a number of oversimplified assumptions (e.g., only considering divi-
+                                         sors for loop tiling, pruning based on off-chip data communication)
+                                         to reduce the design space.
+                                            In this paper, we present a comprehensive design space explo-
+                                         ration tool named Odyssey for systolic array optimization. Odyssey
+                                         does not rely on artificial assumptions to limit the design space,
+                                                                                                                                                      (a) Throughput                       (b) DSP
+                                         and yet it is highly efficient and scalable with a hybrid optimization
+                                         technique. For example, for a 1024×1024×1024 matrix multiplica-                                 Figure 1: Throughput and DSP usage of different systolic ar-
+                                         tion, it finds designs that reach 90% of the optimal performance                                ray designs for a 1024x1024x1024 MM. Design 4 is produced
+                                         in 5 seconds with a single CPU thread. Moreover, using Odyssey,                                 by Odyssey.
+                                         we unveil and quantify the suboptimality introduced by multiple
+                                         commonly used oversimplifications in prior studies for systolic
+                                         array design space exploration. For example, Odyssey results show                               divisors to reduce the design space [4, 9, 17, 41]. In Figure 1, we com-
+                                         that limiting to divisors for loop tiling leads to a 39% performance                            pare the throughput and DSP usage of best systolic arrays found
+                                         loss, and pruning based on off-chip data movement results in a 45%                              when limiting tiling factors to 1) divisors only (Design 1) and 2)
+                                         performance loss. We applied Odyssey to explore the architecture                                both divisors and non-divisors (Design 4) for a 1024 × 1024 × 1024
+                                         trade-offs for matrix multiplication and convolutional neural net-                              matrix multiplication (MM)2 . Limiting to divisors leads to a 39%
+                                         work, providing inspiration into possible optimizations for these                               performance loss. With the limited design space, the divisor-only
+                                         two applications.                                                                               design fails to fully exploit the on-chip resource, with only 60% DSP
+                                                                                                                                         usage.
+                                         1     INTRODUCTION                                                                                 Limitation 2: Inaccurate performance modeling. An inac-
+                                                                                                                                         curate performance model could also hurt the quality of search
+                                         Performance optimization for a given class of microarchitectures,
+                                                                                                                                         results. For example, the previous work TENET [28] estimated the
+                                         also called performance tuning, has long been an important topic
+                                                                                                                                         design latency as the maximum of compute and communication
+                                         given the complexity of hardware systems and applications. This
+                                                                                                                                         latency. This model overlooks the prologue/epilogue phases when
+                                         issue is intensified on domain-specific architectures (DSA), which
+                                                                                                                                         loading the first tile of data and writing out the final results. Figure 1
+                                         grant designers explicit control over the software stack and hard-
+                                                                                                                                         shows the performance of the best design found when using the
+                                         ware architecture, opening up a vast design space to explore.
+                                                                                                                                         maximum-based model (Design 2) for the same MM problem. We
+                                            This paper focuses on the performance tuning of systolic arrays.
+                                                                                                                                         observe a 9% performance loss compared to the optimal design.
+                                         A complete design space of systolic arrays contains multiple di-
+                                                                                                                                            Limitation 3: Inefficient search methods and imperfect prun-
+                                         mensions, such as the selection of dataflows1 , loop permutation
+                                                                                                                                         ing heuristics. When searching the design space, many previous
+                                         and tiling. These factors impact the final design performance in
+                                                                                                                                         works adopted pruning-based exhaustive search which may not
+                                         an intertwined manner and compose a vast design space which is
+                                                                                                                                         scale to large-sized problems [4, 9, 28, 41]. To make matters worse,
+                                         intractable to handle manually.
+                                                                                                                                         several works chose imperfect pruning heuristics, failing to cover
+                                            Many previous works have attempted this challenging task by
+                                                                                                                                         optimal designs. For example, the previous work Marvel [4] pruned
+                                         looking into different dimensions of the design space and proposing
+                                                                                                                                         the design space based on the off-chip data communication and
+                                         various auto-tuning methods [4, 9, 17, 19, 21, 28, 31, 41]. However,
+                                                                                                                                         applied an exhaustive search in the pruned sub space. However, an
+                                         after a thorough examination of the previous works, we identified
+                                                                                                                                         optimal design needs to balance both the data communication and
+                                         several limitations that need to be addressed.
+                                                                                                                                         computation and does not necessarily minimize the off-chip mem-
+                                            Limitation 1: Incomplete coverage of the design space. When
+                                                                                                                                         ory accesses. As a result, the best design found which minimizes
+                                         selecting the tiling factors, many previous works only considered
+                                                                                                                                         the off-chip data communication (Design 3) in Figure 1 introduces
+                                                                                                                                         a 45% performance loss compared to the optimal design.
+                                         1 Given a target loop program to map to systolic arrays, designers could select different
+                                         loops to be mapped to spatial dimensions of systolic arrays, leading to different array
+                                         topologies and execution models. We define each of such choices as a unique dataflow.           2 Please refer to Section 4.1 for more details.
+
+                                                                                                                                     1
+                                                                                                                                                        Jie Wang and Jason Cong
+
+
+               Input                                Hardware Design                         Table 1: Comparison between different systolic array archi-
+                                 AutoSA
+            Program (C)                                 (HLS C)                             tecture performance tuning frameworks.
+                                                   Design Description
+                               Section 3                (JSON)                                                   Design Space    Performance Models
+                                                                                                                                                            Search Methods
+                                                                                                                                Prologue/
+                                                                                                                 Non-Divisors             Generation
+                                  Hardware Performance Models (Python)                                                          Epilogue
+                                                                                                                                                        Exhaustive w/ Pruning
+                                                                                             Timeloop [31]            N            N        Manual
+            Hardware           Section 4               MP-Based                                                                                             Random Search
+           Constraints,                                Optimizer                             dMazeRunner [9]          N            N        Manual      Exhaustive w/ Pruning
+          Problem Sizes                                                                      Interstellar [41]        N           N/A       Manual      Exhaustive w/ Pruning
+                                                  Evolutionary Search                                                                                  Mathematical Programming
+             (JSON)            Auto-Tuner                                                    Marvel [4]               N            Y        Manual
+                                                                                                                                                        Exhaustive w/ Pruning
+                                                                                                                                                                  RL
+                                            Optimal Configurations (JSON)                    ConfuciuX [19]          N/A           Y        Manual
+                                                                                                                                                          Evolutionary Search
+                                                                                             CoSA [17]                N            Y        Manual     Mathematical Programming
+            Figure 2: Overview of Odyssey framework.                                         TENET [28]              N/A           N        Manual      Exhaustive w/ Pruning
+                                                                                                                                                       Mathematical Programming
+                                                                                             Odyssey                  Y            Y         Auto
+                                                                                                                                                          Evolutionary Search
+
+   All of these limitations affect the quality of search results and
+further impact the architecture decisions that designers derive based
+                                                                                            short amount of time, For example, for the 1024 × 1024 × 1024 MM,
+on these results. To overcome this challenge, in this paper, we
+                                                                                            the proposed auto-tuner finds a design that achieves 90% of the
+propose a new automatic design space exploration framework for
+                                                                                            optimal performance in 5 seconds with a single CPU thread.
+systolic arrays, Odyssey 3 . Figure 2 depicts the proposed tuning
+                                                                                                Contribution 3: A fully automated and open-source frame-
+flow.
+                                                                                            work. The entire flow is fully automated and open-sourced4 . Odyssey
+   Odyssey leverages AutoSA [37], an open-source FPGA-based
+                                                                                            is the first work that is built directly on an open-source systolic array
+systolic array compiler, to construct the design space automatically.
+                                                                                            compiler to construct the design space and generate performance
+AutoSA takes in a C program that describes the target algorithm to
+                                                                                            models based on real hardware implementations. This guarantees
+map to systolic arrays and generates the systolic array designs in
+                                                                                            the comprehensiveness and accuracy of the design space modeling,
+Xilinx HLS C [40]. We extend the AutoSA framework to generate a
+                                                                                            and validity and reproducibility of the search results. In this pa-
+design description file that covers the full details of the generated
+                                                                                            per, we show two architecture studies on MM and convolutionary
+hardware. Odyssey uses this file to create hardware performance
+                                                                                            neural network (CNN).
+models as symbolic expressions of the tuning parameters that can
+                                                                                                The rest of this paper is organized as follows: Section 2 discusses
+be used by the auto-tuner. Inside the auto-tuner, Odyssey imple-
+                                                                                            the previous works and covers the basics of AutoSA. Section 3
+ments a two-stage flow that starts with a mathematical program-
+                                                                                            explains how we construct the design space. In Section 4, we in-
+ming (MP)-based optimizer that leverages optimization solvers with
+                                                                                            troduce the search methods to explore this design space. Section 5
+a simplified objective function to produce an initial high-quality
+                                                                                            presents the evaluation results. Section 6 discusses lessons learned
+design, followed by the evolutionary search with the accurate per-
+                                                                                            from this work and Section 7 states the limitations of this work.
+formance models. Odyssey surpasses the previous works in multiple
+                                                                                            Section 8 concludes the paper.
+dimensions.
+   Contribution 1: A comprehensive design space and accu-
+                                                                                            2     BACKGROUND AND RELATED WORK
+rate performance modeling. Odyssey covers a comprehensive
+design space including the selection of dataflows, loop permuta-                            There is a plethora of previous works on performance tuning of
+tion and tiling. Furthermore, Odyssey derives the performance                               systolic arrays [4, 9, 15, 17, 19, 21, 28, 31, 41]. Table 1 lists several
+models directly from the compiler-generated hardware with high                              recent works. Note that some of the listed works covered a broader
+estimation accuracy. For example, we are able to produce latency                            set of architectures beyond systolic arrays. In this work, we only
+models by traversing the ASTs of the generated HLS designs, which                           focus on the systolic array architecture. However, the methodology
+achieved a low estimation error of 1.99% compared to the real hard-                         proposed in this work can be applied to other architectures as well.
+ware execution.                                                                             We discuss the prior works from two dimensions: the design space
+   Contribution 2: Efficient auto-tuning methods. The pro-                                  and search methods.
+posed auto-tuning algorithm does not rely on any artificial as-
+sumptions (e.g., divisors tiling factors, pruning based on off-chip                         2.1     Design Space
+data communication) to limit the design space, and yet it is highly                            Design space coverage. We consider three dimensions of the de-
+efficient with a hybrid optimization technique that combines the                            sign space: dataflows, loop permutation and loop tiling. In addition,
+MP-based optimization and evolutionary search. We propose a                                 in this work, we cover non-divisor tiling factors in loop tiling. Many
+hybrid mutation operation in evolutionary search that takes non-                            previous works only used divisors for simplicity [4, 9, 17, 31, 41].
+divisor tiling factors into consideration. In addition, we implement                        However, this choice could lead to significant performance loss, as
+a pruning algorithm for loop permutation that trims away infe-                              discussed in Section 1.
+rior designs without omitting the optimal designs. As a result, our                            Performance model. The accuracy of performance models plays
+search framework can locate designs with high performance in a                              an important role in performance tuning. In Section 1, we discussed
+3 Odyssey is abbreviated from AUtomatic DEsign space exploration for SYstolic arrays.       4 https://github.com/UCLA-VAST/AutoSA/tree/master/autosa_scripts/odyssey
+
+                                                                                        2
+Search for Optimal Systolic Arrays: A Comprehensive Automated Exploration Framework and Lessons Learned
+
+
+the issue of using a simplified performance model that overlooks the                    The first step space-time mapping assigns space and time seman-
+epilogue and prologue phases of the hardware execution. Table 1                      tics to different loops to create a systolic array. The left column in
+highlights several previous works with a similar issue [9, 28, 31]. In               Figure 3 shows two examples for MM. The first example assigns
+addition, such performance models are usually derived manually                       loop 𝑖 as space loops, leading to a 1D systolic array with 𝐼 PEs.
+which is time-consuming and inaccurate. Odyssey distinguishes                        We assign all the loops below the space loops as time loops that
+itself from the prior works in that it automatically creates perfor-                 describe the computation inside PEs. The second example maps
+mance models by leveraging the AutoSA compiler.                                      loops 𝑖 and 𝑗 to spatial dimensions, producing a 2D systolic array
+                                                                                     with a size of 𝐼 × 𝐽 . AutoSA identifies all the legal space loops and
+2.2     Search Methods                                                               generates different space-time mapping candidates 5 .
+We classify the search methods into three categories.                                   The next step, array partitioning, employs loop tiling on the
+                                                                                     outermost permutable loops to reduce the array size. The middle
+   Brute-force methods. Such methods include random search [5, 31]                   column in Figure 3 presents two examples of MM in which the
+and exhaustive search with pruning [4, 9, 28, 37, 39, 41]. Brute-                    original loops 𝑖, 𝑗, 𝑘 are tiled with factors of [2, 2, 2] that leads to a
+force methods face scalibility issues with large-scale problems.                     smaller array with a size of 2 × 2. The original computation task
+For pruning-based exhaustive search, imperfect pruning heuris-                       is partitioned and executed on this array in sequence. The tiled
+tics could lead to inferior designs. In Section 1, we mentioned using                loops, named as array partitioning loops, can be further permuted
+off-chip data communication as the pruning heuristic leads to infe-                  which could lead to different array architectures. The first array
+rior performance. Previous works like [4, 6] used this heuristic.                    keeps the original loop ordering < 𝑖.0, 𝑗 .0, 𝑘.0 >. Data of matrix 𝐶
+                                                                                     are accumulated along the loop 𝑘.0. Consequently, intermediate
+   Mathematical programming-based methods. These methods for-                        results are updated on-chip and only written out off-chip on the
+mulate the search task as a mathematical optimization problem                        last iteration of loop 𝑘.0. In comparison, the second array uses the
+and resolve it with optimization solvers [4, 17, 26, 27]. The recent                 loop ordering < 𝑖.0, 𝑘.0, 𝑗 .0 >. As different tiles of matrix 𝐶 are
+work CoSA [17] modeled the design space as a mixed integer pro-                      updated at each iteration of loop 𝑗 .0, we add additional hardware
+gramming (MIP) problem. To accommodate for the formulation                           modules in the on-chip I/O network (marked as 𝐶 (𝑖𝑛)) to load in
+requirements of MIP, CoSA set the objective function as a linear                     the intermediate results. The third step, latency hiding, tiles parallel
+combination of several high-order factors such as resource utiliza-                  loops and permutes them to the innermost to hide the computation
+tion and data communication. The simplified models employed in                       latency. And the last step, SIMD vectorization, vectorizes one loop
+such approaches will lead to inferior designs. We conducted an ex-                   to improve the compute-over-control ratio to amortize the control
+periment in which we model the tuning task for AutoSA-generated                      overheads inside PEs.
+designs as a non-linear optimization problem and used the off-the-                      With a comprehensive coverage of hardware optimization tech-
+shelf solver (AMPL [10] with Ipopt [8]) to generate the solutions.                   niques, AutoSA generates high-performance systolic arrays with
+The best design obtained from this approach is 1.5× slower than                      comparable or better performance than previous works [37]. How-
+the optimal design obtained by Odyssey (see Section 4.2).                            ever, such a vast design also poses significant challenges to per-
+                                                                                     formance tuning. As an example, considering all the available
+   Iterative methods. Examples include simulated annealing [5],
+                                                                                     tuning options, the size of design space bloats to 𝑂 (240 ) for a
+evolutionary search [43], Bayesian optimization [32], and reinforce-
+                                                                                     1024 × 1024 × 1024 MM. This challenge has motivated us to develop
+ment learning [19]. In this work, we examined several iterative
+                                                                                     Odyssey which provides efficient auto-tuning support to explore
+search methods and chose evolutionary search given its high sam-
+                                                                                     such a design space.
+ple efficiency and search quality.
+                                                                                        The subfigure at the bottom-right of Figure 3 summarizes the de-
+   An ideal performance tuning framework should achieve: 1) a
+                                                                                     sign space covered by Odyssey. Odyssey explores different dataflows
+comprehensive coverage and accurate modeling of the design space,
+                                                                                     in the space-time transformation and the loop tiling factors in array
+and 2) efficient search methods to explore the design space. The
+                                                                                     partitioning, latency hiding, and SIMD vectorization. Odyssey also
+failure in either of the two targets will impact the quality of search
+                                                                                     explores non-divisor tiling factors and loop permutation in the step
+results, as well as the architecture conclusions derived from these
+                                                                                     of array partitioning. When a non-divisor tiling factor is chosen,
+results. Unfortunately, regardless of the plethora of past studies, we
+                                                                                     the original problem dimension is zero padded to be a multiple
+observe no prior work that reached a balance between these two
+                                                                                     of the tiling factor. Tiling factors of latency hiding and SIMD vec-
+goals. This situation has motivated us to tackle this challenge.
+                                                                                     torization are still required to be divisors as the array dimension
+                                                                                     is fixed after array partitioning and non-divisor tiling factors at
+2.3     Review of Automatic Systolic Array                                           later steps introduce prologue/epilogue phases and costly max/min
+        Generation                                                                   operations that hurt the design performance.
+Automatic systolic array generation is an important research topic
+given the high performance of the systolic array architecture and
+the complexities of the designing process [3, 11, 12, 25, 29]. The
+recent work, AutoSA [37], reported the best performance results in                   5 Previous works [7, 23, 41] used the term dataflow to identify different array topologies
+
+this field. AutoSA takes in a C program as the input and applies a                   and execution patterns, which are equivalent to different space-time mappings within
+                                                                                     the scope of systolic arrays. In the rest of the paper, we use dataflow to refer to different
+sequence of program transformations on this program to build and                     space-time mappings. We annotate each dataflow in the format of [𝑖, 𝑗 ] that marks
+optimize systolic arrays.                                                            the selected space loops for this array.
+                                                                                 3
+                                                                                                                                                                                                                                                 Jie Wang and Jason Cong
+
+
+Input Code of MM:                                                 Array Partitioning 1: < 𝑖. 0, 𝑗. 0, 𝑘. 0 >                                                                         Latency Hiding
+     for (int i = 0; i < I; i++)                                                                    Array partitioning loops     * The generated systolic array:                          for (int i.0 = 0; i.0 < I/T_I1; i.0++)
+       for (int j = 0; j < J; j++)                                 for (int i.0 = 0; i.0 < I/T_I1; i.0++)                                                                                   for (int j.0 = 0; j.0 < J/T_J1; j.0++)
+         for (int k = 0; k < K; k++)
+           C[i][j] += A[i][k] * B[k][j];
+                                                                     for (int j.0 = 0; j.0 < J/T_J1; j.0++)                                                                  𝑗                for (int k.0 = 0; k.0 < K/T_K1; k.0++)
+                                                                       for (int k.0 = 0; k.0 < K/T_K1; k.0++)                                                                                   for (int i.1 = 0; i.1 < T_I1/T_I2; i.1++)
+     Note: Initialization of C omitted for brevity.                      for (int i.1 = 0; i.1 < T_I1; i.1++)
+                                                                                                                                                  A                     𝑖                         for (int j.1 = 0; j.1 < T_J1/T_J2; j.1++)
+                                                                           for (int j.1 = 0; j.1 < T_J1; j.1++)                                                                                     for (int k.1 = 0; k.1 < T_K1; k.1++)
+ Space-Time Transformation 1: [𝑖]                                            for (int k.1 = 0; k.1 < T_K1; k.1++)                         B                                                           for (int i.2 = 0; i.2 < T_I2; i.2++)
+                                                                               C[...] += A[...] * B[...];                                                                                               for (int j.2 = 0; j.2 < T_J2; j.2++) Latency hiding loops
+                                     space                                                                                                             PE            PE                                   C[...] += A[...] * B[...];
+       for (int i = 0; i < I; i++)                                                                             Sub-array loops
+
+
+
+
+                                                                                                                                  DRAM
+         for (int j = 0; j < J; j++)                               * Off-Chip Data Communication:
+           for (int k = 0; k < K; k++)                                                                                                                                               SIMD Vectorization
+     time    C[i][j] += A[i][k] * B[k][j];                           𝐷𝑀 𝐴 =
+                                                                             𝐼    𝐽     𝐾
+                                                                                              𝑇_𝐼1 ⋅ 𝑇_𝐾1                                              PE            PE                       for (int i.0 = 0; i.0 < I/T_I1; i.0++)
+                                                                            𝑇_𝐼1 𝑇_𝐽1 𝑇_𝐾1
+    * The generated systolic array:                                          𝐼     𝐽    𝐾
+                                                                                                                                                                                                for (int j.0 = 0; j.0 < J/T_J1; j.0++)
+                                 A                                   𝐷𝑀 𝐵 =
+                                                                            𝑇_𝐼1 𝑇_𝐽1 𝑇_𝐾1
+                                                                                              𝑇_𝐽1 ⋅ 𝑇_𝐾1                                C(out)                                                   for (int k.0 = 0; k.0 < K/T_K1; k.0++)
+                                                              𝑖              𝐼    𝐽
+                                                                                                                                                                                                    for (int i.1 = 0; i.1 < T_I1/T_I2; i.1++)
+                                                                     𝐷𝑀 𝐶 =           𝑇_𝐼1 ⋅ 𝑇_𝐽1                                                                                                     for (int j.1 = 0; j.1 < T_J1/T_J2; j.1++)
+                                                                            𝑇_𝐼1 𝑇_𝐽1
+           B          PE         ⋯           PE                                                                                                                                                         for (int k.1 = 0; k.1 < T_K1/T_K2; k.1++)
+                                                                                                                                                                                                          for (int i.2 = 0; i.2 < T_I2; i.2++)
+                                                                  Array Partitioning 2: < 𝑖. 0, 𝑘. 0, 𝑗. 0 >                                                                                                for (int j.2 = 0; j.2 < T_J2; j.2++)
+Space-Time Transformation 2: [𝑖, 𝑗]                                                                                                                                                                           for (int k.2 = 0; k.2 < T_K2; k.2++)              SIMD loop
+                                                                                                    Array partitioning loops
+                                                                                                                                 * The generated systolic array:                                                C[...] += A[...] * B[...];
+                                                                   for (int i.0 = 0; i.0 < I/T_I1; i.0++)
+      for (int i = 0; i < I; i++)   space                            for (int k.0 = 0; k.0 < K/T_K1; k.0++)
+        for (int j = 0; j < J; j++)                                                                                                                                          𝑗       Tuning Space of Odyssey
+                                                                       for (int j.0 = 0; j.0 < J/T_J1; j.0++)
+          for (int k = 0; k < K; k++)
+    time C[i][j] += A[i][k] * B[k][j];                                   for (int i.1 = 0; i.1 < T_I1; i.1++)                                     A C(in)               𝑖             // Logical sub-array partitions
+                                                                           for (int j.1 = 0; j.1 < T_J1; j.1++)                                                                                                                                            Array partitioning
+                                                                                                                                                                                      for (int i.0 = 0; i.0 < I/T_I1; i.0++)
+    * The generated systolic array:                                          for (int k.1 = 0; k.1 < T_K1; k.1++)                                                                                                                                         (Loop permutation
+                                                                                                                                                                                        for (int j.0 = 0; j.0 < J/J_T1; j.0++)
+                                  B                                            C[...] += A[...] * B[...];                                 B                                               for (int k.0 = 0; k.0 < K/K_T1; k.0++)                                + loop tiling)
+                                                                                                               Sub-array loops                         PE            PE                     // Physical array
+                                                          𝑗
+
+
+
+
+                                                                                                                                  DRAM
+                                                                                                                                                                                            for (int i.1 = 0; i.1 < T_I1/T_I2; i.1++)                             Space-time
+                      PE         ⋯          PE                     * Off-Chip Data Communication:
+                                                      𝑖                                                                                                                                       for (int j.1 = 0; j.1 < T_J1/T_J2; j.1++)                             mapping
+                                                                              𝐼     𝐾                                                                                                           // PE
+       A                                                             𝐷𝑀 𝐴 =             𝑇_𝐼1 ⋅ 𝑇_𝐾1                                                    PE            PE                                                                                       Latency hiding
+                      ⋯
+
+
+
+                                             ⋯
+
+
+
+
+                                                                             𝑇_𝐼1 𝑇_𝐾1                                                                                                          for (int k.1 = 0; k.1 < T_K1/T_K2; k.1++)
+                                                                               𝐼    𝐽     𝐾                                                                                                       for (int i.2 = 0; i.2 < T_I2; i.2++)
+                                                                     𝐷𝑀 𝐵 =                    𝑇_𝐽1 ⋅ 𝑇_𝐾1                                                                                                                                                      (Loop tiling)
+                                                                             𝑇_𝐼1 𝑇_𝐽1 𝑇_𝐾1                                              C(out)                                                     for (int j.2 = 0; j.2 < T_J2; j.2++)
+                      PE         ⋯          PE                                   𝐼    𝐽     𝐾                                                                                                         for (int k.2 = 0; k.2 < T_K2; k.2++)                SIMD Vectorization
+                                                                     𝐷𝑀 𝐶 = 2                    𝑇_𝐼1 ⋅ 𝑇_𝐽1
+                                                                               𝑇_𝐼1 𝑇_𝐽1 𝑇_𝐾1                                                                                                           C[...] += A[...] * B[...];                              (Loop tiling)
+
+
+
+                                                                  Figure 3: Example of using AutoSA to generate systolic arrays for MM.
+
+
+3          CONSTRUCTING THE DESIGN SPACE                                                                                                          3.2          Loop Permutation Pruning
+In this section, we discuss how we construct the design space. The                                                                                Odyssey explores different loop permutation orderings in the array
+current design space considers loop permutation. We can prune                                                                                     partitioning. As shown in Section 2.3, different loop orderings may
+the loop permutation orderings without filtering out the optimal                                                                                  lead to various array architectures. AutoSA enumerates all the loop
+designs. The second part of this section covers the details of the                                                                                permutation orderings. For MM, there are 3! = 6 different order-
+pruning heuristics.                                                                                                                               ings to consider. The number grows larger for a more complicated
+                                                                                                                                                  application like CNN.
+                                                                                                                                              1   f o r ( i n t o = 0 ; o < O ; o ++)
+3.1            Enhancement to AutoSA                                                                                                          2       f o r ( i n t h = 0 ; o < H; h ++)
+                                                                                                                                              3           f o r ( i n t w = 0 ; o < W; w+ + ) {
+We have extended AutoSA to generate a design descriptor that                                                                                  4               f o [ o ] [ h ] [w] = 0 ;
+                                                                                                                                              5               f o r ( i n t i = 0 ; o < I ; i ++)
+contains all the necessary information for estimating the design                                                                              6                   f o r ( i n t p = 0 ; o < P ; p ++)
+performance. This descriptor contains the following components:                                                                               7                       f o r ( i n t q = 0 ; o < Q ; q ++)
+                                                                                                                                              8                           f o [ o ] [ h ] [w] += f i [ i ] [ h+p ] [w+q ] ∗ w[ o ] [ i ] [ p ] [ q ] ;
+                                                                                                                                              9               }
+
+           • Abstract syntax tree (AST): ASTs of all the hardware modules                                                                         Listing 1: Example code of a CNN layer. Batch size and stride
+             for latency estimation.                                                                                                              are set to 1 here for simplicity.
+           • Memory information: Properties of on-chip buffers including
+             buffer size, data type, and memory banking.
+                                                                                                                                                     Listing 1 shows the example code of one CNN layer. The six-level
+           • Compute information: Information about the PE computation
+                                                                                                                                                  nested loop leads to 6! = 720 different loop orderings. However,
+             logic, such as the SIMD lanes and computation statements.
+                                                                                                                                                  as pointed out by previous works [9, 26, 27], among all the loop
+           • Array Topology: Information about the topology of the sys-
+                                                                                                                                                  orderings, many of them are dominated by a few orderings in
+             tolic array, such as the array dimension and the number of
+                                                                                                                                                  performance, thus can be safely pruned without leaving out the
+             different hardware modules. We use this information, along
+                                                                                                                                                  optimal points. Next, we show that with proper pruning, we can
+             with the memory and compute information for resource
+                                                                                                                                                  reduce the number of loop orderings to consider for both MM and
+             estimation.
+                                                                                                                                                  CNN to only 3.
+           • Tuning parameters: Loop tiling factors to be tuned.
+                                                                                                                                                     We consider resource usage and latency when assessing the de-
+                                                                                                                                                  sign performance. Different loop orderings will impact the structure
+    The auto-tuner utilizes this description file to create a Python                                                                              of the I/O network, resulting in different resource usage. In Figure 3,
+file containing functions for estimating the design performance.                                                                                  we showed that after hoisting the loop 𝑘.0 from the innermost posi-
+All the performance models are symbolic expressions of the tuning                                                                                 tion of the array partitioning loop band, additional I/O modules for
+parameters. During the search, the auto-tuner samples the design                                                                                  transferring the intermediate results of matrix 𝐶 are added, increas-
+space and plugs in different tuning parameters into the performance                                                                               ing the total resource usage. The key takeaway is: By placing loops
+models for assessing the design performance.                                                                                                      that carry the flow dependences innermost in the array partitioning
+                                                                                                                                         4
+Search for Optimal Systolic Arrays: A Comprehensive Automated Exploration Framework and Lessons Learned
+
+
+loop band, intermediate data are accumulated on-chip, eliminating                    Table 2: Unique systolic arrays generated by AutoSA for MM
+the resource overheads brought by the additional I/O modules.                        and CNN.
+   Latency-wise, different loop orderings will affect off-chip data
+                                                                                         Application                    MM                                              CNN
+communication. We compute the off-chip data movement for the                                                                                                     [o], [h], [w], [i],
+                                                                                         Dataflows        [i], [j], [k], [i,j], [i,k], [j,k]
+two example designs in Figure 3. For the first ordering < 𝑖.0, 𝑗 .0, 𝑘.0 >,                                                                            [o,h], [o,w], [o,i], [h,w], [h,i], [w,i]
+
+final results of matrix 𝐶 are only drained out at the last iteration of               Loop Permutation   <[i,j],k>, <[j,k],i>, <[i,k], j>      <[o,h,w],[i,p,q]>, <[o,i,p,q],[h,w]>, <[i,h,w,p,q],o>
+                                                                                          #Designs                       18                                              30
+loop 𝑘.0, leading to a total amount of data movement as:
+                               𝐼      𝐽
+                  𝐷𝑀 (𝐶) = ⌈       ⌉⌈      ⌉𝑇 _𝐼 1 · 𝑇 _𝐽 1                (1)
+                             𝑇 _𝐼 1 𝑇 _𝐽 1
+    As for the second ordering < 𝑖.0, 𝑘.0, 𝑗 .0 >, the intermediate                  than 𝑜ˆ if the design is bound with data communication of 𝑟 . Overall,
+results of matrix 𝐶 are swapped off-chip at each loop iteration of                   this loop ordering 𝑜 ′ is dominated by 𝑜ˆ in both resource usage and
+𝑗 .0. We compute the total data movement of matrix 𝐶 as:                             design latency, which contradicts to the initial assumption that 𝑜 ′
+                             𝐼      𝐾     𝐽                                          dominates loop orderings from 𝑂 in performance.                    □
+            𝐷𝑀 (𝐶) = 2 ⌈         ⌉⌈    ⌉⌈      ⌉𝑇 _𝐼 1 · 𝑇 _𝐽 1            (2)
+                           𝑇 _𝐼 1 𝑇 _𝐾1 𝑇 _𝐽 1
+   To take into account both the inbound and outbound traffic of                        For the MM example, loop 𝑖.0 carries the read dependence for
+matrix 𝐶, we multiply the factor 2. Compared to the first ordering,                  array 𝐵, loop 𝑗 .0 carries the read dependence for array 𝐴, and
+the second ordering introduces a higher amount of data movement                      loop 𝑘.0 carries the flow dependence for array 𝐶. In total, there
+for matrix 𝐶. For communication-bound designs, this could lead                       are three loop ordering candidates which lead to systolic arrays
+to a longer latency. In addition to the loops that carry the flow                    with potentially different performance. Note that as long as the
+dependence, loops that carry the read dependence will impact the                     innermost loop is fixed, the ordering of other loops will not impact
+data communication as well. We use matrix 𝐴 as an example. As                        the performance. In the rest of this paper, we use the annotation
+shown in Figure 3, with the loop ordering < 𝑖.0, 𝑗 .0, 𝑘.0 >, at each                < [𝑖.0, 𝑗, 0], [𝑘.0] > to identify the set of loop orderings. All the
+array partition, we load new array tiles with a size of 𝑇 _𝐼 1 × 𝑇 _𝐾1               loops in the same brackets can be permuted freely with equivalent
+from array 𝐴. In comparison, with the loop ordering < 𝑖.0, 𝑘.0, 𝑗 .0 >,              performance. We will choose one ordering randomly in practice.
+data of matrix 𝐴 are reused along the loop 𝑗 .0. New data tiles are                  Table 2 shows all the unique loop orderings for MM and CNN.
+only loaded at each new loop iteration of loop 𝑘.0, reducing the                        To summarize, given an input program, we use AutoSA to gener-
+data communication for matrix 𝐴 compared to the first ordering.                      ate different dataflows and loop permutation orderings of the array
+Detailed equations of data movement for matrix 𝐴 can be found                        partitioning loops, and leave the tiling factors as tunable parameters
+in Figure 3. The key takeaway is: By placing array partitioning                      to be handled by the auto-tuner. The next section will discuss the
+loops that carry the flow/read dependences innermost, data are reused                details of the auto-tuner.
+on-chip, reducing the off-chip data communication and design latency.
+   Putting it all together, we have a complete picture of the pruning                4 SEARCHING THE DESIGN SPACE
+strategy.
+                                                                                     4.1 Evolutionary Search
+    Theorem 3.1. Given a program that can be mapped to systolic                      In the Odyssey framework, we select evolutionary search as the
+arrays, let 𝑅𝐿(𝑟 ) be the set of array partitioning loops that carry                 backbone search method. Evolutionary search [16] is a generic
+the read/flow dependences associated with the array reference 𝑟 , and                meta-heuristic algorithm inspired by biological evolution, in which
+𝑁 𝑅𝐿(𝑟 ) be the rest of the loops in the array partitioning loop band,               individuals of a population gradually improve themselves through
+the set of unique loop orderings 𝑂 can be obtained as the union of loop              a series of biological mechanisms such as mutation, crossover, and
+orderings in the form of < 𝑁 𝑅𝐿(𝑟 ), 𝑅𝐿(𝑟 ) > for each array reference               selection. In the context of hardware design space exploration, each
+𝑟 . All the other loop orderings are dominated by 𝑂 in terms of resource             design point is termed as an individual in the population. The fea-
+usage and latency. Note that 𝑅𝐿(𝑟 ) could be an empty set if there                   ture vector that describes a design point is coined as the genome of
+is no read/flow dependence associated with the 𝑟 . For this case, the                the individual. Each design point is assigned a fitness score by its
+loop ordering is in the form of < 𝑁 𝑅𝐿(𝑟 ) >, and is added into 𝑂 for                performance assessed by the real hardware measurement or the per-
+consideration.                                                                       formance model. At each iteration, we select a group of individuals
+    Proof Sketch. Assume the above statement is false, i.e., there is                with the highest fitness scores in the population as the parents to
+a loop ordering 𝑜 ′ out of the set 𝑂 that achieves better performance                produce the children in the next iteration (selection). These parents
+than loop orderings in 𝑂. Then, there exists at least one loop 𝑙𝑟𝑙 in 𝑜 ′            will breed new individuals with mutation and crossover operations.
+that carries the read/flow dependences for a certain array reference                 In the next iteration, we filter out the low-fitted individuals and
+𝑟 , and is placed above a certain loop 𝑙𝑛𝑟𝑙 that belongs to 𝑁 𝑅𝐿(𝑟 ).                repeat the same reproduction process until finding the satisfactory
+We group all such loops 𝑙𝑟𝑙 into a set 𝑅𝐿 ′ (𝑟 ) and permute them to                 solutions.
+the innermost of the array partitioning loop band to generate a                        Encoding scheme. Each individual is encoded by the tiling factors
+new loop ordering 𝑜ˆ that belongs to 𝑂. If 𝑟 is associated with flow                 used in AutoSA compilation passes.
+dependences, 𝑜 ′ introduces additional I/O modules for loading in
+the intermediate results, increasing the resource usage compared                       Mutation. Figure 4 shows one example for MM. We first com-
+to 𝑜.ˆ If 𝑟 is associated with read/flow dependences, 𝑜 ′ increases                  pute the updated loop bounds with the current tiling factors. The
+off-chip data communication, and could lead to a longer latency                      mutation process operates on the values of the loop bounds. We
+                                                                                 5
+                                                                                                                                                    Jie Wang and Jason Cong
+
+
+                                                                                                   method adjusts two loops at the same time as an effort to keep
+                                                                                                   the product of these two loops with minimal changes. The use of
+                                                                                                   ceil() function guarantees the new product is no less than the
+                                                                                                   original product so that the mutated program is always legal.
+                                                                                                      When performing the mutation, we assign a probability 𝛼 to
+                                                                                                   execute the factorization-based mutation and the probability 1 − 𝛼
+                                                                                                   to the random mutation. Based on a grid search, we set 𝛼 to 0.4 by
+                                                                                                   default.
+                                                                                                      Crossover. The crossover operation exchanges the genomes of
+                                                                                                   two individuals. To guarantee the validness of the offspring, we
+                                                                                                   exchange the tiling factors associated with the same original loop
+       Figure 4: Example of different mutation methods.                                            together.
+
+  Table 3: Best solutions found by two mutation methods.
+                                                                                                   4.2    Mathematical Programming
+                                                                                                   Although the mathematical programming (MP)-based method fails
+ Mutation Methods         Throughput   BRAM   DSP    T_I1   T_J1   T_K1   T_I2   T_J2   T_K2       to identify the optimal design, the design it finds achieves relatively
+ Factorization              0.61×      48%     60%    64    128    128    16      4      8
+ Factorization + Random     1.00×      99%    100%   129    130     64     3      13     4
+                                                                                                   good performance and could be used as the initial population of
+                                                                                                   evolutionary search. Odyssey implements a MP-based optimizer to
+                                                                                                   produce high-quality seeds to evolutionary search. We formulate
+implement two mutation methods: factorization-based mutation                                       the optimization problem as follows.
+and random mutation.                                                                               4.2.1 Constraints. A valid hardware design should not overuse the
+     1) Factorization-based mutation: We randomly choose one loop 𝑙 1 ,                            available memory and computation resource. For FPGA designs,
+divide it by a random divisor 𝛼 (𝛼 |𝑙 1 ), and multiply 𝛼 to another loop                          we consider the BRAM and DSP usage.
+𝑙 2 that is derived from the same loop as 𝑙 1 . For example, in Figure 4,
+                                                                                                              𝑈𝑚𝑒𝑚 ≤ 𝑀𝑒𝑚𝑎𝑣𝑎𝑖𝑙𝑎𝑏𝑙𝑒 , 𝑈𝐷𝑆𝑃 ≤ 𝐷𝑆𝑃𝑎𝑣𝑎𝑖𝑙𝑎𝑏𝑙𝑒                 (3)
+we select the loop 𝑘.2 and divide it by 2, then we choose the other
+loop 𝑘.1 and multiply its current value with 2. The factorization-                                    Memory resource. We model the memory usage as:
+                                                                                                                                ∑︁
+based mutation keeps the product of the tiled loop sizes unchanged,                                                 𝑈𝑚𝑒𝑚 =               𝑈𝑚𝑒𝑚 (𝑚) × 𝑁𝑚                  (4)
+guaranteeing the muted program is always valid.                                                                              𝑚∈𝑀𝑜𝑑𝑢𝑙𝑒𝑠
+     The factorization-based mutation always chooses the divisors of                               which is a sum of the memory usage of each type of hardware
+the loop bounds. While such an implementation is common in many                                    module 𝑚, computed by multiplying the memory usage of module
+previous works [9, 17, 31, 41], it could result in a reduced design                                𝑚 (𝑈𝑚𝑒𝑚 (𝑚)) with the total number of such modules 𝑁𝑚 .
+space with inferior performance. Table 3 compares the best systolic
+arrays identified by two search methods for a 1024 × 1024 × 1024                                      Computation resource. We compute the DSP usage as:
+                                                                                                                         ∑︁
+MM. The first method uses the factorization-based mutation that                                             𝑈𝐷𝑆𝑃 =              𝑈𝐷𝑆𝑃 (𝑚) × 𝑁𝑚                          (5)
+only considers divisor tiling factors. The second method employs                                                       𝑚 ∈𝑀𝑜𝑑𝑢𝑙𝑒𝑠
+the hybrid mutation method which we will introduce soon that                                                                  ∑︁
+                                                                                                          𝑈𝐷𝑆𝑃 (𝑚) =                     𝑆𝐼𝑀𝐷 (𝑜𝑝) × 𝑈𝐷𝑆𝑃 (𝑜𝑝)         (6)
+considers non-divisor tiling factors. As shown in the table, the
+                                                                                                                       𝑜𝑝 ∈𝐶𝑜𝑚𝑝𝑢𝑡𝑒_𝑂𝑝𝑠
+first design found with the factorization-based mutation has a 39%
+performance gap compared to the second design. The use of non-                                       We calculate the total amount of DSPs as a sum of the DSPs
+divisor tiling factors (e.g., 𝑇 _𝐼 1 = 129, 𝑇 _𝐽 1 = 130) helps locate a                           consumed by all the hardware modules and the per module DSP
+better design that fully utilizes the DSPs, while the divisor-only                                 usage 𝑈𝐷𝑆𝑃 (𝑚) is computed as a sum of the products of SIMD factor
+design only uses 60% of the DSPs due to the limited choices of tiling                              𝑆𝐼𝑀𝐷 (𝑜𝑝) of each computation operator 𝑜𝑝 and the number of
+factors. This result reveals the necessity of taking non-divisors into                             DSPs consumed by each single SIMD lane 𝑈𝐷𝑆𝑃 (𝑜𝑝). We maintain
+consideration to achieve high performance. To accommodate for                                      an internal database for the per operator DSP usage 𝑈𝐷𝑆𝑃 (𝑜𝑝).
+the non-divisor tiling factors, we introduce the second mutation                                   4.2.2 Objective Function. Given the high complexity of the hard-
+scheme, random mutation.                                                                           ware designs, it is usually hard to have a close-formed performance
+     2) Random mutation: We randomly select one loop 𝑙 1 and mutate                                model suitable for the solvers as the objective function. Instead,
+this loop by changing the loop bound to a random value 𝑠 ∈ [1, 𝑙 1 ].                              previous works chose different high-order functions that impact the
+Next, we select another corresponding loop 𝑙 2 and change its loop                                 performance as the objective functions [4, 17, 27]. We conducted
+bound to a new value 𝑠 ′ computed by 𝑠 ′ = 𝑐𝑒𝑖𝑙 (𝑙 1 × 𝑙 2 /𝑠).                                    an experiment on evaluating the effectiveness of several objective
+     We show one example of random mutation in Figure 4. In the                                    functions.
+right example, we select the loop 𝑗 .2 and change its original loop
+size from 8 to 6. Then we choose the other loop 𝑗 .1 to mutate. We                                    Objective 1: Computation resource. We use the total DSP usage
+compute the new loop bound for 𝑗 .1 as 𝑐𝑒𝑖𝑙 (4 × 8/6) = 6. As a                                    𝑈𝐷𝑆𝑃 as the optimization target. The heuristic is that a design with
+result, the tiling factor 𝑇 _𝐽 1 is changed from 32 to 36, which is                                higher performance should utilize more DSPs.
+a non-divisor of the problem size 𝐽 = 64. The random mutation                                                               𝑂𝑏 𝑗1 : 𝑚𝑖𝑛 (−𝑈𝐷𝑆𝑃 )                        (7)
+                                                                                               6
+Search for Optimal Systolic Arrays: A Comprehensive Automated Exploration Framework and Lessons Learned
+
+
+                                                                                                       Table 5: Parameters of validation workloads.
+
+                                                                                                          Workload             Parameters               #Designs
+                                                                                                           MM               [I,J,K]: [64,64,64]           18
+                                                                                                           CNN       [I,O,H,W,P,Q]: [16,16,16,16,3,3]     30
+
+
+
+
+Figure 5: Search traces of evolutionary search initiated with
+designs found by the MP-based optimizer with different ob-
+jective functions.                                                                                                           (a) Latency
+Table 4: Comparison of the best solutions found by MP-
+based methods and Odyssey framework.
+
+         Methods              Opt. Target     Latency   Off-Chip Data Movement   DSP                                    (b) BRAM and DSP
+ Mathematical Programming     Obj1:-comp         1.5×            1.7×            6.3×
+ Mathematical Programming     Obj2:comm          8.6×            1.0×            1.0×
+ Mathematical Programming   Obj3:comm-comp       2.5×            1.0×            4.0×
+                                                                                                      Figure 6: Performance model validation results.
+        Odyssey               comm-comp          1.0×            4.9×            6.7×
+
+
+                                                                                             5       EVALUATION RESULTS
+  Objective 2: Off-chip communication. We aggregate the off-chip
+                                                                                             In this section, we evaluate the performance of the Odyssey frame-
+data movement of all the arrays in the program.
+                                                                                             work. We first validate the performance models from Odyssey
+                                            ∑︁                                               against the real hardware. Then, we compare the proposed auto-
+                        𝑂𝑏 𝑗2 : 𝑚𝑖𝑛                 𝐷𝑀 (𝑎)                         (8)
+                                       𝑎∈𝐴𝑟𝑟𝑎𝑦𝑠
+                                                                                             tuning method with several other search methods to assess its
+                                                                                             efficiency. Lastly, we use Odyssey to investigate the architecture
+   Objective 3: Off-chip communication - computation resource. This                          trade-offs of systolic arrays on MM and CNN.
+objective function takes both computation and communication into
+consideration. Ideally, we would like to maximize the computation
+                                                                                             5.1      Performance Model Validation
+resource and reduce the off-chip communication.
+                                                                                             5.1.1    Approaches.
+                                     ∑︁
+                   𝑂𝑏 𝑗3 : 𝑚𝑖𝑛 (              𝐷𝑀 (𝑎) − 𝑈𝐷𝑆𝑃 )                      (9)
+                                                                                                Workloads. We evaluate the accuracy of the hardware models
+                                   𝑎∈𝐴𝑟𝑟𝑎𝑦𝑠
+   We use the off-the-shelf solver (AMPL [10] with Ipopt [8]) to                             derived from Odyssey on two important workloads in HPC and
+implement the optimization problem. All the metrics have been                                deep learning, MM and CNN. Table 5 details the parameters for the
+normalized. The best solution obtained from the solver is then fed                           chosen workloads. We choose a relatively small problem size in
+to the evolutionary search as the initial population. Figure 5 shows                         consideration of the long RTL simulation time. All the experiments
+the search traces of evolutionary search with different optimization                         in this paper target Xilinx Alveo U250 FPGA.
+targets. Table 4 compares the performance of designs found by                                   Baselines. We measure the design latency by RTL simulation. We
+solvers.                                                                                     use the reported resource numbers from the HLS synthesis reports
+   As seen in the figure, all three objective functions help reduce                          as the baseline for resource models.
+the convergence time and yield better results compared to the evo-
+lutionary search-only method (annotated as No Solver). Specifically,                             Designs. We validate all 18 and 30 different designs generated
+Obj3 helps significantly reduce the convergence time. With Obj3,                             for MM and CNN by AutoSA, as listed in Table 2. To select the
+the auto-tuner locates a better design than the baseline (No Solver)                         tiling factors, we randomly sample the design space. We compare
+within 2000 epochs. In Odyssey, we use the Obj3 as the optimiza-                             the performance numbers estimated by the models derived from
+tion target of the solver. The implications from this experiment are                         Odyssey against the numbers measured by RTL simulation and
+multi-fold.                                                                                  HLS synthesis.
+   First, MP-based methods are insufficient to find optimal de-
+signs. As demonstrated in Table 4, the best design identified by                             5.1.2 Validation Results. Figure 6 compares the model-predicted
+the MP-based approach is 1.5× slower than the design discovered                              performance numbers against the measured numbers for all the
+by Odyssey with a hybrid search method that combines both math-                              designs. The performance models generated by Odyssey are highly
+ematical programming and evolutionary search.                                                accurate, with estimation error rates of 1.99%, 0%, and 0% for latency,
+   Second, the optimal design does not necessarily minimize the                              BRAM, and DSP, respectively.
+off-chip data communication. In Table 4, the best design found by
+Odyssey introduces 4.9× more off-chip data communication than                                5.2      Auto-Tuning Evaluation
+designs identified by Obj2 and Obj3.                                                         5.2.1    Approaches.
+                                                                                         7
+                                                                                                                                  Jie Wang and Jason Cong
+
+
+  Workloads. We evaluate the performance of the proposed auto-
+tuning method using a 1024 × 1024 × 1024 MM.
+
+   Baselines. We use the following methods as baselines.
+        • Random search. We randomly sample the design space and
+          update the best solutions.
+        • Exhaustive search with pruning. We extend the random search
+          by pruning the design samples based on the DSP utilization.            Figure 7: Comparison of the best designs found by different
+          As the smallest design among the 18 designs uses 30% of                tuning methods.
+          DSPs, we set the DSP pruning threshold to 25%.
+        • Simulated annealing. We use the Python package [33] as the
+          baseline. Based on a grid search, we designate the hyper-
+          parameter temperature 𝑇 to be 200. We implement a cus-
+          tomized step-taking function using the proposed hybrid mu-
+          tation method for evolutionary search.
+        • Bayesian optimization. We use the Python package [30] as
+          the baseline.
+        • OpenTuner [1]. OpenTuner is an auto-tuning framework built
+          on an ensemble of several efficient search techniques. It has
+          been demonstrated effective in cases such as searching the
+          GCC compilation flags and optimal schedules for Halide
+          programs [1]. We use the latest release of OpenTuner from              Figure 8: Comparison of sample efficiency of different tun-
+          its Github repository [2].                                             ing methods.
+        • Reinforcement learning (RL). RL is a machine learning algo-
+          rithm that can be used for hardware optimization. The pre-
+          vious work ConfuciuX [19] implemented a two-step search
+          algorithm for tuning the dataflow architectures which em-
+          ploys RL as the first step to locate a good sub design space and
+          utilizes evolutionary search to perform a more fine-grained
+          search later to find the best design. We use the open-source
+          implementation from ConfuciuX as the RL baseline [20].
+          ConfuciuX applied a 3-layer multi-layer perceptron (MLP)               Figure 9: Best designs found in 5 seconds by Odyssey for all
+          neural network for the policy network.                                 different designs of MM.
+
+  Designs. We compare our tuning methods against the baselines
+on all 18 different designs generated for MM by AutoSA.                             Sample efficiency. In addition to the high-quality search results,
+                                                                                 Odyssey achieves high sample efficiency. Figure 8 compares the
+   Evaluation method. For each systolic array design, we run the                 convergence traces of all the tuning methods on the design with
+search method for 5 minutes and repeat it 3 times. The final results             the highest optimal throughput. As shown by the figure, Odyssey
+are averaged from the 3 runs. All the search methods are executed                finds a good design configuration resulting in 93% of the optimal
+with a single CPU thread. RL baseline uses Pytorch which imple-                  performance after evaluating 3000 design samples. Simulated an-
+ments multi-threading during the training of MLP. All experiments                nealing earns the second best performance, locating a design that
+are executed on a workstation with Intel Xeon E5-2680 v4 CPU.                    reaches 66% of the optimal performance.
+
+5.2.2     Results.                                                                  Search time. Lastly, Figure 9 shows the performance of the best
+                                                                                 designs located by Odyssey in 5 seconds. Odyssey finds designs
+   Search results quality. Figure 7 compares the best throughput                 achieving over 90% of the optimal performance for all the designs
+(1/latency) achieved by each tuning method on the 18 systolic ar-                in 5 seconds with a single CPU thread.
+ray designs. The throughput is normalized against the optimal
+performance found by exhaustive search6 . Odyssey found design                   5.3    Application 1: MM
+configurations with best performance on 13 designs out of the total              In this section, we perform a detailed architecture comparison of
+18 designs. For the remaining 5 designs, the performance gap is                  different systolic arrays for matrix multiplication. Figure 10 displays
+within 1% of the best performance identified by other baselines                  the normalized throughput and design usage of different systolic
+(OpenTuner and simulated annealing). Overall, Odyssey locates                    arrays for MM. We draw the following conclusions from this figure.
+designs that achieve more than 95% of the optimal performance.
+                                                                                    Loop permutation. The loop permutation ordering < [𝑖, 𝑗], 𝑘 >
+                                                                                 dominates the performance across different dataflows. The major
+6 We run an exhaustive search until it finishes.                                 reason for such a performance gap is the extra memory consumed
+                                                                             8
+Search for Optimal Systolic Arrays: A Comprehensive Automated Exploration Framework and Lessons Learned
+
+
+
+
+                                                                                                                                     (a) CONV1                                                               (b) CONV2
+
+                                                                                                        Figure 11: Normalized throughput of different systolic ar-
+                                                                                                        rays on CONV1 and CONV2 of VGG16. Throughput of each
+                                                                                                        systolic array design is normalized against the highest num-
+                (a) Throughput                                     (b) DSP
+                                                                                                        ber achieved on each CONV layer.
+Figure 10: Normalized Throughput and DSP usage of differ-                                                                                    32                                               64                                                       ℎ
+                                                                                                                                                        L2                    𝑖                           L3 L2                      fi          𝑜
+ent designs for 1024x1024x1024 MM.                                                                                      64   L3 32 L2 fi                               ℎ
+
+                                                                                                                        64 L3
+                                                                                                                                                                                              64L3       w                    32
+Table 6: Resource breakdown of three designs for MM with                                                                                                              L2
+                                                                                                                             w             PE                 PE                               L2                PE                  PE
+
+
+
+
+                                                                                                                                                                                       DRAM
+                                                                                                                 DRAM
+the same dataflow [𝑖].                                                                                                          8
+                                                                                                                                                                           32                           32              8                 L1
+                                                                                                                              L1
+ Loop Orderings   Latency   #PE                              BRAM Usage
+                                                                                                                                           PE                 PE                                                 PE                  PE
+                                    Total   I/O Module (A)   I/O Module (B)   I/O Module (C)   PE                       fo                                                                    fo L3
+    <[i,j],k>      1.00×    1.66×   3,621        76%              1%               19%         5%                                                  64                      L3                      64            32
+                                                                                                                                                                                                                                                     L2
+    <[j,k],i>      1.65×    1.00×   3,519        47%              3%               47%         3%
+    <[i,k],j>      1.64×    1.05×   3,594        48%              1%               48%         3%                                         (a) [h,i]                                                           (b) [o,h]
+
+                                                                                                        Figure 12: Architectures of two systolic arrays with
+by the two other loop orderings. As discussed earlier in Section 3.2,                                   dataflows [ℎ, 𝑖] and [𝑜, ℎ] for CNN.
+the loop orderings < [ 𝑗, 𝑘], 𝑖 > and < [𝑖, 𝑘], 𝑗 > introduce additional
+I/O modules for loading in the intermediate results, leading to a                                       Table 7: Performance comparison of dataflows [ℎ, 𝑖] and
+higher memory usage than the loop ordering < [𝑖, 𝑗], 𝑘 >. Table 6                                       [𝑜, ℎ] on the CONV1 and CONV2 of VGG16.
+illustrates the resource usage breakdown for three designs with
+the same dataflow [𝑖] and different loop permutation orderings.                                          CONV Layer            Problem Sizes       Dataflow   SIMD   Latency      PE Latency       𝑓 𝑜 I/O Latency    DSP      DSP Eff.   T_I1       Bottleneck
+
+As shown in the table, designs with loop orderings < [ 𝑗, 𝑘], 𝑖 >                                            1
+                                                                                                                                [I,O,H,W,P,Q]:
+                                                                                                                              [3,64,224,224,3,3]
+                                                                                                                                                    [h.i]
+                                                                                                                                                    [o,h]
+                                                                                                                                                               [i]
+                                                                                                                                                               [i]
+                                                                                                                                                                      2.86×
+                                                                                                                                                                      3.99×
+                                                                                                                                                                                    2.85×
+                                                                                                                                                                                    2.85×
+                                                                                                                                                                                                     1.00×(L2)
+                                                                                                                                                                                                     3.99×(L1)
+                                                                                                                                                                                                                      1,120
+                                                                                                                                                                                                                      1,120
+                                                                                                                                                                                                                                   67%
+                                                                                                                                                                                                                                   48%
+                                                                                                                                                                                                                                           4
+                                                                                                                                                                                                                                           4
+                                                                                                                                                                                                                                                 Problem size
+                                                                                                                                                                                                                                                 I/O network
+and < [𝑖, 𝑘], 𝑗 > allocate more BRAMs to I/O modules for matrix 𝐶,                                           2
+                                                                                                                                [I,O,H,W,P,Q]:
+                                                                                                                             [64,64,224,224,3,3]
+                                                                                                                                                    [h.i]
+                                                                                                                                                    [o,h]
+                                                                                                                                                               [i]
+                                                                                                                                                               [i]
+                                                                                                                                                                      7.16×
+                                                                                                                                                                      5.88×
+                                                                                                                                                                                    7.13×
+                                                                                                                                                                                    5.85×
+                                                                                                                                                                                                     2.14×(L2)
+                                                                                                                                                                                                     4.17×(L1)
+                                                                                                                                                                                                                      7,680
+                                                                                                                                                                                                                      8,320
+                                                                                                                                                                                                                                   84%
+                                                                                                                                                                                                                                   94%
+                                                                                                                                                                                                                                          64
+                                                                                                                                                                                                                                          64
+                                                                                                                                                                                                                                                  Parallelism
+
+
+which limits the size of array (#𝑃𝐸), leading to a poorer performance
+than the ordering < [𝑖, 𝑗], 𝑘 >.
+    Dataflow. Among the designs with the same loop ordering, the                                        fully-connected layers. We only examine the mapping of CONV
+dataflow [𝑖, 𝑗] achieves the best performance because the dataflow                                      layers in this work. We annotate the 13 CONV layers as CONV[1-
+[𝑖, 𝑗] exploits the most degrees of parallelism from the application.                                   13] following their order in the network. Figure 11 presents the
+For MM, we vectorize the loop 𝑘 for all the designs which serve as                                      detailed evaluation results of the first 2 CONV layers of VGG16. We
+the first degree of parallelism. The space dimensions of the systolic                                   make the following conclusions from this figure.
+array exploit the rest of the degrees of parallelism. 1D systolic arrays
+                                                                                                           Loop permutation. Consistent with the observation from the MM
+can exploit at most one more degree of parallelism. In comparison,
+                                                                                                        case study, designs with the loop ordering < [𝑜, ℎ, 𝑤], [𝑖, 𝑝, 𝑞] >,
+the dataflow [𝑖, 𝑗] exploits two more degrees of parallelism (𝑖 and
+                                                                                                        which eliminates the additional I/O modules for transferring the
+𝑗). Other 2D systolic arrays ([𝑖, 𝑘] and [ 𝑗, 𝑘]) include 𝑘 in the space
+                                                                                                        intermediate results of output feature maps, result in the best per-
+dimensions such that they could extract at most one more degree of
+                                                                                                        formance across all the dataflows.
+parallelism as similar as 1D arrays. More dimensions of parallelism
+help cover more profitable designs that fully utilize the on-chip                                          Dataflow. The performance of different dataflows varies across
+resource. As seen in Figure 10b, the dataflow [𝑖, 𝑗] utilizes the most                                  CONV layers. On CONV1, we observe that dataflow [ℎ, 𝑖] delivers
+DSPs, achieving the highest throughput among all the designs.                                           the best performance. However, on CONV2, dataflows [𝑜, ℎ] and
+                                                                                                        [𝑜, 𝑤] dominate other designs. Below, we examine the best designs
+5.4      Application 2: CNN                                                                             on these two CONV layers in detail.
+In the previous section, we perform a detailed performance analysis                                        Figure 12 depicts the detailed architectures of these two designs.
+of different systolic array designs for MM. This section applies the                                    AutoSA implements a multi-level I/O network for transferring the
+same mythology and compares the performance of different systolic                                       data (e.g., L1, L2, L3). To increase the I/O throughput, we pack
+arrays for CNN.                                                                                         multiple data elements between the I/O modules. A larger I/O bus
+   As shown in Table 2, Odyssey produces 30 different designs for                                       width introduces more hardware resources. As a consequence, the
+CNN. We evaluate these designs on the VGG16 network [35]. The                                           bus width gradually increases at higher levels as a trade-off between
+VGG16 network includes 13 convoutional (CONV) layers and 3                                              the data transfer throughput and hardware resource.
+                                                                                                    9
+                                                                                                                                 Jie Wang and Jason Cong
+
+
+
+
+Figure 13: Throughput of different dataflows on VGG16.
+Throughput of each design is normalized against the high-                                    (a) VGG16                       (b) ResNet50
+est throughput achieved on the entire network.
+                                                                                Figure 14: Geo. Mean of the throughput achieved by dif-
+                                                                                ferent dataflows across all the CONV layers in VGG16 and
+                                                                                ResNet50.
+    Table 7 summarizes the performance details of two designs with
+dataflows [ℎ, 𝑖] and [𝑜, ℎ] on first two CONV layers. On CONV1,                 reduction of the best average throughput of a single array to 57%
+the design latency of dataflow [𝑜, ℎ] is bound by the data transfer             of the peak layer-wise throughput on ResNet50.
+latency of the L1 I/O modules that drain out the output feature maps               Ideally, we would like to achieve 100% average throughput such
+𝑓 𝑜. In comparison, in dataflow [ℎ, 𝑖], data of 𝑓 𝑜 are accumulated             that computation resource is fully utilized for each CONV layer.
+across PEs and drained out by L2 I/O modules. As more data are                  However, in reality, we ended with only 77% and 57% for VGG16
+packed between the L2 I/O modules than L1 I/O modules (32 Bytes                 and ResNet50, respectively. This indicates that mapping CNNs to a
+vs. 8 Bytes), the I/O network is no longer the performance bottleneck           single systolic array will face the issue of resource underutilization.
+for dataflow [ℎ, 𝑖]. Instead, the performance loss comes from the               Several previous works also identified this issue [18, 24, 34, 38,
+zero padding on the input channel dimension 𝑖. The best first-level             42]. In terms of solutions, TPU chose to increase the batch size to
+tiling factor𝑇 _𝐼 1 for both dataflows is 4. As a consequence, the input        improve the overall throughput [18]. On FPGAs, previous works
+dimension 𝑖 is padded from 3 to 4 for both dataflows, introducing               like DNNExplorer [42] implemented a multi-array architecture that
+25% computation overheads.                                                      customizes each smaller array to different CONV layers to improve
+    On CONV2, the I/O network is no longer the performance bot-                 the overall throughput.
+tleneck for the dataflow [𝑜, ℎ]. The design is compute-bound as the
+input dimension 𝑖 increases from 3 to 64 on this layer and there is             6   LESSONS LEARNED FROM THIS WORK
+more computation inside the PEs on accumulating the intermediate
+                                                                                This section summarizes four major lessons we learned from this
+results along the 𝑖 dimension. We see from Table 7 that PE latency
+                                                                                work.
+now dominates the design. On this layer, dataflow [ℎ, 𝑖] delivers a
+slightly lower performance than the [𝑜, ℎ] due to the fewer degrees                Lesson 1: Incomplete and inaccurate design space modeling could
+of parallelism to explore. Both dataflows vectorizes the loop 𝑖. The            lead to inferior search results and skewed architecture conclusions.
+dataflow [𝑜, ℎ] explores two more levels of parallelism by mapping              We have demonstrated that considering only divisor tiling factors
+the loops 𝑜 and ℎ to space dimensions. In comparison, dataflow                  or overlooking the prologue and epilogue phases could lead to infe-
+[ℎ, 𝑖] only exploits one more level of parallelism on the loop ℎ. With          rior designs. This could further hurt the validity of the architecture
+more degrees of freedom to use in the design space, we are able                 conclusions derived from these results. For example, Figure 15 il-
+to find a design which utilizes more DSPs and achieves a higher                 lustrates the search results for MM with only divisor tiling factors.
+performance.                                                                    With the limited design space, the best systolic array design only
+    Finally, Figure 13 presents the best throughput attained by sys-            uses 60% of the DSP. Furthermore, architects may draw skewed
+tolic arrays with different dataflows on VGG16. We fix the loop                 conclusions from these results such as all three 2D array dataflows
+ordering to < [𝑜, ℎ, 𝑤], [𝑖, 𝑝, 𝑞] > for all dataflows. Figure 14a com-         achieve the equivalent performance, which contradicts to the find-
+putes the geometric mean of the best throughput of each dataflow                ings as seen in Figure 10.
+over the entire network.
+                                                                                   Lesson 2: A high-performance design needs to balance computation
+    Overall, we observe that 2D systolic arrays achieve a higher
+                                                                                and communication. We show that the latency-optimal design does
+performance than 1D arrays with more degrees of parallelism to
+                                                                                not necessarily minimize the off-chip data communication and both
+exploit. Dataflows [𝑜, ℎ] and [𝑜, 𝑤] deliver the best performance
+                                                                                computation and communication need to be considered. Several
+among all the dataflows, followed by [𝑜, 𝑖], [ℎ, 𝑖], and [𝑤, 𝑖]. The
+                                                                                previous works [4, 6] that used the off-chip communication to
+best average throughput of a single dataflow on VGG16 is 77% of the
+                                                                                prune the design space may leave out the optimal designs, leading
+peak layer-wise throughput obtained on the entire network. This
+                                                                                to inferior performance.
+is due to the divergent problem sizes of each CONV layer that limit
+the performance of a single systolic array. We applied the same                    Lesson 3: Iterative search methods can be enhanced with mathemat-
+methodology on another CNN, ResNet50 [14], and summarized                       ical programming solvers. Iterative methods achieve high sample
+the results in Figure 14b. ResNet50 is more compact than VGG16,                 efficiency and are portable to different search problems. It can be fur-
+with less parallelism and data locality to exploit. This results in a           ther enhanced with mathematical programming solvers. We have
+                                                                           10
+Search for Optimal Systolic Arrays: A Comprehensive Automated Exploration Framework and Lessons Learned
+
+
+                                                                                     ACKNOWLEDGMENTS
+                                                                                     We would like to thank Marci Baun for helping edit the paper. This work
+                                                                                     is partially supported by the Intel and NSF joint research center for Com-
+                                                                                     puter Assisted Programming for Heterogeneous Architectures (CAPA), NSF
+                                                                                     NeuroNex Award DBI-1707408, and the members from the CDSC Industrial
+                                                                                     Partnership Program. We acknowledge the valuable support of the Xilinx
+                                                                                     Adaptive Compute Clusters (XACC) Program.
+          (a) Throughput                             (b) DSP
+                                                                                     REFERENCES
+Figure 15: Throughput and DSP usage of different designs
+                                                                                      [1] Jason Ansel, Shoaib Kamil, Kalyan Veeramachaneni, Jonathan Ragan-Kelley,
+with only divisor tiling factors for 1024x1024x1024 MM.                                   Jeffrey Bosboom, Una-May O’Reilly, and Saman Amarasinghe. OpenTuner:
+                                                                                          An extensible framework for program autotuning. In Proceedings of the 23rd
+                                                                                          international conference on Parallel architectures and compilation, pages 303–316,
+                                                                                          2014.
+demonstrated that a MP-based optimizer which uses a simplified                        [2] Jason Ansel, Shoaib Kamil, Kalyan Veeramachaneni, Jonathan Ragan-Kelley,
+                                                                                          Jeffrey Bosboom, Una-May O’Reilly, and Saman Amarasinghe. OpenTuner. https:
+objective function that considers data communication and computa-                         //github.com/jansel/opentuner, 2021.
+tion resource can effectively boost the convergence of evolutionary                   [3] Uday Bondhugula, Jagannathan Ramanujam, and Ponnuswamy Sadayappan.
+                                                                                          Automatic mapping of nested loops to FPGAs. In Proceedings of the 12th ACM
+search. Although this work only focuses on systolic arrays, the                           SIGPLAN symposium on Principles and practice of parallel programming, pages
+methodology is general, and designers can apply it to performance                         101–111, 2007.
+tuning tasks for other applications and hardware architectures.                       [4] Prasanth Chatarasi, Hyoukjun Kwon, Natesh Raina, Saurabh Malik, Vaisakh
+                                                                                          Haridas, Angshuman Parashar, Michael Pellauer, Tushar Krishna, and Vivek
+                                                                                          Sarkar. Marvel: A data-centric compiler for DNN operators on spatial accelerators.
+   Lesson 4: Compiler-assisted design space construction improves pro-                    arXiv preprint arXiv:2002.07752, 2020.
+ductivity and performance. To the best of our knowledge, Odyssey                      [5] Tianqi Chen, Lianmin Zheng, Eddie Yan, Ziheng Jiang, Thierry Moreau, Luis
+is the first work that constructs the design space of systolic ar-                        Ceze, Carlos Guestrin, and Arvind Krishnamurthy. Learning to optimize tensor
+                                                                                          programs. arXiv preprint arXiv:1805.08166, 2018.
+rays with an open-source compiler that generates real hardware                        [6] Xiaoming Chen, Yinhe Han, and Yu Wang. Communication lower bound in con-
+designs. This approach guarantees the validity and accuracy of                            volution accelerators. In 2020 IEEE International Symposium on High Performance
+                                                                                          Computer Architecture (HPCA), pages 529–541. IEEE, 2020.
+search results and improves the productivity. In the recent years,                    [7] Yu-Hsin Chen, Joel Emer, and Vivienne Sze. Eyeriss: A spatial architecture for
+we have seen an emergence of domain-specific language compilers                           energy-efficient dataflow for convolutional neural networks. ACM SIGARCH
+for DSAs [11, 13, 22, 36]. We believe the methodology in this work                        Computer Architecture News, 44(3):367–379, 2016.
+                                                                                      [8] COIN-OR. Interior point optimizer, 2021.
+could provide valuable insights to further enhance the performance                    [9] Shail Dave, Youngbin Kim, Sasikanth Avancha, Kyoungwoo Lee, and Aviral Shri-
+tuning of these works and enable a wider adoption of DSAs in the                          vastava. Dmazerunner: Executing perfectly nested loops on dataflow accelerators.
+post Moore’s law era.                                                                     ACM Transactions on Embedded Computing Systems (TECS), 18(5s):1–27, 2019.
+                                                                                     [10] David M Gay. The AMPL modeling language: An aid to formulating and solving
+                                                                                          optimization problems. In Numerical analysis and optimization, pages 95–116.
+7    LIMITATIONS                                                                          Springer, 2015.
+                                                                                     [11] Hasan Genc, Ameer Haj-Ali, Vighnesh Iyer, Alon Amid, Howard Mao, John
+The current framework limits the input programs to ones with                              Wright, Colin Schmidt, Jerry Zhao, Albert Ou, Max Banister, et al. Gemmini: An
+                                                                                          agile systolic array generator enabling systematic evaluations of deep-learning
+rectangular iteration domains. For programs with non-rectangular                          architectures. arXiv preprint arXiv:1911.09925, 2019.
+iteration domains, such as LU decomposition, programmers need                        [12] Anne-Claire Guillou, Fabien Quilleré, Patrice Quinton, S Rajopadhye, and Tanguy
+to implement the design performance models in Python manually                             Risset. Hardware design methodology with the Alpha language. FDL’01, 2001.
+                                                                                     [13] Tae Jun Ham, David Bruns-Smith, Brendan Sweeney, Yejin Lee, Seong Hoon Seo,
+and supply it to the auto-tuner. We will address this limitation in                       U Gyeong Song, Young H Oh, Krste Asanovic, Jae W Lee, and Lisa Wu Wills.
+the future work.                                                                          Genesis: A hardware acceleration framework for genomic data analysis. In 2020
+                                                                                          ACM/IEEE 47th Annual International Symposium on Computer Architecture (ISCA),
+                                                                                          pages 254–267. IEEE, 2020.
+8    CONCLUSION                                                                      [14] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning
+                                                                                          for image recognition. In Proceedings of the IEEE conference on computer vision
+This paper presents Odyssey, an automatic design space exploration                        and pattern recognition, pages 770–778, 2016.
+framework for systolic arrays. Odyssey covers a comprehensive                        [15] Kartik Hegde, Po-An Tsai, Sitao Huang, Vikas Chandra, Angshuman Parashar, and
+                                                                                          Christopher W Fletcher. Mind mappings: Enabling efficient algorithm-accelerator
+and accurate design space of systolic arrays and incorporates a                           mapping space search. In Proceedings of the 26th ACM International Conference on
+hybrid search method consisting of the MP-based optimizer and                             Architectural Support for Programming Languages and Operating Systems, pages
+evolutionary search. Furthermore, it implements an effective loop                         943–958, 2021.
+                                                                                     [16] John H Holland. Genetic algorithms. Scientific American, 267(1):66–73, 1992.
+permutation pruning algorithm that helps reduce the design space                     [17] Qijing Huang, Minwoo Kang, Grace Dinh, Thomas Norell, Aravind Kalaiah,
+without leaving out the optimal designs. With Odyssey, we unveil                          James Demmel, John Wawrzynek, and Yakun Sophia Shao. CoSA: Scheduling by
+the limitations of several commonly used assumptions by previous                          constrained optimization for spatial accelerators. arXiv preprint arXiv:2105.01898,
+                                                                                          2021.
+works in the performance optimization of systolic arrays. We have                    [18] Norman P Jouppi, Doe Hyun Yoon, George Kurian, Sheng Li, Nishant Patil, James
+also conducted an architecture analysis of systolic arrays on two                         Laudon, Cliff Young, and David Patterson. A domain-specific supercomputer for
+                                                                                          training deep neural networks. Communications of the ACM, 63(7):67–78, 2020.
+applications, MM and CNN. Although this work focuses on the                          [19] Sheng-Chun Kao, Geonhwa Jeong, and Tushar Krishna. ConfuciuX: Autonomous
+systolic array architecture, the methodology and insights can be                          hardware resource assignment for DNN accelerators using reinforcement learn-
+applied to other hardware and architectures as well. Future work                          ing. In 2020 53rd Annual IEEE/ACM International Symposium on Microarchitecture
+                                                                                          (MICRO), pages 622–636. IEEE, 2020.
+includes extending the Odyssey framework to support applications                     [20] Sheng-Chun Kao, Geonhwa Jeong, and Tushar Krishna. ConfuciuX. https:
+with non-rectangular iteration domains.                                                   //github.com/maestro-project/confuciux, 2021.
+                                                                                11
+                                                                                                                                                          Jie Wang and Jason Cong
+
+
+[21] Sheng-Chun Kao and Tushar Krishna. Gamma: Automating the HW mapping                       [41] Xuan Yang, Mingyu Gao, Qiaoyi Liu, Jeff Setter, Jing Pu, Ankita Nayak, Steven
+     of DNN models on accelerators via genetic algorithm. In 2020 IEEE/ACM In-                      Bell, Kaidi Cao, Heonjae Ha, Priyanka Raina, et al. Interstellar: Using Halide’s
+     ternational Conference On Computer Aided Design (ICCAD), pages 1–9. IEEE,                      scheduling language to analyze DNN accelerators. In Proceedings of the Twenty-
+     2020.                                                                                          Fifth International Conference on Architectural Support for Programming Languages
+[22] David Koeplinger, Matthew Feldman, Raghu Prabhakar, Yaqi Zhang, Stefan Hadjis,                 and Operating Systems, pages 369–383, 2020.
+     Ruben Fiszel, Tian Zhao, Luigi Nardi, Ardavan Pedram, Christos Kozyrakis, et al.          [42] Xiaofan Zhang, Hanchen Ye, Junsong Wang, Yonghua Lin, Jinjun Xiong, Wen-mei
+     Spatial: A language and compiler for application accelerators. In Proceedings                  Hwu, and Deming Chen. DNNExplorer: A framework for modeling and exploring
+     of the 39th ACM SIGPLAN Conference on Programming Language Design and                          a novel paradigm of FPGA-based DNN accelerator. In Proceedings of the 39th
+     Implementation, pages 296–311, 2018.                                                           International Conference on Computer-Aided Design, pages 1–9, 2020.
+[23] Hyoukjun Kwon, Prasanth Chatarasi, Vivek Sarkar, Tushar Krishna, Michael                  [43] Lianmin Zheng, Chengfan Jia, Minmin Sun, Zhao Wu, Cody Hao Yu, Ameer Haj-
+     Pellauer, and Angshuman Parashar. Maestro: A data-centric approach to un-                      Ali, Yida Wang, Jun Yang, Danyang Zhuo, Koushik Sen, et al. Ansor: Generating
+     derstand reuse, performance, and hardware cost of DNN mappings. IEEE micro,                    high-performance tensor programs for deep learning. In 14th USENIX Symposium
+     40(3):20–29, 2020.                                                                             on Operating Systems Design and Implementation (OSDI 20), pages 863–879, 2020.
+[24] Hyoukjun Kwon, Liangzhen Lai, Michael Pellauer, Tushar Krishna, Yu-Hsin
+     Chen, and Vikas Chandra. Heterogeneous dataflow accelerators for multi-DNN
+     workloads. In 2021 IEEE International Symposium on High-Performance Computer
+     Architecture (HPCA), pages 71–83. IEEE, 2021.
+[25] Yi-Hsiang Lai, Hongbo Rong, Size Zheng, Weihao Zhang, Xiuping Cui, Yunshan
+     Jia, Jie Wang, Brendan Sullivan, Zhiru Zhang, Yun Liang, Jason Cong, Nithin
+     George, Jose Alvarez, Christopher Hughes, and Pradeep Dubey. SuSy: A program-
+     ming model for productive construction of high-performance systolic arrays on
+     FPGAs. In 2020 IEEE/ACM International Conference on Computer-Aided Design
+     (ICCAD), 2020.
+[26] Rui Li, Aravind Sukumaran-Rajam, Richard Veras, Tze Meng Low, Fabrice Rastello,
+     Atanas Rountev, and Ponnuswamy Sadayappan. Analytical cache modeling and
+     tilesize optimization for tensor contractions. In Proceedings of the International
+     Conference for High Performance Computing, Networking, Storage and Analysis,
+     pages 1–13, 2019.
+[27] Rui Li, Yufan Xu, Aravind Sukumaran-Rajam, Atanas Rountev, and P Sadayappan.
+     Analytical characterization and design space exploration for optimization of
+     CNNs. In Proceedings of the 26th ACM International Conference on Architectural
+     Support for Programming Languages and Operating Systems, pages 928–942, 2021.
+[28] Liqiang Lu, Naiqing Guan, Yuyue Wang, Liancheng Jia, Zizhang Luo, Jieming Yin,
+     Jason Cong, and Yun Liang. TENET: A framework for modeling tensor dataflow
+     based on relation-centric notation. arXiv preprint arXiv:2105.01892, 2021.
+[29] Rachit Nigam, Samuel Thomas, Zhijing Li, and Adrian Sampson. A compiler
+     infrastructure for accelerator generators. In Proceedings of the 26th ACM Inter-
+     national Conference on Architectural Support for Programming Languages and
+     Operating Systems, pages 804–817, 2021.
+[30] Fernando Nogueira. Bayesian Optimization: Open source constrained global
+     optimization tool for Python. https://github.com/fmfn/BayesianOptimization,
+     2014.
+[31] Angshuman Parashar, Priyanka Raina, Yakun Sophia Shao, Yu-Hsin Chen,
+     Victor A Ying, Anurag Mukkara, Rangharajan Venkatesan, Brucek Khailany,
+     Stephen W Keckler, and Joel Emer. Timeloop: A systematic approach to DNN
+     accelerator evaluation. In 2019 IEEE international symposium on performance
+     analysis of systems and software (ISPASS), pages 304–315. IEEE, 2019.
+[32] Brandon Reagen, José Miguel Hernández-Lobato, Robert Adolf, Michael Gelbart,
+     Paul Whatmough, Gu-Yeon Wei, and David Brooks. A case for efficient accel-
+     erator design space exploration via Bayesian optimization. In 2017 IEEE/ACM
+     International Symposium on Low Power Electronics and Design (ISLPED), pages
+     1–6. IEEE, 2017.
+[33] Scipy. Basin-hopping package. https://docs.scipy.org/doc/scipy/reference/
+     generated/scipy.optimize.basinhopping.html, 2021.
+[34] Yongming Shen, Michael Ferdman, and Peter Milder. Maximizing CNN accel-
+     erator efficiency through resource partitioning. In 2017 ACM/IEEE 44th Annual
+     International Symposium on Computer Architecture (ISCA), pages 535–547. IEEE,
+     2017.
+[35] Karen Simonyan and Andrew Zisserman. Very deep convolutional networks for
+     large-scale image recognition. arXiv preprint arXiv:1409.1556, 2014.
+[36] James Thomas, Pat Hanrahan, and Matei Zaharia. Fleet: A framework for mas-
+     sively parallel streaming on FPGAs. In Proceedings of the Twenty-Fifth Inter-
+     national Conference on Architectural Support for Programming Languages and
+     Operating Systems, pages 639–651, 2020.
+[37] Jie Wang, Licheng Guo, and Jason Cong. AutoSA: A polyhedral compiler for high-
+     performance systolic arrays on FPGA. In Proceedings of the 2021 ACM/SIGDA
+     international symposium on Field-programmable gate arrays, 2021.
+[38] Xuechao Wei, Yun Liang, Xiuhong Li, Cody Hao Yu, Peng Zhang, and Jason
+     Cong. TGPA: Tile-grained pipeline architecture for low latency CNN inference.
+     In Proceedings of the International Conference on Computer-Aided Design, pages
+     1–8, 2018.
+[39] Xuechao Wei, Cody Hao Yu, Peng Zhang, Youxiang Chen, Yuxin Wang, Han Hu,
+     Yun Liang, and Jason Cong. Automated systolic array architecture synthesis for
+     high throughput CNN inference on FPGAs. In Proceedings of the 54th Annual
+     Design Automation Conference 2017, pages 1–6, 2017.
+[40] Xilinx. Vivado high-level synthesis. https://www.xilinx.com/products/design-
+     tools/vivado/integration/esl-design.html, 2021.
+
+                                                                                          12
+

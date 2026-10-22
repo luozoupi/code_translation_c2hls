@@ -1,0 +1,13 @@
+# TB_NOTES: nw
+- Arg classification (from plain.cpp): SEQA, SEQB inputs; alignedA/alignedB pure outputs (all ALEN+BLEN bytes written incl. '_' padding).
+- Golden: TB's own needwun_ref (plain.cpp algorithm) on the MachSuite sequences; every byte of both outputs compared.
+- Tolerance: exact bytes
+- Poison: alignedA/B = 0x5A (was memset 0)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 512 errors!
+- Control 3 (one bug, must fail): Failed with 214 errors! (MISMATCH_SCORE 0)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Original returned `errors` (could exceed 1); now returns 0/1. Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/nw/).

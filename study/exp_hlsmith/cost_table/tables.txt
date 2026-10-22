@@ -1,0 +1,177 @@
+
+### F1 (39 rows)
+
+| run tag | model | mode | status | LLM calls | input tok (incl cache) | output tok | reasoning/thinking tok | cost USD (src) | wall s | csim | csynth | worst latency cyc | DSP |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| noskills_ag_noskills_r1_20261016T040026Z | claude-opus-5-5 | agentic-HLSmith | complete | 8 | 175,305 | 16,615 | 9,582 | 0.5501 (S) | 1,089.70 | 2 | 3 | 18,981,505 | 320 |
+| noskills_ag_noskills_r2_20261017T002315Z | claude-opus-5-5 | agentic-HLSmith | complete | 3 | 51,118 | 12,856 | 7,909 | 0.3953 (S) | 498.40 | 1 | 1 | 9,715,808 | 640 |
+| noskills_ag_noskills_r3_20261017T071428Z | claude-opus-5-5 | agentic-HLSmith | complete | 4 | 64,572 | 11,037 | 7,047 | 0.3571 (S) | 480.10 | 1 | 1 | 10,579,124 | 640 |
+| skills_ag_dspredo_r1_20261016T104045Z | claude-opus-5-5 | agentic-HLSmith | complete | 19 | 2,070,102 | 29,097 | 15,862 | 1.9808 (S) | 3,940.20 | 2 | 4 | 656,422 | 8,704 |
+| skills_ag_dspredo_r2_20261017T010447Z | claude-opus-5-5 | agentic-HLSmith | complete | 14 | 346,092 | 5,669 | 15,470 | 2.6226 (S) | 5,180.00 | 3 | 2 | 937,613 | 8,320 |
+| skills_ag_dspredo_r3_20261017T074206Z | claude-opus-5-5 | agentic-HLSmith | complete | 9 | 909,101 | 20,959 | 11,668 | 1.4195 (S) | 4,180.80 | 2 | 3 | 868,033 | 8,320 |
+| skills_ag_refneu_r1_20261016T121516Z | claude-opus-5-5 | agentic-HLSmith | complete | 8 | 812,804 | 13,305 | 7,127 | 1.2125 (S) | 2,564.70 | 2 | 2 | 1,246,481 | 5,120 |
+| skills_ag_refneu_r2_20261017T024135Z | claude-opus-5-5 | agentic-HLSmith | complete | 13 | 1,362,335 | 24,371 | 10,460 | 1.6313 (S) | 2,856.00 | 2 | 4 | 598,218 | 8,192 |
+| skills_ag_refneu_r3_20261017T085514Z | claude-opus-5-5 | agentic-HLSmith | complete | 12 | 1,322,495 | 23,713 | 13,387 | 1.6183 (S) | 2,452.10 | 3 | 3 | 1,119,352 | 5,120 |
+| skills_ag_refnf_r1_20261016T161951Z | claude-opus-5-5 | agentic-HLSmith | complete | 20 | 2,456,531 | 37,369 | 23,324 | 3.1837 (S) | 12,826.50 | 3 | 4 | 1,997,731 | 3,841 |
+| skills_ag_refnf_r2_20261017T033327Z | claude-opus-5-5 | agentic-HLSmith | complete | 14 | 1,696,766 | 30,505 | 18,375 | 1.9729 (S) | 1,679.60 | 2 | 3 | 533,631 | 6,144 |
+| skills_ag_refnf_r3_20261017T100123Z | claude-opus-5-5 | agentic-HLSmith | complete | 16 | 1,967,618 | 42,621 | 25,136 | 2.3175 (S) | 6,295.70 | 3 | 3 | 738,923 | 7,681 |
+| skills_ag_refv2_r1_20261016T195816Z | claude-opus-5-5 | agentic-HLSmith | complete | 13 | 1,470,896 | 26,376 | 16,028 | 2.6195 (S) | 5,000.40 | 1 | 1 | 848,105 | 8,240 |
+| skills_ag_refv2_r2_20261017T041446Z | claude-opus-5-5 | agentic-HLSmith | complete | 14 | 1,650,181 | 30,440 | 17,432 | 1.9364 (S) | 1,579.00 | 2 | 4 | 589,940 | 8,448 |
+| skills_ag_refv2_r3_20261017T114733Z | claude-opus-5-5 | agentic-HLSmith | complete | 17 | 2,129,164 | 41,517 | 20,884 | 2.3182 (S) | 2,320.60 | 3 | 3 | 534,655 | 8,192 |
+| skills_ag_skills_r1_20261016T042115Z | claude-opus-5-5 | agentic-HLSmith | complete | 10 | 949,316 | 14,475 | 6,516 | 1.2313 (S) | 2,800.80 | 2 | 2 | 9,602,508 | 640 |
+| skills_ag_skills_r2_20261017T004032Z | claude-opus-5-5 | agentic-HLSmith | complete | 9 | 825,410 | 8,685 | 4,050 | 1.0325 (S) | 1,307.10 | 2 | 2 | 10,052,008 | 640 |
+| skills_ag_skills_r3_20261017T072444Z | claude-opus-5-5 | agentic-HLSmith | complete | 8 | 773,409 | 15,975 | 9,893 | 1.2262 (S) | 891.10 | 2 | 2 | 17,825,989 | 320 |
+| skills_ag_win7080_r1_20261016T212615Z | claude-opus-5-5 | agentic-HLSmith | complete | 6 | 693,334 | 33,511 | 21,194 | 1.7354 (S) | 957.60 | 1 | 1 | 590,653 | 6,656 |
+| skills_ag_win7080_r2_20261017T044226Z | claude-opus-5-5 | agentic-HLSmith | complete | 9 | 1,022,143 | 27,692 | 17,664 | 1.6538 (S) | 1,235.50 | 2 | 2 | 835,709 | 7,040 |
+| skills_ag_win7080_r3_20261017T122853Z | claude-opus-5-5 | agentic-HLSmith | complete | 4 | 420,904 | 20,966 | 12,121 | 1.3371 (S) | 1,197.90 | 1 | 1 | 792,060 | 6,881 |
+| zero_shot_ag_zs_r1_20261016T002339Z | claude-opus-5-5 | agentic-HLSmith | complete | 8 | 110,950 | 9,299 | 5,312 | 0.3423 (S) | 1,937.20 | 2 | 3 | 4,203,995 | 2,560 |
+| zero_shot_ag_zs_r2_20261016T215742Z | claude-opus-5-5 | agentic-HLSmith | complete | 9 | 110,748 | 7,879 | 2,287 | 0.2683 (S) | 1,350.90 | 3 | 3 | 6,330,496 | 1,280 |
+| zero_shot_ag_zs_r3_20261017T051656Z | claude-opus-5-5 | agentic-HLSmith | complete | 8 | 94,462 | 8,756 | 2,585 | 0.2781 (S) | 1,836.50 | 4 | 4 | 6,294,257 | 1,280 |
+| zero_shot_ag_zsk_r1_20261016T012258Z | claude-opus-5-5 | agentic-HLSmith | complete | 10 | 948,982 | 24,421 | 11,203 | 2.2357 (S) | 8,885.20 | 5 | 4 | 2,656,857 | 2,560 |
+| zero_shot_ag_zsk_r2_20261016T222548Z | claude-opus-5-5 | agentic-HLSmith | complete | 15 | 1,491,524 | 31,736 | 16,062 | 2.6145 (S) | 6,652.10 | 3 | 2 | 2,114,663 | 2,560 |
+| zero_shot_ag_zsk_r3_20261017T055130Z | claude-opus-5-5 | agentic-HLSmith | complete | 7 | 605,476 | 7,207 | 2,714 | 1.6048 (S) | 4,758.70 | 1 | 1 | 4,593,976 | 1,280 |
+| zero_shot_pl_zs_cc_r1_20261015T235521Z | claude-opus-5-5 | plain | complete | 1 | 1,164 | 2,706 | n/a | 0.0634 (S) | 75.40 | 2 | 2 | 69,257,160 | 160 |
+| zero_shot_pl_zs_cc_r2_20261016T214712Z | claude-opus-5-5 | plain | complete | 1 | 1,164 | 3,031 | n/a | 0.0699 (S) | 105.90 | 2 | 2 | 35,701,512 | 320 |
+| zero_shot_pl_zs_cc_r3_20261017T050626Z | claude-opus-5-5 | plain | complete | 1 | 1,164 | 3,156 | n/a | 0.0724 (S) | 94.00 | 2 | 2 | 69,403,080 | 160 |
+| zero_shot_pl_zs_ds_r1_20261015T235148Z | deepseek-v4-flash | plain | complete | 1 | 457 | 15,013 | 14,127 | n/a | 157.50 | 2 | 2 | 4,384,714,753 | 3 |
+| zero_shot_pl_zs_ds_r2_20261015T235149Z | deepseek-v4-flash | plain | complete | 1 | 457 | 23,487 | 21,859 | n/a | 198.50 | 2 | 2 | 140,335,617 | 40 |
+| zero_shot_pl_zs_ds_r3_20261015T235149Z | deepseek-v4-flash | plain | complete | 1 | 457 | 2,930 | 2,037 | n/a | 84.50 | 2 | 2 | 4,346,912,769 | 3 |
+| zero_shot_pl_zsk_cc_r1_20261015T235856Z | claude-opus-5-5 | plain | complete | 1 | 75,840 | 6,265 | n/a | 0.7320 (S) | 118.60 | 2 | 2 | 14,683,512 | 640 |
+| zero_shot_pl_zsk_cc_r2_20261016T215043Z | claude-opus-5-5 | plain | complete | 1 | 75,840 | 5,685 | n/a | 0.7204 (S) | 124.00 | 2 | 2 | 6,597,345 | 1,280 |
+| zero_shot_pl_zsk_cc_r3_20261017T051325Z | claude-opus-5-5 | plain | complete | 1 | 75,841 | 4,516 | n/a | 0.6970 (S) | 118.30 | 2 | 2 | 6,559,257 | 1,280 |
+| zero_shot_pl_zsk_ds_r1_20261015T235152Z | deepseek-v4-flash | plain | complete | 1 | 48,441 | 21,485 | 19,760 | n/a | 176.70 | 2 | 2 | 180,074,497 | 40 |
+| zero_shot_pl_zsk_ds_r2_20261015T235152Z | deepseek-v4-flash | plain | complete | 1 | 48,441 | 25,561 | 23,570 | n/a | 198.40 | 2 | 2 | 42,611,713 | 178 |
+| zero_shot_pl_zsk_ds_r3_20261015T235152Z | deepseek-v4-flash | plain | complete | 1 | 48,441 | 34,127 | 32,748 | n/a | 270.00 | 2 | 2 | 92,200,961 | 192 |
+
+### F2-runs_controlled (48 rows)
+
+| run tag | model | mode | status | LLM calls | input tok (incl cache) | output tok | reasoning/thinking tok | cost USD (src) | wall s | csim | csynth | worst latency cyc | DSP |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| noskills_ctl_cc_noskills_r1_20261013T113512Z | claude-opus-5-5 | plain | complete | 1 | 4,977 | 4,812 | n/a | 0.1360 (S) | 146.30 | 2 | 2 | 138,842,984 | 40 |
+| noskills_ctl_cc_noskills_r2_20261013T115334Z | claude-opus-5-5 | plain | complete | 1 | 4,979 | 4,672 | n/a | 0.1284 (S) | 128.30 | 2 | 2 | 138,842,984 | 40 |
+| noskills_ctl_cc_noskills_r3_20261013T124413Z | claude-opus-5-5 | plain | complete | 1 | 4,976 | 5,272 | n/a | 0.1404 (S) | 132.30 | 2 | 2 | 69,405,128 | 160 |
+| noskills_ctl_ds_noskills_r1_20261013T114950Z | deepseek-v4-flash | plain | complete | 1 | 2,937 | 27,644 | 26,869 | n/a | 239.60 | 2 | 2 | 537,939,784 | 6 |
+| noskills_ctl_ds_noskills_r2_20261013T123011Z | deepseek-v4-flash | plain | complete | 1 | 2,937 | 73,312 | 72,236 | n/a | 479.10 | 2 | 2 | 71,296,001 | 160 |
+| noskills_ctl_ds_noskills_r3_20261013T125828Z | deepseek-v4-flash | plain | complete | 1 | 2,937 | 46,324 | 45,176 | n/a | 353.80 | 2 | 2 | 213,142,785 | 18 |
+| skills_ctl_cc_dspredo_r1_20261013T115334Z | claude-opus-5-5 | plain | complete | 2 | 167,352 | 24,294 | n/a | 1.8150 (S) | 1,140.50 | 2 | 2 | 2,852,841 | 8,320 |
+| skills_ctl_cc_dspredo_r2_20261013T123719Z | claude-opus-5-5 | plain | complete | 2 | 166,935 | 19,125 | n/a | 1.7083 (S) | 450.60 | 2 | 2 | 901,423 | 8,640 |
+| skills_ctl_cc_dspredo_r3_20261013T125844Z | claude-opus-5-5 | plain | incomplete (ctrl only) | 2 | 166,976 | 20,366 | n/a | 1.7335 (S) | n/a | n/a | n/a | n/a | n/a |
+| skills_ctl_cc_refneu_r1_20261013T195003Z | claude-opus-5-5 | plain | complete | 2 | 180,270 | 25,774 | n/a | 1.9512 (S) | 1,711.20 | 2 | 2 | 2,361,109 | 2,672 |
+| skills_ctl_cc_refneu_r2_20261013T195003Z | claude-opus-5-5 | plain | complete | 1 | 86,318 | 28,655 | n/a | 1.2636 (S) | 639.30 | 2 | 2 | 1,184,286 | 5,248 |
+| skills_ctl_cc_refneu_r3_20261013T195003Z | claude-opus-5-5 | plain | complete | 1 | 86,317 | 10,371 | n/a | 0.8916 (S) | 324.10 | 2 | 2 | 1,295,181 | 5,120 |
+| skills_ctl_cc_refnf_r1_20261013T193046Z | claude-opus-5-5 | plain | complete | 1 | 87,411 | 9,457 | n/a | 0.8884 (S) | 727.80 | 2 | 2 | 1,312,124 | 5,120 |
+| skills_ctl_cc_refnf_r2_20261013T193437Z | claude-opus-5-5 | plain | complete | 1 | 87,411 | 9,377 | n/a | 0.8799 (S) | 187.90 | 2 | 2 | 1,248,397 | 5,120 |
+| skills_ctl_cc_refnf_r3_20261013T194222Z | claude-opus-5-5 | plain | complete | 1 | 87,412 | 17,191 | n/a | 1.0362 (S) | 276.50 | 2 | 2 | 1,729,422 | 5,120 |
+| skills_ctl_cc_refv2_r1_20261013T050436Z | claude-opus-5-5 | plain | complete | 2 | 188,354 | 44,718 | n/a | 2.3942 (S) | 817.50 | 2 | 2 | 745,421 | 8,192 |
+| skills_ctl_cc_refv2_r2_20261013T051500Z | claude-opus-5-5 | plain | complete | 1 | 87,851 | 30,648 | n/a | 1.3088 (S) | 1,530.10 | 2 | 2 | 852,341 | 8,326 |
+| skills_ctl_cc_refv2_r3_20261013T053611Z | claude-opus-5-5 | plain | complete | 3 | 293,953 | 35,767 | n/a | 3.0462 (S) | 1,102.50 | 2 | 2 | 689,648 | 8,323 |
+| skills_ctl_cc_skills_r1_20261013T175515Z | claude-opus-5-5 | plain | complete | 1 | 79,653 | 7,654 | n/a | 0.7903 (S) | 175.50 | 2 | 2 | 18,996,696 | 320 |
+| skills_ctl_cc_skills_r2_20261013T180211Z | claude-opus-5-5 | plain | complete | 1 | 79,653 | 4,859 | n/a | 0.7296 (S) | 134.20 | 2 | 2 | 35,701,585 | 320 |
+| skills_ctl_cc_skills_r3_20261013T180212Z | claude-opus-5-5 | plain | complete | 1 | 79,654 | 7,080 | n/a | 0.7740 (S) | 156.20 | 2 | 2 | 105,550,696 | 80 |
+| skills_ctl_cc_win7080_r1_20261013T051500Z | claude-opus-5-5 | plain | complete | 1 | 87,696 | 27,423 | n/a | 1.2500 (S) | 740.60 | 2 | 2 | 1,063,897 | 6,912 |
+| skills_ctl_cc_win7080_r2_20261013T052914Z | claude-opus-5-5 | plain | complete | 1 | 87,696 | 24,655 | n/a | 1.1876 (S) | 9,096.20 | 2 | 2 | 871,147 | 6,754 |
+| skills_ctl_cc_win7080_r3_20261013T053620Z | claude-opus-5-5 | plain | complete | 1 | 87,696 | 35,168 | n/a | 1.3979 (S) | 443.00 | 2 | 2 | 868,795 | 6,752 |
+| skills_ctl_ds_dspredo_r1_20261013T115334Z | deepseek-v4-flash | plain | incomplete (ctrl only) | 2 | 105,097 | 66,700 | 64,582 | n/a | n/a | n/a | n/a | n/a | n/a |
+| skills_ctl_ds_dspredo_r2_20261013T124415Z | deepseek-v4-flash | plain | incomplete (ctrl only) | 3 | 164,590 | 86,292 | 81,205 | n/a | n/a | n/a | n/a | n/a | n/a |
+| skills_ctl_ds_dspredo_r3_20261013T141543Z | deepseek-v4-flash | plain | incomplete (ctrl only) | 2 | 105,343 | 67,443 | 65,113 | n/a | n/a | n/a | n/a | n/a | n/a |
+| skills_ctl_ds_refneu_r1_20261013T195003Z | deepseek-v4-flash | plain | complete | 1 | 55,487 | 57,462 | 55,996 | n/a | 1,483.50 | 2 | 2 | 3,324,680 | 1,536 |
+| skills_ctl_ds_refneu_r2_20261013T195003Z | deepseek-v4-flash | plain | complete | 1 | 55,487 | 51,410 | 49,772 | n/a | 1,358.10 | 2 | 2 | 2,754,497 | 1,600 |
+| skills_ctl_ds_refneu_r3_20261013T205540Z | deepseek-v4-flash | plain | complete | 2 | 114,802 | 95,866 | 92,506 | n/a | 635.50 | 2 | 2 | 8,805,601 | 672 |
+| skills_ctl_ds_refnf_r1_20261013T193046Z | deepseek-v4-flash | plain | complete | 1 | 56,192 | 76,833 | 74,648 | n/a | 601.40 | 2 | 2 | 4,610,317 | 768 |
+| skills_ctl_ds_refnf_r2_20261013T193830Z | deepseek-v4-flash | plain | complete | 1 | 56,192 | 49,743 | 48,016 | n/a | 481.00 | 2 | 2 | 5,261,992 | 864 |
+| skills_ctl_ds_refnf_r3_20261013T194222Z | deepseek-v4-flash | plain | complete | 1 | 56,192 | 48,342 | 46,960 | n/a | 514.60 | 2 | 2 | 6,518,216 | 768 |
+| skills_ctl_ds_refv2_r1_20261013T050757Z | deepseek-v4-flash | plain | complete | 3 | 183,722 | 293,460 | 287,133 | n/a | 6,593.70 | 2 | 2 | 7,753,170,945 | 5 |
+| skills_ctl_ds_refv2_r2_20261013T084643Z | deepseek-v4-flash | plain | incomplete (ctrl only) | 1 | 56,467 | 104,712 | 103,210 | n/a | n/a | n/a | n/a | n/a | n/a |
+| skills_ctl_ds_refv2_r3_20261013T090844Z | deepseek-v4-flash | plain | incomplete (ctrl only) | 3 | 182,244 | 171,176 | 165,504 | n/a | n/a | n/a | n/a | n/a | n/a |
+| skills_ctl_ds_skills_r1_20261013T180212Z | deepseek-v4-flash | plain | complete | 1 | 50,921 | 30,368 | 29,151 | n/a | 249.20 | 2 | 2 | 147,166,209 | 40 |
+| skills_ctl_ds_skills_r2_20261013T180211Z | deepseek-v4-flash | plain | complete | 1 | 50,921 | 34,261 | 33,133 | n/a | 265.80 | 2 | 2 | 157,784,321 | 40 |
+| skills_ctl_ds_skills_r3_20261013T180213Z | deepseek-v4-flash | plain | complete | 1 | 50,921 | 50,527 | 49,216 | n/a | 336.60 | 2 | 2 | 72,408,065 | 160 |
+| skills_ctl_ds_win7080_r1_20261013T084643Z | deepseek-v4-flash | plain | incomplete (ctrl only) | 2 | 116,853 | 175,016 | 171,172 | n/a | n/a | n/a | n/a | n/a | n/a |
+| skills_ctl_ds_win7080_r2_20261013T085358Z | deepseek-v4-flash | plain | complete | 3 | 184,134 | 276,823 | 270,412 | n/a | 2,299.60 | 2 | 2 | 7,753,170,945 | 5 |
+| skills_ctl_ds_win7080_r3_20261013T091236Z | deepseek-v4-flash | plain | incomplete (ctrl only) | 2 | 116,659 | 114,351 | 110,847 | n/a | n/a | n/a | n/a | n/a | n/a |
+| zero_shot_ctl_cc_zs_r1_20261012T123819Z | claude-opus-5-5 | plain | complete | 1 | 1,169 | 3,200 | n/a | 0.0670 (S) | 137.80 | 2 | 2 | 69,257,160 | 160 |
+| zero_shot_ctl_cc_zs_r2_20261012T123830Z | claude-opus-5-5 | plain | complete | 1 | 1,169 | 2,682 | n/a | 0.0567 (S) | 89.70 | 2 | 2 | 144,380,744 | 80 |
+| zero_shot_ctl_cc_zs_r3_20261012T123830Z | claude-opus-5-5 | plain | complete | 1 | 1,167 | 2,708 | n/a | 0.0572 (S) | 91.40 | 2 | 2 | 35,751,176 | 320 |
+| zero_shot_ctl_ds_zs_r1_20261012T123830Z | deepseek-v4-flash | plain | complete | 1 | 458 | 6,719 | 5,581 | n/a | 97.40 | 2 | 2 | 4,346,994,689 | 3 |
+| zero_shot_ctl_ds_zs_r2_20261012T123830Z | deepseek-v4-flash | plain | complete | 1 | 458 | 21,781 | 20,645 | n/a | 180.10 | 2 | 2 | 79,370,753 | 80 |
+| zero_shot_ctl_ds_zs_r3_20261012T123829Z | deepseek-v4-flash | plain | complete | 1 | 458 | 13,097 | 11,884 | n/a | 131.40 | 2 | 2 | 4,346,306,561 | 3 |
+
+### F2-s90 (18 rows)
+
+| run tag | model | mode | status | LLM calls | input tok (incl cache) | output tok | reasoning/thinking tok | cost USD (src) | wall s | csim | csynth | worst latency cyc | DSP |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| skills_lud_s90_cc_r1_20261014T100538Z | claude-opus-5-5 | plain | complete | 2 | 147,467 | 7,320 | n/a | 1.3165 (S) | 197.30 | 2 | 2 | 8,308 | 40 |
+| skills_lud_s90_cc_r2_20261014T101305Z | claude-opus-5-5 | plain | complete | 1 | 71,264 | 6,762 | n/a | 0.7005 (S) | 126.20 | 2 | 2 | 13,924 | 40 |
+| skills_lud_s90_cc_r3_20261014T101649Z | claude-opus-5-5 | plain | complete | 1 | 71,264 | 4,279 | n/a | 0.6509 (S) | 104.40 | 2 | 2 | 5,302 | 155 |
+| skills_lud_s90_ds_r1_20261014T100538Z | deepseek-v4-flash | plain | complete | 2 | 93,941 | 24,375 | 21,985 | n/a | 191.80 | 2 | 2 | 40,429 | 5 |
+| skills_lud_s90_ds_r2_20261014T101306Z | deepseek-v4-flash | plain | complete | 2 | 90,799 | 54,831 | 52,499 | n/a | 339.10 | 2 | 2 | 56,909 | 5 |
+| skills_lud_s90_ds_r3_20261014T102035Z | deepseek-v4-flash | plain | complete | 1 | 45,354 | 21,152 | 20,129 | n/a | 168.80 | 2 | 2 | 54,733 | 5 |
+| skills_s90_cc_r1_20261014T100521Z | claude-opus-5-5 | plain | complete | 1 | 70,970 | 3,870 | n/a | 0.6452 (S) | 109.40 | 2 | 2 | 23,075,192 | 320 |
+| skills_s90_cc_r2_20261014T100538Z | claude-opus-5-5 | plain | complete | 1 | 70,972 | 3,800 | n/a | 0.6389 (S) | 185.70 | 2 | 2 | 69,256,648 | 160 |
+| skills_s90_cc_r3_20261014T101304Z | claude-opus-5-5 | plain | complete | 1 | 70,973 | 4,418 | n/a | 0.6513 (S) | 120.50 | 2 | 2 | 86,081,800 | 80 |
+| skills_s90_ds_r1_20261014T100521Z | deepseek-v4-flash | plain | complete | 1 | 45,191 | 34,050 | 32,936 | n/a | 259.20 | 2 | 2 | 302,157,057 | 12 |
+| skills_s90_ds_r2_20261014T100907Z | deepseek-v4-flash | plain | complete | 1 | 45,191 | 25,842 | 24,566 | n/a | 207.60 | 2 | 2 | 304,868,609 | 20 |
+| skills_s90_ds_r3_20261014T101649Z | deepseek-v4-flash | plain | complete | 1 | 45,191 | 21,173 | 20,450 | n/a | 183.20 | 2 | 2 | 157,732,097 | 40 |
+| skills_s90dsp_cc_r1_20261014T150952Z | claude-opus-5-5 | plain | complete | 2 | 149,022 | 13,692 | n/a | 1.4612 (S) | 523.70 | 2 | 2 | 2,848,153 | 8,640 |
+| skills_s90dsp_cc_r2_20261014T111538Z | claude-opus-5-5 | plain | complete | 1 | 71,537 | 15,363 | n/a | 0.8795 (S) | 296.20 | 2 | 2 | 1,921,995 | 8,320 |
+| skills_s90dsp_cc_r3_20261014T101649Z | claude-opus-5-5 | plain | complete | 2 | 149,634 | 19,782 | n/a | 1.5830 (S) | 954.80 | 2 | 2 | 1,050,774 | 8,640 |
+| skills_s90dsp_ds_r1_20261014T152438Z | deepseek-v4-flash | plain | incomplete (ctrl only) | 2 | 94,648 | 166,114 | 163,278 | n/a | n/a | n/a | n/a | n/a | n/a |
+| skills_s90dsp_ds_r2_20261014T153915Z | deepseek-v4-flash | plain | complete | 2 | 94,346 | 93,604 | 90,830 | n/a | 860.40 | 2 | 2 | 4,036,961 | 8,320 |
+| skills_s90dsp_ds_r3_20261014T174828Z | deepseek-v4-flash | plain | incomplete (ctrl only) | 2 | 94,481 | 151,013 | 147,899 | n/a | n/a | n/a | n/a | n/a | n/a |
+
+### F2-dsp5065 (15 rows)
+
+| run tag | model | mode | status | LLM calls | input tok (incl cache) | output tok | reasoning/thinking tok | cost USD (src) | wall s | csim | csynth | worst latency cyc | DSP |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| skills_st_a5065_ag_r1c_20261014T095406Z | claude-opus-5-5 | agentic-HLSmith | complete | 4 | 411,096 | 18,700 | 9,511 | 1.2989 (S) | 898.50 | 1 | 1 | 1,066,430 | 5,120 |
+| skills_st_a5065_ag_r2c_20261014T111146Z | claude-opus-5-5 | agentic-HLSmith | complete | 7 | 761,088 | 25,892 | 13,851 | 2.3603 (S) | 3,874.30 | 2 | 2 | 1,116,262 | 5,120 |
+| skills_st_a5065_ag_r3_20261014T024229Z | claude-opus-5-5 | agentic-HLSmith | complete | 4 | 430,060 | 25,521 | 16,152 | 1.4985 (S) | 2,790.60 | 1 | 1 | 1,056,861 | 5,120 |
+| skills_st_r5065_cc_r1_20261013T215723Z | claude-opus-5-5 | plain | complete | 1 | 87,680 | 20,157 | n/a | 1.1046 (S) | 318.90 | 2 | 2 | 1,114,698 | 5,120 |
+| skills_st_r5065_cc_r2_20261013T220515Z | claude-opus-5-5 | plain | complete | 1 | 87,680 | 19,037 | n/a | 1.0751 (S) | 327.00 | 2 | 2 | 1,066,430 | 5,120 |
+| skills_st_r5065_cc_r3_20261014T024229Z | claude-opus-5-5 | plain | complete | 1 | 87,682 | 29,115 | n/a | 1.2837 (S) | 406.50 | 2 | 2 | 1,114,756 | 5,120 |
+| skills_st_r5065_ds_r1_20261014T094258Z | deepseek-v4-flash | plain | incomplete (ctrl only) | 2 | 115,559 | 138,794 | 136,405 | n/a | n/a | n/a | n/a | n/a | n/a |
+| skills_st_r5065_ds_r2_20261014T021546Z | deepseek-v4-flash | plain | complete | 1 | 56,370 | 73,593 | 71,699 | n/a | 620.20 | 2 | 2 | 1,351,825 | 5,246 |
+| skills_st_r5065_ds_r3_20261014T095406Z | deepseek-v4-flash | plain | incomplete (ctrl only) | 2 | 117,244 | 185,998 | 181,546 | n/a | n/a | n/a | n/a | n/a | n/a |
+| skills_st_s5065_cc_r1_20261013T215723Z | claude-opus-5-5 | plain | complete | 1 | 79,864 | 4,848 | n/a | 0.7359 (S) | 227.10 | 2 | 2 | 1,268,881 | 5,118 |
+| skills_st_s5065_cc_r2_20261013T220139Z | claude-opus-5-5 | plain | complete | 1 | 79,864 | 7,042 | n/a | 0.7749 (S) | 355.30 | 2 | 2 | 4,200,655 | 5,120 |
+| skills_st_s5065_cc_r3_20261013T220933Z | claude-opus-5-5 | plain | complete | 1 | 79,862 | 10,104 | n/a | 0.8361 (S) | 283.00 | 2 | 2 | 7,368,021 | 5,120 |
+| skills_st_s5065_ds_r1_20261013T215723Z | deepseek-v4-flash | plain | complete | 3 | 163,233 | 107,136 | 102,589 | n/a | 1,311.20 | 2 | 2 | 167,503,724,616 | 5 |
+| skills_st_s5065_ds_r2_20261014T020826Z | deepseek-v4-flash | plain | complete | 1 | 51,067 | 77,397 | 75,600 | n/a | 577.80 | 2 | 2 | 23,186,945 | 5,120 |
+| skills_st_s5065_ds_r3b_20261014T095406Z | deepseek-v4-flash | plain | complete | 3 | 163,389 | 130,788 | 126,186 | n/a | 1,248.20 | 2 | 2 | 167,503,724,616 | 5 |
+
+### F3 (3 rows)
+
+| run tag | model | mode | status | LLM calls | input tok (incl cache) | output tok | reasoning/thinking tok | cost USD (src) | wall s | csim | csynth | worst latency cyc | DSP |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| mm1024_base_r1 | claude-opus-5-5 | free-agent | completed | 81 | 7,926,670 | 87,358 | 61,993 | 7.1377 (T) | 17,035.00 | 5 | 9 | 404,451 | 8,552 |
+| mm1024_know_r1 | claude-opus-5-5 | free-agent | completed | 153 | 18,811,409 | 107,943 | 51,337 | 11.0414 (T) | 30,445.00 | 10 | 12 | 658,279 | 8,960 |
+| mm1024_team_r1 | claude-opus-5-5 | free-agent | no finished design (quota full) | 129 | 16,060,473 | 108,956 | 74,955 | 9.3464 (T) | 32,563.00 | 6 | 11 | n/a | n/a |
+
+### F4-lud (24 rows)
+
+| run tag | model | mode | status | LLM calls | input tok (incl cache) | output tok | reasoning/thinking tok | cost USD (src) | wall s | csim | csynth | worst latency cyc | DSP |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| noskills_lud_noskills_cc_r1_20261014T024612Z | claude-opus-5-5 | plain | complete | 1 | 5,223 | 4,010 | n/a | 0.1220 (S) | 141.20 | 2 | 2 | 10,509 | 40 |
+| noskills_lud_noskills_cc_r2_20261014T024614Z | claude-opus-5-5 | plain | complete | 1 | 5,237 | 3,424 | n/a | 0.1055 (S) | 321.30 | 2 | 2 | 10,413 | 40 |
+| noskills_lud_noskills_cc_r3_20261014T024612Z | claude-opus-5-5 | plain | complete | 1 | 5,237 | 3,910 | n/a | 0.1153 (S) | 178.70 | 2 | 2 | 10,636 | 40 |
+| noskills_lud_noskills_ds_r1_20261014T024613Z | deepseek-v4-flash | plain | complete | 1 | 3,094 | 25,213 | 24,313 | n/a | 360.10 | 2 | 2 | 192,941 | 3 |
+| noskills_lud_noskills_ds_r2_20261014T024613Z | deepseek-v4-flash | plain | complete | 1 | 3,094 | 32,330 | 31,174 | n/a | 243.30 | 2 | 2 | 148,173 | 3 |
+| noskills_lud_noskills_ds_r3_20261014T024612Z | deepseek-v4-flash | plain | complete | 1 | 3,094 | 56,236 | 55,192 | n/a | 387.60 | 2 | 2 | 66,829 | 12 |
+| skills_lud_refneu_cc_r1_20261014T024613Z | claude-opus-5-5 | plain | complete | 1 | 86,578 | 4,661 | n/a | 0.7858 (S) | 224.40 | 2 | 2 | 2,264 | 155 |
+| skills_lud_refneu_cc_r2_20261014T024613Z | claude-opus-5-5 | plain | complete | 1 | 86,577 | 8,296 | n/a | 0.8521 (S) | 394.60 | 2 | 2 | 19,746 | 95 |
+| skills_lud_refneu_cc_r3_20261014T024627Z | claude-opus-5-5 | plain | complete | 1 | 86,578 | 6,116 | n/a | 0.8086 (S) | 362.30 | 2 | 2 | 13,784 | 155 |
+| skills_lud_refneu_ds_r1_20261014T024613Z | deepseek-v4-flash | plain | complete | 1 | 55,645 | 56,089 | 54,780 | n/a | 362.70 | 2 | 2 | 13,708 | 18 |
+| skills_lud_refneu_ds_r2_20261014T024612Z | deepseek-v4-flash | plain | complete | 1 | 55,645 | 42,084 | 41,098 | n/a | 297.20 | 2 | 2 | 32,237 | 24 |
+| skills_lud_refneu_ds_r3_20261014T024627Z | deepseek-v4-flash | plain | complete | 1 | 55,645 | 28,300 | 27,207 | n/a | 375.00 | 2 | 2 | 9,677 | 155 |
+| skills_lud_skills_cc_r1_20261014T024612Z | claude-opus-5-5 | plain | complete | 1 | 79,913 | 4,270 | n/a | 0.7199 (S) | 326.70 | 2 | 2 | 9,590 | 40 |
+| skills_lud_skills_cc_r2_20261014T024613Z | claude-opus-5-5 | plain | complete | 1 | 79,911 | 4,914 | n/a | 0.7327 (S) | 187.30 | 2 | 2 | 5,302 | 155 |
+| skills_lud_skills_cc_r3_20261014T024613Z | claude-opus-5-5 | plain | complete | 1 | 79,913 | 5,630 | n/a | 0.7471 (S) | 282.50 | 2 | 2 | 4,122 | 155 |
+| skills_lud_skills_ds_r1_20261014T024612Z | deepseek-v4-flash | plain | complete | 1 | 51,078 | 51,632 | 50,741 | n/a | 485.80 | 2 | 2 | 48,013 | 21 |
+| skills_lud_skills_ds_r2_20261014T024613Z | deepseek-v4-flash | plain | complete | 1 | 51,078 | 31,780 | 30,184 | n/a | 223.10 | 2 | 2 | 53,612 | 5 |
+| skills_lud_skills_ds_r3_20261014T024612Z | deepseek-v4-flash | plain | complete | 2 | 102,247 | 36,147 | 33,229 | n/a | 429.60 | 2 | 2 | 1,052,705 | 5 |
+| zero_shot_lud_zs_cc_r1_20261013T222111Z | claude-opus-5-5 | plain | complete | 1 | 1,496 | 2,707 | n/a | 0.0661 (S) | 70.80 | 2 | 2 | 9,677 | 155 |
+| zero_shot_lud_zs_cc_r2_20261014T024610Z | claude-opus-5-5 | plain | complete | 1 | 1,492 | 2,057 | n/a | 0.0442 (S) | 104.30 | 2 | 2 | 10,445 | 155 |
+| zero_shot_lud_zs_cc_r3_20261014T024610Z | claude-opus-5-5 | plain | complete | 1 | 1,491 | 2,341 | n/a | 0.0587 (S) | 74.10 | 2 | 2 | 8,556 | 155 |
+| zero_shot_lud_zs_ds_r1_20261013T222440Z | deepseek-v4-flash | plain | complete | 1 | 664 | 34,623 | 33,511 | n/a | 252.30 | 2 | 2 | 130,573 | 3 |
+| zero_shot_lud_zs_ds_r2_20261014T043138Z | deepseek-v4-flash | plain | complete | 1 | 664 | 49,549 | 47,896 | n/a | 333.50 | 2 | 2 | 45,997 | 24 |
+| zero_shot_lud_zs_ds_r3_20261014T024609Z | deepseek-v4-flash | plain | complete | 1 | 664 | 35,233 | 33,777 | n/a | 232.60 | 2 | 2 | 141,197 | 3 |

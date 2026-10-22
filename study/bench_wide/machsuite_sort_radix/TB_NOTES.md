@@ -1,0 +1,13 @@
+# TB_NOTES: machsuite_sort_radix
+- Arg classification (from plain.cpp): a[] in-out (sorted in place, even pass count leaves result in a); b[], bucket[], sum[] are pure scratch (written before read) and are not compared.
+- Golden: plain.cpp ss_sort()+helpers copied with ref_ prefix on a copy of the input; a[] element by element vs ref and vs check.data.
+- Tolerance: exact ints
+- Poison: b, bucket, sum = 0x5A5A5A5A (after input load, before run_benchmark)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 2048 errors!
+- Control 3 (one bug, must fail): Failed with 2045 errors! (only 15 radix passes)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Original: sortedness + sum only.
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> support.c local_support.c (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/machsuite_sort_radix/).

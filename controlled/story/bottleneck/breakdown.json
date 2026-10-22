@@ -1,0 +1,1244 @@
+[
+ {
+  "tag": "ctl_cc_dspredo_r1",
+  "worst_cycles": 2852841,
+  "dsp": 8320,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 65684,
+   "load_B": 0,
+   "load_C": 1065700,
+   "compute": 655710,
+   "store_C": 1065670,
+   "other": 77
+  },
+  "phase_pct": {
+   "load_A": 2.3,
+   "load_B": 0.0,
+   "load_C": 37.36,
+   "compute": 22.98,
+   "store_C": 37.35,
+   "other": 0.0
+  },
+  "compute_floor": 645278,
+  "mac_per_cycle_actual": 1637.53,
+  "bottleneck": "load C + store C: 10 calls each x ~106.6K cycles (II=16 from m_axi memory dependency) = 2.13M cycles, 74.7% of latency; compute only 656K (23%)",
+  "why_more_dsp_does_not_help": "compute is already II=1 at 1664 MAC/cycle; C load/store (II=16 over 6,656 beats per tile, 3x longer than compute) does not shrink with DSPs",
+  "check_sum": 2852764,
+  "check_err_pct": -0.0,
+  "notes": "Sequential (no DATAFLOW). tile_i x2, tile_j x5; per tile: load_C, compute (128 kc x 512 i flattened = 65,536 iters, II=1), store_C. load_A once per tile_i. load_B (variable trip, 12,362-13,386 cycles/call, ~119.5K total over 10 calls = +4.2%) is NOT in the csynth total (tile_j iter latency 278,715 = C+compute+store+7), so it is shown as hidden/unreported. other = loop overhead residual. Compute covers padded 1040 cols (5x208).",
+  "hidden_cycles_not_on_critical_path": {
+   "load_B_unreported_est": 119524
+  }
+ },
+ {
+  "tag": "ctl_cc_dspredo_r2",
+  "worst_cycles": 901423,
+  "dsp": 8640,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 68514,
+   "load_B": 65539,
+   "load_C": 0,
+   "compute": 624492,
+   "store_C": 142614,
+   "other": 264
+  },
+  "phase_pct": {
+   "load_A": 7.6,
+   "load_B": 7.27,
+   "load_C": 0.0,
+   "compute": 69.28,
+   "store_C": 15.82,
+   "other": 0.03
+  },
+  "compute_floor": 621378,
+  "mac_per_cycle_actual": 1719.38,
+  "bottleneck": "compute: 38 row tiles x 16,434 cycles = 624K (69%); B preload 65.5K (7%), A+C tile load 68.5K (8%) and C store 143K (16%) not overlapped",
+  "why_more_dsp_does_not_help": "compute is at 1719 of 1728 MAC/cycle; remaining 31% is serial load/store that does not shrink with more DSPs (store_tile_row restarts a 64-beat pipeline 27x per tile)",
+  "check_sum": 901159,
+  "check_err_pct": -0.03,
+  "notes": "Sequential. Reported latency 760,861-901,423 (store guarded by row<I); worst uses full store 3,753/tile. load_tile loop fuses A and C reads (1,803/tile), shown under load_A with load_C=0. load_B once (65,539)."
+ },
+ {
+  "tag": "ctl_cc_noskills_r1",
+  "worst_cycles": 138842984,
+  "dsp": 40,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 1048672,
+   "load_B": 0,
+   "load_C": 0,
+   "compute": 134578176,
+   "store_C": 1048704,
+   "other": 2167432
+  },
+  "phase_pct": {
+   "load_A": 0.76,
+   "load_B": 0.0,
+   "load_C": 0.0,
+   "compute": 96.93,
+   "store_C": 0.76,
+   "other": 1.56
+  },
+  "compute_floor": 134217728,
+  "mac_per_cycle_actual": 7.98,
+  "bottleneck": "compute_k loop runs at II=4 (4,107 cycles per j; 1024 j x 32 tiles = 134.6M, 96.9% of latency) and also streams B[j][k] from DRAM word-by-word (B re-read 32x)",
+  "why_more_dsp_does_not_help": "only 40 DSP and the compute loop achieved II=4 (not 1) due to the fadd accumulator recurrence into acc[ii][k&7]; loads/stores are only 3%, so more DSP helps only if II drops",
+  "check_sum": 138707168,
+  "check_err_pct": -0.1,
+  "notes": "Sequential. tile_i x32; per tile: load_A 32,771 || load_C 32,771 (independent, HLS runs them in parallel, load_C hidden), then 1024 x (compute_k 4,107 + reduce_ii 62 + 4 overhead), store_C 32,772. B load is fused inside compute_k (included in compute). other = reduce_ii (2.03M) + loop overhead residual.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_C": 1048672
+  }
+ },
+ {
+  "tag": "ctl_cc_noskills_r2",
+  "worst_cycles": 138842984,
+  "dsp": 40,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 1048672,
+   "load_B": 0,
+   "load_C": 0,
+   "compute": 134578176,
+   "store_C": 1048704,
+   "other": 2167432
+  },
+  "phase_pct": {
+   "load_A": 0.76,
+   "load_B": 0.0,
+   "load_C": 0.0,
+   "compute": 96.93,
+   "store_C": 0.76,
+   "other": 1.56
+  },
+  "compute_floor": 134217728,
+  "mac_per_cycle_actual": 7.98,
+  "bottleneck": "compute_k loop runs at II=4 (4,107 cycles per j; 1024 j x 32 tiles = 134.6M, 96.9% of latency) and also streams B[j][k] from DRAM word-by-word (B re-read 32x)",
+  "why_more_dsp_does_not_help": "only 40 DSP and the compute loop achieved II=4 (not 1) due to the fadd accumulator recurrence into acc[ii][k&7]; loads/stores are only 3%, so more DSP helps only if II drops",
+  "check_sum": 138707168,
+  "check_err_pct": -0.1,
+  "notes": "Sequential. tile_i x32; per tile: load_A 32,771 || load_C 32,771 (independent, HLS runs them in parallel, load_C hidden), then 1024 x (compute_k 4,107 + reduce_ii 62 + 4 overhead), store_C 32,772. B load is fused inside compute_k (included in compute). other = reduce_ii (2.03M) + loop overhead residual.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_C": 1048672
+  }
+ },
+ {
+  "tag": "ctl_cc_noskills_r3",
+  "worst_cycles": 69405128,
+  "dsp": 160,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 33560576,
+   "load_B": 1048672,
+   "load_C": 0,
+   "compute": 33585152,
+   "store_C": 1196032,
+   "other": 14696
+  },
+  "phase_pct": {
+   "load_A": 48.35,
+   "load_B": 1.51,
+   "load_C": 0.0,
+   "compute": 48.39,
+   "store_C": 1.72,
+   "other": 0.02
+  },
+  "compute_floor": 33554432,
+  "mac_per_cycle_actual": 31.97,
+  "bottleneck": "compute 33.6M (48.4%) and load A 33.6M (48.4%): A rows re-read 32x (once per tile_j) through a word-wide m_axi at 1 word/cycle, not overlapped with compute",
+  "why_more_dsp_does_not_help": "compute is at 31.96 of 32 MAC/cycle (160 DSP) but load A is as long as compute and serial; doubling DSP only halves half of the latency",
+  "check_sum": 69390432,
+  "check_err_pct": -0.02,
+  "notes": "Sequential. tile_j x32, tile_i x64 (2048 inner iterations): load_A 16,387 || load_C 586 (parallel, load_C hidden), compute 16,399 (II=1, 32 MAC/cycle), store_C 584; iteration 33,376 = 16,387+16,399+584+6. load_B 32,771 once per tile_j. other = loop overhead residual.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_C": 1200128
+  }
+ },
+ {
+  "tag": "ctl_cc_refnf_r1",
+  "worst_cycles": 1312124,
+  "dsp": 5120,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 65542,
+   "load_B": 131664,
+   "load_C": 0,
+   "compute": 1048688,
+   "store_C": 66104,
+   "other": 126
+  },
+  "phase_pct": {
+   "load_A": 5.0,
+   "load_B": 10.03,
+   "load_C": 0.0,
+   "compute": 79.92,
+   "store_C": 5.04,
+   "other": 0.01
+  },
+  "compute_floor": 1048576,
+  "mac_per_cycle_actual": 1023.89,
+  "bottleneck": "compute: 8 tiles x 131,086 = 1.049M cycles (79.9%) at 1023.9 MAC/cycle; non-overlapped load B+C 131.7K (10%), load A 65.5K (5%), store C 66.1K (5%)",
+  "why_more_dsp_does_not_help": "compute is at its 1024-MAC/cycle floor (5120 DSP); the other 20% is serial load/store that does not shrink with DSPs, and compute itself only drops with more MAC lanes",
+  "check_sum": 1311998,
+  "check_err_pct": -0.01,
+  "notes": "Sequential. tile_i x2 (load_A 32,771 once per i-tile), tile_j x4 per i-tile: load_BC (fused B strip 16,384 beats || C tile 8,192 beats on separate m_axi bundles; C hidden inside, shown under load_B) 16,458 + compute 131,086 + store 8,263 = 155,807 (+6 = tile_j 155,813). other = loop overhead.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_C_fused_in_load_BC": 65536
+  }
+ },
+ {
+  "tag": "ctl_cc_refnf_r2",
+  "worst_cycles": 1248397,
+  "dsp": 5120,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 65584,
+   "load_B": 65539,
+   "load_C": 0,
+   "compute": 1049264,
+   "store_C": 65600,
+   "other": 2410
+  },
+  "phase_pct": {
+   "load_A": 5.25,
+   "load_B": 5.25,
+   "load_C": 0.0,
+   "compute": 84.05,
+   "store_C": 5.25,
+   "other": 0.19
+  },
+  "compute_floor": 1048576,
+  "mac_per_cycle_actual": 1023.33,
+  "bottleneck": "compute: 16 row tiles x 65,579 = 1.049M cycles (84.1%) at 1023 MAC/cycle; B preload 65.5K (5%), A+C tile load 65.6K (5%), C store 65.6K (5%) not overlapped",
+  "why_more_dsp_does_not_help": "compute is at the 1024-MAC/cycle floor for 5120 DSP; the 16% serial load/store does not shrink with DSPs",
+  "check_sum": 1245987,
+  "check_err_pct": -0.19,
+  "notes": "Sequential. B loaded once (65,539). tile_i x16 iter 73,924 = load_AC 4,099 (A and C fused in one loop, shown under load_A) + compute 65,579 + store 4,100 + ~146 overhead."
+ },
+ {
+  "tag": "ctl_cc_refnf_r3",
+  "worst_cycles": 1729422,
+  "dsp": 5120,
+  "overlapped": true,
+  "dataflow_stages": [
+   {
+    "name": "b_loader",
+    "cycles": 524362
+   },
+   {
+    "name": "compute_task",
+    "cycles": 1729350
+   }
+  ],
+  "phases": {
+   "load_A": 529088,
+   "load_B": 8194,
+   "load_C": 70144,
+   "compute": 1051136,
+   "store_C": 69952,
+   "other": 908
+  },
+  "phase_pct": {
+   "load_A": 30.59,
+   "load_B": 0.47,
+   "load_C": 4.06,
+   "compute": 60.78,
+   "store_C": 4.04,
+   "other": 0.05
+  },
+  "compute_floor": 1048576,
+  "mac_per_cycle_actual": 1021.51,
+  "bottleneck": "compute_task stage (1.729M worst) is the whole latency; b_loader (524K) is hidden behind it. Of the worst case, compute is 1.051M (60.8%) but csynth charges the conditional A-load (8,267 cyc) on all 64 tiles = 529K (30.6%) although it only executes on 8",
+  "why_more_dsp_does_not_help": "compute at 1024 MAC/cycle (floor 1.049M at 5120 DSP); worst-case latency is inflated by the tj==0 A-load branch counted 64x (true execution ~1.266M), not by DSP count",
+  "check_sum": 1729350,
+  "check_err_pct": -0.0,
+  "notes": "DATAFLOW (b_loader || compute_task, depth-64 B stream). compute_task min 1,200,262 max 1,729,350: min = no A load, max = A load (8,193+74) in every one of 64 tiles; real run does it 8x so true latency ~1.266M (-27%). Per tile: load_C 1,096 + compute 16,424 + store 1,093 sequential inside compute_task; B is prefetched into B0/B1 ping-pong during compute (B read from stream inside the compute loop, so B-load is hidden except first tile prefetch 8,192 on the critical path). Phases are on worst-case basis (sum to worst).",
+  "hidden_cycles_not_on_critical_path": {
+   "b_loader_stage_overlapped_with_compute": 524362,
+   "load_A_true_executions_8x": 65544
+  }
+ },
+ {
+  "tag": "ctl_cc_refv2_r1",
+  "worst_cycles": 745421,
+  "dsp": 8192,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 75008,
+   "load_B": 65539,
+   "load_C": 0,
+   "compute": 529408,
+   "store_C": 74624,
+   "other": 842
+  },
+  "phase_pct": {
+   "load_A": 10.06,
+   "load_B": 8.79,
+   "load_C": 0.0,
+   "compute": 71.02,
+   "store_C": 10.01,
+   "other": 0.11
+  },
+  "compute_floor": 655360,
+  "mac_per_cycle_actual": 2028.19,
+  "bottleneck": "compute: 128 row tiles x 4,136 = 529K (71%) at 2028 MAC/cycle; non-overlapped B preload 65.5K (8.8%), A+C tile load 75K (10%), store 74.6K (10%)",
+  "why_more_dsp_does_not_help": "29% of latency is serial load/store (B preload + 586/583-cycle tile load/store x128) that does not shrink with DSPs; compute is already at ~2048 MAC/cycle",
+  "check_sum": 744579,
+  "check_err_pct": -0.11,
+  "notes": "Sequential: load_B once, then tile_loop x128 of load_tile (A and C fused, shown under load_A) + compute_tile + store_tile. Compute floor from dsp/5 (655K) is conservative because fadd level 1 is bound to fabric (BIND_OP fabric), so compute is below that floor."
+ },
+ {
+  "tag": "ctl_cc_refv2_r2",
+  "worst_cycles": 852341,
+  "dsp": 8326,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 65686,
+   "load_B": 65538,
+   "load_C": 0,
+   "compute": 655414,
+   "store_C": 65690,
+   "other": 13
+  },
+  "phase_pct": {
+   "load_A": 7.71,
+   "load_B": 7.69,
+   "load_C": 0.0,
+   "compute": 76.9,
+   "store_C": 7.71,
+   "other": 0.0
+  },
+  "compute_floor": 644813,
+  "mac_per_cycle_actual": 1638.27,
+  "bottleneck": "compute: 2 row blocks x 327,707 = 655K (76.9%) at 1638 MAC/cycle; B preload (65.6K beats, counted in both blocks in worst case) 65.5K (7.7%), A/C load 65.7K (7.7%), store 65.7K (7.7%) serial",
+  "why_more_dsp_does_not_help": "23% of latency is serial load/store phases between 327K-cycle compute blocks; compute already near its MAC floor (padded 1040 cols), more DSP shrinks only compute",
+  "check_sum": 852328,
+  "check_err_pct": -0.0,
+  "notes": "Sequential row_block x2: load_phase (nested DATAFLOW of load_A || load_B || load_C, max 65,612 when B is loaded, 32,843 when nb=0) -> compute -> store_C. Worst-case 852,341 counts the B load in both blocks; B only loads in ib=0 so true run is ~819.6K (min reported 786,803 + 32.8K). load_A shows A/C-limited load stage (32,843 per block); load_B shows the extra time that B (65,536 beats) adds over it."
+ },
+ {
+  "tag": "ctl_cc_refv2_r3",
+  "worst_cycles": 689648,
+  "dsp": 8323,
+  "overlapped": true,
+  "dataflow_stages": [
+   {
+    "name": "load_A",
+    "cycles": 533712
+   },
+   {
+    "name": "load_B",
+    "cycles": 263328
+   },
+   {
+    "name": "load_C",
+    "cycles": 134352
+   },
+   {
+    "name": "compute_tile",
+    "cycles": 656272
+   },
+   {
+    "name": "store_C",
+    "cycles": 66848
+   }
+  ],
+  "phases": {
+   "load_A": 533712,
+   "load_B": 263328,
+   "load_C": 134352,
+   "compute": 656272,
+   "store_C": 66848,
+   "other": 0
+  },
+  "phase_pct": {
+   "load_A": 77.39,
+   "load_B": 38.18,
+   "load_C": 19.48,
+   "compute": 95.16,
+   "store_C": 9.69,
+   "other": 0.0
+  },
+  "compute_floor": 645045,
+  "mac_per_cycle_actual": 1636.12,
+  "bottleneck": "compute_tile stage: 16 tiles x 41,017 = 656K (95%), steady-state dataflow interval 41,018; plus 33.4K pipeline fill (first load_A) = 689.6K",
+  "why_more_dsp_does_not_help": "compute is the dataflow bottleneck at ~1636 MAC/cycle (1664 peak, TI padded 260 vs 256); loads/stores are hidden, so latency now scales with DSP count until load_A (33.4K/tile) becomes the limiter",
+  "check_sum": 689648,
+  "check_err_pct": 0.0,
+  "notes": "DATAFLOW inside tile_loop (5 processes, double-buffered): total = first-iteration latency 74,378 + 15 x interval 41,018 = 689,648 (exact). Stage totals are x16 of per-tile latency (load_A 33,357, load_B 16,458, load_C 8,397, compute 41,017, store 4,178). Phases are stage totals and overlap (sum > worst). Fill = 74,378-41,018 = 33,360."
+ },
+ {
+  "tag": "ctl_cc_skills_r1",
+  "worst_cycles": 18996696,
+  "dsp": 320,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 1048624,
+   "load_B": 0,
+   "load_C": 0,
+   "compute": 16852992,
+   "store_C": 1048640,
+   "other": 46440
+  },
+  "phase_pct": {
+   "load_A": 5.52,
+   "load_B": 0.0,
+   "load_C": 0.0,
+   "compute": 88.72,
+   "store_C": 5.52,
+   "other": 0.24
+  },
+  "compute_floor": 16777216,
+  "mac_per_cycle_actual": 63.71,
+  "bottleneck": "compute: 1,024 B-tiles x 16,458 = 16.85M cycles (88.7%) at 63.7 MAC/cycle (64 MAC lanes, 320 DSP); B prefetch for the next tile is fused into the compute loop and hidden",
+  "why_more_dsp_does_not_help": "compute-bound at the 64-MAC/cycle DSP floor (16.78M); only 11% is A/C load + store (1.05M each, not overlapped), so more MAC lanes would cut latency almost proportionally",
+  "check_sum": 18987120,
+  "check_err_pct": -0.05,
+  "notes": "Sequential blk_i x16: load_A || load_C || load_B0 (independent, run in parallel; 65,539 each, load_C and B0 hidden), then 64 x tile_j (init_acc 18 + compute_and_prefetch 16,458 + writeback 18 + 7 = 16,501), then store_C 65,540. compute_and_prefetch re-reads B (16 rows x 1024) word-wise each tile concurrently with MACs (B read 16x total). other = init_acc/writeback + loop overhead.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_C": 1048624,
+   "load_B0": 263328
+  }
+ },
+ {
+  "tag": "ctl_cc_skills_r2",
+  "worst_cycles": 35701585,
+  "dsp": 320,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 1049760,
+   "load_B": 16815104,
+   "load_C": 0,
+   "compute": 16784896,
+   "store_C": 1049712,
+   "other": 2113
+  },
+  "phase_pct": {
+   "load_A": 2.94,
+   "load_B": 47.1,
+   "load_C": 0.0,
+   "compute": 47.01,
+   "store_C": 2.94,
+   "other": 0.01
+  },
+  "compute_floor": 16777216,
+  "mac_per_cycle_actual": 63.97,
+  "bottleneck": "compute 16.79M (47.0%) and load B 16.82M (47.1%) tie: B tile (32 rows) is reloaded word-by-word at 1 word/cycle for each of 512 (ib,jb) blocks, serial with compute; A/C load + store 7.4%",
+  "why_more_dsp_does_not_help": "only 64 MAC lanes (320 DSP) and 47% of latency is the non-overlapped B tile load (32,842 vs 32,783 compute per block) which does not shrink with DSPs",
+  "check_sum": 35699472,
+  "check_err_pct": -0.01,
+  "notes": "Sequential block_i x16 x block_j x32: per (ib,jb) iter 65,629 = load_B 32,842 + compute 32,783 + 4; per ib: load_A || load_C (65,610, parallel; C hidden) + 32 x 65,629 + store_C 65,607 (+4). B is re-read 16x.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_C": 1049760
+  }
+ },
+ {
+  "tag": "ctl_cc_skills_r3",
+  "worst_cycles": 105550696,
+  "dsp": 80,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 1048672,
+   "load_B": 33652736,
+   "load_C": 0,
+   "compute": 68485120,
+   "store_C": 1048704,
+   "other": 1315464
+  },
+  "phase_pct": {
+   "load_A": 0.99,
+   "load_B": 31.88,
+   "load_C": 0.0,
+   "compute": 64.88,
+   "store_C": 0.99,
+   "other": 1.25
+  },
+  "compute_floor": 67108864,
+  "mac_per_cycle_actual": 15.68,
+  "bottleneck": "compute 68.5M (64.9%): dot-product loop at II=1 but only 16 MACs/cycle (80 DSP); B row reload 33.7M (31.9%) per column j x 32 tiles, serial before each compute_dot",
+  "why_more_dsp_does_not_help": "only 16 MAC lanes (80 DSP): compute scales with DSP, but B row reload (1,027/j, 32x re-read) is a serial 32% that does not shrink",
+  "check_sum": 105349344,
+  "check_err_pct": -0.19,
+  "notes": "Sequential row_tile x32: load_A || load_C (32,771, C hidden), col_loop x1024 (iter 3,157 = load_b_row 1,027 || init_acc 34 (hidden) + compute_dot 2,090 + writeback 34 + 6), store_C 32,772. other = writeback_acc (34/j) + loop overhead.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_C": 1048672,
+   "init_acc": 1114112
+  }
+ },
+ {
+  "tag": "ctl_cc_win7080_r1",
+  "worst_cycles": 1063897,
+  "dsp": 6912,
+  "overlapped": true,
+  "dataflow_stages": [
+   {
+    "name": "load_A",
+    "cycles": 1063897
+   },
+   {
+    "name": "load_B",
+    "cycles": 786506
+   },
+   {
+    "name": "reorder_B",
+    "cycles": 790533
+   },
+   {
+    "name": "compute_mm",
+    "cycles": 791984
+   },
+   {
+    "name": "store_C",
+    "cycles": 175874
+   }
+  ],
+  "phases": {
+   "load_A": 1063897,
+   "load_B": 786506,
+   "load_C": 0,
+   "compute": 791984,
+   "store_C": 175874,
+   "other": 790533
+  },
+  "phase_pct": {
+   "load_A": 100.0,
+   "load_B": 73.93,
+   "load_C": 0.0,
+   "compute": 74.44,
+   "store_C": 16.53,
+   "other": 74.31
+  },
+  "compute_floor": 776723,
+  "mac_per_cycle_actual": 1355.76,
+  "bottleneck": "load_A stage 1.064M (100% of latency): the A-row beat loop achieves II=16 (16 word-wise m_axi reads per 512-bit beat) so 66K beats take ~1.05M cycles, slower than compute_mm (792K) and B streams (787K)",
+  "why_more_dsp_does_not_help": "DATAFLOW is limited by load_A at II=16, not by MACs: compute_mm is already at 1355 of 1376 MAC/cycle; extra DSP cannot lower latency below the load_A stage",
+  "check_sum": 1063897,
+  "check_err_pct": 0.0,
+  "notes": "DATAFLOW of load_A, load_B, reorder_B, compute_mm, store_C (streams depth 64/128). Top latency = slowest stage. load_A reported 959,449-1,063,897 (LOOP_TRIPCOUNT 78-86 rows per block, worst assumes 86 rows in all 12 blocks incl. the 78-row tail; actual ~1.05M). store_C reported 13,634-175,874 (variable-trip loops; worst shown). Phases are stage totals and overlap; other column = reorder_B stage. B is streamed 12x (once per A row-block)."
+ },
+ {
+  "tag": "ctl_cc_win7080_r2",
+  "worst_cycles": 871147,
+  "dsp": 6754,
+  "overlapped": true,
+  "dataflow_stages": [
+   {
+    "name": "load_A",
+    "cycles": 148177
+   },
+   {
+    "name": "compute",
+    "cycles": 871142
+   },
+   {
+    "name": "store_C",
+    "cycles": 297382
+   }
+  ],
+  "phases": {
+   "load_A": 1344,
+   "load_B": 65537,
+   "load_C": 0,
+   "compute": 802828,
+   "store_C": 1345,
+   "other": 0
+  },
+  "phase_pct": {
+   "load_A": 0.15,
+   "load_B": 7.52,
+   "load_C": 0.0,
+   "compute": 92.16,
+   "store_C": 0.15,
+   "other": 0.0
+  },
+  "compute_floor": 794893,
+  "mac_per_cycle_actual": 1337.45,
+  "bottleneck": "compute stage 871K (100%): MAC loop 803K (92.2%) at 1337 MAC/cycle + serial B preload 65.5K (7.5%); load_A and store_C stages are hidden behind it",
+  "why_more_dsp_does_not_help": "MAC loop is within 1% of its floor (1344 MACs/cycle); the 7.5% B preload is serial inside the compute stage and does not shrink with DSPs",
+  "check_sum": 871142,
+  "check_err_pct": -0.0,
+  "notes": "DATAFLOW load_A -> compute -> store_C. Compute stage = load_B_row 65,537 + recv_A0 1,344 + compute_tile (38 tiles x 21,128; A(t+1) receive and C(t-1) drain overlapped in the MAC loop) 802,828 + drain_last 1,345. load_A (74,089-148,177) and store_C (74,089-297,382, variable guarded rows; worst shown) run concurrently. Phases for load_A/store_C show only the serial prologue/epilogue pieces on the critical path; stage totals in dataflow_stages.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_A_stage_worst": 148177,
+   "store_C_stage_worst": 297382
+  }
+ },
+ {
+  "tag": "ctl_cc_win7080_r3",
+  "worst_cycles": 868795,
+  "dsp": 6752,
+  "overlapped": true,
+  "dataflow_stages": [
+   {
+    "name": "load_B_task",
+    "cycles": 65610
+   },
+   {
+    "name": "load_A_task",
+    "cycles": 102401
+   },
+   {
+    "name": "compute_task",
+    "cycles": 868722
+   },
+   {
+    "name": "store_C_task",
+    "cycles": 185089
+   }
+  ],
+  "phases": {
+   "load_A": 0,
+   "load_B": 65857,
+   "load_C": 0,
+   "compute": 802857,
+   "store_C": 0,
+   "other": 0
+  },
+  "phase_pct": {
+   "load_A": 0.0,
+   "load_B": 7.58,
+   "load_C": 0.0,
+   "compute": 92.41,
+   "store_C": 0.0,
+   "other": 0.0
+  },
+  "compute_floor": 795129,
+  "mac_per_cycle_actual": 1337.4,
+  "bottleneck": "compute_task stage 869K (100%): mac_main 803K (92.4%) at 1337 MAC/cycle + serial resident-B fill 65.9K (7.6%); loaders/store stages hidden",
+  "why_more_dsp_does_not_help": "MAC loop is near its floor (1344/cycle); the B fill (65,857 cycles incl. zero padding rows) is serial before the MACs and does not shrink with DSPs",
+  "check_sum": 868722,
+  "check_err_pct": -0.01,
+  "notes": "DATAFLOW load_B_task, load_A_task, compute_task, store_C_task. compute_task = fill_B_loc 65,857 (reads B stream; B load stage 65,610 hidden behind it) + mac_main 802,857 (A reads/C emission streamed in the loop). load_A_task 102,401 and store_C_task 185,089 stages are hidden.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_A_task": 102401,
+   "store_C_task": 185089,
+   "load_B_task": 65610
+  }
+ },
+ {
+  "tag": "ctl_cc_zs_r1",
+  "worst_cycles": 69257160,
+  "dsp": 160,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 1048672,
+   "load_B": 33555968,
+   "load_C": 0,
+   "compute": 33562112,
+   "store_C": 1084928,
+   "other": 5480
+  },
+  "phase_pct": {
+   "load_A": 1.51,
+   "load_B": 48.45,
+   "load_C": 0.0,
+   "compute": 48.46,
+   "store_C": 1.57,
+   "other": 0.01
+  },
+  "compute_floor": 33554432,
+  "mac_per_cycle_actual": 31.99,
+  "bottleneck": "compute 33.6M (48.5%) and load B 33.6M (48.5%) tie: a 32-row x 1024 B tile is reloaded word-wise (65,539 cycles) before every compute (65,551 cycles), 512 times; B is re-read 32x",
+  "why_more_dsp_does_not_help": "only 32 MAC/cycle (160 DSP) and 48% of latency is the serial B tile load, which does not shrink with DSPs",
+  "check_sum": 69251680,
+  "check_err_pct": -0.01,
+  "notes": "Sequential ILOOP x32 x JLOOP x16: LOAD_B 65,539 + COMP 65,551 + STORE 2,119 (+6) = 133,215; LOAD_C (2,122) runs in parallel with LOAD_B and is hidden. load_A 32,771 once per ILOOP.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_C": 1086464
+  }
+ },
+ {
+  "tag": "ctl_cc_zs_r2",
+  "worst_cycles": 144380744,
+  "dsp": 80,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 1048768,
+   "load_B": 67305472,
+   "load_C": 0,
+   "compute": 69926912,
+   "store_C": 5701632,
+   "other": 397960
+  },
+  "phase_pct": {
+   "load_A": 0.73,
+   "load_B": 46.62,
+   "load_C": 0.0,
+   "compute": 48.43,
+   "store_C": 3.95,
+   "other": 0.28
+  },
+  "compute_floor": 67108864,
+  "mac_per_cycle_actual": 15.36,
+  "bottleneck": "compute 69.9M (48.4%) and load B 67.3M (46.6%): one B row (1,027 cycles) is reloaded for each of 65,536 (iblk, j) steps and serialised with a 1,067-cycle 16-MAC/cycle dot loop; B re-read 64x",
+  "why_more_dsp_does_not_help": "only 16 MAC/cycle (80 DSP); 47% of latency is the serial B row reload and 4% the column-strided C store, neither shrinks with DSPs",
+  "check_sum": 143982784,
+  "check_err_pct": -0.28,
+  "notes": "Sequential I_BLK x64 x J_LOOP x1024: LOAD_B 1,027 || INIT_ACC 90 (C column read, hidden), COMPUTE 1,067, STORE_C 87 (+6) = 2,187. TI=16 rows. load_A 16,387 per I_BLK.",
+  "hidden_cycles_not_on_critical_path": {
+   "init_acc_load_C": 5898240
+  }
+ },
+ {
+  "tag": "ctl_cc_zs_r3",
+  "worst_cycles": 35751176,
+  "dsp": 320,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 16780288,
+   "load_B": 1048624,
+   "load_C": 0,
+   "compute": 16792576,
+   "store_C": 1122304,
+   "other": 7384
+  },
+  "phase_pct": {
+   "load_A": 46.94,
+   "load_B": 2.93,
+   "load_C": 0.0,
+   "compute": 46.97,
+   "store_C": 3.14,
+   "other": 0.02
+  },
+  "compute_floor": 16777216,
+  "mac_per_cycle_actual": 63.94,
+  "bottleneck": "compute 16.79M (47.0%) and load A 16.78M (47.0%) tie: A tile (16 rows) reloaded word-wise before each of 1,024 compute blocks (A re-read 16x), serial with compute",
+  "why_more_dsp_does_not_help": "only 64 MAC/cycle (320 DSP) and 47% of latency is the serial A tile reload that does not shrink with DSPs",
+  "check_sum": 35743792,
+  "check_err_pct": -0.02,
+  "notes": "Sequential JT_LOOP x16 x IT_LOOP x64: LOAD_A 16,387 || LOAD_C 1,098 (hidden), COMP 16,399, STORE 1,096 (+6) = 33,888; load_B 65,539 once per JT.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_C": 1124352
+  }
+ },
+ {
+  "tag": "ctl_ds_noskills_r1",
+  "worst_cycles": 537939784,
+  "dsp": 6,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 0,
+   "load_B": 1048960,
+   "load_C": 0,
+   "compute": 536881280,
+   "store_C": 0,
+   "other": 9544
+  },
+  "phase_pct": {
+   "load_A": 0.0,
+   "load_B": 0.19,
+   "load_C": 0.0,
+   "compute": 99.8,
+   "store_C": 0.0,
+   "other": 0.0
+  },
+  "compute_floor": 894784853,
+  "mac_per_cycle_actual": 2.0,
+  "bottleneck": "compute: the A-row x B-tile MAC loop (i_loop_k_loop, 1,048,576 iterations per j-block x128 blocks) runs at II=4 (4.19M cycles per block, 99.8% of latency) at only 2.0 MAC/cycle; A is re-read word-wise 128x from DRAM inside it",
+  "why_more_dsp_does_not_help": "6 DSP and the loop achieved II=4 (not 1) from the fadd accumulator recurrence acc[jj] += a*B_tile[jj][k]; B load is 0.2%; fixing II is needed before more DSP helps",
+  "check_sum": 537930240,
+  "check_err_pct": -0.0,
+  "notes": "Sequential jblock_loop x128 (TJ=8): load_B_outer 8,195 + i_loop_k_loop 4,194,385 (+74). A is streamed from DRAM inside the compute loop (no on-chip A buffer, included in compute). C is only written (acc starts at 0): initial C is NOT read, so the kernel overwrites C rather than C += (functional deviation). Store/init are unrolled inside the i loop."
+ },
+ {
+  "tag": "ctl_ds_noskills_r2",
+  "worst_cycles": 71296001,
+  "dsp": 160,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 35979264,
+   "load_B": 0,
+   "load_C": 0,
+   "compute": 34045952,
+   "store_C": 1121280,
+   "other": 149505
+  },
+  "phase_pct": {
+   "load_A": 50.46,
+   "load_B": 0.0,
+   "load_C": 0.0,
+   "compute": 47.75,
+   "store_C": 1.57,
+   "other": 0.21
+  },
+  "compute_floor": 33554432,
+  "mac_per_cycle_actual": 31.54,
+  "bottleneck": "load A+B staging 36.0M (50.5%) vs compute 34.0M (47.8%): each 32x32 output tile re-stages 32x32 A and B blocks (1,098 cycles) before a 1,039-cycle compute, 32768 times; not overlapped",
+  "why_more_dsp_does_not_help": "only 32 MAC/cycle (160 DSP) and 50% of latency is the serial A/B block staging (re-read every k-chunk, no reuse across tiles), which does not shrink with DSPs",
+  "check_sum": 71146496,
+  "check_err_pct": -0.21,
+  "notes": "Sequential tile_i_tile_j x1024 x tile_k x32: load_t/load_k loads A_tile and B_tile in the same loop (two ports, both 1 word/cycle; counted once under load_A, B equal and parallel) 1,098 + comp 1,039 (+4) = 2,141; store_C 1,095 per tile. C is not read (acc zeroed): kernel overwrites C rather than C += (functional deviation). other = loop overhead.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_B_parallel_with_load_A": 35979264
+  }
+ },
+ {
+  "tag": "ctl_ds_noskills_r3",
+  "worst_cycles": 213142785,
+  "dsp": 18,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 0,
+   "load_B": 8994816,
+   "load_C": 0,
+   "compute": 201998336,
+   "store_C": 1066752,
+   "other": 1082881
+  },
+  "phase_pct": {
+   "load_A": 0.0,
+   "load_B": 4.22,
+   "load_C": 0.0,
+   "compute": 94.77,
+   "store_C": 0.5,
+   "other": 0.51
+  },
+  "compute_floor": 298261618,
+  "mac_per_cycle_actual": 5.32,
+  "bottleneck": "compute: mac_ik loop achieves II=6 (24,658 cycles per 4,096-iteration tile-chunk x 8,192 chunks = 202M, 94.8%) at 5.3 MAC/cycle; A streamed word-wise from DRAM inside it",
+  "why_more_dsp_does_not_help": "only 18 DSP and the loop achieved II=6 (not 1; C_local read-modify-write/acc dependence) so 32 MACs take 6 cycles; B staging is 4.2%, store 0.5%",
+  "check_sum": 213108992,
+  "check_err_pct": -0.02,
+  "notes": "Sequential tile_ii x tile_jj (256 tiles) x red_kk x32: load_b 1,098 + mac_ik 24,658 (+4) = 25,760; init_c 4,098 and store_c 4,167 per tile (init counted under other). A is read from DRAM inside the MAC loop (included in compute). C is not read (zero-init): kernel overwrites C rather than C += (functional deviation)."
+ },
+ {
+  "tag": "ctl_ds_refnf_r1",
+  "worst_cycles": 4610317,
+  "dsp": 768,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 131168,
+   "load_B": 131075,
+   "load_C": 0,
+   "compute": 4205568,
+   "store_C": 138240,
+   "other": 4266
+  },
+  "phase_pct": {
+   "load_A": 2.85,
+   "load_B": 2.84,
+   "load_C": 0.0,
+   "compute": 91.22,
+   "store_C": 3.0,
+   "other": 0.09
+  },
+  "compute_floor": 6990507,
+  "mac_per_cycle_actual": 255.31,
+  "bottleneck": "compute: mac_k loop runs at II=4 (4,107 cycles per 32x32 tile, 1,024 tiles = 4.21M, 91.2%) = 255 MAC/cycle instead of 1024; load B 131K (2.8%) + load A 131K (2.8%) + store 138K (3.0%)",
+  "why_more_dsp_does_not_help": "compute loop is II=4 (acc[ii][jj] += recurrence on the fp32 accumulate, no k-interleaving), not DSP-limited: 768 DSP serve 256 MAC/cycle; raising DSP without fixing II does nothing, and load/store are only ~9%",
+  "check_sum": 4606051,
+  "check_err_pct": -0.09,
+  "notes": "C is only written (acc zero-initialised, initial C never read), so the kernel computes C = A*B^T rather than C += (functional deviation). Sequential: load_B once (131,075, loop II=2), tile_i x32: load_A 4,099 + tile_j x32 (mac_k 4,107 + store 135 + 4 = 4,246). compute_floor from dsp/5 is conservative here (fadd not in DSPs; ~3 DSP/MAC lane)."
+ },
+ {
+  "tag": "ctl_ds_refnf_r2",
+  "worst_cycles": 5261992,
+  "dsp": 864,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 527360,
+   "load_B": 65560,
+   "load_C": 0,
+   "compute": 4239360,
+   "store_C": 409600,
+   "other": 20112
+  },
+  "phase_pct": {
+   "load_A": 10.02,
+   "load_B": 1.25,
+   "load_C": 0.0,
+   "compute": 80.57,
+   "store_C": 7.78,
+   "other": 0.38
+  },
+  "compute_floor": 6213784,
+  "mac_per_cycle_actual": 253.28,
+  "bottleneck": "compute: red_k runs at II=4 (1,035 cycles per 8x32 sub-tile, 4,096 sub-tiles = 4.24M, 80.6%) = 253 MAC/cycle; load A 527K (10.0%) and store C 410K (7.8%) are serial",
+  "why_more_dsp_does_not_help": "red_k achieves II=4 (k-step-4 with 4 accumulator banks still hits fadd recurrence), so 864 DSP deliver ~253 MAC/cycle; serial A load (A re-read 8x) and per-sub-tile store are ~18% and do not shrink with DSP",
+  "check_sum": 5241880,
+  "check_err_pct": -0.38,
+  "notes": "C is only written (acc zero-initialised, initial C never read), so the kernel computes C = A*B^T rather than C += (functional deviation). Sequential loop_jc x8: load_B 8,195 (once per panel, 128 rows), loop_ic x128: load_A 515 + loop_js x4 (red_k 1,035 + store_C 100 + 4) = 5,074."
+ },
+ {
+  "tag": "ctl_ds_refnf_r3",
+  "worst_cycles": 6518216,
+  "dsp": 768,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 65632,
+   "load_B": 2100224,
+   "load_C": 0,
+   "compute": 4205568,
+   "store_C": 138240,
+   "other": 8552
+  },
+  "phase_pct": {
+   "load_A": 1.01,
+   "load_B": 32.22,
+   "load_C": 0.0,
+   "compute": 64.52,
+   "store_C": 2.12,
+   "other": 0.13
+  },
+  "compute_floor": 6990507,
+  "mac_per_cycle_actual": 255.31,
+  "bottleneck": "compute: compute_k loop at II=4 (4,107 per 32x32 tile x1024 = 4.21M, 64.5%) = 255 MAC/cycle; B tile reload 2.10M (32.2%) serial before each tile",
+  "why_more_dsp_does_not_help": "compute_k is II=4 from the fp32 accumulate recurrence (768 DSP give ~255 MAC/cycle) and 32% of latency is the serial B tile reload (B read 32x) that does not shrink with DSP",
+  "check_sum": 6509664,
+  "check_err_pct": -0.13,
+  "notes": "C is only written (acc zero-initialised, initial C never read), so the kernel computes C = A*B^T rather than C += (functional deviation). Sequential tile_i x32: load_A 2,051 + tile_j x32: load_B 2,051 + compute_k 4,107 + store_C 135 (+6) = 6,299."
+ },
+ {
+  "tag": "ctl_ds_skills_r1",
+  "worst_cycles": 147166209,
+  "dsp": 40,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 9601024,
+   "load_B": 0,
+   "load_C": 1124352,
+   "compute": 135249920,
+   "store_C": 1121280,
+   "other": 69633
+  },
+  "phase_pct": {
+   "load_A": 6.52,
+   "load_B": 0.0,
+   "load_C": 0.76,
+   "compute": 91.9,
+   "store_C": 0.76,
+   "other": 0.05
+  },
+  "compute_floor": 134217728,
+  "mac_per_cycle_actual": 7.94,
+  "bottleneck": "compute: 16,384 k-panel chunks x 8,255 cycles = 135.2M (91.9%) at 7.94 MAC/cycle (8-wide k unroll, 40 DSP); panel loads 9.6M (6.5%)",
+  "why_more_dsp_does_not_help": "compute-bound at the 8 MAC/cycle DSP floor (134.2M); loads/store are only 8%, so latency scales almost 1/DSP until load/store dominates",
+  "check_sum": 147096576,
+  "check_err_pct": -0.05,
+  "notes": "Sequential tile_i_tile_j x1024: init_c (C tile read) 1,098, panel_k x16 (load_a 586 || load_b 586 in parallel (B hidden), chunk_k_compute_ij 8,255, +4 = 8,845), store_c 1,095.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_B": 9601024
+  }
+ },
+ {
+  "tag": "ctl_ds_skills_r2",
+  "worst_cycles": 157784321,
+  "dsp": 40,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 19234816,
+   "load_B": 0,
+   "load_C": 1067776,
+   "compute": 136282112,
+   "store_C": 1067264,
+   "other": 132353
+  },
+  "phase_pct": {
+   "load_A": 12.19,
+   "load_B": 0.0,
+   "load_C": 0.68,
+   "compute": 86.37,
+   "store_C": 0.68,
+   "other": 0.08
+  },
+  "compute_floor": 134217728,
+  "mac_per_cycle_actual": 7.88,
+  "bottleneck": "compute: 32,768 panels x 4,159 = 136.3M (86.4%) at 7.9 MAC/cycle (k unrolled 8, 40 DSP); A/B panel load (TK=8 deep, 587/panel) 19.2M (12.2%)",
+  "why_more_dsp_does_not_help": "compute-bound at the 8 MAC/cycle DSP floor; A/B panel loads (12%) are serial and do not shrink with more DSP",
+  "check_sum": 157651968,
+  "check_err_pct": -0.08,
+  "notes": "Sequential block_i_block_j x256 (64x64 tiles): load_C 4,171, block_k x128 (load_AB fused A and B 587 + compute_ij 4,159 + 4 = 4,750), store_C 4,169. A and B loaded in one loop (two ports), counted under load_A.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_B_parallel_with_load_A": 19234816
+  }
+ },
+ {
+  "tag": "ctl_ds_skills_r3",
+  "worst_cycles": 72408065,
+  "dsp": 160,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 35979264,
+   "load_B": 0,
+   "load_C": 1124352,
+   "compute": 34045952,
+   "store_C": 1122304,
+   "other": 136193
+  },
+  "phase_pct": {
+   "load_A": 49.69,
+   "load_B": 0.0,
+   "load_C": 1.55,
+   "compute": 47.02,
+   "store_C": 1.55,
+   "other": 0.19
+  },
+  "compute_floor": 33554432,
+  "mac_per_cycle_actual": 31.54,
+  "bottleneck": "A/B panel load 36.0M (49.7%) vs compute 34.0M (47.0%): 32x32 A and B panels re-staged (1,098) before every 1,039-cycle compute chunk, serial",
+  "why_more_dsp_does_not_help": "only 32 MAC/cycle (160 DSP); half the latency is the serial A/B panel staging with no cross-tile reuse, which does not shrink with DSPs",
+  "check_sum": 72271872,
+  "check_err_pct": -0.19,
+  "notes": "Sequential tile_rows_tile_cols x1024: load_C 1,098, tile_k x32 (load_A 1,098 || load_B 1,098 in parallel (B hidden), compute 1,039, +4 = 2,141), store_C 1,096.",
+  "hidden_cycles_not_on_critical_path": {
+   "load_B": 35979264
+  }
+ },
+ {
+  "tag": "ctl_ds_zs_r1",
+  "worst_cycles": 4346994689,
+  "dsp": 3,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 23592960,
+   "load_B": 23592960,
+   "load_C": 0,
+   "compute": 4296540160,
+   "store_C": 356352,
+   "other": 2912257
+  },
+  "phase_pct": {
+   "load_A": 0.54,
+   "load_B": 0.54,
+   "load_C": 0.0,
+   "compute": 98.84,
+   "store_C": 0.01,
+   "other": 0.07
+  },
+  "compute_floor": 1789569707,
+  "mac_per_cycle_actual": 0.25,
+  "bottleneck": "compute: the 16x16 tile MAC loop achieves II=64 (16,390 cycles per k-panel x 262,144 panels = 4.30G, 98.8%) = 0.25 MAC/cycle",
+  "why_more_dsp_does_not_help": "only 3 DSP and the (i,j) loop II=64: the 16-way unrolled acc += a*b is a serial fp32 add chain (16 x ~4 cycles), so MAC rate is 0.25/cycle; more DSP cannot help until the reduction is restructured (tree or interleaved accumulators)",
+  "check_sum": 4345139200,
+  "check_err_pct": -0.04,
+  "notes": "Sequential: 4096 output tiles (16x16) x 64 k-panels: loop A load 90 + loop B load 90 + compute 16,390 (+7) = 16,577; per tile: zero-init 258 (other) and C store 87. Loops are unlabeled (Vitis names VITIS_LOOP_*). Acc is zero-initialised, initial C is not read: C is overwritten, not C += (functional deviation)."
+ },
+ {
+  "tag": "ctl_ds_zs_r2",
+  "worst_cycles": 79370753,
+  "dsp": 80,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 3473408,
+   "load_B": 4521984,
+   "load_C": 0,
+   "compute": 71008256,
+   "store_C": 101888,
+   "other": 265217
+  },
+  "phase_pct": {
+   "load_A": 4.38,
+   "load_B": 5.7,
+   "load_C": 0.0,
+   "compute": 89.46,
+   "store_C": 0.13,
+   "other": 0.33
+  },
+  "compute_floor": 67108864,
+  "mac_per_cycle_actual": 15.12,
+  "bottleneck": "compute: 32,768 k-panels x 2,167 cycles = 71.0M (89.5%) at 15.1 MAC/cycle (16-wide k unroll, 80 DSP); A and B panel loads (106 + 138 per panel) 8.0M (10.1%)",
+  "why_more_dsp_does_not_help": "compute-bound at 16 MAC/cycle (80 DSP); 10% serial panel loads do not shrink with DSPs",
+  "check_sum": 79172096,
+  "check_err_pct": -0.25,
+  "notes": "Sequential: 512 output tiles (32x64) x 64 k-panels: load A 106 + load B 138 + compute 2,167 (+6) = 2,417; per tile zero-init 130 (other) and store 199. Acc zero-initialised, initial C not read: C overwritten, not C += (functional deviation)."
+ },
+ {
+  "tag": "ctl_ds_zs_r3",
+  "worst_cycles": 4346306561,
+  "dsp": 3,
+  "overlapped": false,
+  "dataflow_stages": null,
+  "phases": {
+   "load_A": 23592960,
+   "load_B": 23592960,
+   "load_C": 368640,
+   "compute": 4296802304,
+   "store_C": 356352,
+   "other": 1593345
+  },
+  "phase_pct": {
+   "load_A": 0.54,
+   "load_B": 0.54,
+   "load_C": 0.01,
+   "compute": 98.86,
+   "store_C": 0.01,
+   "other": 0.04
+  },
+  "compute_floor": 1789569707,
+  "mac_per_cycle_actual": 0.25,
+  "bottleneck": "compute: the 16x16 tile MAC loop achieves II=64 (16,391 cycles per k-panel x 262,144 panels = 4.30G, 98.9%) = 0.25 MAC/cycle",
+  "why_more_dsp_does_not_help": "only 3 DSP and II=64: the unrolled 16-term acc += a*b is a serial fp32 add chain; DSP count cannot help until the reduction chain is broken",
+  "check_sum": 4344713216,
+  "check_err_pct": -0.04,
+  "notes": "Sequential: 4096 output tiles x 64 k-panels: load A 90 + load B 90 + compute 16,391 (+6) = 16,577; per tile C load 90 and C store 87 (C += semantics preserved)."
+ },
+ {
+  "tag": "agent_L1",
+  "worst_cycles": 2114147,
+  "dsp": 2592,
+  "overlapped": true,
+  "dataflow_stages": [
+   {
+    "name": "read_A",
+    "cycles": 534529
+   },
+   {
+    "name": "read_B",
+    "cycles": 65610
+   },
+   {
+    "name": "compute",
+    "cycles": 2114074
+   },
+   {
+    "name": "store_C",
+    "cycles": 151041
+   }
+  ],
+  "phases": {
+   "load_A": 0,
+   "load_B": 16384,
+   "load_C": 0,
+   "compute": 2097164,
+   "store_C": 513,
+   "other": 0
+  },
+  "phase_pct": {
+   "load_A": 0.0,
+   "load_B": 0.77,
+   "load_C": 0.0,
+   "compute": 99.2,
+   "store_C": 0.02,
+   "other": 0.0
+  },
+  "compute_floor": 2071261,
+  "mac_per_cycle_actual": 512.0,
+  "bottleneck": "compute stage 2.114M (100%): c_main MAC loop 2.097M (99.2%) at 512 MAC/cycle (2592 DSP) is compute-bound; read_A (535K), read_B (66K), store_C (151K) are hidden by DATAFLOW",
+  "why_more_dsp_does_not_help": "compute-bound at 512 MAC/cycle = 2592 DSP / 5 (floor 2.07M); more DSP would cut latency until the A reader (535K) and C-store stages dominate",
+  "check_sum": 2114074,
+  "check_err_pct": -0.0,
+  "notes": "DATAFLOW read_A, read_B, compute, store_C (store_C does the C read-modify-write: s_loadC then s_storeC adds streamed results). Compute stage = c_loadB0 16,384 (first B strip prologue) + c_main 2,097,164 (II=1; next B strip prefetched in loop, A and drain streamed in loop) + c_final_drain 513. Top = compute stage + 73."
+ },
+ {
+  "tag": "agent_L2",
+  "worst_cycles": 1066083,
+  "dsp": 5152,
+  "overlapped": true,
+  "dataflow_stages": [
+   {
+    "name": "read_A",
+    "cycles": 398337
+   },
+   {
+    "name": "read_B",
+    "cycles": 65610
+   },
+   {
+    "name": "compute",
+    "cycles": 1066010
+   },
+   {
+    "name": "store_C",
+    "cycles": 141057
+   }
+  ],
+  "phases": {
+   "load_A": 0,
+   "load_B": 16384,
+   "load_C": 0,
+   "compute": 1048588,
+   "store_C": 1025,
+   "other": 0
+  },
+  "phase_pct": {
+   "load_A": 0.0,
+   "load_B": 1.54,
+   "load_C": 0.0,
+   "compute": 98.36,
+   "store_C": 0.1,
+   "other": 0.0
+  },
+  "compute_floor": 1042063,
+  "mac_per_cycle_actual": 1023.99,
+  "bottleneck": "compute stage 1.066M (100%): c_main MAC loop 1.049M (98.4%) at 1024 MAC/cycle (5152 DSP); read_A (398K), read_B (66K), store_C (141K) hidden by DATAFLOW",
+  "why_more_dsp_does_not_help": "compute-bound at 1024 MAC/cycle = 5152 DSP / 5 (floor 1.042M); more DSP helps until read_A (398K) becomes the limiter",
+  "check_sum": 1066010,
+  "check_err_pct": -0.01,
+  "notes": "DATAFLOW read_A, read_B, compute, store_C (store_C does the C read-modify-write). Compute stage = c_loadB0 16,384 (first B strip prologue) + c_main (II=1, next B strip prefetched, A and results streamed in-loop) + c_final_drain; top = compute stage + ~73."
+ },
+ {
+  "tag": "agent_L3",
+  "worst_cycles": 803619,
+  "dsp": 7073,
+  "overlapped": true,
+  "dataflow_stages": [
+   {
+    "name": "read_A",
+    "cycles": 376801
+   },
+   {
+    "name": "read_B",
+    "cycles": 65610
+   },
+   {
+    "name": "compute",
+    "cycles": 803546
+   },
+   {
+    "name": "store_C",
+    "cycles": 218497
+   }
+  ],
+  "phases": {
+   "load_A": 0,
+   "load_B": 16384,
+   "load_C": 0,
+   "compute": 786444,
+   "store_C": 705,
+   "other": 0
+  },
+  "phase_pct": {
+   "load_A": 0.0,
+   "load_B": 2.04,
+   "load_C": 0.0,
+   "compute": 97.86,
+   "store_C": 0.09,
+   "other": 0.0
+  },
+  "compute_floor": 759043,
+  "mac_per_cycle_actual": 1365.31,
+  "bottleneck": "compute stage 804K (100%): c_main MAC loop 786K (97.9%) at 1365 MAC/cycle (7073 DSP); read_A (377K), read_B (66K), store_C (865-218K) hidden by DATAFLOW",
+  "why_more_dsp_does_not_help": "compute-bound at ~1365 MAC/cycle (floor 759K at 7073 DSP/5); next limiters are the 16.4K B-strip prologue (2%) and read_A (377K, 47% of compute) as MAC count grows",
+  "check_sum": 803546,
+  "check_err_pct": -0.01,
+  "notes": "DATAFLOW read_A, read_B, compute, store_C (store_C does the C read-modify-write). Compute stage = c_loadB0 16,384 (first B strip prologue) + c_main (II=1, next B strip prefetched, A and results streamed in-loop) + c_final_drain; top = compute stage + ~73. store_C reported 865-218,497 (variable-trip discard loop; worst shown)."
+ }
+]

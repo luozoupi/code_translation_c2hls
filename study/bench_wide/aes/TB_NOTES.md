@@ -1,0 +1,13 @@
+# TB_NOTES: aes
+- Arg classification (from plain.cpp): k[32] input only (copied, never written back; TB checks it is unchanged); buf[16] in-out (plaintext in, ciphertext out). No pure output.
+- Golden: plain.cpp AES functions copied with _ref suffix (the old TB called aes256_encrypt_ecb from the kernel TU, i.e. derived the golden from the kernel); also the NIST SP 800-38A F.1.5 known ciphertext and a second srand(42) key/plaintext pair.
+- Tolerance: exact bytes
+- Poison: none (no pure output)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 48 errors!
+- Control 3 (one bug, must fail): Failed with 3 errors! (last ciphertext byte not written back)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/aes/).

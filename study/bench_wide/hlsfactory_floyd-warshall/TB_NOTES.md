@@ -1,0 +1,14 @@
+# TB_NOTES: hlsfactory_floyd-warshall
+- testbench.cpp: strict (bench_wide SPEC); original harness kept as testbench.orig.cpp. Kernel call `kernel_floyd_warshall` unchanged.
+- Pure outputs (poisoned with 12345.0): none. In-out (real init_array data, identical copies for golden and kernel): path. Inputs only: none.
+- Compared (exactly the arrays the original harness passed to print_array): path. Everything else (scratch / modified-but-not-printed arrays) is NOT compared, but pure-output ones are still poisoned. NaN in a compared output is an error.
+- Golden: static `kernel_floyd_warshall_ref`, a verbatim copy of plain.cpp's top function, run on identical copies of all arrays.
+- Type/tolerance: int exact.
+- Prints at most 10 mismatches, then `Failed with N errors!` (return 1) or `Passed!` (return 0).
+- Control 1 (plain.cpp): rc=0 Passed!
+- Control 2 (top returns immediately): rc=1 Failed with 53344 errors!
+- Control 3 (plausible bug): Control 3 bug: for (k = 0; k < 1; k++). (kernel loop runs only k=0) -> rc=1 Failed with 38961 errors!
+- Control 4 (scratch/unprinted arrays  made local, real outputs still correct; must PASS): n/a (no scratch/unprinted modified arrays)
+- Floyd second input (sparse random graph, INF=100000) is also run; skipping any single k in [n/2,n): undetected k: none
+- hls_baseline.cpp as kernel: rc=0 Passed!
+- Validated with g++ -O1 in scratch dir (removed afterwards).

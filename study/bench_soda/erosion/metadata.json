@@ -1,0 +1,64 @@
+{
+  "benchmark": "erosion",
+  "source_repo": "soda",
+  "algorithm_source_path": "/scratch/asa582/workspaces/soda_src/soda/tests/src/erosion.soda",
+  "gold_hls_source_path": "",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "plain.cpp",
+  "header_file": "erosion.h",
+  "baseline_variant": "erosion_0_baseline",
+  "variants": [
+    {
+      "name": "erosion_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": ""
+    }
+  ],
+  "variant_source_paths": {},
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "workload",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 0,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_baseline_sha256": "5ab5cb73337d679c1086fba6984ce67ec672c90cf23d03ad1a13dd73263718d0",
+    "plain_c_sha256": "0e511dfdef5f55b4c017adaff46aefa5a8c7e8da47c2c3c365e7e1e7ddd3cbab",
+    "plain_derived_from_gold_hls": false,
+    "generator": "study/bench_soda/gen_bench.py"
+  },
+  "soda": {
+    "iterate": 1,
+    "sizes": [
+      1024,
+      1024
+    ],
+    "dtype": "input:int16 -> output:int16",
+    "valid_region": {
+      "x": [
+        9,
+        "WIDTH-9"
+      ],
+      "y": [
+        9,
+        "HEIGHT-9"
+      ]
+    },
+    "layout": "arr[z][y][x], SODA first index = x (fastest)"
+  }
+}

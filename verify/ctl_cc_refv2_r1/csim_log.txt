@@ -1,0 +1,61 @@
+
+****** vitis-run v2023.2 (64-bit)
+  **** SW Build 4026344 on 2023-10-11-15:42:10
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+    ** Copyright 2022-2023 Advanced Micro Devices, Inc. All Rights Reserved.
+
+INFO: [vitis-run 82-31] Launching vitis_hls: vitis_hls -nolog -run tcl -f /scratch/asa582/workspaces/c2hls_claude_code/verify/ctl_cc_refv2_r1/csim_work/20261013T080032Z/run_csim.tcl -work_dir /scratch/asa582/workspaces/c2hls_claude_code/verify/ctl_cc_refv2_r1/csim_work/20261013T080032Z
+
+****** Vitis HLS - High-Level Synthesis from C, C++ and OpenCL v2023.2 (64-bit)
+  **** SW Build 4023990 on Oct 11 2023
+  **** IP Build 4028589 on Sat Oct 14 00:45:43 MDT 2023
+  **** SharedData Build 4025554 on Tue Oct 10 17:18:54 MDT 2023
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+    ** Copyright 2022-2023 Advanced Micro Devices, Inc. All Rights Reserved.
+
+source /opt/Xilinx/Vitis_HLS/2023.2/scripts/vitis_hls/hls.tcl -notrace
+INFO: [HLS 200-10] Running '/opt/Xilinx/Vitis_HLS/2023.2/bin/unwrapped/lnx64.o/vitis_hls'
+INFO: [HLS 200-10] For user 'asa582' on host 'fc30559.int.fir.alliancecan.ca' (Linux_x86_64 version 5.14.0-687.29.1.el9_8.x86_64) on Tue Oct 13 01:00:36 PDT 2026
+INFO: [HLS 200-10] On os Ubuntu 22.04.5 LTS
+INFO: [HLS 200-10] In directory '/scratch/asa582/workspaces/c2hls_claude_code/verify/ctl_cc_refv2_r1/csim_work/20261013T080032Z'
+WARNING: [HLS 200-40] Environment variable 'C_INCLUDE_PATH' is set to /usr/include/x86_64-linux-gnu.
+WARNING: [HLS 200-40] Environment variable 'CPLUS_INCLUDE_PATH' is set to /usr/include/x86_64-linux-gnu.
+Sourcing Tcl script '/scratch/asa582/workspaces/c2hls_claude_code/verify/ctl_cc_refv2_r1/csim_work/20261013T080032Z/run_csim.tcl'
+INFO: [HLS 200-1510] Running: open_project hls_proj 
+INFO: [HLS 200-10] Creating and opening project '/scratch/asa582/workspaces/c2hls_claude_code/verify/ctl_cc_refv2_r1/csim_work/20261013T080032Z/hls_proj'.
+INFO: [HLS 200-1510] Running: set_top autosa_mm 
+INFO: [HLS 200-1510] Running: add_files kernel.cpp 
+INFO: [HLS 200-10] Adding design file 'kernel.cpp' to the project
+INFO: [HLS 200-1510] Running: add_files kernel.h 
+INFO: [HLS 200-10] Adding design file 'kernel.h' to the project
+INFO: [HLS 200-1510] Running: add_files -tb testbench.cpp 
+INFO: [HLS 200-10] Adding test bench file 'testbench.cpp' to the project
+INFO: [HLS 200-1510] Running: add_files -tb kernel.h 
+INFO: [HLS 200-10] Adding test bench file 'kernel.h' to the project
+INFO: [HLS 200-1510] Running: open_solution sol1 -flow_target vitis 
+INFO: [HLS 200-10] Creating and opening solution '/scratch/asa582/workspaces/c2hls_claude_code/verify/ctl_cc_refv2_r1/csim_work/20261013T080032Z/hls_proj/sol1'.
+INFO: [HLS 200-1505] Using flow_target 'vitis'
+Resolution: For help on HLS 200-1505 see docs.xilinx.com/access/sources/dita/topic?Doc_Version=2023.2%20English&url=ug1448-hls-guidance&resourceid=200-1505.html
+INFO: [HLS 200-435] Setting 'open_solution -flow_target vitis' configuration: config_interface -m_axi_latency=64
+INFO: [HLS 200-435] Setting 'open_solution -flow_target vitis' configuration: config_interface -m_axi_alignment_byte_size=64
+INFO: [HLS 200-435] Setting 'open_solution -flow_target vitis' configuration: config_interface -m_axi_max_widen_bitwidth=512
+INFO: [HLS 200-435] Setting 'open_solution -flow_target vitis' configuration: config_rtl -register_reset_num=3
+INFO: [HLS 200-1510] Running: set_part xcu280-fsvh2892-2L-e 
+INFO: [HLS 200-1611] Setting target device to 'xcu280-fsvh2892-2L-e'
+INFO: [HLS 200-1510] Running: create_clock -period 3.33 -name default 
+INFO: [SYN 201-201] Setting up clock 'default' with a period of 3.33ns.
+INFO: [HLS 200-1510] Running: csim_design 
+INFO: [SIM 211-2] *************** CSIM start ***************
+INFO: [SIM 211-4] CSIM will launch GCC as the compiler.
+INFO: [HLS 200-2036] Building debug C Simulation binaries
+   Compiling ../../../../testbench.cpp in debug mode
+   Compiling ../../../../kernel.cpp in debug mode
+   Generating csim.exe
+Passed!
+INFO: [SIM 211-1] CSim done with 0 errors.
+INFO: [SIM 211-3] *************** CSIM finish ***************
+INFO: [HLS 200-111] Finished Command csim_design CPU user time: 5.17 seconds. CPU system time: 0.12 seconds. Elapsed time: 9.23 seconds; current allocated memory: 0.000 MB.
+INFO: [HLS 200-112] Total CPU user time: 6.14 seconds. Total CPU system time: 0.27 seconds. Total elapsed time: 14.31 seconds; peak allocated memory: 257.691 MB.
+INFO: [Common 17-206] Exiting vitis_hls at Tue Oct 13 01:00:49 2026...
+INFO: [vitis-run 60-791] Total elapsed time: 0h 0m 15s
+INFO: [vitis-run 60-1662] Stopping dispatch session having empty uuid.

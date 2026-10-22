@@ -1,0 +1,39 @@
+{
+	"module_name":	"L_drain_IO_L1_out_inter_trans_boundary",
+	"module_prop":	{
+		"double_buffer":	0,
+		"in":	0
+	},
+	"loop":	{
+		"loop_info":	{
+			"iter":	"c1",
+			"lb":	"p1",
+			"ub":	"p0",
+			"stride":	"1"
+		},
+		"child":	{
+			"if":	{
+				"then":	{
+					"mark":	{
+						"mark_name":	"io_L1",
+						"child":	{
+							"mark":	{
+								"mark_name":	"access_coalesce",
+								"child":	{
+									"mark":	{
+										"mark_name":	"hls_pipeline",
+										"child":	{
+											"user":	{
+												"user_expr":	"out_trans_boundary.fifo_L_drain.fifo_L_drain.1.1.1.-1.1(p0, p1, p1, p0)"
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

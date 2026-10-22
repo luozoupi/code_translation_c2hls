@@ -1,0 +1,94 @@
+{
+	"module_name":	"L_drain_IO_L2_out",
+	"module_prop":	{
+		"double_buffer":	0,
+		"in":	0
+	},
+	"mark":	{
+		"mark_name":	"array",
+		"child":	{
+			"mark":	{
+				"mark_name":	"io_L3",
+				"child":	{
+					"loop":	{
+						"loop_info":	{
+							"iter":	"c0",
+							"lb":	"max(1, p0)",
+							"ub":	"11",
+							"stride":	"1"
+						},
+						"child":	{
+							"mark":	{
+								"mark_name":	"io_L2",
+								"child":	{
+									"if":	{
+										"then":	{
+											"loop":	{
+												"loop_info":	{
+													"iter":	"c1",
+													"lb":	"0",
+													"ub":	"p0",
+													"stride":	"1"
+												},
+												"child":	{
+													"mark":	{
+														"mark_name":	"io_L1",
+														"child":	{
+															"mark":	{
+																"mark_name":	"access_coalesce",
+																"child":	{
+																	"mark":	{
+																		"mark_name":	"hls_pipeline",
+																		"child":	{
+																			"user":	{
+																				"user_expr":	"out_trans.fifo_L_drain_local.fifo_L_drain.0.1.1.-1.1(p0, c1, c1, p0)"
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										},
+										"else":	{
+											"loop":	{
+												"loop_info":	{
+													"iter":	"c1",
+													"lb":	"0",
+													"ub":	"c0",
+													"stride":	"1"
+												},
+												"child":	{
+													"mark":	{
+														"mark_name":	"io_L1",
+														"child":	{
+															"mark":	{
+																"mark_name":	"access_coalesce",
+																"child":	{
+																	"mark":	{
+																		"mark_name":	"hls_pipeline",
+																		"child":	{
+																			"user":	{
+																				"user_expr":	"out_trans.fifo_L_drain.fifo_L_drain.0.1.1.-1.1(c0, c1, c1, c0)"
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

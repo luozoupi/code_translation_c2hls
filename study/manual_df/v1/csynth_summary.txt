@@ -1,0 +1,15 @@
+success=True
+  latency_cycles: 1062813
+  latency_ns: 3786000.0
+  interval: 1071598
+  requested_clock_period_ns: 3.33
+  estimated_clock_period_ns: 3.562
+  slack_ns: -0.232
+  bram: 602
+  dsp: 5120
+  ff: 577689
+  lut: 319735
+  uram: 256
+  fmax_mhz: 280.74
+  per_loop_bottlenecks (top issues limiting performance):
+    - autosa_mm: interval_exceeds_latency | interval 1071598 > latency 1071597 cycles on module 'autosa_mm' [/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:111]

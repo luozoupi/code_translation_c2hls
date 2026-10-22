@@ -1,0 +1,13 @@
+# TB_NOTES: cfd_step_factor
+- Arg classification (from plain.cpp): result[SIZE] pure output; variables, areas inputs.
+- Golden: plain.cpp workload()+helpers copied as workload_ref on srand(42) inputs (density 0.8-1.4, momentum <=1.5, energy 3.5-5.5, areas 0.5-1.5).
+- Tolerance: float 1e-3*fmax(1,|ref|) (SPEC), NaN/inf error
+- Poison: result = 12345.0f
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- No original testbench existed (new file); metadata.json still says supports_csim=false, testbench_file=null (not edited).
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 1024 errors!
+- Control 3 (one bug, must fail): Failed with 1 errors! (last element skipped)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: New testbench. Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/cfd_step_factor/).

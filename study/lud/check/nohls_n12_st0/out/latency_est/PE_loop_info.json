@@ -1,0 +1,140 @@
+{
+	"module_name":	"PE",
+	"module_prop":	{
+		"double_buffer":	0,
+		"in":	-1
+	},
+	"mark":	{
+		"mark_name":	"array",
+		"child":	{
+			"mark":	{
+				"mark_name":	"pe",
+				"child":	{
+					"loop":	{
+						"loop_info":	{
+							"iter":	"c1",
+							"lb":	"p0",
+							"ub":	"11",
+							"stride":	"1"
+						},
+						"child":	{
+							"loop":	{
+								"loop_info":	{
+									"iter":	"c2",
+									"lb":	"p0",
+									"ub":	"11",
+									"stride":	"1"
+								},
+								"child":	{
+									"mark":	{
+										"mark_name":	"hls_pipeline",
+										"child":	{
+											"block":	{
+												"child":	[{
+														"if":	{
+															"then":	{
+																"block":	{
+																	"child":	[{
+																			"user":	{
+																				"user_expr":	"in.fifo_A.1.1(0, c1, c2, c2, c1)"
+																			}
+																		}, {
+																			"user":	{
+																				"user_expr":	"S_8(0, c1, c2)"
+																			}
+																		}]
+																}
+															},
+															"else":	{
+																"block":	{
+																	"child":	[{
+																			"user":	{
+																				"user_expr":	"in.fifo_V.1.1(p0, c1, c2, c2, c1)"
+																			}
+																		}, {
+																			"user":	{
+																				"user_expr":	"S_9(p0, c1, c2)"
+																			}
+																		}]
+																}
+															}
+														}
+													}, {
+														"if":	{
+															"then":	{
+																"block":	{
+																	"child":	[{
+																			"user":	{
+																				"user_expr":	"S_10(p0, p0, c2)"
+																			}
+																		}, {
+																			"user":	{
+																				"user_expr":	"S_11(p0, p0, c2)"
+																			}
+																		}, {
+																			"user":	{
+																				"user_expr":	"out.fifo_U_drain.1.1(p0, p0, c2, p0, c2)"
+																			}
+																		}]
+																}
+															},
+															"else":	{
+																"block":	{
+																	"child":	[{
+																			"user":	{
+																				"user_expr":	"S_12(p0, c1, c2)"
+																			}
+																		}, {
+																			"if":	{
+																				"then":	{
+																					"block":	{
+																						"child":	[{
+																								"user":	{
+																									"user_expr":	"S_13(p0, c1, p0)"
+																								}
+																							}, {
+																								"user":	{
+																									"user_expr":	"S_14(p0, c1, p0)"
+																								}
+																							}, {
+																								"user":	{
+																									"user_expr":	"out.fifo_L_drain.1.1(p0, c1, p0, p0, c1)"
+																								}
+																							}]
+																					}
+																				},
+																				"else":	{
+																					"user":	{
+																						"user_expr":	"S_15(p0, c1, c2)"
+																					}
+																				}
+																			}
+																		}, {
+																			"user":	{
+																				"user_expr":	"S_16(p0, c1, c2)"
+																			}
+																		}, {
+																			"if":	{
+																				"then":	{
+																					"user":	{
+																						"user_expr":	"out.fifo_V.1.1(p0, c1, c2, c2, c1)"
+																					}
+																				}
+																			}
+																		}]
+																}
+															}
+														}
+													}]
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

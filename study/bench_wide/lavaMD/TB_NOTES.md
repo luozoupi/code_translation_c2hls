@@ -1,0 +1,13 @@
+# TB_NOTES: lavaMD
+- Arg classification (from plain.cpp): pos_i, q_i inputs; pos_o is IN-OUT: plain.cpp accumulates with += and never zeroes it, so it is not poisoned and gets the same non-zero initial data (0..1) for ref and DUT (original used zeros).
+- Golden: TB's own lavaMD_ref (float-constant version of plain.cpp's lavaMD_baseline_padded), srand(42).
+- Tolerance: float 1e-3*fmax(1,|ref|) (SPEC)
+- Poison: none (accumulator)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 3200 errors!
+- Control 3 (one bug, must fail): Failed with 3185 errors! (inner k loop one short)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/lavaMD/).

@@ -1,0 +1,95 @@
+From 5ba4febec845f61c8eabe0b3cd982b21005efe9c Mon Sep 17 00:00:00 2001
+From: "Claude (for asa582)" <ahmadsb101@users.noreply.github.com>
+Date: Sat, 10 Oct 2026 07:19:44 -0700
+Subject: [PATCH 3/3] v2023: write-credit floor wc2 for short bursts (AW(j+N)
+ >= B(j) + max(wc + len, wc2))
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ backend/lightningsim-core/axi_interface.rs | 11 +++++++----
+ backend/lightningsim-core/builder/mod.rs   | 11 +++++++----
+ 2 files changed, 14 insertions(+), 8 deletions(-)
+
+diff --git a/backend/lightningsim-core/axi_interface.rs b/backend/lightningsim-core/axi_interface.rs
+index b387312..310c647 100644
+--- a/backend/lightningsim-core/axi_interface.rs
++++ b/backend/lightningsim-core/axi_interface.rs
+@@ -34,18 +34,18 @@ pub enum AxiModel {
+ }
+ 
+ /// Number of v2023 delay constants.
+-pub const AXI_NUM_CONSTANTS: usize = 9;
++pub const AXI_NUM_CONSTANTS: usize = 10;
+ 
+ /// Names of the v2023 delay constants, in `LSIM_AXI_CONST` order.
+ pub const AXI_CONSTANT_NAMES: [&str; AXI_NUM_CONSTANTS] =
+-    ["r0", "r1", "wa", "wq", "wf", "wc", "wk", "wb", "wl"];
++    ["r0", "r1", "wa", "wq", "wf", "wc", "wk", "wb", "wl", "wc2"];
+ 
+ /// Default v2023 constants, fitted against Vitis HLS 2023.2 cosim.
+-pub const AXI_V2023_DEFAULT_CONSTANTS: [ClockCycle; AXI_NUM_CONSTANTS] = [11, 7, 5, 10, 3, 5, 1, 3, 0];
++pub const AXI_V2023_DEFAULT_CONSTANTS: [ClockCycle; AXI_NUM_CONSTANTS] = [11, 7, 5, 10, 3, 5, 1, 3, 0, 11];
+ 
+ /// Delay constants of the v2023 model, in cycles (`L` = interface latency).
+ /// The edges read them by index (see [axi_constant]); this struct names them.
+-/// Overridable as `LSIM_AXI_CONST=r0,r1,wa,wq,wf,wc,wk,wb,wl`.
++/// Overridable as `LSIM_AXI_CONST=r0,r1,wa,wq,wf,wc,wk,wb,wl,wc2`.
+ #[derive(Clone, Copy, Debug)]
+ #[allow(dead_code)]
+ pub struct AxiConstants {
+@@ -67,6 +67,8 @@ pub struct AxiConstants {
+     pub wb: ClockCycle,
+     /// kernel's last write of a request -> write response: L + wl (lower bound only)
+     pub wl: ClockCycle,
++    /// AW(j - num_write_outstanding) -> AW(j): len + L + 1 + wc2 (credit floor for short bursts)
++    pub wc2: ClockCycle,
+ }
+ 
+ pub struct AxiGlobals {
+@@ -121,6 +123,7 @@ pub fn axi_constants() -> AxiConstants {
+         wk: c(6),
+         wb: c(7),
+         wl: c(8),
++        wc2: c(9),
+     }
+ }
+ 
+diff --git a/backend/lightningsim-core/builder/mod.rs b/backend/lightningsim-core/builder/mod.rs
+index d43d8c4..06b9f14 100644
+--- a/backend/lightningsim-core/builder/mod.rs
++++ b/backend/lightningsim-core/builder/mod.rs
+@@ -74,6 +74,7 @@ const C_WF: u8 = 4;
+ const C_WC: u8 = 5;
+ const C_WK: u8 = 6;
+ const C_WB: u8 = 7;
++const C_WC2: u8 = 9;
+ 
+ #[pymethods]
+ impl SimulationBuilder {
+@@ -567,8 +568,8 @@ impl SimulationComponentBuilders {
+     /// - AW(j - 1) + len(j - 1) (bursts leave the bus one after another),
+     /// - AW of the burst holding beat e(j) - throttle depth + its offset + wf
+     ///   (one-burst throttle FIFO),
+-    /// - AW(j - num_write_outstanding) + len + L + 1 + wc + len(j) (write
+-    ///   credit released by that burst's B response, then refill).
++    /// - AW(j - num_write_outstanding) + len + L + 1 + max(wc + len(j), wc2)
++    ///   (write credit released by that burst's B response, then refill).
+     fn flush_axi_aw_nodes(&mut self) {
+         for PendingAw {
+             interface,
+@@ -609,8 +610,10 @@ impl SimulationComponentBuilders {
+             if let Some(credit) = index.checked_sub(config.write_outstanding) {
+                 let credit_burst = axi_builder.write_burst(credit);
+                 if let Some(aw) = credit_burst.aw_node {
+-                    let delay = ClockCycle::from(credit_burst.size) + 1 + len;
+-                    edges.push(timed(NodeWithDelay { node: aw, delay }, C_WC, true));
++                    // B(credit) = AW + len + L + 1; then max(wc + len(j), wc2) to the next AW.
++                    let b = ClockCycle::from(credit_burst.size) + 1;
++                    edges.push(timed(NodeWithDelay { node: aw, delay: b + len }, C_WC, true));
++                    edges.push(timed(NodeWithDelay { node: aw, delay: b }, C_WC2, true));
+                 }
+             }
+             let node = self.edges.insert_node();
+-- 
+2.41.0
+

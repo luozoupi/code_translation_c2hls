@@ -1,0 +1,40 @@
+INFO: [COSIM 212-14] Instrumenting C test bench ...
+   Build using "/opt/Xilinx/Vitis_HLS/2023.2/tps/lnx64/gcc-8.3.0/bin/g++"
+   Compiling apatb_autosa_mm.cpp
+   Compiling kernel.cpp_pre.cpp.tb.cpp
+   Compiling testbench.cpp_pre.cpp.tb.cpp
+   Compiling apatb_autosa_mm_ir.ll
+   Generating cosim.tv.exe
+INFO: [COSIM 212-302] Starting C TB testing ... 
+TB_SIZE I=1024 J=1024 K=1024
+Passed!
+INFO [HLS SIM]: The maximum depth reached by any hls::stream() instance in the design is 524288
+INFO: [COSIM 212-333] Generating C post check test bench ...
+INFO: [COSIM 212-12] Generating RTL test bench ...
+
+****** Vivado v2023.2 (64-bit)
+  **** SW Build 4029153 on Fri Oct 13 20:13:54 MDT 2023
+  **** IP Build 4028589 on Sat Oct 14 00:45:43 MDT 2023
+  **** SharedData Build 4025554 on Tue Oct 10 17:18:54 MDT 2023
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+    ** Copyright 2022-2023 Advanced Micro Devices, Inc. All Rights Reserved.
+
+INFO: [Common 17-1239] XILINX_LOCAL_USER_DATA is set to '/scratch/asa582/.xilinx-local'.
+source run_vivado_gen_ip.tcl -notrace
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository '/opt/Xilinx/Vivado/2023.2/data/ip'.
+INFO: [IP_Flow 19-1686] Generating 'Synthesis' target for IP 'autosa_mm_fmul_32ns_32ns_32_4_max_dsp_1_ip'...
+INFO: [IP_Flow 19-1686] Generating 'Simulation' target for IP 'autosa_mm_fmul_32ns_32ns_32_4_max_dsp_1_ip'...
+INFO: [IP_Flow 19-1686] Generating 'Synthesis' target for IP 'autosa_mm_fadd_32ns_32ns_32_5_no_dsp_1_ip'...
+INFO: [IP_Flow 19-1686] Generating 'Simulation' target for IP 'autosa_mm_fadd_32ns_32ns_32_5_no_dsp_1_ip'...
+INFO: [IP_Flow 19-1686] Generating 'Synthesis' target for IP 'autosa_mm_fadd_32ns_32ns_32_7_full_dsp_1_ip'...
+INFO: [IP_Flow 19-1686] Generating 'Simulation' target for IP 'autosa_mm_fadd_32ns_32ns_32_7_full_dsp_1_ip'...
+INFO: [Common 17-206] Exiting Vivado at Fri Oct  9 01:43:09 2026...
+INFO: [COSIM 212-1] *** C/RTL co-simulation file generation completed. ***
+INFO: [COSIM 212-211] II is measurable only when transaction number is greater than 1 in RTL simulation. Otherwise, they will be marked as all NA. If user wants to calculate them, please make sure there are at least 2 transactions in RTL simulation.
+INFO: [HLS 200-111] Finished Command cosim_design CPU user time: 451.47 seconds. CPU system time: 2.5 seconds. Elapsed time: 482.73 seconds; current allocated memory: 17.637 MB.
+INFO: [HLS 200-112] Total CPU user time: 1435.14 seconds. Total CPU system time: 16.52 seconds. Total elapsed time: 1520.38 seconds; peak allocated memory: 1.979 GB.
+INFO: [Common 17-206] Exiting vitis_hls at Fri Oct  9 01:43:21 2026...
+INFO: [vitis-run 60-791] Total elapsed time: 0h 25m 21s
+INFO: [vitis-run 60-1662] Stopping dispatch session having empty uuid.

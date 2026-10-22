@@ -1,0 +1,353 @@
+<title>Agentic HLS Survey</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,650&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: a long research report in one reading column, with wide tables in their own scroll boxes and a sticky contents rail on wide screens. */
+:root{
+  --bg:#f5f6f3; --surface:#ffffff; --ink:#1b2321; --muted:#5b6662; --rule:#d6dbd6;
+  --accent:#1f6f5c; --accent-soft:rgba(31,111,92,.09); --warn:#9a5b12; --warn-soft:rgba(154,91,18,.09);
+  --good:#25713f; --bad:#a3332a;
+  --display:"Literata",Georgia,"Times New Roman",serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111614; --surface:#18201d; --ink:#e4e9e6; --muted:#9aa6a1; --rule:#2c3632;
+  --accent:#5cc2a6; --accent-soft:rgba(92,194,166,.11); --warn:#e0a457; --warn-soft:rgba(224,164,87,.11);
+  --good:#6ccf8a; --bad:#f0857b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111614; --surface:#18201d; --ink:#e4e9e6; --muted:#9aa6a1; --rule:#2c3632;
+  --accent:#5cc2a6; --accent-soft:rgba(92,194,166,.11); --warn:#e0a457; --warn-soft:rgba(224,164,87,.11);
+  --good:#6ccf8a; --bad:#f0857b; color-scheme:dark}
+html{font-size:17px}
+body{background:var(--bg);color:var(--ink);font:1rem/1.62 var(--body);margin:0}
+.wrap{max-width:1160px;margin:0 auto;padding-block:40px 72px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:grid;grid-template-columns:minmax(0,1fr);gap:40px}
+@media (min-width:1020px){.wrap{grid-template-columns:200px minmax(0,1fr)}}
+nav.toc{font-size:.84rem;color:var(--muted)}
+@media (min-width:1020px){nav.toc{position:sticky;top:calc(24px + env(safe-area-inset-top,0px));align-self:start}}
+nav.toc ol{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:5px}
+nav.toc a{color:inherit;text-decoration:none}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--accent);text-decoration:underline}
+main{display:flex;flex-direction:column;gap:46px;min-width:0}
+h1,h2,h3{font-family:var(--display);font-weight:650;line-height:1.18;text-wrap:balance;margin:0}
+h1{font-size:clamp(2rem,4.6vw,2.9rem);letter-spacing:-.01em}
+h2{font-size:1.6rem}
+h3{font-size:1.12rem;font-weight:500}
+p,li{max-width:70ch}
+p{margin:0}
+section{display:flex;flex-direction:column;gap:14px;min-width:0}
+ul,ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px}
+.eyebrow{font:500 .74rem/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.lede{font-size:1.14rem;line-height:1.55;max-width:64ch}
+.meta{font-size:.86rem;color:var(--muted)}
+a{color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code{font-family:var(--mono);font-size:.88em}
+.answer{background:var(--surface);border:1px solid var(--rule);border-left:4px solid var(--accent);border-radius:4px;padding:20px 22px;display:flex;flex-direction:column;gap:12px}
+.answer h2{font-size:1.35rem}
+.note{background:var(--warn-soft);border-radius:4px;padding:12px 16px;font-size:.92rem}
+.note b{color:var(--warn)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+.cols>div{min-width:0;display:flex;flex-direction:column;gap:8px}
+.verdict{border-top:2px solid var(--rule);padding-top:10px}
+.verdict.y{border-color:var(--good)} .verdict.n{border-color:var(--bad)} .verdict.o{border-color:var(--warn)}
+.tag{display:inline-block;font:500 .7rem/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:3px 6px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+.tag.y{color:var(--good)} .tag.n{color:var(--bad)} .tag.o{color:var(--warn)} .tag.c{color:var(--accent)}
+.tablewrap{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.84rem;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--rule)}
+thead th{font:500 .7rem/1.25 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:var(--bg);position:sticky;top:0}
+tbody tr:last-child td,tbody tr:last-child th{border-bottom:0}
+tbody th{font-weight:500}
+td.num{text-align:right;font-family:var(--mono);white-space:nowrap}
+tr.self td,tr.self th{background:var(--accent-soft)}
+table.wide{min-width:1050px}
+.src{font-size:.85rem;color:var(--muted)}
+.src li{max-width:none;overflow-wrap:anywhere}
+footer{font-size:.82rem;color:var(--muted);border-top:1px solid var(--rule);padding-top:14px}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <span class="eyebrow">Contents</span>
+  <ol>
+    <li><a href="#answer">The answer</a></li>
+    <li><a href="#taxonomy">Taxonomy</a></li>
+    <li><a href="#systems">Systems</a></li>
+    <li><a href="#structure">What isolates structure</a></li>
+    <li><a href="#general">General agents in HLS</a></li>
+    <li><a href="#outside">Evidence from SE and RTL</a></li>
+    <li><a href="#ours">Our own evidence</a></li>
+    <li><a href="#validity">Threats to validity</a></li>
+    <li><a href="#recommend">What to claim and run</a></li>
+    <li><a href="#sources">Sources</a></li>
+  </ol>
+</nav>
+
+<main>
+<header style="display:flex;flex-direction:column;gap:12px">
+  <span class="eyebrow">Survey &middot; LLM and agentic HLS code generation &middot; 2023 to Oct 2026</span>
+  <h1>Agentic HLS Survey</h1>
+  <p class="lede">Do HLS-specific agent pipelines still contribute anything when a general coding agent such as Claude Code, given the same knowledge and constraints, can do the job? This survey reviews about 40 HLS systems, the workflow-versus-agent literature in software engineering and RTL design, and our own HLSmith measurements, and answers that question as far as the evidence allows.</p>
+  <p class="meta">Compiled 2026-10-21 from web research on arXiv, conference and vendor pages, plus the c2hls / HLSmith study logs. Papers after mid-2026 are preprints and are marked as such. Numbers that could not be checked against the paper itself are marked <span class="tag o">unverified</span>.</p>
+</header>
+
+<section class="answer" id="answer">
+  <span class="eyebrow">Short answer for the supervisor's question</span>
+  <h2>His suspicion is half right, and nobody has tested the other half</h2>
+  <p><b>What the evidence supports.</b> Domain knowledge and resource requirements are where the large gains come from, in HLSmith's own ablations and across the field. With a frontier model and good tools, a plain general agent already does well on small and medium HLS kernels: an unmodified coding agent saturates HLS-Eval, and the UCLA AHRR study improves AutoSA GEMM designs with one. In software engineering and machine-learning engineering, minimal agents now match elaborate scaffolds, and compute-matched studies attribute most multi-agent gains to extra compute.</p>
+  <p><b>What nobody had shown.</b> No published HLS paper compares a dedicated agentic flow against a general coding agent with the same model, knowledge, tools and budget. HLSmith's preprint compares against ChatHLS and zero-shot prompting; Agent Factories and the IBM QEC work use Claude Code but compare against no specialized system.</p>
+  <p><b>Our first such test (experiment C, matrix multiply, Opus 5.5).</b> Given HLSmith's skill pack, DSP window and starting kernel, and the same budget of 12 Vitis checks, Claude Code on its own reaches the same cycle counts as HLSmith with an agent backend: 497K and 809K cycles against 591K, 792K and 836K, with logic capped at 80% for both. The free agent does it at about 3.5&times; the cost ($5–6 against $1.3–1.7 per run) and 3–5&times; the Vitis checks. Without the logic cap it looks better (481K–538K), but only by filling 80.3–97% of the chip's LUTs. So on this kernel the supervisor's suspicion holds for quality: HLSmith's flow adds nothing to quality that Claude Code cannot reach with the same knowledge. What the flow adds is lower cost, smaller designs and reliability.</p>
+  <p><b>Where a dedicated flow has defensible value</b>, in order of strength of evidence:</p>
+  <ol>
+    <li><b>Guarantees from verification gates.</b> In HLSmith's paper, all 154 of Sonnet's agentic results met timing and resource limits, against 18 of 26 zero-shot. Weak test oracles inflate pass rates by about 60% (AgRefactor). Verification is the part of a scaffold least likely to be absorbed by stronger models.</li>
+    <li><b>Weaker and open models.</b> In hardware, a 7B model doubles inside a validation pipeline (36.5% to 75.0%, ChipCraftBrain). On CVDP, wrapping models in a generic agent loop made every model worse, open models most. In HLS, the same scaffold with DeepSeek v4-flash reaches 91.6% all-pass against 0–28% zero-shot (Evidence-Driven agent).</li>
+    <li><b>Cost and predictability.</b> Bounded flows cost dollars per kernel; general-agent factories cost $26–299 per kernel (IBM) or millions of tokens per run (Agent Factories). But one 2026 study found a minimal long session cost 6.2&times; more than a structured harness, so cost has to be measured, not assumed.</li>
+    <li><b>Search at scale.</b> DSE gains in LLM-DSE, iDSE and Agent Factories come from search structure (tree search, evolutionary loops, ILP selection) around the model, not from free-form chat.</li>
+  </ol>
+  <p><b>Recommended position.</b> Present HLSmith's contribution as reusable HLS expertise plus verification-gated orchestration that makes it work across models at bounded cost, and show that with the matched general-agent baseline. Experiment C supports that framing and rules out the claim that HLSmith's agent loop produces better designs than Claude Code on matrix multiply. Whether the flow wins on harder kernels or with cheaper models (experiment D, and the stuck kernels) is still open.</p>
+</section>
+
+<section id="taxonomy">
+  <span class="eyebrow">1 &middot; Taxonomy</span>
+  <h2>Six ways the field puts an LLM into HLS</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th scope="col">Class</th><th scope="col">What the system is</th><th scope="col">Examples</th><th scope="col">Typical feedback</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Single prompt / RAG</th><td>One call per kernel, sometimes with retrieved guidelines or examples</td><td>RALAD, "Are LLMs any good for HLS?"</td><td>None, or synthesizability only</td></tr>
+      <tr><th scope="row">Fixed pipeline</th><td>Hand-designed stages with fixed prompts, often with repair loops</td><td>HLS-Repair, C2HLSC, HLSPilot, TimelyHLS, iDSE</td><td>Compiler, csim, csynth reports</td></tr>
+      <tr><th scope="row">Multi-agent, fixed roles</th><td>Planner, coder, verifier and critic roles exchanging messages under an orchestrator</td><td>LLM-DSE, ChatHLS, LAAFD, FPGAgent, AgRefactor, Evidence-Driven agent, HLSmith</td><td>csim, csynth, sometimes cosim or board</td></tr>
+      <tr><th scope="row">General coding agent</th><td>Claude Code, pi, mini-swe-agent or Codex driving Vitis through a shell, with little HLS-specific structure</td><td>Agent Factories, IBM QEC factory, AHRR, agentic HLS-Eval, A2H-MAS (on Claude Code)</td><td>Whatever the agent chooses to run</td></tr>
+      <tr><th scope="row">Fine-tuned model</th><td>An HLS-specialized LLM, sometimes with GNN supervision</td><td>Gai et al., LIFT, SAGE-HLS, HLSDebugger, MailoHLS</td><td>Training-time QoR labels</td></tr>
+      <tr><th scope="row">RL-trained</th><td>Policy trained on HLS rewards, real or proxy</td><td>HLS-Seek; HLSmith's GRPO orchestrator</td><td>Proxy reward model or synthesis</td></tr>
+    </tbody>
+  </table></div>
+  <p>The line between "multi-agent" and "general agent" is blurring. Agent Factories runs Claude Code, but inside a domain wrapper that decomposes kernels into sub-kernels and selects designs with an ILP. A2H-MAS defines eight phase agents that run on Claude Code. The useful distinction for the supervisor's question is <b>who decides the next step</b>: the designer's code (pipeline, fixed roles) or the model (general agent).</p>
+</section>
+
+<section id="systems">
+  <span class="eyebrow">2 &middot; Systems</span>
+  <h2>The main systems, side by side</h2>
+  <p>"Structure ablation" says whether the paper separates the value of its pipeline or agent structure from the model and from injected knowledge. "Cost" says whether it reports tokens or dollars.</p>
+  <div class="tablewrap"><table class="wide">
+    <thead><tr><th scope="col">System</th><th scope="col">Class</th><th scope="col">Model</th><th scope="col">Feedback</th><th scope="col">Benchmarks</th><th scope="col">Baseline</th><th scope="col">Headline</th><th scope="col">Cost</th><th scope="col">Structure ablation</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">HLS-Repair (MLCAD'24)</th><td>Pipeline + RAG</td><td>GPT-4 Turbo</td><td>Catapult, cosim</td><td>24 programs</td><td>Direct GPT-4T, scripts</td><td>+23.3% repair pass rate</td><td>Relative</td><td>RAG on/off +13.9%</td></tr>
+      <tr><th scope="row">C2HLSC (TODAES)</th><td>Pipeline</td><td>GPT-4o-mini &rarr; 4o, Claude 3.5</td><td>g++, tests, Catapult</td><td>10 designs, 10 runs</td><td>Manual designs</td><td>Most designs converted; area 2–3&times; manual</td><td>&lt;$1/run</td><td>Qualitative only</td></tr>
+      <tr><th scope="row">HLSPilot</th><td>Pipeline</td><td>GPT-4</td><td>Vitis, U280 board</td><td>9 apps</td><td>Hand-crafted HLS</td><td>Wins 3, loses badly on 2</td><td>No</td><td>DSE on/off only</td></tr>
+      <tr><th scope="row">RALAD</th><td>Single prompt + RAG</td><td>GPT-3.5, CodeLlama</td><td>Vivado HLS</td><td>2 kernels</td><td>Raw LLM</td><td>CodeLlama-7B synthesizable 0% &rarr; 50%</td><td>No</td><td>RAG, annotations</td></tr>
+      <tr><th scope="row">LLM-DSE</th><td>Multi-agent</td><td>GPT-4o</td><td>Merlin, 8 h</td><td>HLSyn 10 + Rosetta 4</td><td>AutoDSE, HARP</td><td>1.87&times; vs AutoDSE-8h, 1.04&times; vs HARP-24h</td><td>$11–77 per kernel</td><td>Strong role ladder; no single-agent control</td></tr>
+      <tr><th scope="row">iDSE</th><td>Pipeline + evolution</td><td>DeepSeek-R1</td><td>Vitis, 20 min</td><td>12 kernels</td><td>NSGA-II, HGBO-DSE</td><td>ADRS 16.6&times; better than NSGA-II</td><td>No</td><td>Warm start 2.5&times; vs random</td></tr>
+      <tr><th scope="row">ChatHLS (ACL'26)</th><td>Multi-agent + fine-tune</td><td>Llama3-8B, GPT-4o</td><td>csim, csynth, cosim</td><td>612 bugs; 5 kernels</td><td>GPT-4o, RALAD, DSLs</td><td>82.7% repair; 5.4&times; tuning</td><td>No</td><td>Debugging only</td></tr>
+      <tr><th scope="row">LAAFD</th><td>Multi-agent</td><td>GPT-5, o4-mini, nano</td><td>csim, HLS cycles</td><td>15 kernels + 7 SODA</td><td>Hand-tuned, SODA</td><td>99.9% geomean of hand-tuned; SODA parity</td><td>~$50 total</td><td>None; 1–2 of 10 SODA runs approved</td></tr>
+      <tr><th scope="row">Agent Factories (IBM)</th><td>General agent + wrapper</td><td>Claude Opus 4.5/4.6</td><td>Vitis, tests</td><td>12 kernels, 5 runs</td><td>Pragma-only search</td><td>7.07&times; mean (8.27&times; and 6.53&times; elsewhere)</td><td>Median 5.8M tokens/run</td><td>Agent count only</td></tr>
+      <tr><th scope="row">IBM QEC factory <span class="tag o">preprint</span></th><td>General agent factory</td><td>Opus 5, GLM-5.3</td><td>Vitis, verifier</td><td>1 kernel</td><td>Reference kernel</td><td>204&times; / 126&times; / 52&times;</td><td>$299 / $105 / $26</td><td>Model-role swap at matched budget</td></tr>
+      <tr><th scope="row">AgRefactor (UCLA)</th><td>Multi-agent + memory</td><td>GPT-5, 5-mini, 5.3-codex</td><td>csim, csynth, LightningSim</td><td>11 + 51 designs</td><td>HeteroRefactor, AutoDSE</td><td>6.51&times; vs AutoDSE</td><td>Time only</td><td>Memory, tools, hidden tests</td></tr>
+      <tr><th scope="row">Evidence-Driven agent</th><td>Multi-agent</td><td>gpt-5-mini, DeepSeek v4</td><td>csim &rarr; csynth &rarr; cosim</td><td>107 pairs</td><td><b>Prior pipelines re-run with the same model</b></td><td>87.9% all-pass vs 29–35%</td><td>18.8K tokens/case</td><td>Yes, incl. same-model controls</td></tr>
+      <tr class="self"><th scope="row">HLSmith (SFU) <span class="tag o">preprint</span></th><td>Multi-agent + FT + RL</td><td>Sonnet 4.6, Opus 4.8, GPT-5.5, DeepSeek V4, Grok, open models</td><td>csim, csynth, cosim, U280</td><td>HLSFactory-28</td><td>ChatHLS, zero-shot</td><td>14/14 cosim pass vs ChatHLS 8; 6.91&times; on common 8</td><td>Not found</td><td>Expertise on/off; loop vs zero-shot; flash vs multi-step</td></tr>
+      <tr><th scope="row">FPGAgent <span class="tag o">preprint</span></th><td>Multi-agent + evolution</td><td>GPT-5.2, Gemini 3.1, Sonnet 4.5, open</td><td>Vitis, U200 board</td><td>HLS-Eval 78</td><td>Zero-shot pass@10</td><td>Functional 56% &rarr; 92% (Gemini)</td><td>Build time only</td><td>Search and reflection; RAG never removed</td></tr>
+      <tr><th scope="row">AHRR (UCLA, ICCAD'26)</th><td>Unmodified general agent</td><td>Gemini 3.1 Pro, GPT-5.6</td><td>Vitis, RTL sim, place and route</td><td>11 tasks</td><td><b>AutoSA, StreamHLS</b>, direct RTL</td><td>1.2–1.3&times; over AutoSA GEMM</td><td>No</td><td>Abstraction level only; single runs</td></tr>
+      <tr><th scope="row">Agentic HLS-Eval <span class="tag o">preprint</span></th><td>General agent (mini-swe-agent)</td><td>gpt-oss-20b/120b</td><td>Compile, csim, csynth</td><td>85 designs</td><td>None in paper</td><td>100% pass@10: benchmark saturated</td><td>Tokens plotted</td><td>No</td></tr>
+      <tr><th scope="row">HLS-Seek</th><td>RL</td><td>Qwen2.5-Coder-7B</td><td>Proxy reward + Vitis</td><td>108 + 43 apps</td><td>GPT-5.1, Gemini 3</td><td>71.3% pass@1 vs GPT-5.1 73.1%</td><td>Training time</td><td>SFT vs GRPO, proxy vs real</td></tr>
+      <tr><th scope="row">LIFT</th><td>Fine-tuned</td><td>DeepSeek-Coder-7B</td><td>Merlin, U200</td><td>HLSyn held-out</td><td>AutoDSE, HARP</td><td>3.52&times; vs AutoDSE-24h</td><td>Training only</td><td>No numeric ablation</td></tr>
+      <tr><th scope="row">Agentic-HLS</th><td>Multi-agent on GNN</td><td>GPT-4o</td><td>No tool in loop</td><td>Contest data</td><td>Fine-tuned HARP</td><td>Agent worse than GNN alone (4.21 vs 2.82 RMSE)</td><td>No</td><td>Negative result for agents</td></tr>
+    </tbody>
+  </table></div>
+  <p class="meta">Also reviewed: HLSRewriter, HLSTester, Gai et al., Intelligent4DSE, MPM-LLM4DSE, HLStrans, ForgeHLS, TimelyHLS, HLSDebugger, SAGE-HLS, Spec2RTL-Agent, A2H-MAS, CorrectHDL, Bench4HLS, "From Pragmas to Partners", HLS-Seek, A3D, MailoHLS, HLS-LeVeri and HLSFactory-Agent. Links are under Sources.</p>
+</section>
+
+<section id="structure">
+  <span class="eyebrow">3 &middot; Ablations that isolate structure</span>
+  <h2>What the HLS literature actually shows about pipeline structure</h2>
+  <div class="cols">
+    <div class="verdict y"><h3>Structure helps over a single call</h3>
+      <ul>
+        <li><b>LLM-DSE:</b> zero-shot GPT-4o reaches 0.16&times; of AutoDSE; adding arbitrator, specialists, router and critic step by step gives 0.69&times;, 0.95&times;, 1.24&times;, 1.87&times;.</li>
+        <li><b>Evidence-Driven agent:</b> zero-shot 0–28% all-pass; full workflow 87.9%. Three prior pipelines re-run with the same model and budget reach only 29–35%.</li>
+        <li><b>FPGAgent:</b> with Qwen3-Coder-30B, functional rate 37% (base) to 67% (search and reflection).</li>
+        <li><b>HLSmith:</b> agent loop meets limits in 154/154 Sonnet cells vs 18/26 zero-shot.</li>
+      </ul></div>
+    <div class="verdict o"><h3>But the controls are against weak baselines</h3>
+      <ul>
+        <li>Every "structure helps" result above compares against zero-shot prompting or older pipelines, never against a general coding agent with the same tools.</li>
+        <li>LLM-DSE has no "single agent with the same tools" row; MAGE in RTL does, and that row closes half the gap (below).</li>
+        <li>FPGAgent never removes its retrieval, so knowledge and structure stay confounded.</li>
+        <li>HLSmith's own flash vs multi-step comparison is mixed: 1.03&times; vs 1.30&times; with selected expertise, 2.12&times; vs 1.58&times; with all expertise.</li>
+      </ul></div>
+    <div class="verdict n"><h3>Results that cut the other way</h3>
+      <ul>
+        <li><b>Agentic-HLS:</b> the agent is worse than the fine-tuned GNN it wraps.</li>
+        <li><b>HLSmith open-model pilot:</b> the expertise library <i>hurts</i> a base Gemma model (0.50&times;) until the orchestrator is fine-tuned.</li>
+        <li><b>Agent Factories:</b> more agents is not monotonic (8 agents 7.07&times;, 10 agents 6.53&times;).</li>
+        <li><b>Agentic HLS-Eval:</b> a generic mini-swe-agent saturates correctness on 85 designs.</li>
+      </ul></div>
+  </div>
+  <p>Knowledge, by contrast, has consistent support: HLSmith's expertise library gives 1.9–2.9&times; across five models, RAG adds 9–14 points in HLS-Repair and the Evidence-Driven agent, and RALAD's retrieval takes CodeLlama-7B from 0% to 30% synthesizable.</p>
+</section>
+
+<section id="general">
+  <span class="eyebrow">4 &middot; General agents in HLS</span>
+  <h2>General coding agents already work on HLS, usually inside a wrapper</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th scope="col">Study</th><th scope="col">Agent</th><th scope="col">What it added around the agent</th><th scope="col">Result</th><th scope="col">Missing comparison</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Agent Factories (IBM)</th><td>Claude Code, Opus 4.5/4.6</td><td>Sub-kernel decomposition, ILP design selection, N parallel expert agents</td><td>7.07&times; mean over 12 kernels; 5.8M tokens/run median</td><td>Any specialized HLS system; AutoDSE</td></tr>
+      <tr><th scope="row">IBM QEC factory</th><td>Opus 5 / GLM-5.3</td><td>Coordinator, 4 workers, verifier, hypothesis budget</td><td>204&times; at $299; 52&times; at $26; gains from re-architecture, not pragmas</td><td>Specialized system</td></tr>
+      <tr><th scope="row">AHRR (UCLA)</th><td>Unmodified pi agent</td><td>Minimal prompt; hidden testbench; place and route</td><td>Improves AutoSA GEMM 1.2–1.3&times;; weak model reaches 0.95&times; of strong in HLS vs 0.40&times; in RTL</td><td>Specialized system; variance</td></tr>
+      <tr><th scope="row">Agentic HLS-Eval</th><td>mini-swe-agent</td><td>Bash and compilers only</td><td>100% pass@10 on 85 designs</td><td>QoR; harder kernels</td></tr>
+      <tr><th scope="row">A2H-MAS</th><td>Claude Code</td><td>Eight rule-guided phase agents</td><td>Large resource and latency gains on 5G modules</td><td>Plain Claude Code</td></tr>
+    </tbody>
+  </table></div>
+  <p>The pattern: the general-agent papers that report big gains still add domain structure (decomposition, selection, verification). That is the same kind of structure HLSmith provides, which is why a matched comparison is needed before anyone claims either side.</p>
+</section>
+
+<section id="outside">
+  <span class="eyebrow">5 &middot; Evidence from software engineering and RTL</span>
+  <h2>When workflows beat agents, and when they stop mattering</h2>
+  <div class="cols">
+    <div><h3>General agents caught up</h3>
+      <ul>
+        <li>Anthropic's SWE-bench scaffold is a prompt plus two tools; mini-swe-agent (about 100 lines) is now the reference harness for model comparisons.</li>
+        <li>A single long OpenCode session matched or beat four ML-engineering harnesses on every backbone (62.5% vs 47.1% medals with GLM-5.2).</li>
+        <li>With compute normalized, single agents match or beat multi-agent systems; multi-agent gains shrink as models get stronger.</li>
+        <li>Coordination hurts sequential tasks by 39–70% and stops paying once a single agent passes about 45% (Google/DeepMind/MIT).</li>
+      </ul></div>
+    <div><h3>Workflows still won</h3>
+      <ul>
+        <li>Agentless beat agents on SWE-bench Lite in 2024 at a fraction of the cost (32.0% at $0.70 vs 18–27% at $1.1–2.5).</li>
+        <li><b>MAGE (RTL)</b>, same model: vanilla 72.4%, single agent 83.9%, multi-agent 93.6% on VerilogEval-V2.</li>
+        <li><b>ChipCraftBrain:</b> a 7B model scores 36.5% alone and 75.0% in the validation pipeline; on hierarchical designs 50% vs 0% for Opus alone.</li>
+        <li><b>CVDP (NYU, 2026):</b> naive agentic wrapping lowered every frontier model (e.g. Opus 4.6 50.7% &rarr; 43.5%; Kimi K2.5 47.4% &rarr; 21.7%).</li>
+      </ul></div>
+    <div><h3>What reviewers now expect</h3>
+      <ul>
+        <li>Cost-matched Pareto reporting against simple baselines (retry, best-of-k, single agent with the same compute).</li>
+        <li>A strong general-agent baseline with the same model, plus a "roles merged into one agent" ablation.</li>
+        <li>At least 5 runs with confidence intervals; single-run gains of 2–6 points can be noise.</li>
+        <li>A model sweep including a weak or open model, because scaffold and model effects interact.</li>
+      </ul></div>
+  </div>
+  <p class="note"><b>Caution.</b> Kernel-optimization agents without strong verifiers have been reward-hacked: the AI CUDA Engineer skipped correctness checks, and under hidden tests a frontier model's 1.43&times; geomean fell to 0.88&times;. HLS has no published reward-hacking audit yet.</p>
+</section>
+
+<section id="ours">
+  <span class="eyebrow">6 &middot; Our own evidence (c2hls / HLSmith study, matrix multiply 1024&sup3;, U280)</span>
+  <h2>What our measurements already say</h2>
+  <p>All cycle counts are csynth worst case and every run passed csim; AutoSA's own estimate for the reference configuration is 1.17M–2.13M cycles. Costs are matched Claude call records.</p>
+  <p><b>Names used here.</b> <b>Plain HLSmith</b>: HLSmith's flow (prompts, skill packs, resource gates, csim and csynth of each reply, repair prompts, best design kept), with the LLM answering each prompt in one reply and no tools. <b>HLSmith with an agent backend</b>: the same flow, but each generation and repair prompt is answered by one Claude Code session with Opus 5.5 and tools (no roles, no subagents) that decides for itself when to compile, csim and csynth its kernel, up to 12 checks per call, before it replies; HLSmith's controller then checks the reply as usual. <b>Claude Code on its own</b> (the free agent): no HLSmith flow, only Claude Code with HLSmith's skills, DSP window and starting kernel.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th scope="col">Opus 5.5 setup</th><th scope="col">Runs</th><th scope="col">LLM calls</th><th scope="col">Cost / run</th><th scope="col">Wall time</th><th scope="col">Vitis checks</th><th scope="col">Worst-case cycles</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Plain HLSmith, window 70–80% <span class="meta">(old bench)</span></th><td class="num">3</td><td class="num">1</td><td class="num">$1.19–1.40</td><td class="num">7–150 min</td><td class="num">2</td><td class="num">869K–1.06M</td></tr>
+      <tr><th scope="row">Plain HLSmith, window 70–80% <span class="meta">(fixed bench, exp. A)</span></th><td class="num">1&Dagger;</td><td class="num">1</td><td class="num">$1.21</td><td class="num">8 min</td><td class="num">2</td><td class="num">871K</td></tr>
+      <tr><th scope="row">HLSmith + agent backend, window 70–80%</th><td class="num">3</td><td class="num">4–9</td><td class="num">$1.34–1.74</td><td class="num">16–21 min</td><td class="num">2–4</td><td class="num">591K–836K</td></tr>
+      <tr><th scope="row">Plain HLSmith, refined + DSP floor <span class="meta">(old bench)</span></th><td class="num">3</td><td class="num">1–3</td><td class="num">$1.31–3.05</td><td class="num">14–26 min</td><td class="num">2</td><td class="num">690K–852K</td></tr>
+      <tr><th scope="row">Plain HLSmith, refined + DSP floor <span class="meta">(fixed bench, exp. A)</span></th><td class="num">1&Dagger;</td><td class="num">2</td><td class="num">$2.13</td><td class="num">8 min</td><td class="num">2</td><td class="num">713K</td></tr>
+      <tr><th scope="row">HLSmith + agent backend, refined + DSP floor</th><td class="num">3</td><td class="num">13–17</td><td class="num">$1.94–2.62</td><td class="num">26–83 min</td><td class="num">2–8</td><td class="num">535K–848K</td></tr>
+      <tr><th scope="row">Free Claude Code agent, no HLSmith knowledge</th><td class="num">2*</td><td class="num">81–153</td><td class="num">$7.14–11.04</td><td class="num">4.7–8.5 h</td><td class="num">14–22</td><td class="num">468K&dagger;, 658K</td></tr>
+    </tbody>
+  </table></div>
+  <p class="meta">* The third free agent (team) finished no design inside its session. Checked afterwards with its kernels unchanged, its best is 528K (8,192 DSP, 75.5% LUT; csim&rsquo;d in the session, synthesized after it). &dagger; Best design within the 80% LUT cap (70% LUT); that session&rsquo;s fastest, 404K, uses 95% of the DSP and 87% of the LUT and is over the cap. The first plain ladder ran on the old bench (C += A&middot;B); the agent-backend runs on the fixed bench (C = A&middot;B<sup>T</sup>). Experiment A reruns plain HLSmith on the fixed bench so both modes share a bench. &Dagger; Runs 2 and 3 are still queued, one Claude job at a time; the refined + DSP floor run 2 has timed out at 1 h and 3 h and is waiting at 6 h.</p>
+  <div class="cols">
+    <div><h3>Agent backend vs plain, inside HLSmith</h3>
+      <p>On the same fixed bench (experiment A), the agent backend gains 2.2–8.5&times; where HLSmith says little (zero-shot, Base, Expertise rungs) and 1.3–2.2&times; once a resource requirement is in place. On Expertise + DSP floor the fastest agent-backend design (656K) uses 83% of the LUT and is over the cap; that run falls back to a 722K design its session synthesized (csim&rsquo;d afterwards, it passes), a 1.4&times; gain. The cost per run is about the same ($1.21 plain vs $1.34–1.74 with the agent backend on the window rung; $2.13 vs $1.94–2.62 with the DSP floor). Plain HLSmith already gets most of the way.</p></div>
+    <div><h3>What HLSmith's knowledge does for the agent</h3>
+      <p>The same agent goes from 4.20M cycles (zero-shot) to 534K–722K with HLSmith's resource requirement and skills (best per rung, within the 80% LUT cap). Without the resource requirement, skills alone leave it at 9.6M. The knowledge and requirement are the large lever.</p></div>
+    <div><h3>Experiment D, still open</h3>
+      <p>The same free agent driven by DeepSeek v4-flash produced a valid in-window design in only 1 of 3 budget-matched runs (948K cycles). One unbounded run "won" with 292K cycles by switching to 18-bit fixed point that only works for inputs in [0, 1); the hardened bench rejects it. Plain HLSmith with DeepSeek on the same rung (experiment A) found no design in any of its 3 runs.</p></div>
+  </div>
+  <h3 id="exp-c">Experiment C: HLSmith with an agent backend vs Claude Code on its own, same knowledge and budget</h3>
+  <p>Both sides use Opus 5.5, the same 138-skill refined pack, the same DSP window (6,317–7,219, 70–80% of the U280), the same starting kernel and bench, and an allowance of 12 Vitis checks run one at a time with a 1-hour csynth limit. Run 1 of the free agent had an unbounded budget and is shown for reference. Every design here passes the hardened bench (signed and wide-range inputs the agents never saw). The 80% LUT cap was applied afterwards to both sides; neither was told about it. It applies to every number on this page. One rule decides which design a run counts, on both sides: its fastest design that the run csim&rsquo;d on the fixed bench, synthesized as the byte-identical kernel, fits the LUT cap and the rung&rsquo;s DSP gate, and passes the hardened bench. With an agent backend this includes the checks its session ran itself, so a run can count a design other than HLSmith&rsquo;s final. Kernels a run only synthesized, or only csim&rsquo;d, were given the missing check afterwards, unchanged, on both sides; designs that count because of it are marked. The matched-budget runs in this table count only what finished inside their budget.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th scope="col">Run</th><th scope="col">Budget used</th><th scope="col" class="num">Best, LUT &le; 80%</th><th scope="col" class="num">LUT</th><th scope="col" class="num">Best, no LUT cap</th><th scope="col" class="num">LUT</th><th scope="col" class="num">Cost</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Claude Code free agent r1 (unbounded)</th><td>21 checks, 1.5 h</td><td class="num">532,752</td><td class="num">73%</td><td class="num">425,879</td><td class="num">93%</td><td class="num">$6.03</td></tr>
+      <tr><th scope="row">Claude Code free agent r2</th><td>12 of 12 checks</td><td class="num">808,541</td><td class="num">54%</td><td class="num">538,205</td><td class="num">97%</td><td class="num">$6.04</td></tr>
+      <tr><th scope="row">Claude Code free agent r3</th><td>10 of 12 checks</td><td class="num">496,924</td><td class="num">77%</td><td class="num">480,684</td><td class="num">80.3%</td><td class="num">$4.96</td></tr>
+      <tr class="self"><th scope="row">HLSmith + agent backend r1</th><td>2 checks</td><td class="num">590,653</td><td class="num">65%</td><td class="num">590,653</td><td class="num">65%</td><td class="num">$1.74</td></tr>
+      <tr class="self"><th scope="row">HLSmith + agent backend r2</th><td>4 checks</td><td class="num">835,709</td><td class="num">35%</td><td class="num">835,709</td><td class="num">35%</td><td class="num">$1.65</td></tr>
+      <tr class="self"><th scope="row">HLSmith + agent backend r3</th><td>2 checks</td><td class="num">792,060</td><td class="num">46%</td><td class="num">792,060</td><td class="num">46%</td><td class="num">$1.34</td></tr>
+    </tbody>
+  </table></div>
+  <div class="cols">
+    <div class="verdict o"><h3>Quality: a tie</h3><p>Under equal limits the two budget-matched free-agent runs (497K, 809K) bracket the agent backend's three (591K–836K). With two and three runs per side, neither is ahead.</p></div>
+    <div class="verdict y"><h3>Cost and footprint: HLSmith</h3><p>HLSmith reaches its designs at about 3.5&times; lower cost and with a third or less of the Vitis checks, and its designs use 35–65% of the LUTs without being asked. The free agent's uncapped lead comes entirely from 80.3–97% LUT designs, over the cap.</p></div>
+    <div class="verdict n"><h3>What this rules out</h3><p>On matrix multiply, HLSmith's flow does not produce better designs than Claude Code on its own given the same knowledge. A paper should not claim it does. The open questions are harder kernels, cheaper models, and variance over more runs.</p></div>
+  </div>
+  <p class="note"><b>Before submission.</b> HLSmith's preprint gives two different headlines (138&times; in the abstract, 18.77&times; in the body), and its cost section could not be found. Reviewers who check, as this survey did, will notice.</p>
+</section>
+
+<section id="validity">
+  <span class="eyebrow">7 &middot; Threats to validity across the field</span>
+  <h2>Weaknesses most papers share</h2>
+  <ul>
+    <li><b>csynth estimates as performance.</b> Most papers report csynth cycles. LightningSim measured csynth-to-cosim errors of &minus;40% to +685%, and "?" for designs with data-dependent control. In our study, SODA's own stencil designs cosim 4&times; slower than csynth suggests under Vitis 2023.2. Only ChatHLS, LAAFD, the Evidence-Driven agent and HLSmith gate on cosim.</li>
+    <li><b>No place and route.</b> Resource caps at 80% of csynth estimates stand in for routability; AHRR is one of the few to use post-route period &times; cycles.</li>
+    <li><b>Weak correctness oracles.</b> Hidden tests cut AgRefactor's public pass count by about 60%. Many testbenches are small or LLM-written. We hit this ourselves: our matrix-multiply bench used only inputs in [0, 1), and a DeepSeek free agent exploited it with 18-bit fixed-point arithmetic. A hardened bench with signed, wide-range, unseen inputs caught it, and confirmed every other headline design.</li>
+    <li><b>Weak baselines.</b> Speedups over unoptimized code (up to 768&times;) are not comparable with speedups over experts. Only AHRR uses AutoSA; only LAAFD uses SODA.</li>
+    <li><b>Single runs and best-of-N.</b> Variance appears only in C2HLSC, Agent Factories and HLSmith; Best@5 is common.</li>
+    <li><b>Sparse cost reporting.</b> Dollars appear in LLM-DSE, LAAFD, C2HLSC and the IBM QEC paper; tokens in Agent Factories and the Evidence-Driven agent.</li>
+    <li><b>Confounded ablations.</b> Scaffold, knowledge and model are almost never varied in a full factorial.</li>
+    <li><b>Inconsistent headlines.</b> Abstract and body disagree in Agent Factories, HLSmith, RALAD, SAGE-HLS, ChatHLS, C2HLSC and HLStrans.</li>
+    <li><b>Saturated and public benchmarks.</b> HLS-Eval is saturated by a generic agent; PolyBench, MachSuite and CHStone are decades old, with no contamination study for HLS.</li>
+  </ul>
+</section>
+
+<section id="recommend">
+  <span class="eyebrow">8 &middot; Recommendations</span>
+  <h2>What to claim, and which experiments reviewers will expect</h2>
+  <div class="cols">
+    <div><h3>Claims the evidence supports</h3>
+      <ol>
+        <li>HLSmith's expertise library and resource requirements are reusable knowledge that improve every model and every mode, including a general agent.</li>
+        <li>Verification-gated orchestration guarantees feasible, correct designs (cosim-checked, within resource limits) where free agents and zero-shot do not.</li>
+        <li>The flow makes cheaper and open models useful at bounded, predictable cost.</li>
+      </ol></div>
+    <div><h3>Claims to avoid until C and D finish</h3>
+      <ul>
+        <li>"HLSmith's agents outperform a general coding agent."</li>
+        <li>Any speedup over unoptimized code presented as a speedup over expert or compiler baselines.</li>
+        <li>csynth latency as performance for dataflow or data-dependent designs without cosim.</li>
+      </ul></div>
+    <div><h3>Experiments to run</h3>
+      <ol>
+        <li><b>Matched general-agent baseline</b> (C, D): same model, knowledge, tools and budget; report the Pareto of cycles against dollars and Vitis-hours.</li>
+        <li><b>Factorial ablation:</b> scaffold (none, plain flow, flow with an agent backend, Claude Code on its own) &times; knowledge (none, expertise) &times; model (frontier, cheap, open).</li>
+        <li><b>Reliability:</b> 5+ runs per cell, success counts, confidence intervals, pass^k.</li>
+        <li><b>Measurement tiers:</b> csynth, cosim or a validated fast simulator (LightningSim matched our cosims exactly on blocking-read designs), and place and route for the headline designs.</li>
+        <li><b>Expert baselines:</b> AutoSA for GEMM and LU, SODA (as generated and patched) for stencils, AutoDSE or HARP for pragma DSE.</li>
+        <li><b>Hidden testbenches</b> the agent never sees, and an audit of outliers for special-casing.</li>
+      </ol></div>
+  </div>
+</section>
+
+<section id="sources">
+  <span class="eyebrow">Sources</span>
+  <h2>References</h2>
+  <h3>HLS systems</h3>
+  <ul class="src">
+    <li>HLS-Repair <a href="https://arxiv.org/abs/2407.03889">arXiv:2407.03889</a>; C2HLSC <a href="https://arxiv.org/abs/2412.00214">arXiv:2412.00214</a>; HLSPilot <a href="https://arxiv.org/abs/2408.06810">arXiv:2408.06810</a>; "Are LLMs any good for HLS?" <a href="https://arxiv.org/abs/2408.10428">arXiv:2408.10428</a>; RALAD <a href="https://arxiv.org/abs/2410.07356">arXiv:2410.07356</a>; Agentic-HLS <a href="https://arxiv.org/abs/2412.01604">arXiv:2412.01604</a>; Gai et al. <a href="https://arxiv.org/abs/2502.13921">arXiv:2502.13921</a>; HLSTester <a href="https://arxiv.org/abs/2504.14641">arXiv:2504.14641</a></li>
+    <li>LIFT <a href="https://arxiv.org/abs/2504.21187">arXiv:2504.21187</a>; Intelligent4DSE <a href="https://arxiv.org/abs/2504.19649">arXiv:2504.19649</a>; LLM-DSE <a href="https://arxiv.org/abs/2505.12188">arXiv:2505.12188</a>; iDSE <a href="https://arxiv.org/abs/2505.22086">arXiv:2505.22086</a>; MPM-LLM4DSE <a href="https://arxiv.org/abs/2601.04801">arXiv:2601.04801</a>; ChatHLS <a href="https://arxiv.org/abs/2507.00642">arXiv:2507.00642</a>, <a href="https://aclanthology.org/2026.acl-long.962/">ACL 2026</a>; HLStrans <a href="https://arxiv.org/abs/2507.04315">arXiv:2507.04315</a>; ForgeHLS <a href="https://arxiv.org/abs/2507.03255">arXiv:2507.03255</a>; TimelyHLS <a href="https://arxiv.org/abs/2507.17962">arXiv:2507.17962</a>; HLSDebugger <a href="https://arxiv.org/abs/2507.21485">arXiv:2507.21485</a>; SAGE-HLS <a href="https://arxiv.org/abs/2508.03558">arXiv:2508.03558</a></li>
+    <li>Spec2RTL-Agent <a href="https://arxiv.org/abs/2506.13905">arXiv:2506.13905</a>; A2H-MAS <a href="https://arxiv.org/abs/2508.10904">arXiv:2508.10904</a>; CorrectHDL <a href="https://arxiv.org/abs/2511.16395">arXiv:2511.16395</a>; From Pragmas to Partners <a href="https://arxiv.org/abs/2602.01401">arXiv:2602.01401</a>; LAAFD <a href="https://arxiv.org/abs/2602.06085">arXiv:2602.06085</a>; Agent Factories <a href="https://arxiv.org/abs/2603.25719">arXiv:2603.25719</a>; IBM QEC agent factory <a href="https://www.ibm.com/downloads/documents/us-en/17f55bd44d44b0e3">IBM PDF</a></li>
+    <li>HLS-Seek <a href="https://arxiv.org/abs/2605.13536">arXiv:2605.13536</a>; A3D <a href="https://arxiv.org/abs/2605.15237">arXiv:2605.15237</a>; MailoHLS <a href="https://arxiv.org/abs/2606.07246">arXiv:2606.07246</a>; AgRefactor <a href="https://arxiv.org/abs/2606.30949">arXiv:2606.30949</a>; HLS-LeVeri <a href="https://arxiv.org/abs/2606.17128">arXiv:2606.17128</a>; Evidence-Driven agent <a href="https://arxiv.org/abs/2606.28409">arXiv:2606.28409</a>; HLSmith <a href="https://arxiv.org/abs/2608.06791">arXiv:2608.06791</a>; FPGAgent <a href="https://arxiv.org/abs/2608.23630">arXiv:2608.23630</a>; HLSFactory-Agent <a href="https://arxiv.org/abs/2609.09519">arXiv:2609.09519</a>; AHRR <a href="https://arxiv.org/abs/2609.21157">arXiv:2609.21157</a></li>
+  </ul>
+  <h3>Benchmarks and measurement</h3>
+  <ul class="src">
+    <li>HLSyn <a href="https://github.com/ZongyueQin/HLSyn">GitHub</a>; HLSFactory <a href="https://arxiv.org/abs/2405.00820">arXiv:2405.00820</a>; HLS-Eval <a href="https://arxiv.org/abs/2504.12268">arXiv:2504.12268</a>; agentic HLS-Eval <a href="https://arxiv.org/abs/2609.09526">arXiv:2609.09526</a>; Bench4HLS <a href="https://arxiv.org/abs/2601.19941">arXiv:2601.19941</a>; Rosetta <a href="https://github.com/cornell-zhang/rosetta">GitHub</a>; CVDP <a href="https://arxiv.org/abs/2506.14074">arXiv:2506.14074</a>; VerilogEval v2 <a href="https://arxiv.org/abs/2408.11053">arXiv:2408.11053</a></li>
+    <li>LightningSim <a href="https://ar5iv.labs.arxiv.org/html/2304.11219">arXiv:2304.11219</a>; LightningSimV2 <a href="https://arxiv.org/html/2404.09471v2">arXiv:2404.09471</a>; OmniSim <a href="https://arxiv.org/abs/2508.19299">arXiv:2508.19299</a>; AutoBridge <a href="https://www.csl.cornell.edu/~zhiruz/pdfs/autobridge-fpga2021.pdf">FPGA'21</a>; TAPA <a href="https://arxiv.org/abs/2209.02663">arXiv:2209.02663</a>; Vitis HLS LOOP_TRIPCOUNT and AXI4 burst docs <a href="https://docs.amd.com/r/en-US/ug1399-vitis-hls/pragma-HLS-loop_tripcount">UG1399</a></li>
+    <li>VeriContaminated <a href="https://arxiv.org/abs/2503.13572">arXiv:2503.13572</a>; KernelBench <a href="https://arxiv.org/abs/2502.10517">arXiv:2502.10517</a>; KernelBench-Verified <a href="https://www.alphaxiv.org/abs/2607.16241">alphaXiv:2607.16241</a>; CUDA kernel reward hacking <a href="https://arxiv.org/pdf/2510.03760">arXiv:2510.03760</a>, <a href="https://arxiv.org/pdf/2507.14111">arXiv:2507.14111</a></li>
+  </ul>
+  <h3>Workflows vs agents (SE, RTL)</h3>
+  <ul class="src">
+    <li>Agentless <a href="https://arxiv.org/html/2407.01489v2">arXiv:2407.01489</a>; SWE-agent <a href="https://arxiv.org/abs/2405.15793">arXiv:2405.15793</a>; AutoCodeRover <a href="https://arxiv.org/html/2404.05427v3">arXiv:2404.05427</a>; mini-swe-agent <a href="https://github.com/SWE-agent/mini-swe-agent">GitHub</a>; Anthropic, <a href="https://www.anthropic.com/engineering/building-effective-agents">Building effective agents</a>, <a href="https://www.anthropic.com/engineering/swe-bench-sonnet">SWE-bench scaffold</a>, <a href="https://www.anthropic.com/engineering/multi-agent-research-system">multi-agent research system</a></li>
+    <li>AI Agents That Matter <a href="https://arxiv.org/pdf/2407.01502">arXiv:2407.01502</a>; HAL <a href="https://arxiv.org/abs/2510.11977">arXiv:2510.11977</a>; Why do multi-agent systems fail <a href="https://arxiv.org/html/2503.13657v3">arXiv:2503.13657</a>; Wang et al. <a href="https://arxiv.org/abs/2402.18272">arXiv:2402.18272</a>; Gao et al. <a href="https://arxiv.org/abs/2505.18286">arXiv:2505.18286</a>; Tran and Kiela <a href="https://arxiv.org/html/2604.02460v1">arXiv:2604.02460</a>; Scaling agent systems <a href="https://arxiv.org/abs/2512.08296">arXiv:2512.08296</a>; minimal harness for ML engineering <a href="https://arxiv.org/html/2609.40303">arXiv:2609.40303</a>; Coding agents have converged <a href="https://arxiv.org/abs/2609.17394">arXiv:2609.17394</a>; randomness in agentic evals <a href="https://arxiv.org/abs/2602.07150">arXiv:2602.07150</a>; Agentic Benchmark Checklist <a href="https://arxiv.org/html/2507.02825v5">arXiv:2507.02825</a>; AlphaCodium <a href="https://arxiv.org/abs/2401.08500">arXiv:2401.08500</a></li>
+    <li>MAGE <a href="https://arxiv.org/html/2412.07822v1">arXiv:2412.07822</a>; VerilogCoder <a href="https://arxiv.org/abs/2408.08927">arXiv:2408.08927</a>; RTLFixer <a href="https://arxiv.org/html/2311.16543v3">arXiv:2311.16543</a>; AutoChip <a href="https://arxiv.org/html/2311.04887v2">arXiv:2311.04887</a>, <a href="https://arxiv.org/abs/2411.11856">arXiv:2411.11856</a>; Agentic frontier of Verilog generation <a href="https://arxiv.org/html/2603.19347v3">arXiv:2603.19347</a>; ChipCraftBrain <a href="https://arxiv.org/html/2604.19856v1">arXiv:2604.19856</a>; HDLFORGE <a href="https://arxiv.org/abs/2603.04646">arXiv:2603.04646</a>; Agentic EDA survey <a href="https://arxiv.org/abs/2606.19795">arXiv:2606.19795</a>; LLMs for EDA <a href="https://arxiv.org/abs/2501.09655">arXiv:2501.09655</a></li>
+  </ul>
+</section>
+
+<footer>Compiled from four research passes (HLS systems, workflows vs agents, benchmarks and evaluation, and the study's own cost and run logs). Research notes: <code>study/survey/</code> in the c2hls workspace. Preprints dated after mid-2026 are not peer reviewed; numbers from abstracts or secondary sources are marked in the notes.</footer>
+</main>
+</div>

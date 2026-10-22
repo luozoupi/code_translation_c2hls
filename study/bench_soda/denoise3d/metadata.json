@@ -1,0 +1,69 @@
+{
+  "benchmark": "denoise3d",
+  "source_repo": "soda",
+  "algorithm_source_path": "/scratch/asa582/workspaces/soda_src/soda/tests/src/denoise3d.soda",
+  "gold_hls_source_path": "",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "plain.cpp",
+  "header_file": "denoise3d.h",
+  "baseline_variant": "denoise3d_0_baseline",
+  "variants": [
+    {
+      "name": "denoise3d_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": ""
+    }
+  ],
+  "variant_source_paths": {},
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "workload",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 0,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_baseline_sha256": "ec5e38a8c34f6e64e3cd2b203eaf362c7f40f78246402719949563c17e903588",
+    "plain_c_sha256": "edb5d110f70db087a26e472f667f4f37852ae1baf40a59a9d57ffc9e3e73267a",
+    "plain_derived_from_gold_hls": false,
+    "generator": "study/bench_soda/gen_bench.py"
+  },
+  "soda": {
+    "iterate": 1,
+    "sizes": [
+      256,
+      256,
+      256
+    ],
+    "dtype": "f:float,u:float -> output:float",
+    "valid_region": {
+      "x": [
+        2,
+        "WIDTH-2"
+      ],
+      "y": [
+        2,
+        "HEIGHT-2"
+      ],
+      "z": [
+        2,
+        "DEPTH-2"
+      ]
+    },
+    "layout": "arr[z][y][x], SODA first index = x (fastest)"
+  }
+}

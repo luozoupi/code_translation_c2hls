@@ -1,0 +1,22 @@
+{
+ "name": "blur_u4_b128",
+ "kernel": "blur",
+ "unroll": 4,
+ "cr": false,
+ "burst": 128,
+ "iterate": 1,
+ "sizes": [
+  1024,
+  1024
+ ],
+ "src": "/scratch/asa582/workspaces/soda_src/soda/tests/src/blur.soda",
+ "top": "blur_kernel",
+ "depth": {
+  "input": 131330,
+  "blur_y": 131330
+ },
+ "stencil_distance": 2050,
+ "argv": "x 1024 1024",
+ "tripcount_module": 262657,
+ "tripcount_dram": 131329
+}

@@ -1,0 +1,236 @@
+# launch_simulation
+Command: launch_simulation 
+execute_script: Time (s): cpu = 00:00:03 ; elapsed = 00:00:05 . Memory (MB): peak = 1454.996 ; gain = 0.000 ; free physical = 530149 ; free virtual = 577265
+xelab --incr --debug off --relax --mt off -L xil_defaultlib -L xbip_utils_v3_0_11 -L axi_utils_v2_0_7 -L xbip_pipe_v3_0_7 -L xbip_dsp48_wrapper_v3_0_5 -L xbip_dsp48_addsub_v3_0_7 -L xbip_dsp48_multadd_v3_0_7 -L xbip_bram18k_v3_0_7 -L mult_gen_v12_0_19 -L floating_point_v7_1_16 -L unisims_ver -L unimacro_ver -L secureip -L xpm --snapshot test_behav xil_defaultlib.test xil_defaultlib.glbl -log elaborate.log
+Running: /opt/Xilinx/Vivado/2023.2/bin/unwrapped/lnx64.o/xelab --incr --debug off --relax --mt off -L xil_defaultlib -L xbip_utils_v3_0_11 -L axi_utils_v2_0_7 -L xbip_pipe_v3_0_7 -L xbip_dsp48_wrapper_v3_0_5 -L xbip_dsp48_addsub_v3_0_7 -L xbip_dsp48_multadd_v3_0_7 -L xbip_bram18k_v3_0_7 -L mult_gen_v12_0_19 -L floating_point_v7_1_16 -L unisims_ver -L unimacro_ver -L secureip -L xpm --snapshot test_behav xil_defaultlib.test xil_defaultlib.glbl -log elaborate.log 
+WARNING: [XSIM 43-3431] One or more environment variables have been detected which affect the operation of the C compiler. These are typically not set in standard installations and are not tested by AMD, however they may be appropriate for your system, so the flow will attempt to continue.  If errors occur, try running xelab with the "-mt off -v 1" switches to see more information from the C compiler. The following environment variables have been detected:
+execute_script: Time (s): cpu = 00:13:53 ; elapsed = 00:14:24 . Memory (MB): peak = 1454.996 ; gain = 0.000 ; free physical = 588680 ; free virtual = 633750
+run: Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:35 . Memory (MB): peak = 1594.594 ; gain = 0.000 ; free physical = 598760 ; free virtual = 644160
+xsim: Time (s): cpu = 00:00:00.08 ; elapsed = 00:00:41 . Memory (MB): peak = 1594.594 ; gain = 134.141 ; free physical = 598773 ; free virtual = 644173
+launch_simulation: Time (s): cpu = 00:14:02 ; elapsed = 00:15:18 . Memory (MB): peak = 1594.594 ; gain = 143.605 ; free physical = 598788 ; free virtual = 644187
+FASTCOSIM_START 4428 cycle=1107
+FASTCOSIM_HEARTBEAT cycles=10000
+FASTCOSIM_HEARTBEAT cycles=20000
+FASTCOSIM_HEARTBEAT cycles=30000
+FASTCOSIM_HEARTBEAT cycles=40000
+FASTCOSIM_HEARTBEAT cycles=50000
+FASTCOSIM_HEARTBEAT cycles=60000
+FASTCOSIM_HEARTBEAT cycles=70000
+FASTCOSIM_HEARTBEAT cycles=80000
+FASTCOSIM_HEARTBEAT cycles=90000
+FASTCOSIM_HEARTBEAT cycles=100000
+FASTCOSIM_HEARTBEAT cycles=110000
+FASTCOSIM_HEARTBEAT cycles=120000
+FASTCOSIM_HEARTBEAT cycles=130000
+FASTCOSIM_HEARTBEAT cycles=140000
+FASTCOSIM_HEARTBEAT cycles=150000
+FASTCOSIM_HEARTBEAT cycles=160000
+FASTCOSIM_HEARTBEAT cycles=170000
+FASTCOSIM_HEARTBEAT cycles=180000
+FASTCOSIM_HEARTBEAT cycles=190000
+FASTCOSIM_HEARTBEAT cycles=200000
+FASTCOSIM_HEARTBEAT cycles=210000
+FASTCOSIM_HEARTBEAT cycles=220000
+FASTCOSIM_HEARTBEAT cycles=230000
+FASTCOSIM_HEARTBEAT cycles=240000
+FASTCOSIM_HEARTBEAT cycles=250000
+FASTCOSIM_HEARTBEAT cycles=260000
+FASTCOSIM_HEARTBEAT cycles=270000
+FASTCOSIM_HEARTBEAT cycles=280000
+FASTCOSIM_HEARTBEAT cycles=290000
+FASTCOSIM_HEARTBEAT cycles=300000
+FASTCOSIM_HEARTBEAT cycles=310000
+FASTCOSIM_HEARTBEAT cycles=320000
+FASTCOSIM_HEARTBEAT cycles=330000
+FASTCOSIM_HEARTBEAT cycles=340000
+FASTCOSIM_HEARTBEAT cycles=350000
+FASTCOSIM_HEARTBEAT cycles=360000
+FASTCOSIM_HEARTBEAT cycles=370000
+FASTCOSIM_HEARTBEAT cycles=380000
+FASTCOSIM_HEARTBEAT cycles=390000
+FASTCOSIM_HEARTBEAT cycles=400000
+FASTCOSIM_HEARTBEAT cycles=410000
+FASTCOSIM_HEARTBEAT cycles=420000
+FASTCOSIM_HEARTBEAT cycles=430000
+FASTCOSIM_HEARTBEAT cycles=440000
+FASTCOSIM_HEARTBEAT cycles=450000
+FASTCOSIM_HEARTBEAT cycles=460000
+FASTCOSIM_HEARTBEAT cycles=470000
+FASTCOSIM_HEARTBEAT cycles=480000
+FASTCOSIM_HEARTBEAT cycles=490000
+FASTCOSIM_HEARTBEAT cycles=500000
+FASTCOSIM_HEARTBEAT cycles=510000
+FASTCOSIM_HEARTBEAT cycles=520000
+FASTCOSIM_HEARTBEAT cycles=530000
+FASTCOSIM_HEARTBEAT cycles=540000
+FASTCOSIM_HEARTBEAT cycles=550000
+FASTCOSIM_HEARTBEAT cycles=560000
+FASTCOSIM_HEARTBEAT cycles=570000
+FASTCOSIM_HEARTBEAT cycles=580000
+FASTCOSIM_HEARTBEAT cycles=590000
+FASTCOSIM_HEARTBEAT cycles=600000
+FASTCOSIM_HEARTBEAT cycles=610000
+FASTCOSIM_HEARTBEAT cycles=620000
+FASTCOSIM_HEARTBEAT cycles=630000
+FASTCOSIM_HEARTBEAT cycles=640000
+FASTCOSIM_HEARTBEAT cycles=650000
+FASTCOSIM_HEARTBEAT cycles=660000
+FASTCOSIM_HEARTBEAT cycles=670000
+FASTCOSIM_HEARTBEAT cycles=680000
+FASTCOSIM_HEARTBEAT cycles=690000
+FASTCOSIM_HEARTBEAT cycles=700000
+FASTCOSIM_HEARTBEAT cycles=710000
+FASTCOSIM_HEARTBEAT cycles=720000
+FASTCOSIM_HEARTBEAT cycles=730000
+
+----- tail -----
+Compiling architecture rtl of entity floating_point_v7_1_16.delay [\delay(length=3,fast_input=true)...]
+Compiling architecture rtl of entity floating_point_v7_1_16.flt_add_exp_sp [\flt_add_exp_sp(c_xdevicefamily=...]
+Compiling architecture synth of entity xbip_pipe_v3_0_7.xbip_pipe_v3_0_7_viv [\xbip_pipe_v3_0_7_viv(c_latency=...]
+Compiling architecture rtl of entity floating_point_v7_1_16.delay [\delay(width=23)\]
+Compiling architecture synth of entity floating_point_v7_1_16.flt_dec_op [\flt_dec_op(c_xdevicefamily="vir...]
+Compiling architecture rtl of entity floating_point_v7_1_16.flt_add_dsp [\flt_add_dsp(c_xdevicefamily="vi...]
+Compiling architecture rtl of entity floating_point_v7_1_16.flt_add [\flt_add(c_xdevicefamily="virtex...]
+Compiling architecture synth of entity xbip_pipe_v3_0_7.xbip_pipe_v3_0_7_viv [\xbip_pipe_v3_0_7_viv(c_latency=...]
+Compiling architecture xilinx of entity floating_point_v7_1_16.floating_point_v7_1_16_viv [\floating_point_v7_1_16_viv(c_xd...]
+Compiling architecture xilinx of entity floating_point_v7_1_16.floating_point_v7_1_16 [\floating_point_v7_1_16(c_xdevic...]
+Compiling module xil_defaultlib.autosa_mm_fadd_32ns_32ns_32_7_fu...
+Compiling module xil_defaultlib.autosa_mm_fadd_32ns_32ns_32_7_fu...
+Compiling architecture dsp48e1_v of entity unisim.DSP48E1 [\DSP48E1(acascreg=0,adreg=0,alum...]
+Compiling architecture synth of entity xbip_pipe_v3_0_7.xbip_pipe_v3_0_7_viv [\xbip_pipe_v3_0_7_viv(c_has_ce=1...]
+Compiling architecture rtl of entity floating_point_v7_1_16.delay [\delay(width=17,length=0)\]
+Compiling architecture rtl of entity floating_point_v7_1_16.dsp48e1_wrapper [\dsp48e1_wrapper(a_width=24,b_wi...]
+Compiling architecture dsp48e1_v of entity unisim.DSP48E1 [\DSP48E1(acascreg=0,adreg=0,alum...]
+Compiling architecture rtl of entity floating_point_v7_1_16.dsp48e1_wrapper [\dsp48e1_wrapper(a_width=24,b_wi...]
+Compiling architecture struct of entity floating_point_v7_1_16.fix_mult_dsp48e1_sgl [\fix_mult_dsp48e1_sgl(registers=...]
+Compiling architecture rtl of entity floating_point_v7_1_16.fix_mult [\fix_mult(c_xdevicefamily="virte...]
+Compiling architecture struct of entity floating_point_v7_1_16.carry_chain [\carry_chain(c_xdevicefamily="vi...]
+Compiling architecture synth of entity xbip_pipe_v3_0_7.xbip_pipe_v3_0_7_viv [\xbip_pipe_v3_0_7_viv(c_latency=...]
+Compiling architecture rtl of entity floating_point_v7_1_16.delay [\delay(width=2,fast_input=true)\]
+Compiling architecture synth of entity xbip_pipe_v3_0_7.xbip_pipe_v3_0_7_viv [\xbip_pipe_v3_0_7_viv(c_has_ce=1...]
+Compiling architecture rtl of entity floating_point_v7_1_16.delay [\delay(width=3,length=0,fast_inp...]
+Compiling architecture rtl of entity floating_point_v7_1_16.flt_mult_exp [\flt_mult_exp(c_xdevicefamily="v...]
+Compiling architecture dsp48e1_v of entity unisim.DSP48E1 [\DSP48E1(acascreg=0,adreg=0,alum...]
+Compiling architecture synth of entity xbip_pipe_v3_0_7.xbip_pipe_v3_0_7_viv [\xbip_pipe_v3_0_7_viv(c_has_ce=1...]
+Compiling architecture rtl of entity floating_point_v7_1_16.delay [\delay(width=30,length=0)\]
+Compiling architecture synth of entity xbip_pipe_v3_0_7.xbip_pipe_v3_0_7_viv [\xbip_pipe_v3_0_7_viv(c_has_ce=1...]
+Compiling architecture rtl of entity floating_point_v7_1_16.delay [\delay(width=18,length=0)\]
+Compiling architecture rtl of entity floating_point_v7_1_16.dsp48e1_wrapper [\dsp48e1_wrapper(a_width=30,b_wi...]
+Compiling architecture struct of entity floating_point_v7_1_16.flt_round_dsp_opt_full [\flt_round_dsp_opt_full(c_xdevic...]
+Compiling architecture rtl of entity floating_point_v7_1_16.flt_mult_round [\flt_mult_round(c_xdevicefamily=...]
+Compiling architecture synth of entity floating_point_v7_1_16.flt_dec_op_lat [\flt_dec_op_lat(c_xdevicefamily=...]
+Compiling architecture rtl of entity floating_point_v7_1_16.flt_mult [\flt_mult(c_xdevicefamily="virte...]
+Compiling architecture xilinx of entity floating_point_v7_1_16.floating_point_v7_1_16_viv [\floating_point_v7_1_16_viv(c_xd...]
+Compiling architecture xilinx of entity floating_point_v7_1_16.floating_point_v7_1_16 [\floating_point_v7_1_16(c_xdevic...]
+Compiling module xil_defaultlib.autosa_mm_fmul_32ns_32ns_32_4_ma...
+Compiling module xil_defaultlib.autosa_mm_fmul_32ns_32ns_32_4_ma...
+Compiling module xil_defaultlib.autosa_mm_sparsemux_65_5_32_1_1(...
+Compiling module xil_defaultlib.autosa_mm_sparsemux_9_2_32_1_1(d...
+Compiling module xil_defaultlib.autosa_mm_compute_Pipeline_tile_...
+Compiling module xil_defaultlib.autosa_mm_compute_Pipeline_epilo...
+Compiling module xil_defaultlib.autosa_mm_compute
+Compiling module xil_defaultlib.autosa_mm_store_C_cbuf_RAM_AUTO_...
+Compiling module xil_defaultlib.autosa_mm_store_C_Pipeline_rd_c
+Compiling module xil_defaultlib.autosa_mm_store_C_Pipeline_wr_c
+Compiling module xil_defaultlib.autosa_mm_store_C
+Compiling module xil_defaultlib.autosa_mm_fifo_w64_d4_S_ShiftReg
+Compiling module xil_defaultlib.autosa_mm_fifo_w64_d4_S
+Compiling module xil_defaultlib.autosa_mm_fifo_w512_d64_A_ram
+Compiling module xil_defaultlib.autosa_mm_fifo_w512_d64_A
+Compiling module xil_defaultlib.autosa_mm_fifo_w512_d512_A_ram
+Compiling module xil_defaultlib.autosa_mm_fifo_w512_d512_A
+Compiling module xil_defaultlib.autosa_mm_start_for_compute_U0_S...
+Compiling module xil_defaultlib.autosa_mm_start_for_compute_U0
+Compiling module xil_defaultlib.autosa_mm
+Compiling module xil_defaultlib.test
+Compiling module xil_defaultlib.glbl
+Built simulation snapshot test_behav
+execute_script: Time (s): cpu = 00:13:53 ; elapsed = 00:14:24 . Memory (MB): peak = 1454.996 ; gain = 0.000 ; free physical = 588680 ; free virtual = 633750
+INFO: [USF-XSim-69] 'elaborate' step finished in '864' seconds
+INFO: [USF-XSim-4] XSim::Simulate design
+INFO: [USF-XSim-61] Executing 'SIMULATE' step in '/scratch/asa582/tmp/c2hls/fastcosim_12_ladder_agent_r2_L3_20261009T141745Z/tb/run/vivado/tapa-fast-cosim.sim/sim_1/behav/xsim'
+INFO: [USF-XSim-98] *** Running xsim
+   with args "test_behav -key {Behavioral:sim_1:Functional:test} -tclbatch {test.tcl} -log {simulate.log}"
+INFO: [USF-XSim-8] Loading simulator feature
+Time resolution is 1 ps
+source test.tcl
+run: Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:35 . Memory (MB): peak = 1594.594 ; gain = 0.000 ; free physical = 598760 ; free virtual = 644160
+xsim: Time (s): cpu = 00:00:00.08 ; elapsed = 00:00:41 . Memory (MB): peak = 1594.594 ; gain = 134.141 ; free physical = 598773 ; free virtual = 644173
+INFO: [USF-XSim-96] XSim completed. Design snapshot 'test_behav' loaded.
+INFO: [USF-XSim-97] XSim simulation ran for 1000ns
+launch_simulation: Time (s): cpu = 00:14:02 ; elapsed = 00:15:18 . Memory (MB): peak = 1594.594 ; gain = 143.605 ; free physical = 598788 ; free virtual = 644187
+# run all
+FASTCOSIM_START 4428 cycle=1107
+FASTCOSIM_HEARTBEAT cycles=10000
+FASTCOSIM_HEARTBEAT cycles=20000
+FASTCOSIM_HEARTBEAT cycles=30000
+FASTCOSIM_HEARTBEAT cycles=40000
+FASTCOSIM_HEARTBEAT cycles=50000
+FASTCOSIM_HEARTBEAT cycles=60000
+FASTCOSIM_HEARTBEAT cycles=70000
+FASTCOSIM_HEARTBEAT cycles=80000
+FASTCOSIM_HEARTBEAT cycles=90000
+FASTCOSIM_HEARTBEAT cycles=100000
+FASTCOSIM_HEARTBEAT cycles=110000
+FASTCOSIM_HEARTBEAT cycles=120000
+FASTCOSIM_HEARTBEAT cycles=130000
+FASTCOSIM_HEARTBEAT cycles=140000
+FASTCOSIM_HEARTBEAT cycles=150000
+FASTCOSIM_HEARTBEAT cycles=160000
+FASTCOSIM_HEARTBEAT cycles=170000
+FASTCOSIM_HEARTBEAT cycles=180000
+FASTCOSIM_HEARTBEAT cycles=190000
+FASTCOSIM_HEARTBEAT cycles=200000
+FASTCOSIM_HEARTBEAT cycles=210000
+FASTCOSIM_HEARTBEAT cycles=220000
+FASTCOSIM_HEARTBEAT cycles=230000
+FASTCOSIM_HEARTBEAT cycles=240000
+FASTCOSIM_HEARTBEAT cycles=250000
+FASTCOSIM_HEARTBEAT cycles=260000
+FASTCOSIM_HEARTBEAT cycles=270000
+FASTCOSIM_HEARTBEAT cycles=280000
+FASTCOSIM_HEARTBEAT cycles=290000
+FASTCOSIM_HEARTBEAT cycles=300000
+FASTCOSIM_HEARTBEAT cycles=310000
+FASTCOSIM_HEARTBEAT cycles=320000
+FASTCOSIM_HEARTBEAT cycles=330000
+FASTCOSIM_HEARTBEAT cycles=340000
+FASTCOSIM_HEARTBEAT cycles=350000
+FASTCOSIM_HEARTBEAT cycles=360000
+FASTCOSIM_HEARTBEAT cycles=370000
+FASTCOSIM_HEARTBEAT cycles=380000
+FASTCOSIM_HEARTBEAT cycles=390000
+FASTCOSIM_HEARTBEAT cycles=400000
+FASTCOSIM_HEARTBEAT cycles=410000
+FASTCOSIM_HEARTBEAT cycles=420000
+FASTCOSIM_HEARTBEAT cycles=430000
+FASTCOSIM_HEARTBEAT cycles=440000
+FASTCOSIM_HEARTBEAT cycles=450000
+FASTCOSIM_HEARTBEAT cycles=460000
+FASTCOSIM_HEARTBEAT cycles=470000
+FASTCOSIM_HEARTBEAT cycles=480000
+FASTCOSIM_HEARTBEAT cycles=490000
+FASTCOSIM_HEARTBEAT cycles=500000
+FASTCOSIM_HEARTBEAT cycles=510000
+FASTCOSIM_HEARTBEAT cycles=520000
+FASTCOSIM_HEARTBEAT cycles=530000
+FASTCOSIM_HEARTBEAT cycles=540000
+FASTCOSIM_HEARTBEAT cycles=550000
+FASTCOSIM_HEARTBEAT cycles=560000
+FASTCOSIM_HEARTBEAT cycles=570000
+FASTCOSIM_HEARTBEAT cycles=580000
+FASTCOSIM_HEARTBEAT cycles=590000
+FASTCOSIM_HEARTBEAT cycles=600000
+FASTCOSIM_HEARTBEAT cycles=610000
+FASTCOSIM_HEARTBEAT cycles=620000
+FASTCOSIM_HEARTBEAT cycles=630000
+FASTCOSIM_HEARTBEAT cycles=640000
+FASTCOSIM_HEARTBEAT cycles=650000
+FASTCOSIM_HEARTBEAT cycles=660000
+FASTCOSIM_HEARTBEAT cycles=670000
+FASTCOSIM_HEARTBEAT cycles=680000
+FASTCOSIM_HEARTBEAT cycles=690000
+FASTCOSIM_HEARTBEAT cycles=700000
+FASTCOSIM_HEARTBEAT cycles=710000
+FASTCOSIM_HEARTBEAT cycles=720000
+FASTCOSIM_HEARTBEAT cycles=730000

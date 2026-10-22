@@ -1,0 +1,13 @@
+# TB_NOTES: lc_dilate
+- Arg classification (from plain.cpp): result[] pure output (every element written); img input.
+- Golden: plain.cpp workload() copied as workload_ref on srand(42) img in [0,1].
+- Tolerance: float 1e-3*fmax(1,|ref|) (SPEC)
+- Poison: result = 12345.0f
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- No original testbench existed (new file); metadata.json still says supports_csim=false, testbench_file=null (not edited).
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 278528 errors!
+- Control 3 (one bug, must fail): Failed with 544 errors! (last column skipped)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: New testbench. dilate.h includes support/common/mc.h (present in the dir; -I bench dir is enough, no extra files needed). Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/lc_dilate/).

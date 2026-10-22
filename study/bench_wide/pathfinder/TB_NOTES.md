@@ -1,0 +1,13 @@
+# TB_NOTES: pathfinder
+- Arg classification (from plain.cpp): J input; Jout pure output (workload only memcpy's into it).
+- Golden: TB's own pathfinder_ref (DP as in plain.cpp's workload), srand(42).
+- Tolerance: exact ints
+- Poison: Jout = 0x5A5A5A5A (was memset 0)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 1024 errors!
+- Control 3 (one bug, must fail): Failed with 1011 errors! (one DP row short)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/pathfinder/).

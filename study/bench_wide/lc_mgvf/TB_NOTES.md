@@ -1,0 +1,13 @@
+# TB_NOTES: lc_mgvf
+- Arg classification (from plain.cpp): result[] pure output (first lc_mgvf call writes it before reading); imgvf[] in-out (ping-pong, real init); I input.
+- Golden: plain.cpp heaviside/lc_mgvf/workload copied as *_ref on srand(42) data in [0,1]; all of result[] and imgvf[] compared.
+- Tolerance: float 1e-3*fmax(1,|ref|) (SPEC)
+- Poison: result = 12345.0f
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- No original testbench existed (new file); metadata.json still says supports_csim=false, testbench_file=null (not edited).
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 2095061 errors!
+- Control 3 (one bug, must fail): Failed with 1862 errors! (one ping-pong pair fewer)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: New testbench. Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/lc_mgvf/).

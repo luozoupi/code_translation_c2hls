@@ -1,0 +1,41 @@
+{
+  "benchmark": "lud",
+  "source_repo": "AutoSA",
+  "corpus": "autosa_ready",
+  "algorithm_source_path": "AutoSA rev b61a1b4 autosa_tests/lu/kernel.c (lu_device)",
+  "gold_hls_source_path": "same",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "plain.cpp",
+  "plain_c_file": "plain.cpp",
+  "header_file": "kernel.h",
+  "testbench_file": "testbench.cpp",
+  "baseline_variant": "lud_0_baseline",
+  "translated_hls_top": "lu_kernel",
+  "hls_top": "lu_kernel",
+  "kernel_top": "lu_kernel",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "target_part": "xcu280-fsvh2892-2L-e",
+  "target_clock_ns": 3.33,
+  "synth_timeout_s": 86400,
+  "csim_timeout_s": 86400,
+  "skip_phase_a": false,
+  "variants": [
+    {
+      "name": "lud_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "AutoSA autosa_tests/lu/kernel.c"
+    }
+  ],
+  "provenance": {
+    "autosa_kernel_id": "lu",
+    "autosa_rel_dir": "autosa_tests/lu",
+    "plain_c_sha256": "6bfda8ad830913219f0e1c97b325a3476dd038dc9fe8a1961d3088dcdafd4af2"
+  },
+  "n": 32,
+  "study_note": "LU without pivoting, N=32 (AutoSA README default). Testbench poisons L/U and checks U[k][i>=k], L[k][j>k]."
+}

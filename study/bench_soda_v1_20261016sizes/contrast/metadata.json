@@ -1,0 +1,64 @@
+{
+  "benchmark": "contrast",
+  "source_repo": "soda",
+  "algorithm_source_path": "/scratch/asa582/workspaces/soda_src/soda/tests/src/contrast.soda",
+  "gold_hls_source_path": "",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "plain.cpp",
+  "header_file": "contrast.h",
+  "baseline_variant": "contrast_0_baseline",
+  "variants": [
+    {
+      "name": "contrast_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": ""
+    }
+  ],
+  "variant_source_paths": {},
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "workload",
+  "hls_top": "workload",
+  "translated_hls_top": "workload",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": false,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 0,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_baseline_sha256": "7907d12359367b89fb9847d3ede63640388c0d54cd62b7fda2f1e16ceadb7eb6",
+    "plain_c_sha256": "8b79c5699583d8be5b0d1197ab38bd227a0c5dda61dd1be45f3aed34838c5778",
+    "plain_derived_from_gold_hls": false,
+    "generator": "study/bench_soda/gen_bench.py"
+  },
+  "soda": {
+    "iterate": 1,
+    "sizes": [
+      512,
+      512
+    ],
+    "dtype": "input:float -> output:float",
+    "valid_region": {
+      "x": [
+        0,
+        "WIDTH-16"
+      ],
+      "y": [
+        0,
+        "HEIGHT-16"
+      ]
+    },
+    "layout": "arr[z][y][x], SODA first index = x (fastest)"
+  }
+}

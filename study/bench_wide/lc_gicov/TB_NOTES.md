@@ -1,0 +1,13 @@
+# TB_NOTES: lc_gicov
+- Arg classification (from plain.cpp): result[] pure output but only written for rows/cols MAX_RADIUS..N-MAX_RADIUS-1 (border never written = undefined); grad_x, grad_y inputs.
+- Golden: plain.cpp workload() copied as workload_ref on srand(42) gradients in [-1,1]; exactly the interior region plain.cpp writes is compared (every element).
+- Tolerance: float 1e-3*fmax(1,|ref|) (SPEC), NaN/inf error
+- Poison: result = 12345.0f
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- No original testbench existed (new file); metadata.json still says supports_csim=false, testbench_file=null (not edited).
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 62500 errors!
+- Control 3 (one bug, must fail): Failed with 250 errors! (last interior row skipped)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: New testbench. Border cells deliberately not checked (undefined in plain.cpp). Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/lc_gicov/).

@@ -1,0 +1,204 @@
+flash_refined applied: {"version": 2, "system_prompt_chars": 2064, "user_edits": 6, "balance": true, "balance_ratio": 1.5, "total_macs": 1073741824, "flow_env": {"C2HLS_FLASH_DSP_REDO": "1", "C2HLS_FLASH_MIN_DSP": "300", "C2HLS_FLASH_MAX_DSP": "9024", "C2HLS_FLASH_DSP_FILL_PCT": "90", "C2HLS_STEP_REGRESSION_THRESHOLDS_JSON": "{\"flash\": {\"latency\": 1.0, \"resources\": {\"default\": 1000000000.0}}}"}, "neutral": true, "skills": "/scratch/asa582/workspaces/c2hls_claude_code/flash_refined/skills_ii_target_miss_solutions_added(90skills)_plus_gemm_flatten_v2_refined_v2_neutral.json"}
+seed applied: {'seed': '/scratch/asa582/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm/hls_baseline.cpp', 'seed_bytes': 287}
+{
+  "post_flash": false,
+  "bench": "autosa_mm",
+  "bench_dir": "/scratch/asa582/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm",
+  "cell_dir": "/scratch/asa582/workspaces/c2hls_claude_code/runs/skills_20261013T195458Z/autosa_mm",
+  "model": "claude-opus-5-5",
+  "turns": 3,
+  "flavor": {
+    "flavor": "skills",
+    "variant": "autosa_aav_n_gf",
+    "job_prefix": "mmflow",
+    "artifact_prefix": "batch_parallel_autosa_mm_flow_aav_n_gf",
+    "dse": "1",
+    "stream": "1",
+    "no_skills": "0",
+    "skip_phase_b": "0",
+    "flash_opt_prompt_mode": "",
+    "one_shot": "0",
+    "flash_only": "0",
+    "flash_min_dsp": "",
+    "turns": "",
+    "packaged_skills": "/scratch/asa582/workspaces/code_translation_c2hls/hls_full_optimization_skills_schema_1_1_package/skills_ii_target_miss_solutions_added(90skills)_gemm_flatten_v1.json"
+  },
+  "env": {
+    "C2HLS_STRATEGY": "flash",
+    "BATCH_PARALLEL_VARIANT": "autosa_aav_n_gf",
+    "C2HLS_MM_FLOW_FLAVOR": "skills",
+    "C2HLS_SKILL_MODE": "skill_on",
+    "C2HLS_SKILL_PROMPT_MODE": "all_skills_avoids_global",
+    "C2HLS_PACKAGED_SKILLS_JSON": "/scratch/asa582/workspaces/c2hls_claude_code/flash_refined/skills_ii_target_miss_solutions_added(90skills)_plus_gemm_flatten_v2_refined_v2_neutral.json",
+    "C2HLS_PACKAGED_SKILLS_ONLY": "1",
+    "C2HLS_FLASH_SKILL_ENTRIES_JSON": "/scratch/asa582/workspaces/code_translation_c2hls/hls_full_optimization_skills_schema_1_1_package/flash_no_RMW_m_axi_skill_entries.json",
+    "C2HLS_POST_FLASH_NO_SKILLS": "",
+    "C2HLS_SKIP_PHASE_B": "",
+    "C2HLS_FLASH_OPT_PROMPT_MODE": "",
+    "C2HLS_ONE_SHOT": "",
+    "C2HLS_FLASH_ONLY": "",
+    "C2HLS_TURNS": "",
+    "C2HLS_POST_FLASH_DSE": "0",
+    "C2HLS_DSE_CHAIN_FLASH": "0",
+    "C2HLS_POST_FLASH_STREAM": "0",
+    "C2HLS_STREAM_CHAIN_FLASH": "0",
+    "C2HLS_DSE_V2": "0",
+    "C2HLS_DSE_V2_CHAIN_FLASH": "0",
+    "C2HLS_RUN_COSIM": "0",
+    "C2HLS_PART": "xcu280-fsvh2892-2L-e",
+    "C2HLS_CLOCK_NS": "3.33",
+    "C2HLS_CSIM_TIMEOUT": "86400",
+    "C2HLS_SYNTH_TIMEOUT": "86400",
+    "C2HLS_LLM_TIMEOUT": "7200",
+    "C2HLS_MODEL": "claude-opus-5-5",
+    "OPENAI_BASE_URL": "http://login3:38585/v1",
+    "C2HLS_THINKING": "",
+    "C2HLS_REASONING_EFFORT": "",
+    "C2HLS_COMPILE_INCLUDE_PATHS": "",
+    "C2HLS_FLASH_MAX_TOKENS": "",
+    "C2HLS_LLM_MAX_TOKENS": "",
+    "C2HLS_TMP_ROOT": "/scratch/asa582/tmp/c2hls",
+    "C2HLS_AUTOSA_READY_ROOT": "/scratch/asa582/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024",
+    "C2HLS_SITE": "fir",
+    "C2HLS_FLASH_DSP_REDO": "",
+    "C2HLS_FLASH_MIN_DSP": "",
+    "C2HLS_FLASH_MAX_DSP": "9024",
+    "C2HLS_FLASH_DSP_FILL_PCT": "",
+    "C2HLS_STEP_REGRESSION_THRESHOLDS_JSON": "{\"flash\": {\"latency\": 1.0, \"resources\": {\"default\": 1000000000.0}}}",
+    "FLASH_WINDOW_LO": "",
+    "FLASH_WINDOW_HI": "",
+    "C2HLS_DSE_V4": "0",
+    "C2HLS_POST_FLASH_PRAGMA_OPT": "0",
+    "C2HLS_PRAGMA_OPT_CHAIN_FLASH": "0",
+    "C2HLS_POST_FLASH_LATENCY_OPT": "0",
+    "C2HLS_LATENCY_OPT_CHAIN_FLASH": "0"
+  }
+}
+endpoint: {"ok": true, "calls": 6, "errors": 0, "busy": 0}
+effective: site=fir skill_prompt_mode=all_skills_avoids_global
+=== flash system prompt ===
+You are an expert in FPGA High-Level Synthesis (HLS) using Xilinx Vitis HLS.
+You produce one complete, high-performance kernel in a single rewrite (flash mode).
+
+Key optimization techniques you may combine:
+- Tiling and on-chip staging, pipelining (`#pragma HLS PIPELINE II=1`), unrolling and array partitioning
+  (any factor, as long as every resource stays below 100% of the device), DATAFLOW / ping-pong buffering to
+  overlap load, compute and store, and wide 512-bit m_axi access (`max_widen_bitwidth=512`, or packed
+  internal types such as `ap_uint<512>` / `hls::vector`) while the top-level argument types stay unchanged.
+- Balance compute and data movement: for the datapath you choose, per-tile compute cycles must exceed
+  per-tile transfer cycles. Keep reused operands resident on chip across tiles, move every array
+  (including the output read-modify-write) in 512-bit beats at II=1, and overlap loads and stores with
+  compute. A datapath that waits on memory is not done.
+
+## m_axi bundle assignment (MANDATORY in flash)
+- Every top-level **pointer** port needs its own memory bundle: `bundle=gmem0`,
+  `bundle=gmem1`, `bundle=gmem2`, … assigned in **kernel argument order**.
+- **Never** put multiple pointer ports on `bundle=gmem` or reuse the same `gmemN`
+  for two different ports.
+- Keep all `s_axilite` ports on `bundle=control` (unchanged from baseline).
+- When splitting bundles, preserve legal adapter settings (`latency`, burst lengths,
+  outstanding counts) — ports sharing one bundle must match; distinct bundles may
+  each carry the same adapter values copied from the baseline.
+
+Rules:
+- Preserve algorithm correctness and the single `extern "C"` testbench-visible top and its argument types.
+- Label every `for` loop with a descriptive C loop label before the `for`.
+- Always provide the COMPLETE kernel in a ```cpp fence that is opened AND closed.
+  Restructure as much as the design needs; you are not limited to edits of the existing structure.
+  Truncated partial kernels are unusable; if cut off, continue from where you stopped.
+=== flash user prompt template ===
+FLASH MODE: produce one aggressively optimized HLS design in a SINGLE rewrite.
+
+This is not a step-by-step trajectory. Treat the current code as the
+functional starting point and return the best complete endpoint you can
+safely synthesize. Use any combination of the following when it naturally
+fits the kernel:
+
+1. Preserve the public kernel ABI, `extern "C"` top, and all `s_axilite`
+   INTERFACE lines (`bundle=control` on every scalar and `port=return`).
+   For **m_axi** pointer ports: assign a **distinct** bundle per port —
+   `bundle=gmem0`, `bundle=gmem1`, `bundle=gmem2`, … in kernel argument
+   order. **Never** leave multiple pointer ports on `bundle=gmem` or duplicate
+   a `gmemN` name. Copy legal burst/outstanding/latency settings from the
+   baseline onto each new bundle line.
+2. Pipeline hot inner loops with `#pragma HLS pipeline II=1` only when
+   memory ports and loop-carried dependencies can support it.
+3. Unroll data-parallel loops, and add spatial parallelism (rows/columns of
+   processing elements), with any factor you choose; the only limit is that
+   every resource stays below 100% of the device. Match local-buffer
+   array partitioning to the unroll factor.
+4. Stage reused data on chip (tiles, line buffers, or whole arrays when they
+   fit the device's BRAM/URAM); partition the dimensions that are accessed in
+   parallel.
+5. Overlap memory traffic with compute: DATAFLOW load-compute-store stages,
+   ping-pong (double) buffers or streams when the kernel has separable phases.
+6. Make AXI access wide and contiguous: legal burst/outstanding m_axi
+   pragmas, `max_widen_bitwidth=512` and 16-float (512-bit) beats. Keep the
+   top-level argument types (the host/testbench ABI) unchanged; inside the
+   kernel you may pack data into wide types such as `ap_uint<512>` or
+   `hls::vector`.
+7. Keep AXI pragma values Vitis-legal: burst lengths must be powers of two
+   in [1, 256]. Ports sharing the **same** bundle must use identical adapter
+   parameters (`latency`, outstanding counts, burst lengths, etc.). Distinct
+   bundles (`gmem0`, `gmem1`, …) are required so concurrent loads/stores can
+   use separate memory interfaces.
+8. Label EVERY `for` loop with a descriptive C loop label (identifier
+   immediately before `for`), e.g. `load_A: for (int i = 0; i < n; ++i)`.
+   Use short snake_case names that describe each loop's role (load_row,
+   compute_tile, store_col, etc.). Do not leave rewritten or newly added
+   loops unlabeled — Vitis uses these names in bottleneck reports.
+
+9. **Pre-output INTERFACE check:** count top-level `m_axi` pointer ports;
+   each must have a unique `bundle=gmemN` (gmem0, gmem1, …). Fix any shared
+   `bundle=gmem` before returning code.
+
+Restructure the code as much as needed — a full
+rewrite is allowed.
+
+Balance compute and data movement for the datapath you choose: estimate per-tile
+compute cycles (work per tile / parallel MACs) and per-tile transfer cycles
+(words moved / 16 floats per beat). Transfers must stay below compute: keep the
+operand that is reused across tiles resident on chip instead of reloading it
+every tile, move every array — including C's read-modify-write — in 512-bit
+beats at II=1, and overlap the next tile's loads and the previous tile's stores
+with the current tile's compute (DATAFLOW or ping-pong). The flow rejects a
+design whose latency is far above total work / parallel MACs.
+
+Current synthesis report for the functional starting point:
+{synth_report}
+
+Header:
+```cpp
+{header_code}
+```
+
+Current HLS code:
+```cpp
+{current_code}
+```
+
+OUTPUT FORMAT (mandatory):
+- Return the COMPLETE optimized kernel in exactly one fenced block — every
+  module/function from the baseline must still be present unless you have a
+  correct, synthesizable replacement. Truncated / partial kernels are rejected.
+- Start the fence with ```cpp on its own line and end with a closing ``` on
+  its own line.
+- Restructure freely (new tiling, dataflow stages, wide buffers), but keep the
+  result complete and synthesizable; a shorter incomplete rewrite is rejected.
+- If the kernel is large, still emit the full file; the harness will ask you
+  to continue if the reply is cut off mid-fence. Do not summarize or omit code.
+
+=== flash resource block (sample report) ===
+DEVICE LIMITS for the `flash` step (xcu280-fsvh2892-2L-e):
+  latency_ns: current=25818000000 — the new design must be faster
+  dsp  : current=5  device_capacity=9024 (must stay below 100%)
+  bram : current=30  device_capacity=4032 (must stay below 100%)
+  uram : device_capacity=960 (must stay below 100%)
+  ff   : current=18633  device_capacity=2607360 (must stay below 100%)
+  lut  : current=9731  device_capacity=1303680 (must stay below 100%)
+Accept rule: latency improves AND every resource stays strictly below 100% of the device. There is no growth cap relative to the current design.
+=== non-flash step block (unchanged) ===
+RESOURCE CONSTRAINTS for the `tiling` step (enforced by the synthesis regression guard — exceeding these causes automatic revert and retry):
+  latency_ns: current=25818000000 → max=129090000000 (limit 5.00× current)
+  dsp   : current=     5 → max=      6 (limit 1.30×)  device_cap=9024
+  bram  : curr

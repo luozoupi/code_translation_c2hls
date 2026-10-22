@@ -1,0 +1,53 @@
+Sat Oct 10 17:22:51 PDT 2026
+== Slurm states (JobName State Elapsed MaxRSS)
+63754829  flash_cc                               COMPLETED             1-14:51:08
+63755599  flash_ladder                           COMPLETED             11:07:40
+63758382  cosim_01_ablA_v2prompts_pack5_r2       RUNNING               1-18:34:38
+63758383  cosim_02_refined_v2_plain_r1           RUNNING               1-18:34:38
+63758384  cosim_03_dspredo_plain_r1              RUNNING               1-18:34:38
+63758386  cosim_05_refined_v1_agent_r1           RUNNING               1-18:34:38
+63758387  cosim_06_ladder_r3_L3                  RUNNING               1-18:34:38
+63758388  cosim_07_ablB_origprompts_v2skills_r3  RUNNING               1-18:34:38
+63758389  cosim_08_dspredo_plain_r3              RUNNING               1-18:34:38
+63758390  cosim_09_ablA_v2prompts_pack5_r3       RUNNING               1-18:34:38
+63772581  fc_06_ladder_r3_L3                     RUNNING               1-16:29:32
+63774875  cosim_13_win7080_r2                    RUNNING               1-16:01:15
+63817022  fc_12_ladder_agent_r2_L3               RUNNING               1-10:05:08
+63834153  xclbin_ladder_agent_r2_L3              CANCELLED by 3161107  20:41:36
+63954764  xclbin_ladder_agent_r3_L3              RUNNING               20:22:28
+63954765  xclbin_ladder_r3_L3                    FAILED                13:50:28
+63974821  cosim_04_refined_v2_agent_r1           RUNNING               19:22:50
+63974822  cosim_10_refined_v1_plain_r1           RUNNING               19:22:50
+63974823  cosim_11_refined_v2_plain_r3           RUNNING               19:22:50
+63974824  cosim_12_ladder_agent_r2_L3            RUNNING               18:35:26
+== Finished cosim verdicts
+12_ladder_agent_r2_L3_partial40k: "correct": false 
+== Fast cosim heartbeats (last)
+fastcosim_06_ladder_r3_L3_20261009T075321Z: 0 beats, last: FASTCOSIM_START 4428
+fastcosim_12_ladder_agent_r2_L3_20261009T141745Z: 15 beats, last: FASTCOSIM_HEARTBEAT cycles=150000
+== xclbin build (last stage lines)
+ [ladder_agent_r2_L3 job 63834153]
+== compile (HLS)
+== link (synth + 4 parallel implementation strategies)
+ [ladder_agent_r3_L3 job 63954764]
+== compile (HLS)
+== link (synth + 4 parallel implementation strategies)
+ [ladder_r3_L3 job 63954765]
+[2026-10-10T06:11:31.977] error: *** JOB 63834153 ON fc30330 CANCELLED AT 2026-10-10T06:11:31 DUE to SIGNAL Terminated ***
+== Window r1 / agent ladder r3
+/scratch/asa582/workspaces/c2hls_claude_code/runs/ladder_agent_r3_20261009T052541Z/skills_L3_20261009T101125Z/autosa_mm/autosa_mm_selected_report.json
+/scratch/asa582/workspaces/c2hls_claude_code/runs/skills_win7080_r1_20261009T051914Z/autosa_mm/autosa_mm_selected_report.json
+== Leftover work dirs of finished/killed jobs in /scratch/asa582/tmp/c2hls (cosim/fastcosim/xclbin)
+  1.3G cosim_01_ablA_v2prompts_pack5_r2_20261009T054817Z
+  887M cosim_02_refined_v2_plain_r1_20261009T054816Z
+  768M cosim_03_dspredo_plain_r1_20261009T054816Z
+  1.4G cosim_05_refined_v1_agent_r1_20261009T054816Z
+  835M cosim_06_ladder_r3_L3_20261009T054817Z
+  774M cosim_07_ablB_origprompts_v2skills_r3_20261009T054817Z
+  1.3G cosim_08_dspredo_plain_r3_20261009T054817Z
+  1.3G cosim_09_ablA_v2prompts_pack5_r3_20261009T054816Z
+  678M cosim_13_win7080_r2_20261009T082138Z
+  1.2G fastcosim_06_ladder_r3_L3_20261009T075321Z
+  1.8G fastcosim_12_ladder_agent_r2_L3_20261009T141745Z
+== /scratch quota
+                 /scratch (user asa582)       576GiB/  19TiB         494K/1000K

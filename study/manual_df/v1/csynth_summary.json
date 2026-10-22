@@ -1,0 +1,1731 @@
+{
+  "success": true,
+  "error": "",
+  "report": {
+    "latency_cycles": 1062813,
+    "latency_ns": 3786000.0,
+    "bram": 602,
+    "dsp": 5120,
+    "ff": 577689,
+    "lut": 319735,
+    "uram": 256,
+    "fmax_mhz": 280.74,
+    "interval": 1071598,
+    "estimated_clock_period_ns": 3.562,
+    "requested_clock_period_ns": 3.33,
+    "slack_ns": -0.232,
+    "latency_cycles_worst": 1071597,
+    "latency_ns_worst": 3818000.0,
+    "feedback": {
+      "schema": "1.0",
+      "scopes": [
+        {
+          "scope_id": "autosa_mm",
+          "kind": "module",
+          "name": "autosa_mm",
+          "parent": null,
+          "depth": 0,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 1071597,
+          "latency_ns": 3818000.0,
+          "iteration_latency": null,
+          "interval": 1071598,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 602,
+          "dsp": 5120,
+          "ff": 577689,
+          "lut": 319735,
+          "uram": 256,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:111",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/tile_i",
+          "kind": "loop",
+          "name": "tile_i",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": 2.43,
+          "latency_cycles": null,
+          "latency_ns": null,
+          "iteration_latency": null,
+          "interval": null,
+          "trip_count": 16,
+          "pipelined": "dataflow",
+          "pipeline_ii": null,
+          "pipeline_depth": null,
+          "bram": null,
+          "dsp": null,
+          "ff": null,
+          "lut": null,
+          "uram": null,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:120"
+        },
+        {
+          "scope_id": "autosa_mm/entry_proc",
+          "kind": "module",
+          "name": "entry_proc",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 0,
+          "latency_ns": 0.0,
+          "iteration_latency": null,
+          "interval": 0,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 0,
+          "dsp": 0,
+          "ff": 2,
+          "lut": 20,
+          "uram": 0,
+          "source_location": "-",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/load_A",
+          "kind": "module",
+          "name": "load_A",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 4170,
+          "latency_ns": 13886.0,
+          "iteration_latency": null,
+          "interval": 4170,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 0,
+          "dsp": 0,
+          "ff": 934,
+          "lut": 268,
+          "uram": 0,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:25~/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:128",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/load_A/load_A_beat",
+          "kind": "loop",
+          "name": "load_A_beat",
+          "parent": "autosa_mm/load_A",
+          "depth": 2,
+          "issue": null,
+          "violation": null,
+          "slack_ns": 2.43,
+          "latency_cycles": 4168,
+          "latency_ns": 13879.0,
+          "iteration_latency": null,
+          "interval": 1,
+          "trip_count": 4096,
+          "pipelined": "yes",
+          "pipeline_ii": 1,
+          "pipeline_depth": 74,
+          "bram": null,
+          "dsp": null,
+          "ff": null,
+          "lut": null,
+          "uram": null,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:25~/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:128"
+        },
+        {
+          "scope_id": "autosa_mm/compute_Pipeline_pre_B_beat",
+          "kind": "module",
+          "name": "compute_Pipeline_pre_B_beat",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 1098,
+          "latency_ns": 3656.0,
+          "iteration_latency": null,
+          "interval": 1098,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 0,
+          "dsp": 0,
+          "ff": 866,
+          "lut": 230,
+          "uram": 0,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:43~/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:129",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/compute_Pipeline_pre_B_beat/pre_B_beat",
+          "kind": "loop",
+          "name": "pre_B_beat",
+          "parent": "autosa_mm/compute_Pipeline_pre_B_beat",
+          "depth": 2,
+          "issue": null,
+          "violation": null,
+          "slack_ns": 2.43,
+          "latency_cycles": 1096,
+          "latency_ns": 3650.0,
+          "iteration_latency": null,
+          "interval": 1,
+          "trip_count": 1024,
+          "pipelined": "yes",
+          "pipeline_ii": 1,
+          "pipeline_depth": 74,
+          "bram": null,
+          "dsp": null,
+          "ff": null,
+          "lut": null,
+          "uram": null,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:43~/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:129"
+        },
+        {
+          "scope_id": "autosa_mm/compute_Pipeline_blk_j_mac",
+          "kind": "module",
+          "name": "compute_Pipeline_blk_j_mac",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 65611,
+          "latency_ns": 218000.0,
+          "iteration_latency": null,
+          "interval": 65611,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 0,
+          "dsp": 5120,
+          "ff": 564016,
+          "lut": 291431,
+          "uram": 0,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:54~/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:129",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/compute_Pipeline_blk_j_mac/blk_j_mac",
+          "kind": "loop",
+          "name": "blk_j_mac",
+          "parent": "autosa_mm/compute_Pipeline_blk_j_mac",
+          "depth": 2,
+          "issue": null,
+          "violation": null,
+          "slack_ns": 2.43,
+          "latency_cycles": 65609,
+          "latency_ns": 218000.0,
+          "iteration_latency": null,
+          "interval": 1,
+          "trip_count": 65536,
+          "pipelined": "yes",
+          "pipeline_ii": 1,
+          "pipeline_depth": 75,
+          "bram": null,
+          "dsp": null,
+          "ff": null,
+          "lut": null,
+          "uram": null,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:53~/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:129"
+        },
+        {
+          "scope_id": "autosa_mm/compute",
+          "kind": "module",
+          "name": "compute",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 66713,
+          "latency_ns": 222000.0,
+          "iteration_latency": null,
+          "interval": null,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 0,
+          "dsp": 5120,
+          "ff": 564896,
+          "lut": 308550,
+          "uram": 256,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:35~/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:129",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/store_C_Pipeline_store_C_beat",
+          "kind": "module",
+          "name": "store_C_Pipeline_store_C_beat",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 4167,
+          "latency_ns": 13876.0,
+          "iteration_latency": null,
+          "interval": 4167,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 0,
+          "dsp": 0,
+          "ff": 726,
+          "lut": 501,
+          "uram": 0,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:101",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/store_C_Pipeline_store_C_beat/store_C_beat",
+          "kind": "loop",
+          "name": "store_C_beat",
+          "parent": "autosa_mm/store_C_Pipeline_store_C_beat",
+          "depth": 2,
+          "issue": null,
+          "violation": null,
+          "slack_ns": 2.43,
+          "latency_cycles": 4165,
+          "latency_ns": 13869.0,
+          "iteration_latency": null,
+          "interval": 1,
+          "trip_count": 4096,
+          "pipelined": "yes",
+          "pipeline_ii": 1,
+          "pipeline_depth": 71,
+          "bram": null,
+          "dsp": null,
+          "ff": null,
+          "lut": null,
+          "uram": null,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:101"
+        },
+        {
+          "scope_id": "autosa_mm/store_C",
+          "kind": "module",
+          "name": "store_C",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 4168,
+          "latency_ns": 13879.0,
+          "iteration_latency": null,
+          "interval": 4168,
+          "trip_count": null,
+          "pipelined": "no",
+          "bram": 0,
+          "dsp": 0,
+          "ff": 794,
+          "lut": 562,
+          "uram": 0,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:109",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        },
+        {
+          "scope_id": "autosa_mm/dataflow_in_loop_tile_i_1",
+          "kind": "module",
+          "name": "dataflow_in_loop_tile_i_1",
+          "parent": "autosa_mm",
+          "depth": 1,
+          "issue": null,
+          "violation": null,
+          "slack_ns": null,
+          "latency_cycles": 70884,
+          "latency_ns": 253000.0,
+          "iteration_latency": null,
+          "interval": null,
+          "trip_count": null,
+          "pipelined": "dataflow",
+          "bram": 512,
+          "dsp": 5120,
+          "ff": 566775,
+          "lut": 311180,
+          "uram": 256,
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:125",
+          "pipeline_ii": null,
+          "pipeline_depth": null
+        }
+      ],
+      "scheduler_blame": [
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-40] Environment variable 'C_INCLUDE_PATH' is set to /usr/include/x86_64-linux-gnu.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-40] Environment variable 'CPLUS_INCLUDE_PATH' is set to /usr/include/x86_64-linux-gnu.",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1995] There were 105,762 instructions in the design after the 'Array/Struct (step 1)' phase of compilation. See the Design Size Report for more details: /scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/hls_proj/sol1/syn/report/csynth_design_size.rpt",
+          "source_location": null
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        },
+        {
+          "kind": "warning",
+          "message": "WARNING: [HLS 200-1946] Dependence pragma (/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56:9) in loop 'mac' may become invalid because the loop was flattened with the outer loop 'blk_j'.",
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:56"
+        }
+      ],
+      "bottlenecks": [
+        {
+          "scope_id": "autosa_mm",
+          "kind": "interval_exceeds_latency",
+          "evidence": "interval 1071598 > latency 1071597 cycles on module 'autosa_mm'",
+          "severity": "high",
+          "metric": {
+            "interval": 1071598,
+            "latency_cycles": 1071597,
+            "interval_over_latency": 1.0
+          },
+          "source_location": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:111"
+        }
+      ],
+      "summary": {
+        "schema": "1.0",
+        "scope_count": 14,
+        "loop_count": 5,
+        "pipelined_loops": 4,
+        "non_pipelined_loops": 0,
+        "scopes_with_timing_violation": 0,
+        "scopes_with_negative_slack": 0,
+        "bottleneck_count": 1,
+        "high_severity_bottlenecks": 1,
+        "top_bottleneck_kinds": [
+          [
+            "interval_exceeds_latency",
+            1
+          ]
+        ]
+      },
+      "static_extras": {
+        "schema": "1.0",
+        "bursts": {
+          "schema": "1.0",
+          "passed": [
+            {
+              "group": "BURST_VERBOSE_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of length 16 has been inferred",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:25:16",
+              "bundle": "gmem0",
+              "var": "A",
+              "direction": "read",
+              "length": 16,
+              "width": null,
+              "loop_name": "load_A_beat",
+              "parent_func": "load_A(float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_MISSED",
+              "severity": "INFO",
+              "msg": "Could not analyze pattern",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:25:16",
+              "bundle": "gmem0",
+              "var": "A",
+              "direction": null,
+              "length": null,
+              "width": null,
+              "loop_name": "load_A_beat",
+              "parent_func": "load_A(float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of length 16 has been inferred",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:43:17",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": "read",
+              "length": 16,
+              "width": null,
+              "loop_name": "pre_B_beat",
+              "parent_func": "compute(float (*) [1024], float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of length 16 has been inferred",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:54:10",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": "read",
+              "length": 16,
+              "width": null,
+              "loop_name": "mac",
+              "parent_func": "compute(float (*) [1024], float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_MISSED",
+              "severity": "INFO",
+              "msg": "Could not analyze pattern",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:43:17",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": null,
+              "length": null,
+              "width": null,
+              "loop_name": "pre_B_beat",
+              "parent_func": "compute(float (*) [1024], float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_MISSED",
+              "severity": "INFO",
+              "msg": "Access call is in the conditional branch",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:54:10",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": null,
+              "length": null,
+              "width": null,
+              "loop_name": "mac",
+              "parent_func": "compute(float (*) [1024], float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential write of length 16 has been inferred",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:101:17",
+              "bundle": "gmem2",
+              "var": "C",
+              "direction": "write",
+              "length": 16,
+              "width": null,
+              "loop_name": "store_C_beat",
+              "parent_func": "store_C(float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_MISSED",
+              "severity": "INFO",
+              "msg": "Could not analyze pattern",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:101:17",
+              "bundle": "gmem2",
+              "var": "C",
+              "direction": null,
+              "length": null,
+              "width": null,
+              "loop_name": "store_C_beat",
+              "parent_func": "store_C(float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of 16 x 32bit words has been widened by 16: 1 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:30:24",
+              "bundle": "gmem0",
+              "var": "A",
+              "direction": "read",
+              "length": 1,
+              "width": null,
+              "loop_name": null,
+              "parent_func": "load_A(float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of 16 x 32bit words has been widened by 16: 1 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:66:28",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": "read",
+              "length": 1,
+              "width": null,
+              "loop_name": null,
+              "parent_func": "compute(float (*) [1024], float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of 16 x 32bit words has been widened by 16: 1 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:48:26",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": "read",
+              "length": 1,
+              "width": null,
+              "loop_name": null,
+              "parent_func": "compute(float (*) [1024], float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential write of 16 x 32bit words has been widened by 16: 1 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:101:56",
+              "bundle": "gmem2",
+              "var": "C",
+              "direction": "write",
+              "length": 1,
+              "width": null,
+              "loop_name": null,
+              "parent_func": "store_C(float (*) [1024], float (*) [1024], int)"
+            }
+          ],
+          "widened": [
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of 16 x 32bit words has been widened by 16: 1 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:30:24",
+              "bundle": "gmem0",
+              "var": "A",
+              "direction": "read",
+              "length": 1,
+              "width": null,
+              "loop_name": null,
+              "parent_func": "load_A(float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of 16 x 32bit words has been widened by 16: 1 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:66:28",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": "read",
+              "length": 1,
+              "width": null,
+              "loop_name": null,
+              "parent_func": "compute(float (*) [1024], float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential read of 16 x 32bit words has been widened by 16: 1 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:48:26",
+              "bundle": "gmem1",
+              "var": "B",
+              "direction": "read",
+              "length": 1,
+              "width": null,
+              "loop_name": null,
+              "parent_func": "compute(float (*) [1024], float (*) [1024], float (*) [1024], int)"
+            },
+            {
+              "group": "BURST_VERBOSE_WIDEN_PASSED",
+              "severity": "INFO",
+              "msg": "Sequential write of 16 x 32bit words has been widened by 16: 1 x 512bit words",
+              "src": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:101:56",
+              "bundle": "gmem2",
+              "var": "C",
+              "direction": "write",
+              "length": 1,
+              "width": null,
+              "loop_name": null,
+              "parent_func": "store_C(float (*) [1024], float (*) [1024], int)"
+            }
+          ],
+          "failed": [],
+          "summary": [],
+          "counts": {
+            "passed": 12,
+            "widened": 4,
+            "failed": 0,
+            "summary": 0
+          }
+        },
+        "diagnostic": {
+          "schema": "1.0",
+          "warnings": 34,
+          "errors": 0,
+          "info": 23,
+          "rejected_pragmas": [],
+          "examples": [
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:26:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:29:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:37:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:38:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:39:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:44:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:47:9",
+              "body": "HLS pragma dump"
+            },
+            {
+              "source": "fe",
+              "id": "207-5471",
+              "severity": "WARNING",
+              "groups": [
+                "PRAGMA_VERBOSE_DUMP"
+              ],
+              "loc": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z/kernel.cpp:55:9",
+              "body": "HLS pragma dump"
+            }
+          ]
+        },
+        "design_size": {
+          "schema": "1.0",
+          "phases": {
+            "Compile/Link": {
+              "_total": 356
+            }
+          },
+          "compile_to_hw_growth": 1.0,
+          "max_phase_growth": 1.0
+        },
+        "summary": {
+          "bursts_passed": 12,
+          "bursts_widened": 4,
+          "bursts_failed": 0,
+          "rejected_pragmas": 0,
+          "warnings": 34,
+          "errors": 0,
+          "compile_to_hw_growth": 1.0,
+          "max_phase_growth": 1.0
+        }
+      }
+    },
+    "work_dir": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z"
+  },
+  "work_dir": "/scratch/asa582/workspaces/c2hls_claude_code/study/manual_df/v1/csynth_work/20261013T220135Z"
+}

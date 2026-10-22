@@ -1,0 +1,54 @@
+===============================================================================
+Version:    v++ v2023.2 (64-bit)
+Build:      SW Build 4026344 on 2023-10-11-15:42:10
+Copyright:  Copyright 1986-2023 Xilinx, Inc. All Rights Reserved.
+Created:    Fri Oct  9 21:29:31 2026
+===============================================================================
+
+-------------------------------------------------------------------------------
+Design Name:             autosa_mm
+Target Device:           xilinx:u280:gen3x16_xdma_1:202211.1
+Target Clock:            300.000000MHz
+Total number of kernels: 1
+-------------------------------------------------------------------------------
+
+Kernel Summary
+Kernel Name  Type  Target              OpenCL Library  Compute Units
+-----------  ----  ------------------  --------------  -------------
+autosa_mm    c     fpga0:OCL_REGION_0  autosa_mm       1
+
+
+-------------------------------------------------------------------------------
+OpenCL Binary:     autosa_mm
+Kernels mapped to: clc_region
+
+Timing Information (MHz)
+Compute Unit  Kernel Name  Module Name                      Target Frequency  Estimated Frequency
+------------  -----------  -------------------------------  ----------------  -------------------
+autosa_mm_1   autosa_mm    autosa_mm_Pipeline_load_B_beat   300.300293        411.015198
+autosa_mm_1   autosa_mm    load_AC                          300.300293        411.015198
+autosa_mm_1   autosa_mm    compute                          300.300293        421.052643
+autosa_mm_1   autosa_mm    xfer_AC                          300.300293        372.995148
+autosa_mm_1   autosa_mm    autosa_mm_Pipeline_store_C_beat  300.300293        411.015198
+autosa_mm_1   autosa_mm    autosa_mm                        300.300293        372.995148
+
+Latency Information
+Compute Unit  Kernel Name  Module Name                      Start Interval  Best (cycles)  Avg (cycles)  Worst (cycles)  Best (absolute)  Avg (absolute)  Worst (absolute)
+------------  -----------  -------------------------------  --------------  -------------  ------------  --------------  ---------------  --------------  ----------------
+autosa_mm_1   autosa_mm    autosa_mm_Pipeline_load_B_beat   65610           65610          65610         65610           0.219 ms         0.219 ms        0.219 ms
+autosa_mm_1   autosa_mm    load_AC                          1098            1098           1098          1098            3.660 us         3.660 us        3.660 us
+autosa_mm_1   autosa_mm    compute                          11306           11306          11306         11306           37.683 us        37.683 us       37.683 us
+autosa_mm_1   autosa_mm    xfer_AC                          1176            1176           1176          1176            3.920 us         3.920 us        3.920 us
+autosa_mm_1   autosa_mm    autosa_mm_Pipeline_store_C_beat  1103            1103           1103          1103            3.676 us         3.676 us        3.676 us
+autosa_mm_1   autosa_mm    autosa_mm                        864706          864705         864705        864705          2.882 ms         2.882 ms        2.882 ms
+
+Area Information
+Compute Unit  Kernel Name  Module Name                      FF      LUT     DSP  BRAM  URAM
+------------  -----------  -------------------------------  ------  ------  ---  ----  ----
+autosa_mm_1   autosa_mm    autosa_mm_Pipeline_load_B_beat   1385    754     0    0     0
+autosa_mm_1   autosa_mm    load_AC                          1776    680     0    0     0
+autosa_mm_1   autosa_mm    compute                          836096  481077  0    0     0
+autosa_mm_1   autosa_mm    xfer_AC                          6125    2609    0    0     0
+autosa_mm_1   autosa_mm    autosa_mm_Pipeline_store_C_beat  1010    608     0    0     0
+autosa_mm_1   autosa_mm    autosa_mm                        857443  559368  0    3242  0
+-------------------------------------------------------------------------------

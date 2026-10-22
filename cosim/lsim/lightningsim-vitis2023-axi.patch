@@ -1,0 +1,1218 @@
+diff --git a/backend/lightningsim-core/axi_interface.rs b/backend/lightningsim-core/axi_interface.rs
+index 6b12c68..310c647 100644
+--- a/backend/lightningsim-core/axi_interface.rs
++++ b/backend/lightningsim-core/axi_interface.rs
+@@ -10,7 +10,191 @@ pub const AXI_WRITE_OVERHEAD: ClockCycle = 7;
+ pub const MAX_RCTL_DEPTH: RctlDepth = 16;
+ 
+ pub type AxiAddress = u64;
+-pub type RctlDepth = u8;
++pub type RctlDepth = u16;
++
++/// Which `m_axi` timing model to use, chosen once per process from the
++/// `LSIM_AXI_MODEL` environment variable (`v2021`, the default, or `v2023`).
++///
++/// `v2021` is the original LightningSim model, calibrated against the Vitis
++/// HLS 2021.1 adapter. `v2023` models the Vitis HLS 2023.2 adapter and cosim
++/// memory (measured on cosim VCDs, see cosim/lsim/README.md):
++/// - reads: bursts split at `max_read_burst_length` and 4 KB, a read credit
++///   of `num_read_outstanding` bursts released when the kernel has consumed
++///   a burst;
++/// - writes: one AW node per burst (bus AW time), fed by the kernel's last
++///   write of the burst, the write request, the previous burst (bursts leave
++///   serially), the one-burst throttle FIFO and the write credit of
++///   `num_write_outstanding` B responses; kernel writes stall on a buffer of
++///   `WBUFF_DEPTH` + throttle FIFO beats; the write response is the last
++///   burst's B response.
++#[derive(Clone, Copy, PartialEq, Eq, Debug)]
++pub enum AxiModel {
++    V2021,
++    V2023,
++}
++
++/// Number of v2023 delay constants.
++pub const AXI_NUM_CONSTANTS: usize = 10;
++
++/// Names of the v2023 delay constants, in `LSIM_AXI_CONST` order.
++pub const AXI_CONSTANT_NAMES: [&str; AXI_NUM_CONSTANTS] =
++    ["r0", "r1", "wa", "wq", "wf", "wc", "wk", "wb", "wl", "wc2"];
++
++/// Default v2023 constants, fitted against Vitis HLS 2023.2 cosim.
++pub const AXI_V2023_DEFAULT_CONSTANTS: [ClockCycle; AXI_NUM_CONSTANTS] = [11, 7, 5, 10, 3, 5, 1, 3, 0, 11];
++
++/// Delay constants of the v2023 model, in cycles (`L` = interface latency).
++/// The edges read them by index (see [axi_constant]); this struct names them.
++/// Overridable as `LSIM_AXI_CONST=r0,r1,wa,wq,wf,wc,wk,wb,wl,wc2`.
++#[derive(Clone, Copy, Debug)]
++#[allow(dead_code)]
++pub struct AxiConstants {
++    /// read request -> first read of the request: L + r0
++    pub r0: ClockCycle,
++    /// last read of burst j -> first read of burst j + num_read_outstanding: L + r1
++    pub r1: ClockCycle,
++    /// kernel's last write of burst j -> AW(j): wa
++    pub wa: ClockCycle,
++    /// write request -> AW of each of its bursts: wq + len(j)
++    pub wq: ClockCycle,
++    /// AW of the burst holding beat e(j) - throttle depth -> AW(j): wf + offset of that beat
++    pub wf: ClockCycle,
++    /// AW(j - num_write_outstanding) -> AW(j): len + L + 1 + wc + len(j) (B response, then refill)
++    pub wc: ClockCycle,
++    /// AW of the burst holding beat i - (WBUFF + throttle depth) -> kernel write i: wk + offset
++    pub wk: ClockCycle,
++    /// AW(last burst of a request) -> write response: len + L + 1 + wb
++    pub wb: ClockCycle,
++    /// kernel's last write of a request -> write response: L + wl (lower bound only)
++    pub wl: ClockCycle,
++    /// AW(j - num_write_outstanding) -> AW(j): len + L + 1 + wc2 (credit floor for short bursts)
++    pub wc2: ClockCycle,
++}
++
++pub struct AxiGlobals {
++    pub model: AxiModel,
++}
++
++static AXI_CONSTANTS: [std::sync::atomic::AtomicU64; AXI_NUM_CONSTANTS] =
++    [const { std::sync::atomic::AtomicU64::new(0) }; AXI_NUM_CONSTANTS];
++
++pub fn axi_globals() -> &'static AxiGlobals {
++    static GLOBALS: std::sync::OnceLock<AxiGlobals> = std::sync::OnceLock::new();
++    GLOBALS.get_or_init(|| {
++        let model = match std::env::var("LSIM_AXI_MODEL").as_deref() {
++            Ok("v2023") => AxiModel::V2023,
++            _ => AxiModel::V2021,
++        };
++        let mut c = AXI_V2023_DEFAULT_CONSTANTS;
++        if let Ok(s) = std::env::var("LSIM_AXI_CONST") {
++            for (slot, v) in c.iter_mut().zip(s.split(',')) {
++                if let Ok(v) = v.trim().parse() {
++                    *slot = v;
++                }
++            }
++        }
++        store_axi_constants(&c);
++        AxiGlobals { model }
++    })
++}
++
++fn store_axi_constants(c: &[ClockCycle]) {
++    for (slot, v) in AXI_CONSTANTS.iter().zip(c) {
++        slot.store(*v, std::sync::atomic::Ordering::Relaxed);
++    }
++}
++
++/// One v2023 delay constant by index (see [AXI_CONSTANT_NAMES]).
++pub fn axi_constant(index: u8) -> ClockCycle {
++    axi_globals();
++    AXI_CONSTANTS[index as usize].load(std::sync::atomic::Ordering::Relaxed)
++}
++
++/// The current v2023 delay constants (initialised from `LSIM_AXI_CONST`).
++pub fn axi_constants() -> AxiConstants {
++    let c = |i| axi_constant(i);
++    AxiConstants {
++        r0: c(0),
++        r1: c(1),
++        wa: c(2),
++        wq: c(3),
++        wf: c(4),
++        wc: c(5),
++        wk: c(6),
++        wb: c(7),
++        wl: c(8),
++        wc2: c(9),
++    }
++}
++
++/// Override v2023 delay constants for later `execute` calls (used to fit
++/// them without rebuilding the simulation graph): a list in
++/// [AXI_CONSTANT_NAMES] order; missing trailing entries keep their value.
++#[pyfunction]
++pub fn set_axi_constants(values: Vec<ClockCycle>) {
++    axi_globals();
++    store_axi_constants(&values);
++}
++
++/// Whether v2023 is active and the current constants by name.
++#[pyfunction]
++pub fn get_axi_model() -> (bool, Vec<(String, ClockCycle)>) {
++    (
++        axi_v2023(),
++        AXI_CONSTANT_NAMES
++            .iter()
++            .enumerate()
++            .map(|(i, n)| (n.to_string(), axi_constant(i as u8)))
++            .collect(),
++    )
++}
++
++pub fn axi_v2023() -> bool {
++    axi_globals().model == AxiModel::V2023
++}
++
++/// Static per-interface adapter configuration (from the generated
++/// `<top>_<bundle>_m_axi` instance), used by the v2023 model.
++#[derive(Clone, Copy, Debug)]
++pub struct AxiConfig {
++    pub read_burst_beats: u64,
++    pub read_outstanding: RctlDepth,
++    pub write_burst_beats: u64,
++    pub write_outstanding: usize,
++    pub write_buffer_beats: usize,
++}
++
++impl Default for AxiConfig {
++    fn default() -> Self {
++        // Vitis HLS 2023.2 defaults: 16-beat bursts, 16 outstanding.
++        AxiConfig {
++            read_burst_beats: 16,
++            read_outstanding: 16,
++            write_burst_beats: 16,
++            write_outstanding: 16,
++            write_buffer_beats: 16,
++        }
++    }
++}
++
++/// Split a request of `count` beats of `increment` bytes starting at `offset`
++/// into AXI bursts the way the 2023.2 adapter does: never crossing a 4 KB
++/// boundary and at most `max_beats` beats each.
++pub fn split_bursts(offset: AxiAddress, increment: AxiAddress, count: u32, max_beats: u64) -> Vec<u32> {
++    let mut sizes = Vec::new();
++    let mut addr = offset;
++    let mut remaining: u64 = count.into();
++    let increment = increment.max(1);
++    let max_beats = max_beats.max(1);
++    while remaining > 0 {
++        let to_boundary = ((4096 - addr % 4096) / increment).max(1);
++        let n = remaining.min(max_beats).min(to_boundary);
++        sizes.push(n as u32);
++        addr += n * increment;
++        remaining -= n;
++    }
++    sizes
++}
+ 
+ #[pyclass(module="lightningsim._core")]
+ #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Decode, Encode)]
+diff --git a/backend/lightningsim-core/builder/axi_builder.rs b/backend/lightningsim-core/builder/axi_builder.rs
+index aee57a8..aafecac 100644
+--- a/backend/lightningsim-core/builder/axi_builder.rs
++++ b/backend/lightningsim-core/builder/axi_builder.rs
+@@ -1,9 +1,16 @@
++use std::collections::VecDeque;
++
+ use pyo3::{exceptions::PyValueError, prelude::*};
++use smallvec::SmallVec;
+ 
+ use super::{axi_rctl::RctlTransaction, edge_builder::IncompleteEdgeKey};
+ use crate::{
+-    axi_interface::{AxiAddress, AxiAddressRange, AxiGenericIoNode, AxiInterfaceIoNodes},
+-    node::NodeWithDelay,
++    axi_interface::{
++        split_bursts, AxiAddress, AxiAddressRange, AxiConfig, AxiGenericIoNode,
++        AxiInterfaceIoNodes,
++    },
++    node::{NodeIndex, NodeWithDelay},
++    ClockCycle,
+ };
+ 
+ #[derive(Clone)]
+@@ -31,6 +38,52 @@ pub struct AxiBuilder {
+     readreq_rctl_out_edge: IncompleteEdgeKey,
+     current_write: AxiAddressRange,
+     writereq_writes_remaining: u32,
++
++    /// v2023: bursts of the current read request not yet fully read.
++    read_bursts: VecDeque<ReadBurst>,
++    /// v2023: reads already done in the front burst of [Self::read_bursts].
++    read_burst_pos: u32,
++    /// v2023: every write burst on this interface so far, in order.
++    write_bursts: Vec<WriteBurst>,
++    /// v2023: burst sizes of the current write request not yet started.
++    write_sizes: VecDeque<u32>,
++    /// v2023: writes already done in the last burst of [Self::write_bursts].
++    write_burst_pos: u32,
++    /// v2023: per completed write request (in order), its last burst.
++    completed_write_requests: VecDeque<usize>,
++}
++
++#[derive(Clone, Copy, Debug)]
++pub struct ReadBurst {
++    pub size: u32,
++    pub in_edge: IncompleteEdgeKey,
++    pub out_edge: IncompleteEdgeKey,
++}
++
++/// A v2023 write burst as the adapter issues it on the bus.
++#[derive(Clone, Copy, Debug)]
++pub struct WriteBurst {
++    /// Index (into [AxiBuilder::writes]) of the first write of the burst.
++    pub first: usize,
++    pub size: u32,
++    /// Index (into [AxiBuilder::writereqs]) of the request the burst belongs to.
++    pub request: usize,
++    /// The burst's AW node (bus AW handshake time), once created.
++    pub aw_node: Option<NodeIndex>,
++}
++
++impl WriteBurst {
++    pub fn last(&self) -> usize {
++        self.first + self.size as usize - 1
++    }
++}
++
++/// A v2023 kernel-write stall: the write enters the adapter only after beat
++/// `offset` of burst `burst` has left on the bus (buffer full).
++#[derive(Clone, Copy, Debug)]
++pub struct WriteStall {
++    pub burst: usize,
++    pub offset: ClockCycle,
+ }
+ 
+ #[derive(Clone, Copy)]
+@@ -49,7 +102,7 @@ pub struct AxiRequestRange {
+ /// A newly created AXI read request.
+ pub struct InsertedAxiReadReq {
+     pub index: usize,
+-    pub rctl_txn: RctlTransaction,
++    pub rctl_txns: SmallVec<[RctlTransaction; 1]>,
+ }
+ 
+ /// A newly created AXI read.
+@@ -61,7 +114,8 @@ pub struct InsertedAxiRead {
+ 
+ #[derive(Clone, Debug)]
+ pub struct FirstReadData {
+-    pub read_edge: IncompleteEdgeKey,
++    /// The read request -> first read edge; only on the first read of a request.
++    pub read_edge: Option<IncompleteEdgeKey>,
+     pub rctl_in_edge: IncompleteEdgeKey,
+ }
+ 
+@@ -74,12 +128,18 @@ pub struct InsertedAxiWriteReq {
+ pub struct InsertedAxiWrite<'a> {
+     pub index: usize,
+     pub writeresp_edge: Option<WriteRespEdgeNeeded<'a>>,
++    /// v2023: buffer-full stall on an earlier burst's bus timing.
++    pub stall: Option<WriteStall>,
++    /// v2023: the burst this write completes (its AW node is created next).
++    pub ends_burst: Option<usize>,
+ }
+ 
+ /// A newly created AXI write response.
+ pub struct InsertedAxiWriteResp {
+     pub index: usize,
+     pub writeresp_edge: IncompleteEdgeKey,
++    /// v2023: the last burst of the request this response belongs to.
++    pub last_burst: Option<usize>,
+ }
+ 
+ #[must_use]
+@@ -108,9 +168,52 @@ impl AxiBuilder {
+                 length: 0,
+             },
+             writereq_writes_remaining: 0,
++            read_bursts: VecDeque::new(),
++            read_burst_pos: 0,
++            write_bursts: Vec::new(),
++            write_sizes: VecDeque::new(),
++            write_burst_pos: 0,
++            completed_write_requests: VecDeque::new(),
+         }
+     }
+ 
++    /// Burst sizes of a read request under the v2023 model.
++    pub fn read_burst_sizes(request: &AxiRequestRange, config: &AxiConfig) -> Vec<u32> {
++        split_bursts(request.offset, request.increment, request.count, config.read_burst_beats)
++    }
++
++    /// v2023 read request: one read-credit transaction per burst.
++    pub fn insert_readreq_v2023(
++        &mut self,
++        request: &AxiRequestRange,
++        read_edge: IncompleteEdgeKey,
++        bursts: Vec<ReadBurst>,
++    ) -> InsertedAxiReadReq {
++        let range = request.range();
++        let index = self.readreqs.len();
++        self.readreqs
++            .push(AxiGenericIoOptionalNode { node: None, range });
++
++        self.current_read = request.front();
++        self.first_read = bursts.first().map(|burst| FirstReadData {
++            read_edge: Some(read_edge),
++            rctl_in_edge: burst.in_edge,
++        });
++        self.readreq_reads_remaining = request.count;
++        let rctl_txns = bursts
++            .iter()
++            .map(|burst| RctlTransaction {
++                burst_count: 1,
++                in_edge: burst.in_edge,
++                out_edge: burst.out_edge,
++            })
++            .collect();
++        self.read_bursts = bursts.into();
++        self.read_burst_pos = 0;
++
++        InsertedAxiReadReq { index, rctl_txns }
++    }
++
+     pub fn insert_readreq(
+         &mut self,
+         request: &AxiRequestRange,
+@@ -125,7 +228,7 @@ impl AxiBuilder {
+ 
+         self.current_read = request.front();
+         self.first_read = Some(FirstReadData {
+-            read_edge,
++            read_edge: Some(read_edge),
+             rctl_in_edge,
+         });
+         self.readreq_rctl_out_edge = rctl_out_edge;
+@@ -133,11 +236,14 @@ impl AxiBuilder {
+ 
+         InsertedAxiReadReq {
+             index,
+-            rctl_txn: RctlTransaction {
+-                burst_count: range.burst_count(),
+-                in_edge: rctl_in_edge,
+-                out_edge: rctl_out_edge,
+-            },
++            rctl_txns: SmallVec::from_elem(
++                RctlTransaction {
++                    burst_count: range.burst_count(),
++                    in_edge: rctl_in_edge,
++                    out_edge: rctl_out_edge,
++                },
++                1,
++            ),
+         }
+     }
+ 
+@@ -153,6 +259,21 @@ impl AxiBuilder {
+         InsertedAxiWriteReq { index }
+     }
+ 
++    /// v2023 write request: remember how the adapter will split it into bursts.
++    pub fn insert_writereq_v2023(
++        &mut self,
++        request: &AxiRequestRange,
++        config: &AxiConfig,
++    ) -> InsertedAxiWriteReq {
++        self.write_sizes.extend(split_bursts(
++            request.offset,
++            request.increment,
++            request.count,
++            config.write_burst_beats,
++        ));
++        self.insert_writereq(request)
++    }
++
+     pub fn insert_read(&mut self) -> InsertedAxiRead {
+         let range = self.current_read;
+         self.current_read = range + range.length;
+@@ -162,6 +283,33 @@ impl AxiBuilder {
+             .push(AxiGenericIoOptionalNode { node: None, range });
+ 
+         self.readreq_reads_remaining -= 1;
++
++        if let Some(&burst) = self.read_bursts.front() {
++            // v2023: credit edges per burst.
++            let request_first = self.first_read.take();
++            let first_read = if self.read_burst_pos == 0 {
++                Some(FirstReadData {
++                    read_edge: request_first.and_then(|first| first.read_edge),
++                    rctl_in_edge: burst.in_edge,
++                })
++            } else {
++                None
++            };
++            self.read_burst_pos += 1;
++            let rctl_out_edge = if self.read_burst_pos == burst.size {
++                self.read_bursts.pop_front();
++                self.read_burst_pos = 0;
++                Some(burst.out_edge)
++            } else {
++                None
++            };
++            return InsertedAxiRead {
++                index,
++                first_read,
++                rctl_out_edge,
++            };
++        }
++
+         let is_last_of_readreq = self.readreq_reads_remaining == 0;
+         let first_read = self.first_read.take();
+         let rctl_out_edge = is_last_of_readreq.then_some(self.readreq_rctl_out_edge);
+@@ -173,7 +321,7 @@ impl AxiBuilder {
+         }
+     }
+ 
+-    pub fn insert_write(&mut self) -> InsertedAxiWrite {
++    pub fn insert_write(&mut self, config: Option<&AxiConfig>) -> InsertedAxiWrite {
+         let range = self.current_write;
+         self.current_write = range + range.length;
+ 
+@@ -181,8 +329,44 @@ impl AxiBuilder {
+         self.writes
+             .push(AxiGenericIoOptionalNode { node: None, range });
+ 
++        let mut stall = None;
++        let mut ends_burst = None;
++        if let Some(config) = config {
++            // v2023: a new burst starts when the previous one is complete.
++            if self.write_bursts.is_empty() || self.write_burst_pos == 0 {
++                // No request info should not happen; treat it as a 1-beat burst.
++                let size = self.write_sizes.pop_front().unwrap_or(1);
++                self.write_bursts.push(WriteBurst {
++                    first: index,
++                    size,
++                    request: self.writereqs.len().saturating_sub(1),
++                    aw_node: None,
++                });
++            }
++            // Buffer full: beat i enters the adapter once beat
++            // i - (WBUFF_DEPTH + throttle FIFO depth) has left on the bus.
++            let depth = config.write_buffer_beats + config.write_burst_beats as usize;
++            if let Some(freed) = index.checked_sub(depth) {
++                let burst = self.write_bursts.partition_point(|b| b.first <= freed) - 1;
++                stall = Some(WriteStall {
++                    burst,
++                    offset: (freed - self.write_bursts[burst].first) as ClockCycle,
++                });
++            }
++            let current = self.write_bursts.len() - 1;
++            self.write_burst_pos += 1;
++            if self.write_burst_pos >= self.write_bursts[current].size {
++                self.write_burst_pos = 0;
++                ends_burst = Some(current);
++            }
++        }
++
+         self.writereq_writes_remaining -= 1;
+         let is_last_of_writereq = self.writereq_writes_remaining == 0;
++        if config.is_some() && is_last_of_writereq {
++            self.completed_write_requests
++                .push_back(self.write_bursts.len() - 1);
++        }
+ 
+         InsertedAxiWrite {
+             index,
+@@ -191,6 +375,8 @@ impl AxiBuilder {
+             } else {
+                 None
+             },
++            stall,
++            ends_burst,
+         }
+     }
+ 
+@@ -201,9 +387,30 @@ impl AxiBuilder {
+         InsertedAxiWriteResp {
+             index,
+             writeresp_edge: self.writeresp_edge,
++            last_burst: self.completed_write_requests.pop_front(),
+         }
+     }
+ 
++    /// v2023: a write burst by index.
++    pub fn write_burst(&self, index: usize) -> WriteBurst {
++        self.write_bursts[index]
++    }
++
++    /// v2023: index of the write burst containing write `index`.
++    pub fn write_bursts_containing(&self, index: usize) -> usize {
++        self.write_bursts.partition_point(|b| b.first <= index) - 1
++    }
++
++    /// v2023: record the AW node of a write burst.
++    pub fn set_write_burst_aw_node(&mut self, index: usize, node: NodeIndex) {
++        self.write_bursts[index].aw_node = Some(node);
++    }
++
++    /// v2023: the node (if committed) of a write request.
++    pub fn writereq_node(&self, index: usize) -> Option<NodeWithDelay> {
++        self.writereqs.get(index).and_then(|req| req.node)
++    }
++
+     pub fn update_readreq(&mut self, index: usize, node: NodeWithDelay) {
+         debug_assert!(self.readreqs[index].node.is_none());
+         self.readreqs[index].node = Some(node);
+@@ -250,6 +457,7 @@ impl TryFrom<AxiBuilder> for AxiInterfaceIoNodes {
+             builder.writes.into_iter().map(Into::into).collect();
+         let writeresps: Option<Box<[NodeWithDelay]>> = builder.writeresps.into_iter().collect();
+         let initialized_all_edges = builder.first_read.is_none()
++            && builder.read_bursts.is_empty()
+             && builder.readreq_reads_remaining == 0
+             && builder.writereq_writes_remaining == 0;
+         match (
+diff --git a/backend/lightningsim-core/builder/axi_rctl.rs b/backend/lightningsim-core/builder/axi_rctl.rs
+index 4de640b..c50fdc1 100644
+--- a/backend/lightningsim-core/builder/axi_rctl.rs
++++ b/backend/lightningsim-core/builder/axi_rctl.rs
+@@ -4,10 +4,19 @@ use crate::axi_interface::{RctlDepth, MAX_RCTL_DEPTH};
+ 
+ use super::edge_builder::{EdgeBuilder, IncompleteEdgeKey};
+ 
+-#[derive(Clone, Default, Debug)]
++#[derive(Clone, Debug)]
+ pub struct AxiRctl {
+     state: AxiRctlState,
+     depth: RctlDepth,
++    /// Read-credit capacity: [MAX_RCTL_DEPTH] 4 KB pages for the v2021 model,
++    /// `num_read_outstanding` bursts for the v2023 model.
++    limit: RctlDepth,
++}
++
++impl Default for AxiRctl {
++    fn default() -> Self {
++        Self::with_limit(MAX_RCTL_DEPTH)
++    }
+ }
+ 
+ #[derive(Clone, Copy, Debug)]
+@@ -33,11 +42,19 @@ struct RctlHeadTransaction {
+ }
+ 
+ impl AxiRctl {
++    pub fn with_limit(limit: RctlDepth) -> Self {
++        Self {
++            state: AxiRctlState::default(),
++            depth: 0,
++            limit: limit.max(1),
++        }
++    }
++
+     pub fn push(&mut self, edge_builder: &mut EdgeBuilder, transaction: RctlTransaction) {
+         use AxiRctlState::{Overflowed, WithinCapacity};
+ 
+         let mut blocking_out_edge = None;
+-        while self.depth >= MAX_RCTL_DEPTH {
++        while self.depth >= self.limit {
+             let RctlTransaction {
+                 burst_count,
+                 in_edge: _,
+@@ -108,6 +125,7 @@ impl AxiRctl {
+                 *self = Self {
+                     state: Overflowed { head, tail },
+                     depth: other.depth,
++                    limit: self.limit,
+                 };
+             }
+         }
+diff --git a/backend/lightningsim-core/builder/event.rs b/backend/lightningsim-core/builder/event.rs
+index 7f15b6c..d6436e2 100644
+--- a/backend/lightningsim-core/builder/event.rs
++++ b/backend/lightningsim-core/builder/event.rs
+@@ -1,7 +1,11 @@
++use smallvec::SmallVec;
++
+ use crate::{axi_interface::AxiInterface, fifo::Fifo};
+ 
+ use super::{
+-    axi_builder::FirstReadData, axi_rctl::RctlTransaction, edge_builder::IncompleteEdgeKey,
++    axi_builder::{FirstReadData, WriteStall},
++    axi_rctl::RctlTransaction,
++    edge_builder::IncompleteEdgeKey,
+     module_builder::ModuleKey,
+ };
+ 
+@@ -67,7 +71,8 @@ pub enum Event {
+         /// [AxiRead]: super::edge_builder::IncompleteEdgeType::AxiRead
+         /// [EdgeBuilder::incomplete_edges]: super::edge_builder::EdgeBuilder::incomplete_edges
+         read_edge: IncompleteEdgeKey,
+-        rctl_txn: RctlTransaction,
++        /// One per 4 KB-bounded request (v2021) or one per burst (v2023).
++        rctl_txns: SmallVec<[RctlTransaction; 1]>,
+     },
+     AxiRead {
+         interface: AxiInterface,
+@@ -95,6 +100,10 @@ pub enum Event {
+         /// [AxiWriteResp]: super::edge_builder::IncompleteEdgeType::AxiWriteResp
+         /// [EdgeBuilder::incomplete_edges]: super::edge_builder::EdgeBuilder::incomplete_edges
+         writeresp_edge: Option<IncompleteEdgeKey>,
++        /// v2023: buffer-full stall on an earlier burst.
++        stall: Option<WriteStall>,
++        /// v2023: the burst this write completes.
++        ends_burst: Option<usize>,
+     },
+     AxiWriteResponse {
+         interface: AxiInterface,
+@@ -107,6 +116,8 @@ pub enum Event {
+         /// [AxiWriteResp]: super::edge_builder::IncompleteEdgeType::AxiWriteResp
+         /// [EdgeBuilder::incomplete_edges]: super::edge_builder::EdgeBuilder::incomplete_edges
+         writeresp_edge: IncompleteEdgeKey,
++        /// v2023: the last burst of the request.
++        last_burst: Option<usize>,
+     },
+ }
+ 
+@@ -125,8 +136,10 @@ impl Event {
+         match self {
+             Event::SubcallStart { .. }
+             | Event::AxiReadRequest { .. }
+-            | Event::AxiWriteRequest { .. }
+-            | Event::AxiWrite { .. } => false,
++            | Event::AxiWriteRequest { .. } => false,
++
++            // Induces an Edge::AxiTimed buffer-full stall (v2023 only).
++            Event::AxiWrite { stall, .. } => stall.is_some(),
+ 
+             // Induces an Edge::ControlFlow.
+             Event::SubcallEnd { .. }
+diff --git a/backend/lightningsim-core/builder/mod.rs b/backend/lightningsim-core/builder/mod.rs
+index d40d528..06b9f14 100644
+--- a/backend/lightningsim-core/builder/mod.rs
++++ b/backend/lightningsim-core/builder/mod.rs
+@@ -12,8 +12,9 @@ use std::{collections::hash_map::Entry, mem, sync::Arc};
+ 
+ use axi_builder::{
+     AxiBuilder, AxiRequestRange, InsertedAxiRead, InsertedAxiReadReq, InsertedAxiWrite,
+-    InsertedAxiWriteReq, InsertedAxiWriteResp,
++    InsertedAxiWriteReq, InsertedAxiWriteResp, ReadBurst,
+ };
++use axi_rctl::AxiRctl;
+ use edge_builder::{EdgeBuilder, IncompleteEdgeType};
+ use event::Event;
+ use fifo_builder::{FifoBuilder, InsertedFifoRead, InsertedFifoWrite};
+@@ -25,7 +26,10 @@ use pyo3::{exceptions::PyValueError, prelude::*};
+ use rustc_hash::FxHashMap;
+ 
+ use crate::{
+-    axi_interface::{AxiAddress, AxiInterface, AxiInterfaceIoNodes},
++    axi_interface::{
++        axi_v2023, AxiAddress, AxiConfig, AxiInterface, AxiInterfaceIoNodes, RctlDepth,
++        MAX_RCTL_DEPTH,
++    },
+     edge::Edge,
+     fifo::{Fifo, FifoId, FifoIoNodes},
+     node::{NodeIndex, NodeWithDelay},
+@@ -47,9 +51,31 @@ struct SimulationComponentBuilders {
+     modules: ModuleBuilder,
+     fifos: FxHashMap<Fifo, FifoBuilder>,
+     axi: FxHashMap<AxiInterface, AxiBuilder>,
++    /// v2023: static adapter configuration per interface.
++    axi_config: FxHashMap<AxiInterface, AxiConfig>,
++    /// v2023: write bursts whose AW node is still to be created (in order).
++    pending_aw: Vec<PendingAw>,
+     end_node: Option<NodeIndex>,
+ }
+ 
++/// A v2023 write burst whose last write has been committed and whose AW node
++/// must be inserted before the next node (see [SimulationComponentBuilders::flush_axi_aw_nodes]).
++#[derive(Clone, Copy, Debug)]
++struct PendingAw {
++    interface: AxiInterface,
++    burst: usize,
++    last_write: NodeWithDelay,
++}
++
++// Indices into axi_interface::AXI_CONSTANT_NAMES.
++const C_WA: u8 = 2;
++const C_WQ: u8 = 3;
++const C_WF: u8 = 4;
++const C_WC: u8 = 5;
++const C_WK: u8 = 6;
++const C_WB: u8 = 7;
++const C_WC2: u8 = 9;
++
+ #[pymethods]
+ impl SimulationBuilder {
+     #[new]
+@@ -73,6 +99,8 @@ impl SimulationBuilder {
+                 modules,
+                 fifos: FxHashMap::default(),
+                 axi: FxHashMap::default(),
++                axi_config: FxHashMap::default(),
++                pending_aw: Vec::new(),
+                 end_node: None,
+             },
+             stack: vec![top_frame],
+@@ -104,6 +132,32 @@ impl SimulationBuilder {
+         }
+     }
+ 
++    /// Set the static `m_axi` adapter configuration of an interface (used by
++    /// the v2023 AXI model; ignored by v2021). Must be called before the
++    /// interface's first request.
++    pub fn set_axi_config(
++        &mut self,
++        interface_address: AxiAddress,
++        read_burst_beats: u64,
++        read_outstanding: RctlDepth,
++        write_burst_beats: u64,
++        write_outstanding: usize,
++        write_buffer_beats: usize,
++    ) {
++        self.builders.axi_config.insert(
++            AxiInterface {
++                address: interface_address,
++            },
++            AxiConfig {
++                read_burst_beats,
++                read_outstanding,
++                write_burst_beats,
++                write_outstanding,
++                write_buffer_beats,
++            },
++        );
++    }
++
+     pub fn add_axi_readreq(
+         &mut self,
+         safe_offset: SimulationStage,
+@@ -281,18 +335,34 @@ impl SimulationComponentBuilders {
+         interface: AxiInterface,
+         request: &AxiRequestRange,
+     ) {
++        let config = self.axi_config.get(&interface).copied().unwrap_or_default();
+         let builder = self.axi.entry(interface).or_default();
+         let read_edge = self
+             .edges
+             .insert_edge(IncompleteEdgeType::AxiRead(interface));
+-        let rctl_in_edge = self
+-            .edges
+-            .insert_edge(IncompleteEdgeType::AxiRctl(interface));
+-        let rctl_out_edge = self
+-            .edges
+-            .insert_edge(IncompleteEdgeType::AxiRctl(interface));
+-        let InsertedAxiReadReq { index, rctl_txn } =
+-            builder.insert_readreq(request, read_edge, rctl_in_edge, rctl_out_edge);
++        let InsertedAxiReadReq { index, rctl_txns } = if axi_v2023() {
++            let bursts = AxiBuilder::read_burst_sizes(request, &config)
++                .into_iter()
++                .map(|size| ReadBurst {
++                    size,
++                    in_edge: self
++                        .edges
++                        .insert_edge(IncompleteEdgeType::AxiRctl(interface)),
++                    out_edge: self
++                        .edges
++                        .insert_edge(IncompleteEdgeType::AxiRctl(interface)),
++                })
++                .collect();
++            builder.insert_readreq_v2023(request, read_edge, bursts)
++        } else {
++            let rctl_in_edge = self
++                .edges
++                .insert_edge(IncompleteEdgeType::AxiRctl(interface));
++            let rctl_out_edge = self
++                .edges
++                .insert_edge(IncompleteEdgeType::AxiRctl(interface));
++            builder.insert_readreq(request, read_edge, rctl_in_edge, rctl_out_edge)
++        };
+         self.add_event(
+             frame,
+             safe_offset,
+@@ -301,7 +371,7 @@ impl SimulationComponentBuilders {
+                 interface,
+                 index,
+                 read_edge,
+-                rctl_txn,
++                rctl_txns,
+             },
+         );
+     }
+@@ -314,11 +384,13 @@ impl SimulationComponentBuilders {
+         interface: AxiInterface,
+         request: &AxiRequestRange,
+     ) {
+-        let InsertedAxiWriteReq { index } = self
+-            .axi
+-            .entry(interface)
+-            .or_default()
+-            .insert_writereq(request);
++        let config = self.axi_config.get(&interface).copied().unwrap_or_default();
++        let builder = self.axi.entry(interface).or_default();
++        let InsertedAxiWriteReq { index } = if axi_v2023() {
++            builder.insert_writereq_v2023(request, &config)
++        } else {
++            builder.insert_writereq(request)
++        };
+         self.add_event(
+             frame,
+             safe_offset,
+@@ -359,10 +431,18 @@ impl SimulationComponentBuilders {
+         stage: SimulationStage,
+         interface: AxiInterface,
+     ) {
++        let v2023 = axi_v2023();
++        let config = self.axi_config.get(&interface).copied().unwrap_or_default();
+         let InsertedAxiWrite {
+             index,
+             writeresp_edge,
+-        } = self.axi.entry(interface).or_default().insert_write();
++            stall,
++            ends_burst,
++        } = self
++            .axi
++            .entry(interface)
++            .or_default()
++            .insert_write(v2023.then_some(&config));
+         let writeresp_edge = writeresp_edge.map(|edge_needed| {
+             let new_edge = self
+                 .edges
+@@ -378,6 +458,8 @@ impl SimulationComponentBuilders {
+                 interface,
+                 index,
+                 writeresp_edge,
++                stall,
++                ends_burst,
+             },
+         );
+     }
+@@ -392,6 +474,7 @@ impl SimulationComponentBuilders {
+         let InsertedAxiWriteResp {
+             index,
+             writeresp_edge,
++            last_burst,
+         } = self.axi.entry(interface).or_default().insert_writeresp();
+         self.add_event(
+             frame,
+@@ -401,6 +484,7 @@ impl SimulationComponentBuilders {
+                 interface,
+                 index,
+                 writeresp_edge,
++                last_burst,
+             },
+         );
+     }
+@@ -471,25 +555,104 @@ impl SimulationComponentBuilders {
+                 debug_assert!(!event.has_in_edge());
+                 self.commit_event(event, node);
+             }
++            self.flush_axi_aw_nodes();
+             self.end_node = Some(self.edges.insert_node());
+             self.edges.push_destination(frame.current_edge);
+         }
+     }
+ 
++    /// v2023: insert the AW node of every write burst completed since the last
++    /// node insertion. AW(j) = max of
++    /// - the kernel's last write of the burst + wa,
++    /// - the write request + len(j) + wq (request gate, then moving the beats),
++    /// - AW(j - 1) + len(j - 1) (bursts leave the bus one after another),
++    /// - AW of the burst holding beat e(j) - throttle depth + its offset + wf
++    ///   (one-burst throttle FIFO),
++    /// - AW(j - num_write_outstanding) + len + L + 1 + max(wc + len(j), wc2)
++    ///   (write credit released by that burst's B response, then refill).
++    fn flush_axi_aw_nodes(&mut self) {
++        for PendingAw {
++            interface,
++            burst: index,
++            last_write,
++        } in mem::take(&mut self.pending_aw)
++        {
++            let config = self.axi_config.get(&interface).copied().unwrap_or_default();
++            let axi_builder = &self.axi[&interface];
++            let burst = axi_builder.write_burst(index);
++            let len = ClockCycle::from(burst.size);
++            let timed = |u: NodeWithDelay, constant: u8, latency: bool| Edge::AxiTimed {
++                u,
++                interface,
++                constant,
++                latency,
++            };
++            let mut edges = vec![timed(last_write, C_WA, false)];
++            if let Some(request) = axi_builder.writereq_node(burst.request) {
++                edges.push(timed(request + len, C_WQ, false));
++            }
++            if let Some(previous) = index.checked_sub(1).map(|i| axi_builder.write_burst(i)) {
++                if let Some(aw) = previous.aw_node {
++                    edges.push(Edge::ControlFlow(NodeWithDelay {
++                        node: aw,
++                        delay: previous.size.into(),
++                    }));
++                }
++            }
++            if let Some(freed) = burst.last().checked_sub(config.write_burst_beats as usize) {
++                let holder = axi_builder.write_bursts_containing(freed);
++                let holder_burst = axi_builder.write_burst(holder);
++                if let Some(aw) = holder_burst.aw_node {
++                    let offset = (freed - holder_burst.first) as ClockCycle;
++                    edges.push(timed(NodeWithDelay { node: aw, delay: offset }, C_WF, false));
++                }
++            }
++            if let Some(credit) = index.checked_sub(config.write_outstanding) {
++                let credit_burst = axi_builder.write_burst(credit);
++                if let Some(aw) = credit_burst.aw_node {
++                    // B(credit) = AW + len + L + 1; then max(wc + len(j), wc2) to the next AW.
++                    let b = ClockCycle::from(credit_burst.size) + 1;
++                    edges.push(timed(NodeWithDelay { node: aw, delay: b + len }, C_WC, true));
++                    edges.push(timed(NodeWithDelay { node: aw, delay: b }, C_WC2, true));
++                }
++            }
++            let node = self.edges.insert_node();
++            for edge in edges {
++                self.edges.push_edge(edge);
++            }
++            self.axi
++                .get_mut(&interface)
++                .unwrap()
++                .set_write_burst_aw_node(index, node);
++        }
++    }
++
+     fn finalize_event(&mut self, frame: &mut StackFrame, event: &Event) {
+-        match *event {
++        match event {
+             Event::AxiReadRequest {
+                 interface,
+-                rctl_txn,
++                rctl_txns,
+                 ..
+             } => {
+-                self.modules
++                let limit = if axi_v2023() {
++                    self.axi_config
++                        .get(interface)
++                        .copied()
++                        .unwrap_or_default()
++                        .read_outstanding
++                } else {
++                    MAX_RCTL_DEPTH
++                };
++                let rctl = self
++                    .modules
+                     .get_axi_rctl_mut(frame.key)
+-                    .entry(interface)
+-                    .or_default()
+-                    .push(&mut self.edges, rctl_txn);
++                    .entry(*interface)
++                    .or_insert_with(|| AxiRctl::with_limit(limit));
++                for rctl_txn in rctl_txns.iter() {
++                    rctl.push(&mut self.edges, *rctl_txn);
++                }
+             }
+-            Event::SubcallStart { module_key, .. } => {
++            &Event::SubcallStart { module_key, .. } => {
+                 for (interface, sub_axi_rctl) in
+                     mem::take(self.modules.get_axi_rctl_mut(module_key))
+                 {
+@@ -543,7 +706,7 @@ impl SimulationComponentBuilders {
+                 interface,
+                 index,
+                 read_edge,
+-                rctl_txn: _,
++                rctl_txns: _,
+             } => {
+                 self.axi
+                     .get_mut(&interface)
+@@ -567,7 +730,9 @@ impl SimulationComponentBuilders {
+                     rctl_in_edge,
+                 }) = first_read
+                 {
+-                    self.edges.push_destination(read_edge);
++                    if let Some(read_edge) = read_edge {
++                        self.edges.push_destination(read_edge);
++                    }
+                     self.edges.push_destination(rctl_in_edge);
+                 }
+             }
+@@ -581,25 +746,63 @@ impl SimulationComponentBuilders {
+                 interface,
+                 index,
+                 writeresp_edge,
++                stall,
++                ends_burst,
+             } => {
+-                self.axi
+-                    .get_mut(&interface)
+-                    .unwrap()
+-                    .update_write(index, node);
++                let axi_builder = self.axi.get_mut(&interface).unwrap();
++                axi_builder.update_write(index, node);
+                 if let Some(writeresp_edge) = writeresp_edge {
+                     self.edges.update_source(writeresp_edge, node);
+                 }
++                if let Some(stall) = stall {
++                    // The burst's AW node exists: its last write precedes this
++                    // write, and AW nodes are flushed before each new node.
++                    if let Some(aw) = axi_builder.write_burst(stall.burst).aw_node {
++                        self.edges.push_edge(Edge::AxiTimed {
++                            u: NodeWithDelay {
++                                node: aw,
++                                delay: stall.offset,
++                            },
++                            interface,
++                            constant: C_WK,
++                            latency: false,
++                        });
++                    }
++                }
++                if let Some(burst) = ends_burst {
++                    self.pending_aw.push(PendingAw {
++                        interface,
++                        burst,
++                        last_write: node,
++                    });
++                }
+             }
+             Event::AxiWriteResponse {
+                 interface,
+                 index,
+                 writeresp_edge,
++                last_burst,
+             } => {
+                 self.axi
+                     .get_mut(&interface)
+                     .unwrap()
+                     .update_writeresp(index, node);
+                 self.edges.push_destination(writeresp_edge);
++                if let Some(burst) = last_burst {
++                    // The response is the last burst's B: AW + len + L + 1, seen by the kernel wb later.
++                    let burst = self.axi[&interface].write_burst(burst);
++                    if let Some(aw) = burst.aw_node {
++                        self.edges.push_edge(Edge::AxiTimed {
++                            u: NodeWithDelay {
++                                node: aw,
++                                delay: ClockCycle::from(burst.size) + 1,
++                            },
++                            interface,
++                            constant: C_WB,
++                            latency: true,
++                        });
++                    }
++                }
+             }
+         }
+     }
+@@ -614,6 +817,7 @@ impl SimulationComponentBuilders {
+         let delay = advance_by.into();
+         let unstalled_time = frame.current_time;
+         let stalled_time = if uncommitted_node.is_own_node() {
++            self.flush_axi_aw_nodes();
+             let node = self.edges.insert_node();
+             self.edges.push_destination(frame.current_edge);
+             let node_with_delay = NodeWithDelay { node, delay };
+diff --git a/backend/lightningsim-core/edge.rs b/backend/lightningsim-core/edge.rs
+index a929f2c..240f588 100644
+--- a/backend/lightningsim-core/edge.rs
++++ b/backend/lightningsim-core/edge.rs
+@@ -1,7 +1,7 @@
+ use bincode::{Decode, Encode};
+ 
+ use crate::{
+-    axi_interface::{AxiInterface, AXI_READ_OVERHEAD, AXI_WRITE_OVERHEAD},
++    axi_interface::{axi_constant, axi_constants, axi_v2023, AxiInterface, AXI_READ_OVERHEAD, AXI_WRITE_OVERHEAD},
+     fifo::{Fifo, FifoType},
+     node::NodeWithDelay,
+     CompiledSimulation, SimulationError, SimulationParameters,
+@@ -72,6 +72,15 @@ pub enum Edge {
+         u: NodeWithDelay,
+         interface: AxiInterface,
+     },
++    /// v2023: `u + constant[constant]` (see `axi_interface::AXI_CONSTANT_NAMES`),
++    /// plus the interface latency when `latency` is set. The static part of
++    /// the delay (burst lengths, beat offsets) is already in `u.delay`.
++    AxiTimed {
++        u: NodeWithDelay,
++        interface: AxiInterface,
++        constant: u8,
++        latency: bool,
++    },
+ }
+ 
+ impl Edge {
+@@ -100,16 +109,38 @@ impl Edge {
+             }
+             Edge::AxiRctl { u, interface } => {
+                 let delay = parameters.get_axi_delay(interface)?;
++                if axi_v2023() {
++                    return Ok(Some(u + (delay + axi_constants().r1)));
++                }
+                 Ok(Some(u + (delay + AXI_READ_OVERHEAD - AXI_WRITE_OVERHEAD)))
+             }
+             Edge::AxiRead { u, interface } => {
+                 let delay = parameters.get_axi_delay(interface)?;
++                if axi_v2023() {
++                    return Ok(Some(u + (delay + axi_constants().r0)));
++                }
+                 Ok(Some(u + (delay + AXI_READ_OVERHEAD)))
+             }
+             Edge::AxiWriteResp { u, interface } => {
+                 let delay = parameters.get_axi_delay(interface)?;
++                if axi_v2023() {
++                    return Ok(Some(u + (delay + axi_constants().wl)));
++                }
+                 Ok(Some(u + (delay + AXI_WRITE_OVERHEAD)))
+             }
++            Edge::AxiTimed {
++                u,
++                interface,
++                constant,
++                latency,
++            } => {
++                let latency = if latency {
++                    parameters.get_axi_delay(interface)?
++                } else {
++                    0
++                };
++                Ok(Some(u + (axi_constant(constant) + latency)))
++            }
+         }
+     }
+ }
+diff --git a/backend/lightningsim-core/lib.rs b/backend/lightningsim-core/lib.rs
+index 3334af1..c7a47e7 100644
+--- a/backend/lightningsim-core/lib.rs
++++ b/backend/lightningsim-core/lib.rs
+@@ -566,6 +566,8 @@ impl From<Option<u32>> for ApContinue {
+ #[pymodule(module = "lightningsim._core")]
+ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+     m.add_class::<SimulationBuilder>()?;
++    m.add_function(wrap_pyfunction!(axi_interface::set_axi_constants, m)?)?;
++    m.add_function(wrap_pyfunction!(axi_interface::get_axi_model, m)?)?;
+     m.add_class::<CompiledSimulation>()?;
+     m.add_class::<Simulation>()?;
+     m.add_class::<SimulatedModule>()?;
+diff --git a/backend/lightningsim/trace_file.py b/backend/lightningsim/trace_file.py
+index 8a35631..787c620 100644
+--- a/backend/lightningsim/trace_file.py
++++ b/backend/lightningsim/trace_file.py
+@@ -330,11 +330,42 @@ class StackFrame:
+     returns: List[Tuple[str, int]] = field(default_factory=list)
+ 
+ 
++def _apply_axi_config(builder: SimulationBuilder, interfaces) -> None:
++    """Pass static m_axi adapter settings to the builder (v2023 AXI model).
++
++    LSIM_AXI_IFCFG names a JSON file {interface name: {read_burst_beats,
++    read_outstanding, write_burst_beats, write_outstanding, write_buffer_beats}}
++    written by the harness from the generated RTL. Interfaces without an entry
++    use the Vitis HLS 2023.2 defaults. Matched names are logged to stderr.
++    """
++    import json, os, sys
++
++    path = os.environ.get("LSIM_AXI_IFCFG")
++    config = json.load(open(path)) if path else {}
++    for interface in interfaces:
++        entry = config.get(interface.name)
++        print(
++            f"[lsim-axi] model={os.environ.get('LSIM_AXI_MODEL', 'v2021')} "
++            f"interface={interface.name} config={entry}",
++            file=sys.stderr,
++        )
++        if entry:
++            builder.set_axi_config(
++                interface.address,
++                int(entry["read_burst_beats"]),
++                int(entry["read_outstanding"]),
++                int(entry["write_burst_beats"]),
++                int(entry["write_outstanding"]),
++                int(entry["write_buffer_beats"]),
++            )
++
++
+ async def resolve_trace(
+     trace: UnresolvedTrace,
+     progress_callback: Callable[[float], None] = lambda progress: None,
+ ):
+     builder = SimulationBuilder()
++    _apply_axi_config(builder, trace.axi_latencies.keys())
+     top_frame = StackFrame()
+     stack: List[StackFrame] = [top_frame]
+     trace_iter = iter(enumerate(trace))

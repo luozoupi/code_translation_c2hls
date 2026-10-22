@@ -1,0 +1,18 @@
+{
+ "name": "lud32",
+ "top": "lu_kernel",
+ "header": "kernel.h",
+ "testbench": "testbench.cpp",
+ "reference": "plain.cpp",
+ "part": "xcu280-fsvh2892-2L-e",
+ "clock_ns": 3.33,
+ "total_macs": 10912,
+ "device": {
+  "dsp": 9024,
+  "lut": 1303680,
+  "ff": 2607360,
+  "bram_18k": 4032,
+  "uram": 960
+ },
+ "brief": "LU decomposition without pivoting of a 32x32 fp32 matrix A (see plain.cpp, the reference: outputs U[k][i] for i >= k and the multipliers L[k][j] for j > k, stored as in plain.cpp; other elements are not checked). Keep the exact top signature extern \"C\" void lu_kernel(data_t A[N][N], data_t L[N][N], data_t U[N][N])."
+}

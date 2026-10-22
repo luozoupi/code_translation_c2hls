@@ -1,0 +1,8 @@
+Job 63954764 (2026-10-09/10, ~19.5 h): 4 of 5 implementation runs failed "Failed to complete Initial Routing due to very
+high congestion" / global congestion level 7; the 5th (Performance_NetDelay_high) was still in initial routing -> cancelled.
+Not resource-full: per-SLR LUT 46/60/51%, BRAM tiles 22/68/31%, DSP 64/84/87%.
+Congestion concentrated in one module: level0_i/ulp/autosa_mm_1/inst/compute_U0 (425 of ~540 congested-net mentions),
+"high localized SLL routing demand", 763 CLBs with high pin utilization.
+Cause (all three LLM designs): one monolithic, fully unrolled MAC grid in a single compute function that broadcasts A/B
+operands to hundreds of multipliers across SLRs. Fix is architectural (systolic / neighbour-only PE chains, per-SLR
+sub-arrays, registered broadcast trees), not a Vivado strategy.

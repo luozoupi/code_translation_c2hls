@@ -1,0 +1,549 @@
+{
+ "constants_order": [
+  "r0",
+  "r1",
+  "wa",
+  "wq",
+  "wf",
+  "wc",
+  "wk",
+  "wb",
+  "wl"
+ ],
+ "best": {
+  "r0": 0,
+  "r1": 7,
+  "wa": 5,
+  "wq": 7,
+  "wf": 3,
+  "wc": 5,
+  "wk": 1,
+  "wb": 4,
+  "wl": 0
+ },
+ "best_sum_abs_report_err": 56,
+ "best_sum_abs_done_err": 291,
+ "best_max_abs_report_err": 16,
+ "per_config": {
+  "chain_n16": {
+   "dut_done": 252,
+   "lsim_end": 251,
+   "err": -1,
+   "report": 307,
+   "pred": 299,
+   "report_err": -8
+  },
+  "chain_n16_dw32": {
+   "dut_done": 175,
+   "lsim_end": 179,
+   "err": 4,
+   "report": 227,
+   "pred": 227,
+   "report_err": 0
+  },
+  "chain_n64": {
+   "dut_done": 300,
+   "lsim_end": 299,
+   "err": -1,
+   "report": 355,
+   "pred": 347,
+   "report_err": -8
+  },
+  "chain_n64_dw32": {
+   "dut_done": 299,
+   "lsim_end": 299,
+   "err": 0,
+   "report": 347,
+   "pred": 347,
+   "report_err": 0
+  },
+  "cp_n1": {
+   "dut_done": 158,
+   "lsim_end": 163,
+   "err": 5,
+   "report": 211,
+   "pred": 211,
+   "report_err": 0
+  },
+  "cp_n1024": {
+   "dut_done": 1324,
+   "lsim_end": 1331,
+   "err": 7,
+   "report": 1379,
+   "pred": 1379,
+   "report_err": 0
+  },
+  "cp_n1024_dw32": {
+   "dut_done": 1192,
+   "lsim_end": 1195,
+   "err": 3,
+   "report": 1243,
+   "pred": 1243,
+   "report_err": 0
+  },
+  "cp_n1024_lat1": {
+   "dut_done": 1198,
+   "lsim_end": 1203,
+   "err": 5,
+   "report": 1251,
+   "pred": 1251,
+   "report_err": 0
+  },
+  "cp_n1024_lat64": {
+   "dut_done": 1324,
+   "lsim_end": 1331,
+   "err": 7,
+   "report": 1379,
+   "pred": 1379,
+   "report_err": 0
+  },
+  "cp_n1024_mbl256": {
+   "dut_done": 1244,
+   "lsim_end": 1251,
+   "err": 7,
+   "report": 1299,
+   "pred": 1299,
+   "report_err": 0
+  },
+  "cp_n1024_mbl64": {
+   "dut_done": 1274,
+   "lsim_end": 1283,
+   "err": 9,
+   "report": 1323,
+   "pred": 1331,
+   "report_err": 8
+  },
+  "cp_n16": {
+   "dut_done": 190,
+   "lsim_end": 195,
+   "err": 5,
+   "report": 243,
+   "pred": 243,
+   "report_err": 0
+  },
+  "cp_n16_dw32": {
+   "dut_done": 175,
+   "lsim_end": 179,
+   "err": 4,
+   "report": 227,
+   "pred": 227,
+   "report_err": 0
+  },
+  "cp_n17": {
+   "dut_done": 191,
+   "lsim_end": 195,
+   "err": 4,
+   "report": 243,
+   "pred": 243,
+   "report_err": 0
+  },
+  "cp_n2": {
+   "dut_done": 162,
+   "lsim_end": 163,
+   "err": 1,
+   "report": 211,
+   "pred": 211,
+   "report_err": 0
+  },
+  "cp_n256": {
+   "dut_done": 460,
+   "lsim_end": 467,
+   "err": 7,
+   "report": 515,
+   "pred": 515,
+   "report_err": 0
+  },
+  "cp_n4096": {
+   "dut_done": 4780,
+   "lsim_end": 4787,
+   "err": 7,
+   "report": 4835,
+   "pred": 4835,
+   "report_err": 0
+  },
+  "cp_n64": {
+   "dut_done": 244,
+   "lsim_end": 251,
+   "err": 7,
+   "report": 299,
+   "pred": 299,
+   "report_err": 0
+  },
+  "df_n1": {
+   "dut_done": 160,
+   "lsim_end": 163,
+   "err": 3,
+   "report": 211,
+   "pred": 211,
+   "report_err": 0
+  },
+  "df_n1024": {
+   "dut_done": 1324,
+   "lsim_end": 1331,
+   "err": 7,
+   "report": 1379,
+   "pred": 1379,
+   "report_err": 0
+  },
+  "df_n1024_ii2": {
+   "dut_done": 2216,
+   "lsim_end": 2219,
+   "err": 3,
+   "report": 2267,
+   "pred": 2267,
+   "report_err": 0
+  },
+  "df_n1024_ii4": {
+   "dut_done": 3239,
+   "lsim_end": 3243,
+   "err": 4,
+   "report": 3291,
+   "pred": 3291,
+   "report_err": 0
+  },
+  "df_n16": {
+   "dut_done": 190,
+   "lsim_end": 195,
+   "err": 5,
+   "report": 243,
+   "pred": 243,
+   "report_err": 0
+  },
+  "df_n17": {
+   "dut_done": 191,
+   "lsim_end": 195,
+   "err": 4,
+   "report": 243,
+   "pred": 243,
+   "report_err": 0
+  },
+  "df_n2": {
+   "dut_done": 162,
+   "lsim_end": 163,
+   "err": 1,
+   "report": 211,
+   "pred": 211,
+   "report_err": 0
+  },
+  "df_n256": {
+   "dut_done": 460,
+   "lsim_end": 467,
+   "err": 7,
+   "report": 515,
+   "pred": 515,
+   "report_err": 0
+  },
+  "df_n4096": {
+   "dut_done": 4780,
+   "lsim_end": 4787,
+   "err": 7,
+   "report": 4835,
+   "pred": 4835,
+   "report_err": 0
+  },
+  "df_n4096_mbl64": {
+   "dut_done": 4442,
+   "lsim_end": 4451,
+   "err": 9,
+   "report": 4491,
+   "pred": 4499,
+   "report_err": 8
+  },
+  "df_n64": {
+   "dut_done": 244,
+   "lsim_end": 251,
+   "err": 7,
+   "report": 299,
+   "pred": 299,
+   "report_err": 0
+  },
+  "rd_n1": {
+   "dut_done": 156,
+   "lsim_end": 163,
+   "err": 7,
+   "report": 211,
+   "pred": 211,
+   "report_err": 0
+  },
+  "rd_n1024": {
+   "dut_done": 1182,
+   "lsim_end": 1187,
+   "err": 5,
+   "report": 1235,
+   "pred": 1235,
+   "report_err": 0
+  },
+  "rd_n1024_dw32": {
+   "dut_done": 1182,
+   "lsim_end": 1187,
+   "err": 5,
+   "report": 1235,
+   "pred": 1235,
+   "report_err": 0
+  },
+  "rd_n1024_ii2": {
+   "dut_done": 2205,
+   "lsim_end": 2211,
+   "err": 6,
+   "report": 2259,
+   "pred": 2259,
+   "report_err": 0
+  },
+  "rd_n1024_ii4": {
+   "dut_done": 4251,
+   "lsim_end": 4251,
+   "err": 0,
+   "report": 4299,
+   "pred": 4299,
+   "report_err": 0
+  },
+  "rd_n1024_lat1": {
+   "dut_done": 1056,
+   "lsim_end": 1059,
+   "err": 3,
+   "report": 1107,
+   "pred": 1107,
+   "report_err": 0
+  },
+  "rd_n1024_lat64": {
+   "dut_done": 1182,
+   "lsim_end": 1187,
+   "err": 5,
+   "report": 1235,
+   "pred": 1235,
+   "report_err": 0
+  },
+  "rd_n1024_mbl256": {
+   "dut_done": 1180,
+   "lsim_end": 1187,
+   "err": 7,
+   "report": 1235,
+   "pred": 1235,
+   "report_err": 0
+  },
+  "rd_n1024_mbl64": {
+   "dut_done": 1180,
+   "lsim_end": 1187,
+   "err": 7,
+   "report": 1235,
+   "pred": 1235,
+   "report_err": 0
+  },
+  "rd_n1024_out1": {
+   "dut_done": 5591,
+   "lsim_end": 5595,
+   "err": 4,
+   "report": 5643,
+   "pred": 5643,
+   "report_err": 0
+  },
+  "rd_n1024_out4": {
+   "dut_done": 1512,
+   "lsim_end": 1515,
+   "err": 3,
+   "report": 1563,
+   "pred": 1563,
+   "report_err": 0
+  },
+  "rd_n16": {
+   "dut_done": 174,
+   "lsim_end": 179,
+   "err": 5,
+   "report": 227,
+   "pred": 227,
+   "report_err": 0
+  },
+  "rd_n16_dw32": {
+   "dut_done": 175,
+   "lsim_end": 179,
+   "err": 4,
+   "report": 227,
+   "pred": 227,
+   "report_err": 0
+  },
+  "rd_n17": {
+   "dut_done": 175,
+   "lsim_end": 179,
+   "err": 4,
+   "report": 227,
+   "pred": 227,
+   "report_err": 0
+  },
+  "rd_n2": {
+   "dut_done": 160,
+   "lsim_end": 163,
+   "err": 3,
+   "report": 211,
+   "pred": 211,
+   "report_err": 0
+  },
+  "rd_n256": {
+   "dut_done": 414,
+   "lsim_end": 419,
+   "err": 5,
+   "report": 467,
+   "pred": 467,
+   "report_err": 0
+  },
+  "rd_n256_off60": {
+   "dut_done": 412,
+   "lsim_end": 419,
+   "err": 7,
+   "report": 467,
+   "pred": 467,
+   "report_err": 0
+  },
+  "rd_n4096": {
+   "dut_done": 4254,
+   "lsim_end": 4259,
+   "err": 5,
+   "report": 4307,
+   "pred": 4307,
+   "report_err": 0
+  },
+  "rd_n64": {
+   "dut_done": 222,
+   "lsim_end": 227,
+   "err": 5,
+   "report": 275,
+   "pred": 275,
+   "report_err": 0
+  },
+  "wr_n1": {
+   "dut_done": 156,
+   "lsim_end": 163,
+   "err": 7,
+   "report": 211,
+   "pred": 211,
+   "report_err": 0
+  },
+  "wr_n1024": {
+   "dut_done": 1323,
+   "lsim_end": 1323,
+   "err": 0,
+   "report": 1371,
+   "pred": 1371,
+   "report_err": 0
+  },
+  "wr_n1024_dw32": {
+   "dut_done": 1192,
+   "lsim_end": 1195,
+   "err": 3,
+   "report": 1243,
+   "pred": 1243,
+   "report_err": 0
+  },
+  "wr_n1024_lat1": {
+   "dut_done": 1197,
+   "lsim_end": 1203,
+   "err": 6,
+   "report": 1251,
+   "pred": 1251,
+   "report_err": 0
+  },
+  "wr_n1024_lat64": {
+   "dut_done": 1323,
+   "lsim_end": 1323,
+   "err": 0,
+   "report": 1371,
+   "pred": 1371,
+   "report_err": 0
+  },
+  "wr_n1024_mbl256": {
+   "dut_done": 1243,
+   "lsim_end": 1251,
+   "err": 8,
+   "report": 1291,
+   "pred": 1299,
+   "report_err": 8
+  },
+  "wr_n1024_mbl64": {
+   "dut_done": 1273,
+   "lsim_end": 1275,
+   "err": 2,
+   "report": 1323,
+   "pred": 1323,
+   "report_err": 0
+  },
+  "wr_n1024_out1": {
+   "dut_done": 6614,
+   "lsim_end": 6619,
+   "err": 5,
+   "report": 6667,
+   "pred": 6667,
+   "report_err": 0
+  },
+  "wr_n1024_out4": {
+   "dut_done": 1788,
+   "lsim_end": 1779,
+   "err": -9,
+   "report": 1843,
+   "pred": 1827,
+   "report_err": -16
+  },
+  "wr_n16": {
+   "dut_done": 189,
+   "lsim_end": 195,
+   "err": 6,
+   "report": 243,
+   "pred": 243,
+   "report_err": 0
+  },
+  "wr_n16_dw32": {
+   "dut_done": 174,
+   "lsim_end": 179,
+   "err": 5,
+   "report": 227,
+   "pred": 227,
+   "report_err": 0
+  },
+  "wr_n17": {
+   "dut_done": 190,
+   "lsim_end": 195,
+   "err": 5,
+   "report": 243,
+   "pred": 243,
+   "report_err": 0
+  },
+  "wr_n2": {
+   "dut_done": 161,
+   "lsim_end": 163,
+   "err": 2,
+   "report": 211,
+   "pred": 211,
+   "report_err": 0
+  },
+  "wr_n256": {
+   "dut_done": 459,
+   "lsim_end": 459,
+   "err": 0,
+   "report": 507,
+   "pred": 507,
+   "report_err": 0
+  },
+  "wr_n256_off60": {
+   "dut_done": 457,
+   "lsim_end": 459,
+   "err": 2,
+   "report": 507,
+   "pred": 507,
+   "report_err": 0
+  },
+  "wr_n4096": {
+   "dut_done": 4779,
+   "lsim_end": 4779,
+   "err": 0,
+   "report": 4827,
+   "pred": 4827,
+   "report_err": 0
+  },
+  "wr_n64": {
+   "dut_done": 243,
+   "lsim_end": 243,
+   "err": 0,
+   "report": 291,
+   "pred": 291,
+   "report_err": 0
+  }
+ }
+}

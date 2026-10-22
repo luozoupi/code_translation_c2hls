@@ -1,0 +1,2536 @@
+<ENTRY>
+{
+ "thisFile": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/autosa_mm.xclbin.link_summary",
+ "connectId": "",
+ "serverToken": "",
+ "timestamp": "0"
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 21:29:36 2026",
+ "timestampMillis": "1791606576465",
+ "buildStep": {
+  "cmdId": "30851f97-c43b-4780-befe-9883f1291c90",
+  "name": "v++",
+  "logFile": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/link.steps.log",
+  "commandLine": "/opt/Xilinx/Vitis/2023.2/bin/unwrapped/lnx64.o/v++  --vivado.prop \"run.__KERNEL__.{STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS}={-directive sdx_optimization_effort_high}\" --advanced.misc \"report=type report_timing_summary name impl_report_timing_summary_route_design_summary steps {route_design} runs {impl_1} options {-max_paths 10}\" --advanced.misc \"report=type report_timing_summary name impl_report_timing_summary_post_route_phys_opt_design_summary steps {post_route_phys_opt_design} runs {impl_1} options {-max_paths 10}\" -l -t hw --platform /opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --config link.cfg autosa_mm.xo -o autosa_mm.xclbin --temp_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l --log_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/logs_l --report_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l ",
+  "args": [
+   "-l",
+   "-t",
+   "hw",
+   "--platform",
+   "/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+   "--config",
+   "link.cfg",
+   "autosa_mm.xo",
+   "-o",
+   "autosa_mm.xclbin",
+   "--temp_dir",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l",
+   "--log_dir",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/logs_l",
+   "--report_dir",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l"
+  ],
+  "iniFiles": [
+   {
+    "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/link.cfg",
+    "content": "# v++ --link config for autosa_mm (ladder_r3_L3), xilinx_u280_gen3x16_xdma_1_202211_1, 300 MHz default kernel clock.\n[connectivity]\n# All three ports on separate HBM pseudo-channels (SLR0): this design needs \u003c ~6 GB/s per port, within one\n# pseudo-channel (~14.4 GB/s); no DDR controller, so no extra LUTs.\nnk=autosa_mm:1:autosa_mm_1\nsp=autosa_mm_1.A:HBM[0]\nsp=autosa_mm_1.B:HBM[1]\nsp=autosa_mm_1.C:HBM[2]\n# No SLR pinning: let Vivado spread the kernel across SLRs.\n\n[vivado]\n# Kernel synthesis: v++ already passes its own synth_design -directive to kernel runs, so a second DIRECTIVE\n# fails (\"'directive' can only be specified once\", attempt 1). Keep v++'s directive; add global retiming\n# (FFs are at ~48%, so retiming registers are affordable).\nprop=run.__KERNEL__.STEPS.SYNTH_DESIGN.ARGS.GLOBAL_RETIMING=on\n# Implementation: four strategies run in parallel; v++ keeps the best result.\nimpl.strategies=Congestion_SSI_SpreadLogic_high,Performance_HighUtilSLRs,Performance_ExplorePostRoutePhysOpt,Performance_NetDelay_high\nimpl.jobs=4\nsynth.jobs=16\n"
+   }
+  ],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:29:36 2026",
+ "timestampMillis": "1791606576465",
+ "status": {
+  "cmdId": "30851f97-c43b-4780-befe-9883f1291c90",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_FlowMetaData",
+ "dateTimestamp": "Fri Oct  9 21:29:39 2026",
+ "timestampMillis": "1791606579429",
+ "buildSummary": {
+  "hardwarePlatform": "xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+  "hardwareDsa": "",
+  "platformDirectory": "/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1",
+  "runtime": "OpenCL",
+  "systemConfig": "Linux",
+  "flow": "BF_LINK",
+  "target": "TT_HW",
+  "binaryContainer": {
+   "base": {
+    "type": "BT_UKNOWN",
+    "name": "autosa_mm",
+    "file": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/autosa_mm.xclbin",
+    "reports": [],
+    "uuid": ""
+   },
+   "kernels": []
+  },
+  "kernels": [
+   {
+    "base": {
+     "type": "KERNEL",
+     "name": "autosa_mm",
+     "file": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/autosa_mm.xo",
+     "reports": [],
+     "uuid": ""
+    },
+    "sources": [
+     "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/xo/autosa_mm/autosa_mm/cpu_sources/kernel.cpp"
+    ],
+    "psSources": [],
+    "cuNames": [
+     "autosa_mm_1"
+    ],
+    "type": "HLS",
+    "frequency": 0,
+    "freqUnits": ""
+   }
+  ],
+  "toolVersion": "Vitis V++ Compiler Release 2023.2. SW Build 4026344 on 2023-10-11-15:42:10"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct  9 21:29:39 2026",
+ "timestampMillis": "1791606579778",
+ "buildStep": {
+  "cmdId": "2c9b9e72-15c4-45c7-a2bc-86e974780cf8",
+  "name": "system_link",
+  "logFile": "",
+  "commandLine": "system_link --xo /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/autosa_mm.xo --config /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/syslinkConfig.ini --xpfm /opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --target hw --output_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int --temp_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/sys_link",
+  "args": [
+   "--xo",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/autosa_mm.xo",
+   "--config",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/syslinkConfig.ini",
+   "--xpfm",
+   "/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+   "--target",
+   "hw",
+   "--output_dir",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int",
+   "--temp_dir",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/sys_link"
+  ],
+  "iniFiles": [
+   {
+    "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/syslinkConfig.ini",
+    "content": "nk=autosa_mm:1:autosa_mm_1\nsp=autosa_mm_1.A:HBM[0]\nsp=autosa_mm_1.B:HBM[1]\nsp=autosa_mm_1.C:HBM[2]\n\n"
+   }
+  ],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:29:39 2026",
+ "timestampMillis": "1791606579779",
+ "status": {
+  "cmdId": "2c9b9e72-15c4-45c7-a2bc-86e974780cf8",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:29:50 2026",
+ "timestampMillis": "1791606590360",
+ "status": {
+  "cmdId": "2c9b9e72-15c4-45c7-a2bc-86e974780cf8",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct  9 21:29:50 2026",
+ "timestampMillis": "1791606590362",
+ "buildStep": {
+  "cmdId": "087ef550-401c-43a9-8902-4f48b7a29e8a",
+  "name": "cf2sw",
+  "logFile": "",
+  "commandLine": "cf2sw -sdsl /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/sdsl.dat -rtd /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/cf2sw.rtd -nofilter /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/cf2sw_full.rtd -xclbin /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/xclbin_orig.xml -o /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/xclbin_orig.1.xml",
+  "args": [
+   "-sdsl",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/sdsl.dat",
+   "-rtd",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/cf2sw.rtd",
+   "-nofilter",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/cf2sw_full.rtd",
+   "-xclbin",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/xclbin_orig.xml",
+   "-o",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/xclbin_orig.1.xml"
+  ],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:29:50 2026",
+ "timestampMillis": "1791606590362",
+ "status": {
+  "cmdId": "087ef550-401c-43a9-8902-4f48b7a29e8a",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:29:52 2026",
+ "timestampMillis": "1791606592949",
+ "status": {
+  "cmdId": "087ef550-401c-43a9-8902-4f48b7a29e8a",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct  9 21:29:52 2026",
+ "timestampMillis": "1791606592951",
+ "buildStep": {
+  "cmdId": "908e6aad-ff69-4438-b916-0bf11a8678f1",
+  "name": "rtd2_system_diagram",
+  "logFile": "",
+  "commandLine": "rtd2SystemDiagram",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:29:52 2026",
+ "timestampMillis": "1791606592952",
+ "status": {
+  "cmdId": "908e6aad-ff69-4438-b916-0bf11a8678f1",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct  9 21:29:53 2026",
+ "timestampMillis": "1791606593268",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/systemDiagramModel.json",
+  "name": "",
+  "fileType": "JSON",
+  "reportType": "SYSTEM_DIAGRAM",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:29:53 2026",
+ "timestampMillis": "1791606593269",
+ "status": {
+  "cmdId": "908e6aad-ff69-4438-b916-0bf11a8678f1",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct  9 21:29:53 2026",
+ "timestampMillis": "1791606593270",
+ "buildStep": {
+  "cmdId": "c6f733b8-7507-45a5-8d61-56a77ab0d979",
+  "name": "vpl",
+  "logFile": "",
+  "commandLine": "vpl -t hw -f /opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --remote_ip_cache /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/.ipcache --output_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int --log_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/logs_l/link --report_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link --config /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/vplConfig.ini -k /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/kernel_info.dat --webtalk_flag Vitis --temp_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link --no-info --iprepo /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/xo/ip_repo/xilinx_com_hls_autosa_mm_1_0 --messageDb /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/run_link/vpl.pb /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/dr.bd.tcl",
+  "args": [
+   "-t",
+   "hw",
+   "-f",
+   "/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+   "--remote_ip_cache",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/.ipcache",
+   "--output_dir",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int",
+   "--log_dir",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/logs_l/link",
+   "--report_dir",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link",
+   "--config",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/vplConfig.ini",
+   "-k",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/kernel_info.dat",
+   "--webtalk_flag",
+   "Vitis",
+   "--temp_dir",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link",
+   "--no-info",
+   "--iprepo",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/xo/ip_repo/xilinx_com_hls_autosa_mm_1_0",
+   "--messageDb",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/run_link/vpl.pb",
+   "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/dr.bd.tcl"
+  ],
+  "iniFiles": [
+   {
+    "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/vplConfig.ini",
+    "content": "[advanced]\nmisc=report=type report_timing_summary name impl_report_timing_summary_route_design_summary steps {route_design} runs {impl_1} options {-max_paths 10}\nmisc=report=type report_timing_summary name impl_report_timing_summary_post_route_phys_opt_design_summary steps {post_route_phys_opt_design} runs {impl_1} options {-max_paths 10}\nparam=compiler.enablePerformanceTrace=1\nparam=compiler.vppCurrentWorkingDir=/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3\nmisc=BinaryName=autosa_mm\n\n[connectivity]\nnk=autosa_mm:1:autosa_mm_1\n\n[vivado]\nprop=run.__KERNEL__.{STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS}={-directive sdx_optimization_effort_high}\nsynth.jobs=16\nimpl.jobs=4\nimpl.strategies=Congestion_SSI_SpreadLogic_high,Performance_HighUtilSLRs,Performance_ExplorePostRoutePhysOpt,Performance_NetDelay_high\nprop=run.__KERNEL__.STEPS.SYNTH_DESIGN.ARGS.GLOBAL_RETIMING=on\n\n"
+   }
+  ],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:29:53 2026",
+ "timestampMillis": "1791606593270",
+ "status": {
+  "cmdId": "c6f733b8-7507-45a5-8d61-56a77ab0d979",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 21:29:54 2026",
+ "timestampMillis": "1791606594023",
+ "buildStep": {
+  "cmdId": "3b50b076-b9f8-46b7-8ab5-5f18b812b539",
+  "name": "vpl",
+  "logFile": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/link.steps.log",
+  "commandLine": "/opt/Xilinx/Vitis/2023.2/bin/unwrapped/lnx64.o/vpl -t hw -f /opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --remote_ip_cache /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/.ipcache --output_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int --log_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/logs_l/link --report_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link --config /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/vplConfig.ini -k /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/kernel_info.dat --webtalk_flag Vitis --temp_dir /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link --no-info --iprepo /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/xo/ip_repo/xilinx_com_hls_autosa_mm_1_0 --messageDb /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/run_link/vpl.pb /localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/dr.bd.tcl ",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/run_link"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:29:54 2026",
+ "timestampMillis": "1791606594023",
+ "status": {
+  "cmdId": "3b50b076-b9f8-46b7-8ab5-5f18b812b539",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_VivadoProject",
+ "dateTimestamp": "Fri Oct  9 21:29:56 2026",
+ "timestampMillis": "1791606596866",
+ "vivadoProject": {
+  "openDir": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl",
+  "openScript": "openprj.tcl",
+  "relativeProject": "prj/prj.xpr"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct  9 21:29:56 2026",
+ "timestampMillis": "1791606596867",
+ "buildStep": {
+  "cmdId": "1998a715-bd6f-49b0-a2be-46322d7ec5b6",
+  "name": "vivado",
+  "logFile": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl/vivado.log",
+  "commandLine": "vivado -log vivado.log -applog -m64 -messageDb vivado.pb -mode batch -source vpl.tcl -notrace",
+  "args": [
+   "-log",
+   "vivado.log",
+   "-applog",
+   " -m64",
+   "-messageDb",
+   "vivado.pb",
+   "-mode",
+   "batch",
+   "-source",
+   "vpl.tcl",
+   "-notrace"
+  ],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/run_link"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 21:29:56 2026",
+ "timestampMillis": "1791606596868",
+ "status": {
+  "cmdId": "1998a715-bd6f-49b0-a2be-46322d7ec5b6",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct  9 21:30:59 2026",
+ "timestampMillis": "1791606659737",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/int/automation_summary_pre_synthesis.txt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "VITIS_DESIGN_FLOW",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821402",
+ "buildStep": {
+  "cmdId": "dab1a89d-e467-46a3-9ca1-5def777182e3",
+  "name": "vivado.impl",
+  "logFile": "",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821402",
+ "status": {
+  "cmdId": "dab1a89d-e467-46a3-9ca1-5def777182e3",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821403",
+ "buildStep": {
+  "cmdId": "132f2b5e-b8ee-49dc-98f2-3536211a8e55",
+  "name": "vivado.impl.impl_1",
+  "logFile": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl/prj/prj.runs/impl_1/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl/prj/prj.runs/impl_1"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821403",
+ "status": {
+  "cmdId": "132f2b5e-b8ee-49dc-98f2-3536211a8e55",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821403",
+ "buildStep": {
+  "cmdId": "94f43a0a-3182-48aa-8ab4-199630e64d01",
+  "name": "vivado.impl.impl_Congestion_SSI_SpreadLogic_high",
+  "logFile": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl/prj/prj.runs/impl_Congestion_SSI_SpreadLogic_high/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl/prj/prj.runs/impl_Congestion_SSI_SpreadLogic_high"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821403",
+ "status": {
+  "cmdId": "94f43a0a-3182-48aa-8ab4-199630e64d01",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821403",
+ "buildStep": {
+  "cmdId": "ac2d7fea-db71-4074-9499-fbe492319879",
+  "name": "vivado.impl.impl_Performance_HighUtilSLRs",
+  "logFile": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_HighUtilSLRs/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_HighUtilSLRs"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821403",
+ "status": {
+  "cmdId": "ac2d7fea-db71-4074-9499-fbe492319879",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821403",
+ "buildStep": {
+  "cmdId": "10889c05-ae25-49b9-a3f6-8467ecf4afd0",
+  "name": "vivado.impl.impl_Performance_ExplorePostRoutePhysOpt",
+  "logFile": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_ExplorePostRoutePhysOpt/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_ExplorePostRoutePhysOpt"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821403",
+ "status": {
+  "cmdId": "10889c05-ae25-49b9-a3f6-8467ecf4afd0",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821403",
+ "buildStep": {
+  "cmdId": "9a0f4414-b00c-4194-bd15-86ffdf39654a",
+  "name": "vivado.impl.impl_Performance_NetDelay_high",
+  "logFile": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_NetDelay_high/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_NetDelay_high"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct  9 22:57:01 2026",
+ "timestampMillis": "1791611821403",
+ "status": {
+  "cmdId": "9a0f4414-b00c-4194-bd15-86ffdf39654a",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 10 04:40:09 2026",
+ "timestampMillis": "1791632409649",
+ "status": {
+  "cmdId": "132f2b5e-b8ee-49dc-98f2-3536211a8e55",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 10 04:40:19 2026",
+ "timestampMillis": "1791632419702",
+ "status": {
+  "cmdId": "9a0f4414-b00c-4194-bd15-86ffdf39654a",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 10 05:03:56 2026",
+ "timestampMillis": "1791633836680",
+ "status": {
+  "cmdId": "10889c05-ae25-49b9-a3f6-8467ecf4afd0",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 10 05:11:08 2026",
+ "timestampMillis": "1791634268818",
+ "status": {
+  "cmdId": "ac2d7fea-db71-4074-9499-fbe492319879",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 10 05:51:40 2026",
+ "timestampMillis": "1791636700508",
+ "status": {
+  "cmdId": "94f43a0a-3182-48aa-8ab4-199630e64d01",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 10 11:13:04 2026",
+ "timestampMillis": "1791655984338",
+ "status": {
+  "cmdId": "1998a715-bd6f-49b0-a2be-46322d7ec5b6",
+  "state": "CS_FAILED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985534",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_1_kernel_util_synthed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985535",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_1_kernel_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985535",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_1_full_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985535",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_1_full_util_synthed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985535",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_1_kernel_util_placed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985535",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_1_kernel_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985535",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_1_slr_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985536",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_1_slr_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985536",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_1_full_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985536",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_1_full_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985536",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_kernel_util_synthed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985536",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_kernel_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985536",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_full_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985536",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_full_util_synthed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985536",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_kernel_util_placed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985537",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_kernel_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985537",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_slr_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985537",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_slr_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985537",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_full_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985537",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_full_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985537",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_HighUtilSLRs_kernel_util_synthed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985537",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_HighUtilSLRs_kernel_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985537",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_HighUtilSLRs_full_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985537",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_HighUtilSLRs_full_util_synthed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985537",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_HighUtilSLRs_kernel_util_placed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985538",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_HighUtilSLRs_kernel_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985538",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_HighUtilSLRs_slr_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985538",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_HighUtilSLRs_slr_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985538",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_HighUtilSLRs_full_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985538",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_HighUtilSLRs_full_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985538",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_kernel_util_synthed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985538",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_kernel_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985538",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_full_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985538",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_full_util_synthed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985538",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_kernel_util_placed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985538",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_kernel_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985539",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_slr_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985539",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_slr_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985539",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_full_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985539",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_full_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985539",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_NetDelay_high_kernel_util_synthed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985539",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_NetDelay_high_kernel_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985539",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_NetDelay_high_full_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985539",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_NetDelay_high_full_util_synthed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985539",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_NetDelay_high_kernel_util_placed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985539",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_NetDelay_high_kernel_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985539",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_NetDelay_high_slr_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985540",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_NetDelay_high_slr_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985540",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_NetDelay_high_full_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985540",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/imp/impl_Performance_NetDelay_high_full_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985540",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_regslice_control_userpf_1_synth_1_ulp_regslice_control_userpf_1_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985540",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_freerun_slr2_0_synth_1_ulp_proc_sys_reset_freerun_slr2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985540",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_axi_gpio_null_0_synth_1_ulp_axi_gpio_null_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985541",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_ctrl_slr0_0_synth_1_ulp_proc_sys_reset_ctrl_slr0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985541",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_hmss_0_0_synth_1_ulp_hmss_0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985541",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_ulp_cmp_0_synth_1_ulp_ulp_cmp_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985541",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_ulp_ucs_0_synth_1_ulp_ulp_ucs_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985541",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_axi_vip_data_0_synth_1_ulp_axi_vip_data_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985541",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_regslice_control_userpf_2_synth_1_ulp_regslice_control_userpf_2_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985541",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_kernel2_slr1_0_synth_1_ulp_proc_sys_reset_kernel2_slr1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985541",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_kernel_slr0_0_synth_1_ulp_proc_sys_reset_kernel_slr0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985542",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_ctrl_slr2_0_synth_1_ulp_proc_sys_reset_ctrl_slr2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985542",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_axi_vip_ctrl_userpf_0_synth_1_ulp_axi_vip_ctrl_userpf_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985542",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_kernel2_slr0_0_synth_1_ulp_proc_sys_reset_kernel2_slr0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985542",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_kernel_slr2_0_synth_1_ulp_proc_sys_reset_kernel_slr2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985542",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_freerun_slr0_0_synth_1_ulp_proc_sys_reset_freerun_slr0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985542",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_kernel2_slr2_0_synth_1_ulp_proc_sys_reset_kernel2_slr2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985542",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_ctrl_slr1_0_synth_1_ulp_proc_sys_reset_ctrl_slr1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985543",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_freerun_slr1_0_synth_1_ulp_proc_sys_reset_freerun_slr1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985543",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_proc_sys_reset_kernel_slr1_0_synth_1_ulp_proc_sys_reset_kernel_slr1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985543",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_ii_level0_wire_0_synth_1_ulp_ii_level0_wire_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985543",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_regslice_control_userpf_0_synth_1_ulp_regslice_control_userpf_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985543",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_xbar_1_synth_1_bd_22c0_xbar_1_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985543",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_85ad_slice0_3_0_synth_1_bd_85ad_slice0_3_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985543",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_85ad_interconnect2_1_0_synth_1_bd_85ad_interconnect2_1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985543",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_097b_build_info_0_synth_1_bd_097b_build_info_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985544",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_7cf0_axi_jtag_0_synth_1_bd_7cf0_axi_jtag_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985544",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_clkwiz_aclk_kernel_01_0_synth_1_bd_22c0_clkwiz_aclk_kernel_01_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985544",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_frequency_counter_aclk_kernel_00_0_synth_1_bd_22c0_frequency_counter_aclk_kernel_00_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985544",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_aclk_kernel_00_cont_adapt_0_synth_1_bd_22c0_aclk_kernel_00_cont_adapt_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985544",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_psreset_kernel_00_0_synth_1_bd_22c0_psreset_kernel_00_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985544",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_frequency_counter_aclk_hbm_0_synth_1_bd_22c0_frequency_counter_aclk_hbm_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985544",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_psreset_aclk_freerun_0_synth_1_bd_22c0_psreset_aclk_freerun_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985544",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_clock_throttling_aclk_kernel_01_0_synth_1_bd_22c0_clock_throttling_aclk_kernel_01_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985545",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_frequency_counter_aclk_0_synth_1_bd_22c0_frequency_counter_aclk_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985545",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_fanout_aresetn_kernel_01_slr2_4_0_synth_1_bd_22c0_fanout_aresetn_kernel_01_slr2_4_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985545",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_85ad_init_reduce_0_synth_1_bd_85ad_init_reduce_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985545",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_58f6_lut_buffer_0_synth_1_bd_58f6_lut_buffer_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985545",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_58f6_xsdbm_0_synth_1_bd_58f6_xsdbm_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985545",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_097b_user_debug_bridge_0_synth_1_bd_097b_user_debug_bridge_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985545",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_7cf0_bs_switch_1_0_synth_1_bd_7cf0_bs_switch_1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985545",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_7cf0_bsip_0_synth_1_bd_7cf0_bsip_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985546",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_097b_user_debug_hub_0_synth_1_bd_097b_user_debug_hub_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985546",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_xbar_3_synth_1_ulp_xbar_3_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985546",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_85ad_interconnect3_2_0_synth_1_bd_85ad_interconnect3_2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985546",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_autosa_mm_1_0_synth_1_ulp_autosa_mm_1_0_utilization_synth.rpt",
+  "name": "autosa_mm",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985546",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_fanout_aresetn_kernel_00_slr2_3_0_synth_1_bd_22c0_fanout_aresetn_kernel_00_slr2_3_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985546",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_clock_throttling_aclk_kernel_00_0_synth_1_bd_22c0_clock_throttling_aclk_kernel_00_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985546",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_aclk_kernel_01_adapt_0_synth_1_bd_22c0_aclk_kernel_01_adapt_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985546",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_clkwiz_aclk_kernel_00_0_synth_1_bd_22c0_clkwiz_aclk_kernel_00_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985547",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_psreset_kernel_01_0_synth_1_bd_22c0_psreset_kernel_01_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985547",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_fanout_aresetn_hbm_0_synth_1_bd_22c0_fanout_aresetn_hbm_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985547",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_psreset_hbm_0_synth_1_bd_22c0_psreset_hbm_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985547",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_clkwiz_hbm_0_synth_1_bd_22c0_clkwiz_hbm_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985547",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_clock_throttling_avg_0_synth_1_bd_22c0_clock_throttling_avg_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985547",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_gapping_demand_toggle_0_synth_1_bd_22c0_gapping_demand_toggle_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985547",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_gapping_demand_update_0_synth_1_bd_22c0_gapping_demand_update_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985547",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_fanout_aresetn_ctrl_slr0_2_0_synth_1_bd_22c0_fanout_aresetn_ctrl_slr0_2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985548",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_build_info_0_synth_1_bd_22c0_build_info_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985548",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_gpio_gapping_demand_0_synth_1_bd_22c0_gpio_gapping_demand_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985548",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_fanout_aresetn_pcie_slr0_3_0_synth_1_bd_22c0_fanout_aresetn_pcie_slr0_3_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985548",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_clock_shutdown_latch_0_synth_1_bd_22c0_clock_shutdown_latch_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985548",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_clk_hbm_adapt_0_synth_1_bd_22c0_clk_hbm_adapt_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985549",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_xbar_0_synth_1_bd_22c0_xbar_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985549",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_gpio_ucs_control_status_0_synth_1_bd_22c0_gpio_ucs_control_status_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985549",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_85ad_slice2_1_0_synth_1_bd_85ad_slice2_1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985549",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_xbar_2_synth_1_ulp_xbar_2_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985549",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_auto_cc_1_synth_1_ulp_auto_cc_1_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985549",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_m00_regslice_0_synth_1_ulp_m00_regslice_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985549",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_m01_regslice_0_synth_1_ulp_m01_regslice_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985550",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_s00_regslice_19_synth_1_ulp_s00_regslice_19_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985550",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_auto_cc_2_synth_1_ulp_auto_cc_2_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985550",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/ulp_s00_regslice_18_synth_1_ulp_s00_regslice_18_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985550",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_85ad_interconnect0_3_0_synth_1_bd_85ad_interconnect0_3_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985550",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_85ad_axi_apb_bridge_inst_0_synth_1_bd_85ad_axi_apb_bridge_inst_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985550",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_85ad_hbm_inst_0_synth_1_bd_85ad_hbm_inst_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985550",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_22c0_auto_cc_0_synth_1_bd_22c0_auto_cc_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985550",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_85ad_vip_S00_0_synth_1_bd_85ad_vip_S00_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985550",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_85ad_interconnect1_0_0_synth_1_bd_85ad_interconnect1_0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985551",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/syn/bd_85ad_hbm_reset_sync_SLR0_0_synth_1_bd_85ad_hbm_reset_sync_SLR0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985610",
+ "status": {
+  "cmdId": "3b50b076-b9f8-46b7-8ab5-5f18b812b539",
+  "state": "CS_FAILED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985630",
+ "status": {
+  "cmdId": "c6f733b8-7507-45a5-8d61-56a77ab0d979",
+  "state": "CS_FAILED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985633",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/logs_l/optraceViewer.html",
+  "name": "",
+  "fileType": "HTML",
+  "reportType": "OPERATION_TRACE",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 10 11:13:05 2026",
+ "timestampMillis": "1791655985634",
+ "status": {
+  "cmdId": "30851f97-c43b-4780-befe-9883f1291c90",
+  "state": "CS_FAILED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:06 2026",
+ "timestampMillis": "1791655986070",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/reports_l/link/v++_link_autosa_mm_guidance.html",
+  "name": "",
+  "fileType": "HTML",
+  "reportType": "GLOBAL_RULECHECK_GUIDANCE",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 10 11:13:06 2026",
+ "timestampMillis": "1791655986070",
+ "report": {
+  "path": "/localscratch/asa582.63954765.0/xclbin_ladder_r3_L3/_x_l/v++_link_autosa_mm_guidance.pb3",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_RULECHECK_GUIDANCE",
+  "cmdId": ""
+ }
+}
+</ENTRY>

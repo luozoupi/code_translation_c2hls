@@ -1,0 +1,3013 @@
+GLOBAL SKILL LIBRARY — all applicable optimization recipes plus avoid rules (same set for every kernel on PC2). Pattern → strategy → required steps → guardrails → template/example for the `flash` step:
+
+[skill hls-baseline-load-compute-store-gate] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: kernel has m_axi or global array arguments and the hot loop reads or writes those arrays directly
+  strategy: before any tiling, unrolling, coalescing, or DATAFLOW: separate into bulk load, pipelined local compute, and bulk store; never leave the hot compute loop on global or m_axi memory
+  required steps:
+    - identify all array parameters accessed in the hot loop
+    - estimate compile-time working-set size (inputs + outputs + temporaries)
+    - if working set fits on-chip BRAM budget, stage full arrays locally in one load pass
+    - else choose tiling with reuse analysis, not a default small tile size
+    - add #pragma HLS PIPELINE II=1 to every dedicated load and store loop
+    - add #pragma HLS PIPELINE II=1 to the local-memory compute loop when legal
+    - verify compute indexing uses local buffers, not global array parameters
+    - before submitting, confirm the kernel body contains PIPELINE pragmas on every major compute phase; zero PIPELINE on compute is a blocking defect
+    - only after this baseline is in place, apply advanced skills (tiling, unroll, coalescing)
+  guards:
+    - do not stage unbounded or runtime-sized arrays entirely on-chip
+    - do not skip local staging because m_axi pragmas are already present
+    - do not apply advanced optimizations on top of a reference port that still reads globals in compute
+  template/example:
+    double local_in[M][N], local_out[M][N];
+    load: for (int i = 0; i < M; i++)
+      for (int j = 0; j < N; j++) {
+    #pragma HLS PIPELINE II=1
+        local_in[i][j] = in[i][j];
+      }
+    compute: for (int i = 0; i < M; i++)
+      for (int j = 0; j < N; j++) {
+    #pragma HLS PIPELINE II=1
+        local_out[i][j] = f(local_in, i, j);
+      }
+    store: for (int i = 0; i < M; i++)
+      for (int j = 0; j < N; j++) {
+    #pragma HLS PIPELINE II=1
+        out[i][j] = local_out[i][j];
+      }
+[skill axi-burst-coalescing-narrow-safe] confidence=high pass=1/5
+  kind: compound_transformation
+  pattern: m_axi port feeds a contiguous streaming loop, the active host/testbench contract expects the original scalar pointer types, and memory bandwidth limits performance
+  strategy: preserve the public scalar pointer ABI; request 512-bit automatic m_axi widening with max_widen_bitwidth=512; use burst/outstanding pragmas; stage contiguous data into local buffers; pipeline load/store loops; and rewrite the compute loop to process LANES = 512 / element_bitwidth elements per memory beat when iterations are independent
+  required steps:
+    - add max_widen_bitwidth=512 to relevant m_axi ports
+    - use burst length and outstanding transaction pragmas
+    - stage contiguous global-memory regions into local buffers where helpful
+    - compute LANES = 512 / element_bitwidth
+    - rewrite the compute loop to process multiple lanes per outer iteration when legal
+    - partition local lane buffers to match the lane factor
+    - validate csim/cosim and inspect synthesis reports for burst/widening success
+  guards:
+    - do not change top-level pointer element types unless explicitly allowed
+    - do not treat adding m_axi pragmas as complete coalescing
+    - confirm accesses are contiguous and burst-friendly
+    - only unroll lane computation when iterations are independent or safely reducible
+    - handle N not divisible by the lane factor
+  template/example:
+    #pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem max_widen_bitwidth=512 max_read_burst_length=64 num_read_outstanding=16
+    #pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem max_widen_bitwidth=512 max_write_burst_length=64 num_write_outstanding=16
+    // Keep pointer element types unchanged unless the active variant explicitly allows a packed wide-bus ABI.
+    // After widening, restructure computation around LANES = 512 / element_bitwidth when legal.
+[skill hls-doublebuffer-dataflow-stage-split] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: load, compute, and store logic is mixed in a single loop or function, preventing DATAFLOW scheduling or stage overlap
+  strategy: split the code into explicit producer/consumer stages connected by local buffers or streams, then apply DATAFLOW at the parent scope when dependencies allow
+  required steps:
+    - extract load stage
+    - extract compute stage
+    - extract store stage
+    - define buffer or stream interfaces between stages
+    - ensure no hidden cross-stage dependence prevents overlap
+    - apply DATAFLOW at parent scope
+    - check dataflow report for actual concurrency
+  guards:
+    - do not use DATAFLOW if stages are still sequentially dependent on the same buffer instance
+    - do not create streams without bounded production/consumption behavior
+    - avoid deadlock-prone stream cycles
+  template/example:
+    #pragma HLS DATAFLOW
+    load_stage(in, load_to_compute);
+    compute_stage(load_to_compute, compute_to_store);
+    store_stage(compute_to_store, out);
+[skill prompt-doublebuffer] confidence=high pass=1/1
+  kind: compound_transformation
+  pattern: load, compute, and/or store phases operate on consecutive chunks or tiles but currently execute serially with no overlap
+  strategy: create ping-pong local buffers and a legal producer/consumer schedule so load of tile k+1 overlaps compute of tile k and optionally store of tile k-1
+  required steps:
+    - split load, compute, and store into separable stages
+    - allocate two or more local buffers for ping-pong scheduling
+    - use tile index parity to alternate buffers
+    - guard first and last iterations
+    - apply DATAFLOW only when dependencies allow overlap
+    - validate that phases overlap and local memory usage remains acceptable
+  guards:
+    - do not add two buffers if phases still execute serially
+    - do not use DATAFLOW when stage dependencies prevent overlap
+    - avoid double buffering if local memory usage becomes excessive
+    - preserve first-tile and last-tile behavior
+  template/example:
+    #pragma HLS DATAFLOW
+     for (int t = 0; t < NUM_TILES + 1; ++t) {
+        if (t < NUM_TILES) load_tile(in, buf[t & 1], t);
+        if (t > 0) compute_tile(buf[(t - 1) & 1], out, t - 1);
+    }
+[skill hls-doublebuffer-load-compute-store] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: the kernel processes data in chunks or tiles, and load, compute, and store phases for consecutive chunks currently execute serially
+  strategy: split the design into load, compute, and store stages; allocate ping-pong buffers; overlap load of tile k+1, compute of tile k, and optionally store of tile k-1
+  required steps:
+    - identify chunk/tile loop
+    - split load, compute, and store stages
+    - create at least two local buffers per overlapped data stream
+    - alternate buffers using tile index parity
+    - handle prologue and epilogue iterations
+    - apply DATAFLOW if stages have legal producer/consumer dependencies
+    - validate functional correctness and actual phase overlap
+  guards:
+    - do not add ping-pong buffers unless overlap is possible
+    - avoid excessive local memory use
+    - preserve first and last tile behavior
+    - avoid read/write hazards between buffers
+  template/example:
+    #pragma HLS DATAFLOW
+     for (int t = 0; t < NUM_TILES + 2; ++t) {
+        if (t < NUM_TILES) load_tile(in, in_buf[t & 1], t);
+        if (t > 0 && t <= NUM_TILES) compute_tile(in_buf[(t - 1) & 1], out_buf[(t - 1) & 1], t - 1);
+        if (t > 1) store_tile(out_buf[(t - 2) & 1], out, t - 2);
+    }
+[skill hls-tile-doublebuffer-load-compute] confidence=medium pass=0/0
+  kind: supporting_transformation
+  pattern: the implementation uses tiles, but loading a tile and computing the tile execute serially across tile iterations and the schedule cannot overlap memory movement with computation
+  strategy: use two local tile buffers in ping-pong fashion to overlap loading tile k+1 with computing tile k, and optionally storing tile k-1, using DATAFLOW only when producer/consumer structure is legal
+  required steps:
+    - split load_tile and compute_tile into separate functions or loops
+    - allocate two local tile buffers
+    - alternate buffers using tile index parity
+    - guard first and last tile iterations
+    - apply DATAFLOW only when there is a legal producer/consumer structure
+    - validate correctness after overlapping phases
+  guards:
+    - preserve first-tile and last-tile behavior
+    - avoid double buffering if local memory usage becomes too high
+    - do not introduce read/write hazards between ping-pong buffers
+    - do not use DATAFLOW if function/loop dependencies prevent overlap
+  template/example:
+    #pragma HLS DATAFLOW
+    for (int t = 0; t < NUM_TILES + 1; ++t) {
+        if (t < NUM_TILES) load_tile(in, tile_buf[t & 1], t);
+        if (t > 0) compute_tile(tile_buf[(t - 1) & 1], out, t - 1);
+    }
+[skill hls-avoid-zero-pipeline-submit] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: the proposed kernel body has no #pragma HLS PIPELINE on any compute loop, or the only pragmas are m_axi or s_axilite interface pragmas
+  strategy: never submit a kernel whose hot loops lack PIPELINE pragmas; apply the baseline load-compute-store gate first even when avoid rules discourage advanced transforms
+  required steps:
+    - scan the kernel body for #pragma HLS PIPELINE on compute loops
+    - if none are present, reject the output as a reference port
+    - route to hls-baseline-load-compute-store-gate and hls-multi-phase-local-pipeline
+    - add pipelined load, local compute, and store loops before resubmitting
+  guards:
+    - m_axi interface pragmas alone are not an optimized kernel
+    - a flash output with only interface pragmas will synthesize as unpipelined scalar hardware
+    - uncertainty about advanced optimizations does not justify skipping the baseline gate
+[skill hls-avoid-reference-fallback-under-avoid-noise] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: the model avoids advanced transforms because of many avoid rules or uncertainty, and responds with textbook nested loops on global arrays and no compute pragmas
+  strategy: avoid rules forbid unsafe transforms, not all transforms; when uncertain, still apply the baseline local load-compute-store recipe instead of reference C
+  required steps:
+    - detect reference-port output despite loaded skill catalog
+    - do not treat caution as permission to skip optimization
+    - apply hls-baseline-load-compute-store-gate, hls-multi-phase-local-pipeline, or hls-iterative-stencil-timestep-local-volume as appropriate
+    - ensure PIPELINE pragmas exist before submitting
+  guards:
+    - avoid-tier skills must not cause fallback to unoptimized reference code
+    - when in doubt, apply hls-baseline-load-compute-store-gate rather than emitting textbook C
+[skill hls-multi-phase-local-pipeline] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: the kernel contains multiple sequential loop nests or update phases over matrices and vectors exposed as m_axi arguments, and one or more phases still read or write those arguments directly in the hot loops
+  strategy: for multi-phase kernels, bulk-load shared inputs to locals, execute every phase as pipelined local-memory compute with flattened static nests where applicable, and bulk-store final outputs once; never emit a reference-style multi-loop port on global memory.
+  required steps:
+    - list all phases and the arrays each phase reads or writes
+    - load every array touched by more than one phase into local buffers once
+    - rewrite each phase to use only local buffers with pipelined loops
+    - apply hls-chain-intermediate-results-locally when later phases consume earlier outputs
+    - store only final results that must be visible off-chip
+    - add array_partition on local arrays accessed in parallel inner loops
+    - for each GEMM-like phase, require flatten of (i,j) and k-dim partition; fail the design if any phase keeps outer i sequential
+  guards:
+    - m_axi pragmas on many ports do not remove the need for local staging
+    - each phase still needs pipelined loops over local data
+    - do not leave any phase as a scalar nest on global arrays
+  template/example:
+    load all shared arrays to locals;
+    phase1: for (i) for (j) { #pragma HLS PIPELINE II=1
+    #pragma HLS LOOP_FLATTEN ... local only, k UNROLL ... }
+    phase2: same flatten pattern on locals;
+    store final outputs once;
+[skill hls-iterative-stencil-timestep-local-volume] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: an outer time-step or iteration loop performs a 2D or 3D neighbor stencil that reads and writes grid values, and the current code accesses global or m_axi arrays inside the time-step loop
+  strategy: for iterative stencils, keep the working volume on-chip across time steps using full-grid local buffers or old/new planes; never leave the time-step loop on global memory
+  required steps:
+    - load the full grid or each needed volume into local memory once before the time-step loop
+    - allocate two local buffers for old/new state when the stencil alternates between two arrays
+    - perform all neighbor reads from local buffers inside the time-step loop
+    - pipeline the innermost legal traversal loop with II=1
+    - swap or copy old/new buffers between time steps without global round-trips
+    - store the final volume once after all time steps
+  guards:
+    - do not perform global load/store inside the time-step loop when the full volume fits on-chip
+    - use old/new local volumes or planes rather than per-tile global round-trips each timestep
+    - hardcoding trip counts instead of using compile-time constants is a separate defect
+  template/example:
+    double local_A[2][N][N][N];
+    load_volume_once(...);
+    for (int t = 1; t <= TSTEPS; t++) {
+      compute_into_local_B_from_local_A(...);
+      compute_into_local_A_from_local_B(...);
+    }
+    store_volume_once(...);
+[skill hls-chained-gemm-local-temporary] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: the kernel chains two or more matrix multiplies or GEMM-like phases where a temporary array is written in one phase and read in the next phase, and the temporary is currently written to global memory between phases
+  strategy: never chain GEMM phases through global memory; keep the temporary in a local buffer across phases and pipeline both multiplies on-chip. For each GEMM phase with static bounds: partition locals on the reduction (k) dimension, PIPELINE II=1 the (i,j) nest with k fully unrolled, and require nest flatten so outer i is not left sequential.
+  required steps:
+    - identify the temporary array produced by phase 1 and consumed by phase 2
+    - allocate a local buffer for the temporary with the same compile-time dimensions
+    - partition A/B/tmp/C locals on the k (reduction) access dimension — required when k is fully unrolled
+    - run each GEMM phase with PIPELINE II=1 on (i,j), UNROLL on k, and LOOP_FLATTEN (or a single ij loop)
+    - verify each phase reports one flattened pipeline over ~M*N trips, not sequential outer i
+    - if phase2 flattened and phase1 did not, mirror phase2's partition+flatten onto phase1
+    - store the temporary to its global port only once if the ABI requires it
+  guards:
+    - apply even when the temporary array is also an m_axi output port
+    - preserve the external ABI by storing the local temporary once after all consuming phases complete
+    - reject a phase whose csynth loop table shows compute_* outer trip=M, II=-, Pipelined=no while an inner j claims II=1
+    - if one GEMM phase flattened and a sibling did not, copy the successful partition+flatten pattern onto the slow phase
+  template/example:
+    double local_tmp[M][N], local_A[M][K], local_B[K][N], local_C[N][P], local_D[M][P];
+    #pragma HLS ARRAY_PARTITION variable=local_A complete dim=2
+    #pragma HLS ARRAY_PARTITION variable=local_B complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=local_tmp complete dim=2
+    // phase1: local_tmp = alpha * A * B
+    compute_tmp: for (int i = 0; i < M; ++i) {
+      for (int j = 0; j < N; ++j) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS LOOP_FLATTEN
+        double sum = 0.0;
+        for (int k = 0; k < K; ++k) {
+    #pragma HLS UNROLL
+          sum += alpha * local_A[i][k] * local_B[k][j];
+        }
+        local_tmp[i][j] = sum;
+      }
+    ...
+[skill hls-chain-intermediate-results-locally] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: the kernel has multiple dependent compute phases where an intermediate array produced in one phase is consumed by a later phase, and the current design writes that intermediate to global memory between phases
+  strategy: keep every intermediate result that is consumed by a later phase in on-chip local memory; chain phases locally and defer global writes until the value is no longer needed
+  required steps:
+    - identify arrays written in one phase and read in a later phase
+    - allocate local buffers for each reused intermediate result
+    - run phase 1 compute into local intermediate buffers
+    - run later phases using only local intermediates
+    - partition or bank local buffers to match inner-loop unroll factor
+    - store only final outputs that are not consumed again
+    - pipeline load, each local phase, and final store
+    - for matrix-multiply phases, flatten (i,j) and partition on k; do not leave sibling phases with mismatched flatten
+  guards:
+    - do not spill an intermediate consumed by the next phase if it fits in on-chip memory
+    - preserve producer-consumer ordering between phases
+    - only write final outputs or arrays not reused later to global memory
+  template/example:
+    double local_A[M][K], local_B[K][N], local_E[M][N], local_F[N][P], local_G[M][P];
+    // load inputs once
+    // phase1: local_E = local_A * local_B
+    // phase2: local_F = ...
+    // phase3: local_G = local_E * local_F
+    // store local_G once
+[skill hls-multi-pass-stats-local-staging] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: the kernel performs multiple passes over the same dataset (reduction, normalization, pairwise aggregation, correlation, covariance, or similar) with repeated global reads and writes of the main data array between passes
+  strategy: stage the main data array locally, run every statistics or normalization pass on local memory with pipelined loops, and minimize repeated global traversals of the same array
+  required steps:
+    - identify all passes that traverse the same main data array
+    - if the dataset fits on-chip, load it into a local buffer once
+    - compute mean, variance, normalization, and aggregation passes over the local buffer with pipelined loops
+    - keep small statistic vectors in local memory
+    - write normalized data and final output matrix back in dedicated store loops
+    - avoid leaving hot passes as unpipelined scalar loops on global memory
+  guards:
+    - statistics vectors such as mean and stddev should also be computed and stored locally when small
+    - preserve numerical semantics of each pass
+    - pipeline each pass separately; do not reread the full dataset from global memory every pass if it fits locally
+  template/example:
+    double local_data[ROWS][COLS];
+    load_data: for (...) { #pragma HLS PIPELINE II=1 local_data[i][j] = data[i][j]; }
+    pass_mean: for (...) { #pragma HLS PIPELINE II=1 ... local_data / local_mean ... }
+    pass_norm: for (...) { #pragma HLS PIPELINE II=1 ... local_data ... }
+    store_outputs: for (...) { #pragma HLS PIPELINE II=1 ... }
+[skill hls-prefer-full-workspace-staging-when-fits] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: compile-time array dimensions are bounded and total working set (all inputs, outputs, and needed temporaries) fits available on-chip memory without tiling
+  strategy: load the full working set into local arrays once, run all compute on local memory, store once; do not default to nested small-tile loops that repeatedly reload the same global data. After staging, GEMM/matmul compute nests must still be flattened with k-dim partition — staging alone does not fix outer-i sequential latency.
+  required steps:
+    - sum element counts times sizeof for each array needed during compute
+    - compare against conservative BRAM budget for the target FPGA
+    - if it fits, allocate local arrays matching problem dimensions and use bulk load, compute, and store
+    - choose tiling only when full staging exceeds on-chip budget or reuse analysis proves larger tiles are better
+    - after full staging, apply hls-gemm-static-nest-flatten-and-k-partition (or equivalent) to every static GEMM nest
+  guards:
+    - do not allocate local arrays larger than synthesis can map
+    - if full staging does not fit, increase tile size based on reuse and BRAM, not a fixed small constant
+  template/example:
+    double local_A[M][K], local_B[K][N], local_C[M][N];
+    #pragma HLS ARRAY_PARTITION variable=local_A complete dim=2
+    #pragma HLS ARRAY_PARTITION variable=local_B complete dim=1
+    load_arrays: for (int i = 0; i < M; i++)
+      for (int j = 0; j < K; j++) {
+    #pragma HLS PIPELINE II=1
+        local_A[i][j] = A[i][j];
+      }
+    // repeat for B (and C if needed), then flattened local compute, then one store pass
+[skill hls-mandatory-pipeline-load-store-loops] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: dedicated loops copy data between m_axi or global memory and local buffers, including tile load and tile store loops
+  strategy: every load and store loop must have #pragma HLS PIPELINE II=1 (or II equal to dependence latency when required); unpipelined bulk copies are a defect
+  required steps:
+    - label load and store loops explicitly
+    - add PIPELINE II=1 to each load and store loop
+    - use unit-stride inner dimension for burst-friendly access
+    - verify achieved II in synthesis report
+  guards:
+    - use unit-stride inner dimension for burst-friendly access
+    - verify achieved II in synthesis report, not only requested II
+  template/example:
+    load_tile: for (int i = 0; i < TILE; i++) {
+    #pragma HLS PIPELINE II=1
+        local[i] = in[base + i];
+    }
+    store_tile: for (int i = 0; i < TILE; i++) {
+    #pragma HLS PIPELINE II=1
+        out[base + i] = local[i];
+    }
+[skill hls-neighbor-access-requires-local-window] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: inner loop body reads multiple offsets from the same array (neighbors, halos, diagonal or window indices, or index pairs from different dimensions) and those reads currently target global or m_axi memory
+  strategy: stage the accessed region into local buffers, line buffers, sliding windows, or tiles so all neighbor reads in the hot loop come from on-chip memory; route to ii-stencil-linebuffer-window-shift or tiling skills as appropriate
+  required steps:
+    - count distinct offset reads per loop iteration
+    - if more than one global read per iteration, local staging is required
+    - choose line buffer or sliding window for streaming neighbor patterns, or tile blocking for random multi-index updates
+    - pipeline traversal over local data with II=1 when legal
+  guards:
+    - do not pipeline a loop that still performs multiple global neighbor reads per iteration
+    - PIPELINE on global stencil loops without local staging will not achieve II=1
+  template/example:
+    data_t local_plane[ROWS][COLS];
+    // or line buffers / sliding window for streaming traversal
+    for (int r = 0; r < ROWS; r++) {
+      for (int c = 0; c < COLS; c++) {
+    #pragma HLS PIPELINE II=1
+        // all neighbor reads from local_plane or window[], not global array
+      }
+    }
+[skill hls-avoid-reference-port-global-compute] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: proposed or current code performs the main computation by directly indexing m_axi or global array parameters with no local staging and no HLS pragmas on the hot loops, including multi-phase kernels with many m_axi ports
+  strategy: reject reference-port output even when m_axi interface pragmas are present; route to hls-baseline-load-compute-store-gate or hls-multi-phase-local-pipeline before any other optimization
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to hls-baseline-load-compute-store-gate or hls-multi-phase-local-pipeline before any other optimization
+    - validate with synthesis and correctness feedback
+  guards:
+    - m_axi interface pragmas alone do not constitute optimization
+    - absence of PIPELINE, local buffers, or loop restructuring on a memory-bound hot loop is a blocking defect
+[skill hls-avoid-partial-staging-global-in-compute] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: some inputs are loaded into local buffers, but the hot compute loop still reads or writes one or more m_axi array parameters directly, such as an accumulator matrix, temporary, or output array
+  strategy: do not mix local staging with global reads or writes in the same hot compute loop; stage all operands and outputs used in compute locally first
+  required steps:
+    - list every array indexed inside each pipelined compute loop
+    - if any index targets a function parameter array, stage that array locally or privatize the accessed region
+    - route to hls-baseline-load-compute-store-gate or hls-chain-intermediate-results-locally
+    - validate that compute loops reference only local buffers
+  guards:
+    - staging only inputs but leaving outputs or accumulators on global memory is incomplete
+    - reading one operand from global inside a pipelined compute loop usually destroys II and bandwidth
+[skill hls-avoid-iterative-spatial-tile-global-roundtrip] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: an outer time-step or iteration loop contains spatial tile loops that load a tile from global memory, compute, store back to global memory, and repeat for every tile before advancing the iteration, instead of keeping the working grid on-chip across the iteration
+  strategy: do not use spatial tiling with per-tile global load/store inside each time step or outer iteration; keep the working set on-chip across the iteration using full-grid staging, old/new buffers, or line buffers
+  required steps:
+    - detect whether global load/store happens inside both the iteration loop and the spatial tile loop
+    - estimate total global traffic per iteration; reject if it scales with number of tiles
+    - prefer full-grid local buffers, old/new plane buffers, or line-buffer traversal when legal and on-chip budget allows
+    - route to ii-raw-dependency-pingpong-old-new-buffers or hls-prefer-full-workspace-staging-when-fits
+    - validate with synthesis and correctness feedback
+  guards:
+    - spatial tiling is wrong when each time step must see the full previous field or a full old/new plane
+    - per-tile global store followed by reload in the same iteration wastes bandwidth multiplicatively
+    - prefer ii-raw-dependency-pingpong-old-new-buffers or full-grid local staging when the working set fits
+[skill hls-avoid-global-intermediate-between-phases] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: phase N writes an intermediate array to a global or m_axi output that phase N+1 immediately reads again, even though the value could remain in a local buffer
+  strategy: do not write intermediates to global memory between dependent phases; route to hls-chain-intermediate-results-locally
+  required steps:
+    - detect producer phase writing global and consumer phase reading the same array
+    - route to hls-chain-intermediate-results-locally
+    - keep the intermediate in local memory until no later phase needs it
+    - validate with synthesis and correctness feedback
+  guards:
+    - writing an intermediate to global memory only to read it in the immediately following phase is always suspect
+    - this applies even when the intermediate is also an output port
+[skill hls-avoid-micro-tile-complete-partition-nest] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: nested outer tile loops (for example i0, j0, k0) use a small compile-time tile size with ARRAY_PARTITION complete on multidimensional tile buffers and repeated global reloads per tile
+  strategy: do not use nested small-tile loops with complete partition as default; prefer hls-prefer-full-workspace-staging-when-fits or larger tiles with cyclic or block partition matched to unroll factor
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - prefer hls-prefer-full-workspace-staging-when-fits or larger tiles with cyclic or block partition matched to unroll factor
+    - route to ii-avoid-complete-partition-large-buffer-ff-explosion when complete partition inflates resources
+    - validate with synthesis and correctness feedback
+  guards:
+    - complete partition on tile buffers larger than the parallel access width is a red flag
+    - triple-nested tile loops with tiny tiles often increase control overhead without improving reuse
+    - this avoid-rule targets micro-tiling with complete partition of tile buffers — not k-dim banking of a full-workspace GEMM
+[skill hls-avoid-global-reload-in-blocking-loop] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: an outer blocking or tiling loop reloads an accumulator or output array from global memory at the start of each block, even though partial results from prior blocks should remain in a local accumulator
+  strategy: keep the accumulating buffer in local memory across inner block iterations; load inputs per block if needed, but do not re-fetch the running output from global memory inside the block nest
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - keep the accumulating buffer in local memory across inner block iterations
+    - load inputs per block if needed, but do not re-fetch the running output from global memory inside the block nest
+    - validate with synthesis and correctness feedback
+  guards:
+    - accumulators spanning multiple blocks must remain in local memory across block iterations
+    - reloading partial results from global memory inside a block nest wastes bandwidth
+[skill prompt-unroll] confidence=high pass=1/1
+  kind: compound_transformation
+  pattern: a loop has independent iterations or a safely transformable reduction, and latency is dominated by arithmetic throughput rather than global-memory bandwidth
+  strategy: For small static nests (atax/bicg/mvt/gesummv-sized), prefer complete unroll of the independent inner dimension with matching complete/cyclic partition. Reserve partial/conservative factors for large trip counts or proven resource pressure. Match array partitioning to the unroll factor exactly.
+  required steps:
+    - identify independent loop iterations or a safely transformable reduction
+    - if the trip count is a small compile-time constant (typical PolyBench/ChatHLS mini: <=64, often 30-42), use complete `#pragma HLS UNROLL` — do NOT default to factor=2 or factor=4
+    - only use partial `#pragma HLS UNROLL factor=N` when complete unroll would clearly exceed device budget or the trip count is large/variable
+    - partition or bank local arrays to MATCH the unroll (complete partition for complete unroll; cyclic factor=N for partial) — never mismatch (e.g. partition factor=4 with unroll factor=2)
+    - avoid increasing parallelism beyond available on-chip memory ports / AXI bandwidth for load loops
+    - check DSP/LUT/FF/BRAM growth vs device util <=100%
+    - validate csim/cosim and compare achieved latency
+  guards:
+    - do not unroll memory-bound AXI load loops expecting high unroll to help — widen/burst or stage first
+    - do not unroll across true loop-carried dependencies
+    - for floating-point reductions, confirm tolerance permits reassociation
+    - do not complete-partition huge arrays that exceed BRAM/URAM budget
+    - do not emit UNROLL factor=2 as a default 'safe' choice on small static loops
+  template/example:
+    // Preferred for small static N (e.g. N<=64):
+    #pragma HLS ARRAY_PARTITION variable=local_A complete dim=2
+    compute: for (int i = 0; i < M; ++i) {
+    #pragma HLS PIPELINE II=1
+      for (int j = 0; j < N; ++j) {
+    #pragma HLS UNROLL
+        ... local_A[i][j] ...
+      }
+    }
+    // Only if resources explode, fall back to partial with MATCHING partition:
+    // #pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=UF dim=2
+    // #pragma HLS UNROLL factor=UF
+[skill loop-tripcount-when-bound-runtime] confidence=high pass=1/1
+  kind: diagnostic_or_transform
+  pattern: Vitis cannot bound a loop's trip count statically and reports implausible latency
+  strategy: annotate the loop with #pragma HLS loop_tripcount min=N avg=N max=N
+  required steps:
+    - check that the skill pattern matches the current code/report
+    - apply the strategy only where legal
+    - preserve interface and functional behavior
+    - validate with csim/cosim/synthesis feedback
+  guards:
+    - preserve functional correctness and public interface unless changes are explicitly allowed
+    - do not apply the transformation if its applicability pattern is not present
+    - validate using csim/cosim and synthesis reports
+  template/example:
+    for (int i = 0; i < runtime_n; ++i) {
+    #pragma HLS loop_tripcount min=N avg=N max=N
+        ...
+    }
+[skill axi-burst-widening-512] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: m_axi port feeds a pipelined loop, latency remains bandwidth dominated, and synthesis/report evidence shows narrow or failed burst/widening behavior
+  strategy: request 512-bit m_axi widening using max_widen_bitwidth=512; if a packed wide-bus ABI is explicitly allowed, use ap_uint<512> words; in both cases, unpack/stage into lane-partitioned local buffers and rewrite computation to exploit parallel lanes rather than continuing scalar one-element-at-a-time compute
+  required steps:
+    - request or implement 512-bit memory movement
+    - rewrite load/store loops to be burst-friendly
+    - unpack/stage lanes into local buffers
+    - unroll lane-level compute
+    - partition local buffers by lane factor
+    - handle tails and alignment safely
+  guards:
+    - do not change the host ABI unless explicitly allowed
+    - wide memory movement alone is insufficient if compute remains scalar
+    - lane-level compute unrolling requires independent iterations or a safe reduction structure
+    - watch DSP/LUT/BRAM growth after increasing lane parallelism
+  template/example:
+    #include <ap_int.h>
+    typedef ap_uint<512> wide_t;
+    #pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem max_widen_bitwidth=512 max_read_burst_length=64 num_read_outstanding=16
+    #pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem max_widen_bitwidth=512 max_write_burst_length=64 num_write_outstanding=16
+    // LANES = 512 / (8 * sizeof(element)); unpack/stage lanes, unroll lane compute, and handle scalar tail explicitly.
+[skill hls-array-partition-match-unroll-factor] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: UNROLL by factor UF on a loop that reads/writes local arrays without enough parallel memory ports
+  strategy: Apply ARRAY_PARTITION (cyclic or complete) so local arrays expose enough read/write ports for the unroll factor. Complete partition for small partial-sum arrays; cyclic factor=UF for lane buffers.
+  required steps:
+    - identify unroll factor UF on hot loop
+    - count simultaneous array accesses per unrolled iteration
+    - add #pragma HLS ARRAY_PARTITION with factor matching UF or complete for small arrays
+    - verify csynth does not report memory port conflicts on locals
+  guards:
+    - watch BRAM/LUT growth from complete partition on large arrays
+    - partition dim must match access pattern (row vs column)
+  template/example:
+    const int UF = 4;
+    data_t buf[N];
+    #pragma HLS ARRAY_PARTITION variable=buf cyclic factor=UF dim=1
+    data_t partial[UF];
+    #pragma HLS ARRAY_PARTITION variable=partial complete
+[skill hls-canonical-dataflow-lcs-functions] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: load-compute-store tiling where DATAFLOW overlap between stages is desired and tile dependencies permit concurrent stages
+  strategy: Factor each tile into a helper function whose body is a canonical DATAFLOW region containing only buffer/stream declarations plus exactly three calls: load function, compute function, store function.
+  required steps:
+    - define load_tile, compute_tile, store_tile as separate synthesizable functions
+    - helper process_tile_lcs contains #pragma HLS DATAFLOW with declarations + three calls only
+    - outer host loop uses unit tile index; compute tile_i = tile * TILE_SIZE before calling helper
+    - no if/else, dynamic tile calculations, or non-unit increments inside the DATAFLOW region
+    - verify overlap report: concurrent stages, not merely alternating buffer names
+  guards:
+    - use hls::stream or ping-pong locals only when fifo depth covers stage latency
+    - skip DATAFLOW entirely if stages cannot overlap — use pipelined sequential phases
+  template/example:
+    void process_tile_lcs(...) {
+    #pragma HLS DATAFLOW
+        tile_buf_t stage_buf;
+        load_tile(A, b, stage_buf, tile_i);
+        compute_tile(stage_buf, tile_i);
+        store_tile(stage_buf, A, y, tile_i);
+    }
+    
+    for (int tile = 0; tile < NUM_TILES; tile++) {
+        process_tile_lcs(A, b, y, tile * TILE_SIZE);
+    }
+[skill hls-coalescing-512-compound-transform] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: the kernel is bandwidth-sensitive, accesses contiguous global memory through m_axi ports, and has per-element or lane-independent computation that can be parallelized after widening memory transfers
+  strategy: apply coalescing as a full transformation: request 512-bit m_axi widening with max_widen_bitwidth=512, rewrite global-memory access into burst-friendly contiguous load/store loops, stage data into local lane buffers, and restructure computation to process multiple elements per widened memory beat using lane-level unrolling and matching buffer partitioning
+  required steps:
+    - add max_widen_bitwidth=512 to relevant m_axi ports
+    - use max_read_burst_length/max_write_burst_length and outstanding transaction pragmas where appropriate
+    - rewrite global accesses to be contiguous, monotonic, and unit-stride where possible
+    - separate load, compute, and store if mixed logic blocks burst inference
+    - compute LANES = 512 / element_bitwidth
+    - process LANES elements per outer-loop iteration
+    - unroll the lane loop when iterations are independent
+    - partition local lane buffers to match the lane factor
+    - handle non-multiple tails and boundary conditions
+    - validate csim/cosim and inspect reports for burst and widening success
+  guards:
+    - do not treat interface pragmas alone as complete coalescing
+    - do not change top-level pointer types unless explicitly allowed
+    - do not unroll lane computation if there is a true loop-carried dependence
+    - for reductions, use partial sums or a tree reduction instead of a single serial accumulator
+    - watch DSP/LUT/BRAM growth after lane parallelism
+  template/example:
+    #pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem max_widen_bitwidth=512 max_read_burst_length=64 num_read_outstanding=16
+    #pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem max_widen_bitwidth=512 max_write_burst_length=64 num_write_outstanding=16
+    
+    const int LANES = 512 / (8 * sizeof(data_t));
+    data_t in_lane[LANES];
+    data_t out_lane[LANES];
+    #pragma HLS ARRAY_PARTITION variable=in_lane complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=out_lane complete dim=1
+    
+    for (int base = 0; base < N; base += LANES) {
+    #pragma HLS PIPELINE II=1
+        for (int lane = 0; lane < LANES; ++lane) {
+    #pragma HLS UNROLL
+            int idx = base + lane;
+            if (idx < N) {
+                data_t x = in[idx];
+    ...
+[skill hls-coalescing-compute-lane-parallelism] confidence=high pass=0/0
+  kind: transformation_operator
+  pattern: m_axi widening or burst bandwidth improves memory movement, but the compute loop still processes one scalar element per iteration and does not exploit the wider memory beat
+  strategy: rewrite the compute loop around a lane factor equal to 512 divided by element bitwidth; unroll the lane loop; partition local lane buffers; and perform multiple independent scalar operations per outer-loop iteration
+  required steps:
+    - identify element bitwidth
+    - set LANES = 512 / element_bitwidth
+    - group scalar iterations into base + lane form
+    - unroll the lane loop
+    - partition local lane buffers completely or cyclically by lane factor
+    - handle tails with idx < N guards or a cleanup loop
+  guards:
+    - only apply to independent iterations or safely transformed reductions
+    - do not duplicate memory reads if local staging can feed all lane operations
+    - avoid excessive lane factor if resource utilization exceeds limits
+  template/example:
+    const int LANES = 512 / (8 * sizeof(data_t));
+    for (int base = 0; base < N; base += LANES) {
+    #pragma HLS PIPELINE II=1
+        for (int lane = 0; lane < LANES; ++lane) {
+    #pragma HLS UNROLL
+            int idx = base + lane;
+            if (idx < N) {
+                out[idx] = f(in[idx]);
+            }
+        }
+    }
+[skill hls-coalescing-contiguous-access-rewrite] confidence=high pass=0/0
+  kind: transformation_operator
+  pattern: global-memory accesses are logically contiguous but written with mixed compute, conditional control, irregular indexing, or non-monotonic loop structure that prevents burst inference or automatic port widening
+  strategy: rewrite memory access into clean unit-stride load/store loops, separate irregular compute from global memory access when useful, and stage data into local buffers before compute
+  required steps:
+    - isolate global-memory load and store loops
+    - make addresses monotonic and unit-stride where legal
+    - pipeline load and store loops
+    - stage data in local buffers if compute is irregular
+    - preserve boundary conditions and output order
+  guards:
+    - do not introduce out-of-bounds accesses
+    - do not reorder writes when observable output order matters
+    - do not assume indirect indexed accesses can be coalesced without a layout rewrite
+  template/example:
+    load_loop: for (int i = 0; i < N; ++i) {
+    #pragma HLS PIPELINE II=1
+        local[i] = in[i];
+    }
+    
+    compute_loop: for (int i = 0; i < N; ++i) {
+    #pragma HLS PIPELINE II=1
+        local_out[i] = f(local[i]);
+    }
+    
+    store_loop: for (int i = 0; i < N; ++i) {
+    #pragma HLS PIPELINE II=1
+        out[i] = local_out[i];
+    }
+[skill hls-coalescing-partition-lane-buffers] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: lane-level compute is introduced after 512-bit coalescing, but local buffers still have insufficient memory ports to feed all lanes in parallel
+  strategy: partition local lane buffers completely or cyclically by the lane/unroll factor so all unrolled lane operations can read/write without BRAM port conflicts
+  required steps:
+    - identify local buffers consumed by the unrolled lane loop
+    - match partition factor to lane or unroll factor
+    - prefer complete partition for small lane buffers
+    - prefer cyclic partition for larger arrays with regular lane indexing
+  guards:
+    - avoid complete partitioning large arrays
+    - verify that partitioning resolves II without excessive LUT/FF growth
+  template/example:
+    data_t lane_buf[LANES];
+    #pragma HLS ARRAY_PARTITION variable=lane_buf complete dim=1
+    
+    for (int lane = 0; lane < LANES; ++lane) {
+    #pragma HLS UNROLL
+        ... lane_buf[lane] ...
+    }
+[skill hls-dataflow-fused-compute-phases] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: multiple compute tasks under #pragma HLS DATAFLOW each read the same local array (matrix reused in two GEMMs, dual matvec on same A, or stat pipeline mean→stddev→normalize all touching local_data) — HLS 200-779
+  strategy: Merge every compute phase that shares a local input or intermediate into ONE static compute_fused_task with sequential labeled loops inside. Keep parallel load_* and store_* as separate DATAFLOW tasks. Never add an inline for-loop copy inside DATAFLOW to dodge fan-out — that creates another reader process.
+  required steps:
+    - list compute tasks and mark which locals each reads/writes
+    - if two+ compute tasks read the same local (e.g. local_A, local_data_in, local_tmp): fold into one compute_fused_task
+    - if one intermediate is consumed by downstream compute AND store_tmp: either store inside the fused compute after last use, or chain linearly compute_fused → local_out read only by store
+    - for chained GEMMs (tmp = alpha*A*B; D = beta*D + tmp*C): one task does both nests sequentially; parallel loads for A,B,C,D_in; parallel stores for tmp and D_out only after fused compute completes
+    - for dual matvec (tmp=A*x; y=A'*tmp): one task reads local_A once for both phases
+    - for stat pipelines (mean, stddev, normalize, corr): one compute_stats_task with sequential loops; parallel store_mean/store_stddev/store_corr OK after
+  guards:
+    - fused compute task must not take m_axi port pointers
+    - do not place copy loops inside DATAFLOW region — use separate copy task or fuse into compute
+    - preserve numerical order when merging phases
+  template/example:
+    // BAD: two readers on local_A and local_tmp
+    #pragma HLS DATAFLOW
+    compute_tmp(..., local_A, local_tmp);
+    compute_y(..., local_A, local_tmp);   // local_A reader 2, local_tmp reader 2
+    store_tmp(..., local_tmp);
+    
+    // GOOD: fused compute, parallel load/store
+    #pragma HLS DATAFLOW
+    load_A_task(...); load_x_task(...);
+    compute_fused_task(local_A, local_x, local_tmp, local_y);  // both matvecs inside
+    store_y_task(...); store_tmp_task(...);
+[skill hls-dataflow-merge-parallel-consumers] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: two compute tasks under #pragma HLS DATAFLOW both read the same local array produced by an upstream task (e.g. compute_x and compute_w both consume local_A_out) — HLS 200-779
+  strategy: Merge the parallel consumer compute tasks into one compute_xw_task with sequential labeled loops, or insert hls::stream between producer and a single downstream consumer. Never leave two concurrent reader tasks on the same local buffer.
+  required steps:
+    - identify locals with one writer and two+ reader compute tasks
+    - merge consumers into one static task with both computation nests inside
+    - if merge hurts II, use hls::stream from producer to one consumer and duplicate producer output via second stream (tee) — never two tasks reading same local
+    - tile loops wrapping DATAFLOW: each tile iteration must use private tile buffers; still no fan-out within one DATAFLOW invocation
+  guards:
+    - merged task stays locals-only — no m_axi pointers
+    - store tasks may run parallel only if each reads a distinct local output
+  template/example:
+    // BAD: local_A_out read by two compute tasks
+    #pragma HLS DATAFLOW
+    compute_A_task(..., local_A_out);
+    compute_x_task(local_A_out, ...);  // reader 1
+    compute_w_task(local_A_out, ...);  // reader 2 — HLS 200-779
+    
+    // GOOD: merge consumers
+    #pragma HLS DATAFLOW
+    compute_A_task(..., local_A_out);
+    compute_xw_task(local_A_out, local_x, local_w, ...);  // both uses inside one task
+    store_x_task(...); store_w_task(...);
+[skill hls-dataflow-one-writer-one-reader-local] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: one local array written by a compute task and read by two or more concurrent DATAFLOW tasks (e.g. compute stage + store stage + downstream compute all touch local_tmp)
+  strategy: Every local array in a DATAFLOW region must have exactly one writer task and exactly one reader task. For fan-out (one producer, multiple consumers), chain with hls::stream FIFOs, duplicate into separate single-use buffers (buf_for_compute / buf_for_store), or merge consumers into one task.
+  required steps:
+    - list every local array and mark writer task + reader task
+    - reject any local with >1 writer or >1 concurrent reader
+    - if compute writes local_M and both store and a later compute read local_M, insert hls::stream between producer and each consumer OR serialize store after final consumer in a linear chain
+    - for load→compute handoff use buf_in written only by load, read only by compute; compute writes buf_out read only by store
+    - re-run csynth until HLS 200-779 / 200-979 are gone
+  guards:
+    - ping-pong buf0/buf1 still obeys one writer per bank per time step
+    - hls::stream depth ≥ 2 when producer may run ahead of consumer
+    - do not pass the same local array into three task calls under one #pragma HLS DATAFLOW
+  template/example:
+    // BAD: one writer, two readers on local_tmp
+    #pragma HLS DATAFLOW
+    compute_tmp(..., local_tmp);
+    compute_next(..., local_tmp);  // reader 1
+    store_tmp(..., local_tmp);     // reader 2 — HLS 200-779
+    
+    // GOOD: linear chain or stream fan-out
+    hls::stream<tile_t, DEPTH> q;
+    compute_tmp(..., q);
+    compute_next(q, local_out);
+    store_tmp(..., local_out);
+[skill hls-dataflow-performance-partition-unroll] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: DATAFLOW structure passes csynth but latency is high because compute tasks lack ARRAY_PARTITION, inner UNROLL, and parallel load/store overlap
+  strategy: After correct DATAFLOW task boundaries, maximize throughput: partition local arrays on the inner compute dimension, UNROLL inner loops to match partition factor, pipeline innermost loops II=1, run independent load tasks in parallel on distinct gmemN bundles, and use hls::stream depth 4–16 for tile pipelines to overlap load(t+1) with compute(t).
+  required steps:
+    - add #pragma HLS ARRAY_PARTITION cyclic or block on hot local arrays — factor matches UNROLL
+    - add #pragma HLS UNROLL factor=UF on innermost reduction/dot-product loop
+    - pipeline innermost memory/compute loop with II=1; never outer row loop PIPELINE for multi-matrix loads
+    - issue parallel load tasks only when each touches a different m_axi port/bundle
+    - for tiled kernels use hls::stream tile FIFO between load_tile, compute_tile, store_tile for real overlap
+    - target higher DSP/FF utilization when latency slack exists — prefer parallelism over minimal resources
+  guards:
+    - partition/unroll must not break DATAFLOW buffer ownership rules
+    - BRAM budget: tile smaller or stream panels instead of full-matrix locals
+    - complements hls-array-partition-match-unroll-factor from base skills
+  template/example:
+    #pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=UF dim=2
+    #pragma HLS DATAFLOW
+    load_A_task(...);   // gmem0
+    load_B_task(...);   // gmem1 — parallel with load_A
+    compute_tile_task(...);
+    store_C_task(...);
+    
+    // inside compute:
+    for (int j = 0; j < N; j += UF) {
+    #pragma HLS PIPELINE II=1
+        for (int k = 0; k < UF; k++) {
+    #pragma HLS UNROLL
+            acc += local_A[i][j+k] * local_B[j+k][l];
+        }
+    }
+[skill hls-dataflow-ping-pong-gate-flash] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: kernel uses or proposes #pragma HLS DATAFLOW, ping-pong buffers, or double-buffered tile staging
+  strategy: Do not add ping-pong buffers or DATAFLOW unless the code expresses a valid canonical producer-consumer schedule with real overlap. Default to single local buffer + pipelined load/compute/store loops when true cross-tile overlap is not implemented.
+  required steps:
+    - audit every DATAFLOW region: only declarations and function calls — no if/else, dynamic tile math, or non-unit increments inside
+    - use unit-increment tile index: for (tile=0; tile<NUM_TILES; tile++) with tile_i = tile * TILE_SIZE — never DATAFLOW inside tile_i += TILE_SIZE
+    - reject ping-pong that only alternates buffers across sequential tile iterations without load(t+1) overlapping compute/store(t)
+    - for triangular factorization/solve or other cross-tile dependencies, prove tile overlap is legal before ping-pong or DATAFLOW across tiles
+    - factor load-compute-store DATAFLOW into a helper with load_fn(); compute_fn(); store_fn(); calls only
+    - if no true overlap, use one local buffer and fix loop II, memory access, and reductions first
+    - report whether ping-pong provides actual overlap; if not, remove ping-pong and DATAFLOW
+  guards:
+    - decorative DATAFLOW/ping-pong wastes BRAM and can block II fixes
+    - fifo/stream depths must match real producer-consumer latency when overlap exists
+    - sequential tile processing with cross-tile deps forbids fake overlap
+  template/example:
+    OVERLAP REPORT (required if ping-pong/DATAFLOW present):
+    | stage pairing | overlap? | evidence |
+    
+    BAD: sequential tiles with buf[tile&1] but no concurrent load/compute
+    GOOD: #pragma HLS DATAFLOW + load_tile(t+1) || compute_tile(t) with proven independence
+[skill hls-distinct-gmem-bundle-per-port] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: kernel has two or more m_axi pointer ports and uses #pragma HLS DATAFLOW or multiple load/compute/store tasks that should overlap external memory access
+  strategy: Assign a distinct bundle=gmem0, gmem1, … to each m_axi pointer port so HLS can issue concurrent external memory transactions across DATAFLOW stages. Never place all read/write ports on a single bundle=gmem when stages are meant to run concurrently.
+  required steps:
+    - enumerate every m_axi port on the top kernel and on DATAFLOW subfunctions that touch global memory
+    - assign each pointer port a unique bundle=gmemN (gmem0, gmem1, gmem2, …)
+    - map load tasks to read ports and store tasks to write ports on separate bundles when stages overlap
+    - re-run csynth and verify parallel tasks no longer stall on a single gmem port (HLS 200-885 on gmem)
+    - pair with hls::stream or proven stage overlap — distinct bundles alone do not fix decorative DATAFLOW
+  guards:
+    - each bundle still needs burst-friendly access patterns on its port
+    - do not duplicate bundle names across unrelated ports
+    - cosim and interface pragmas must stay consistent after rebundling
+  template/example:
+    // BAD: all ports share one bundle — DATAFLOW tasks serialize on gmem
+    #pragma HLS INTERFACE m_axi port=A bundle=gmem
+    #pragma HLS INTERFACE m_axi port=B bundle=gmem
+    #pragma HLS INTERFACE m_axi port=y bundle=gmem
+    
+    // GOOD: one bundle per port for concurrent stage access
+    #pragma HLS INTERFACE m_axi port=A bundle=gmem0
+    #pragma HLS INTERFACE m_axi port=B bundle=gmem1
+    #pragma HLS INTERFACE m_axi port=y bundle=gmem2
+[skill hls-doublebuffer-first-last-guards] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: a double-buffered loop overlaps stages across tile indices and therefore requires prologue, steady-state, and epilogue handling
+  strategy: guard load, compute, and store stages by tile index so the first and last overlapped iterations do not read uninitialized buffers or write invalid outputs
+  required steps:
+    - extend loop bounds for startup/drain
+    - guard load for t < NUM_TILES
+    - guard compute for t > 0 and t <= NUM_TILES
+    - guard store for t > 1 or equivalent
+    - handle partial final tile
+  guards:
+    - do not read from a buffer before it has been loaded
+    - do not store a tile before it has been computed
+    - do not drop the final tile during drain
+  template/example:
+    for (int t = 0; t < NUM_TILES + 2; ++t) {
+        if (t < NUM_TILES) load_tile(..., t);
+        if (t > 0 && t <= NUM_TILES) compute_tile(..., t - 1);
+        if (t > 1) store_tile(..., t - 2);
+    }
+[skill hls-doublebuffer-pingpong-local-buffers] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: a tiled or chunked computation has one local buffer, causing the next load to wait for current compute or store to finish
+  strategy: duplicate the local buffer into ping-pong buffers and alternate producer/consumer stages across them
+  required steps:
+    - identify the buffer that causes serialization
+    - allocate two buffers of the same shape
+    - use t & 1 or equivalent parity for buffer selection
+    - ensure producer and consumer use different buffers in the same overlapped iteration
+    - handle startup and drain iterations
+  guards:
+    - do not duplicate very large buffers if memory usage exceeds budget
+    - do not overlap stages that access the same buffer instance
+    - validate schedule and correctness
+  template/example:
+    data_t buf0[TILE];
+    data_t buf1[TILE];
+    data_t* load_buf  = (t & 1) ? buf1 : buf0;
+    data_t* compute_buf = (t & 1) ? buf0 : buf1;
+[skill hls-dual-layout-fused-load-dataflow] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: kernel runs two passes over the same matrix with different access (row-major then transposed/column) and places tile for-loops inside #pragma HLS DATAFLOW that call load_* on the same m_axi port each iteration — HLS 200-1013
+  strategy: Under DATAFLOW: one fused_load_task reads the matrix from m_axi once per element and fills both row-major and transposed local buffers in the same pipelined loop; load all vectors in the same or parallel tasks; run phase1_task and phase2_task on locals only; fused_store_task for outputs. No outer tile loop inside DATAFLOW that touches m_axi.
+  required steps:
+    - replace per-tile load loops inside DATAFLOW with single fused_load_task covering full N×N (or legal tile stream pipeline with hls::stream, not repeated m_axi loads)
+    - in fused load: for each (i,j) read A[i][j] once; write local_A_row[i][j] and local_A_col[j][i]
+    - phase1_task uses local_A_row; phase2_task uses local_A_col — no m_axi in either
+    - optional ARRAY_PARTITION on row locals for UNROLL in compute
+    - verify no HLS 200-1013 on matrix port
+  guards:
+    - BRAM must fit both layouts — partition/unroll compute not load
+    - pair with hls-single-load-dual-local-layout
+    - distinct gmemN on vector ports enables parallel y1/y2 loads with fused A load
+  template/example:
+    // BAD: tile loops inside DATAFLOW reload A each tile
+    #pragma HLS DATAFLOW
+    for (i0 = 0; i0 < N; i0 += TILE) {
+        load_tile_A(A, local_A, i0);  // HLS 200-1013
+        compute_tile(...);
+    }
+    
+    // GOOD: fused dual-layout load, phased compute on locals
+    #pragma HLS DATAFLOW
+    fused_load_task(y1, y2, A, local_y1, local_y2, local_A_row, local_A_col);
+    phase1_task(local_x1, local_A_row, local_y1);
+    phase2_task(local_x2, local_A_col, local_y2);
+    fused_store_task(x1, x2, local_x1, local_x2);
+[skill hls-fixed-tile-bound-not-runtime-tile-size] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: pipelined load_tile, compute_tile, or store_tile loops use for (i = 0; i < tile_size; i++) where tile_size is runtime-computed for the final partial tile
+  strategy: Loop bound must be compile-time TILE_SIZE from header macros; use if (tile_i + i < N) guards for partial final tile. Runtime tile_size as loop bound blocks II=1 pipeline, UNROLL, and LOOP_FLATTEN (HLS 200-936/960).
+  required steps:
+    - replace for (i = 0; i < tile_size; i++) with for (i = 0; i < TILE_SIZE; i++)
+    - guard loads, stores, and compute with if (tile_i + i < N) or if (i < tile_size) only inside body — not as loop bound
+    - keep tile_size scalar for guard comparisons when needed, not as pipelined loop trip count
+    - re-apply PIPELINE II=1 on inner fixed-bound loops after rewrite
+    - validate csynth no longer warns cannot unroll/flatten due to variable tile_size bound
+  guards:
+    - TILE_SIZE macro must match tiling pragma and local buffer allocation
+    - preserve semantics for partial tail tile — skipped iterations must not change results
+    - complements hls-rewrite-variable-trip-fixed-bound-guard for triangular inner bounds
+  template/example:
+    // BAD: runtime tile_size as pipelined loop bound
+    int tile_size = (tile_i + TILE_SIZE > N) ? (N - tile_i) : TILE_SIZE;
+    for (int i = 0; i < tile_size; i++) {
+    #pragma HLS PIPELINE II=1
+        local_A[i][j] = A[tile_i + i][j];
+    }
+    
+    // GOOD: fixed TILE_SIZE bound + guard
+    for (int i = 0; i < TILE_SIZE; i++) {
+    #pragma HLS PIPELINE II=1
+        if (tile_i + i < N) {
+            local_A[i][j] = A[tile_i + i][j];
+        }
+    }
+[skill hls-fp-reduction-partial-accumulators] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: floating-point dot-product, sum, or coupled update (w -= a*b) inside a loop targeted for II=1
+  strategy: Use UF private partial accumulators with complete partition; unrolled init; pipelined fixed-bound loop with unrolled lane updates and guards; final reduction of partial[] into result scalar.
+  required steps:
+    - const int UF = 4; double partial[UF]; #pragma HLS ARRAY_PARTITION variable=partial complete
+    - unrolled init of partial[p] = 0
+    - outer pipelined loop steps by UF over fixed TILE_SIZE bound
+    - inner unrolled lane updates partial[p] with guarded index
+    - after loop, sum partial[] into output scalar or local
+  guards:
+    - only use when lane iterations are independent
+    - match UF to unroll factor and memory ports
+  template/example:
+    const int UF = 4;
+    double partial[UF];
+    #pragma HLS ARRAY_PARTITION variable=partial complete
+    for (int p = 0; p < UF; p++) {
+    #pragma HLS UNROLL
+        partial[p] = 0.0;
+    }
+    for (int k = 0; k < TILE_SIZE; k += UF) {
+    #pragma HLS PIPELINE II=1
+        for (int p = 0; p < UF; p++) {
+    #pragma HLS UNROLL
+            if (k + p < j) partial[p] += expr(k + p);
+        }
+    }
+    double sum = 0; for (int p = 0; p < UF; p++) { #pragma HLS UNROLL sum += partial[p]; }
+[skill hls-gemm-chain-local-reuse] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: chained matrix multiplies (output = alpha * A*B + beta * … with multiple GEMM stages) implemented with multiple full-size local temporaries and extra copy loops between stages
+  strategy: Reuse minimal local tile or K-panel accumulators; pipeline the K dimension innermost with ARRAY_PARTITION on the K access dimension; avoid allocating local_tmp1/local_tmp2/local_tmp3 full-matrix buffers and copy tasks between GEMM stages. Prefer one compute nest per tile or stream K-panels between stages via hls::stream when DATAFLOW overlap is real.
+  required steps:
+    - identify GEMM chain depth and which intermediates must persist vs can be streamed
+    - allocate the smallest local buffers that cover one tile or one K-panel, not full N×N per stage
+    - pipeline innermost K loop with II=1; partition locals on K/column dim to match unroll
+    - remove redundant matrix-to-matrix copy loops between DATAFLOW tasks
+    - if one local buffer (e.g. tmp) is consumed by two downstream tasks (second GEMM + store), insert hls::stream or duplicate buffer with single-writer/single-reader chain — never one writer + two concurrent readers (HLS 200-779)
+    - add DATAFLOW between GEMM stages only with hls::stream panel FIFOs and overlap report
+    - fold alpha/beta scaling into the same local accumulator where numerically legal
+  guards:
+    - on-chip BRAM budget may require tiling — reuse tiles, not duplicate full matrices
+    - preserve numerical semantics when reordering multiply-add chains
+    - do not add decorative multi-task DATAFLOW without streams — see avoid-dataflow-without-stream-or-overlap-proof
+  template/example:
+    // BAD: three full local matrices + copy tasks between DATAFLOW stages
+    local_T1[N][N]; local_T2[N][N]; local_T3[N][N];
+    #pragma HLS DATAFLOW
+    load_AB(...); gemm1_copy(...); gemm2_copy(...); store_C(...);
+    
+    // GOOD: K-panel reuse, innermost K pipelined
+    for (int k = 0; k < N; k++) {
+    #pragma HLS PIPELINE II=1
+        for (int j = 0; j < TILE_SIZE; j++) {
+    #pragma HLS UNROLL factor=UF
+            acc[j] += A[i][k] * B[k][j];
+        }
+    }
+    // optional: hls::stream<panel_t> between stages when overlap proven
+[skill hls-gemm-static-nest-flatten-and-k-partition] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: static-bound GEMM/matmul-like OR triangular syrk/syr2k/symm nests on local buffers (C[i][j] += ... over k, or C[i][j] += A[j][k]*B[i][k]+... with if (j<=i)) where PIPELINE II=1 is placed only on an inner j (L4) under sequential outer i (L1) and/or sequential k (L3), so csynth shows L1 trip=M Pipelined=no and latency ≈ M*(K*N+Depth) instead of one flattened (i,j) pipeline
+  strategy: Partition locals on the reduction dim k; PIPELINE II=1 the (i,j) nest with k fully unrolled; LOOP_FLATTEN (or single ij loop). For syrk/syr2k: keep FIXED j<N bounds with if (j<=i) guards (never for (j=0;j<=i)); optionally separate beta-scale pass, then one update pass that reduces over k inside each (i,j) iteration. Reject L1 sequential + only L4 II=1. Success also requires achieved Final II near 1 (or best legal). Full k UNROLL with a serial FP accumulator is insufficient if II stays huge — use partial/tree sums or enough FP operators, else pipeline-on-k (hls-avoid-serial-fp-acc-under-full-k-unroll).
+  required steps:
+    - confirm M,N,K (or N,M for syr2k) are compile-time constants and compute is on local arrays
+    - ARRAY_PARTITION A/B (and C as needed) on the k-accessed dimension — complete if budget allows
+    - rewrite triangular loops to fixed bound + if (j<=i) / if (j<i) guards — never variable trip j<=i as loop bound
+    - prefer two phases for syr2k/syrk: (1) scale C*=beta on triangle with PIPELINE+FLATTEN; (2) update with (i,j) PIPELINE+FLATTEN and k fully UNROLL
+    - place PIPELINE II=1 on the (i,j) nest with fully unrolled k; add LOOP_FLATTEN or collapse to ij
+    - success check: csynth must NOT show L1/compute_outer trip=M Pipelined=no next to only an L4 II=1; prefer one flattened trip ≈ M*N
+    - re-check device Utilization (%) ≤ 100; if complete on k overshoots, use cyclic factor matched to unroll
+    - after flatten+k-unroll, check Final II; if II ≫ 1 from serial FP acc / shared dmul/dadd, apply hls-avoid-serial-fp-acc-under-full-k-unroll
+  guards:
+    - do not apply this flatten mandate to true outer tile loops over partial tiles — only full-workspace or within-tile (i,j) nests with static bounds
+    - preserve numerical semantics of reductions
+    - resource legality: BRAM/DSP/FF/LUT/URAM device util ≤ 100%
+    - full k UNROLL requires a parallel reduction structure or enough FP units — a single serial float/double accumulator alone is not success if Final II ≫ 1
+  template/example:
+    // Rectangular GEMM
+    #pragma HLS ARRAY_PARTITION variable=A_local complete dim=2
+    #pragma HLS ARRAY_PARTITION variable=B_local complete dim=1
+    compute: for (int i = 0; i < M; ++i) {
+      for (int j = 0; j < N; ++j) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS LOOP_FLATTEN
+        T sum = 0;
+        for (int k = 0; k < K; ++k) {
+    #pragma HLS UNROLL
+          sum += A_local[i][k] * B_local[k][j];
+        }
+        C_local[i][j] = sum;
+      }
+    }
+    // syr2k/syrk triangle (fixed bounds + guard; k unrolled)
+    ...
+[skill hls-load-compute-store-no-rmw-m_axi] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: kernel touches m_axi pointer ports in compute loops and may benefit from pipelining, unroll, or DATAFLOW but must not bottleneck on repeated external memory RMW
+  strategy: Use explicit load-compute-store: (1) load required inputs from m_axi into local on-chip buffers or private scalars; (2) perform all repeated updates, reductions, and accumulations on locals only; (3) store final results back to m_axi outputs once per element when possible. Prefer burst-friendly sequential loads/stores and separate phases.
+  required steps:
+    - identify every m_axi port used in compute
+    - add local buffers for reused arrays and private scalar accumulators for reductions
+    - pipeline load, compute, and store loops independently where legal
+    - write each output m_axi element at most once per logical update (after local finalize)
+    - apply tiling when full arrays exceed on-chip budget while keeping RMW off m_axi inside inner loops
+  guards:
+    - do not change top-level pointer element types unless explicitly allowed
+    - pair with distinct gmemN bundles per port when parallelizing external access
+    - local arrays must be sized with fixed bounds from header macros
+  template/example:
+    load_phase: copy inputs from m_axi ports into local buffers (pipelined).
+    compute_phase: update locals/scalar accumulators only.
+    store_phase: write finalized locals back to m_axi outputs once.
+    // Reduction example:
+    //   double acc = x_local[i];
+    //   for (int j = 0; j < N; j++) acc += beta * A_local[j][i] * y_local[j];
+    //   x_local[i] = acc;
+    //   x[i] = x_local[i];
+[skill hls-loop-structure-audit-flash] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: any flash kernel with nested loops, PIPELINE pragmas, m_axi load/store, reductions, triangular/variable bounds, or DATAFLOW regions
+  strategy: Before final code, audit every loop nest: (1) bounds; (2) compile-time constant vs variable trip count; (3) subloops in body; (4) reductions/accumulations; (5) m_axi reads/writes; (6) legal/realistic pipeline location. Reject and revise if anti-patterns remain. After code generation, emit an audit table: loop name | original issue | applied transformation | pipeline pragma location | remaining II risk | memory-port risk.
+  required steps:
+    - enumerate every loop nest and record bounds, trip-count kind, subloops, reductions, and m_axi touch
+    - verify pipeline pragma is only on innermost legal loop (or parent with fully-unrolled/flattened children only)
+    - rewrite variable-bound loops (k<i, k<j, j>i+1, i<tile_size) to fixed TILE_SIZE/N loops with if guards
+    - split FP reductions into private partial accumulators with complete partition, then final reduction
+    - pipeline innermost contiguous memory copy loops only — never outer row/tile loops over full N columns
+    - keep m_axi as load-compute-store: no inner-loop RMW on m_axi ports
+    - match ARRAY_PARTITION to unroll factor and parallel port needs
+    - use canonical DATAFLOW: declarations and function calls only inside the region
+    - do not add ping-pong or DATAFLOW unless producer-consumer overlap is real — report overlap or remove
+    - reject code with any listed anti-pattern and revise before submitting
+  guards:
+    - LOOP_TRIPCOUNT is reporting only — it does not make loops statically bounded
+    - partial UNROLL factor>1 still leaves a child loop — parent PIPELINE II=1 is illegal unless child is fully unrolled
+    - do not rely on LOOP_FLATTEN alone to fix variable-trip nests
+    - preserve numerical semantics when adding guards or partial accumulators
+  template/example:
+    AUDIT TABLE (required):
+    | loop | original issue | transformation | pipeline location | II risk | memory-port risk |
+    
+    ANTI-PATTERNS (reject if present):
+    - parent pipelined with non-fully-unrolled child
+    - variable-trip child under pipelined parent
+    - partial unroll treated as full unroll
+    - scalar FP recurrence in claimed II=1 loop
+    - outer memory-copy loop pipelined over full row
+    - direct RMW on m_axi inside compute loops
+[skill hls-multibank-separate-independent-arrays] confidence=high pass=0/0
+  kind: transformation_operator
+  pattern: multiple high-bandwidth arrays or streams are accessed independently but share one memory bundle or memory bank, creating bandwidth contention
+  strategy: assign independent high-bandwidth m_axi ports to separate bundles or memory banks so concurrent memory streams can use independent bandwidth
+  required steps:
+    - identify independent high-bandwidth arrays
+    - estimate read/write traffic per array
+    - place independent streams on separate m_axi bundles
+    - map bundles to distinct physical banks if platform/host supports it
+    - update host-side buffer bank assignment if required
+    - verify bandwidth and correctness
+  guards:
+    - do not split arrays that must remain on the same physical memory for host compatibility
+    - do not assume bundle names alone map to separate banks without platform/linker support
+    - avoid bank imbalance where one bank remains the bottleneck
+  template/example:
+    #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem0
+    #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem1
+    #pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem2
+    // Ensure host/linker maps gmem0/gmem1/gmem2 to distinct memory banks when required.
+[skill hls-partition-select-complete-cyclic-block] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: a local array needs more read/write ports for pipelined or unrolled access, but the correct partition style depends on access pattern and array size
+  strategy: choose complete partition for small arrays or for a parallel access dimension that must supply many ports in one cycle (including GEMM reduction dim k when fully unrolled), cyclic partition for regular interleaved lane accesses, and block partition for contiguous per-worker regions. Prefer cyclic/block when factor << size; allow complete on the parallel dim when size is modest (about <=64-128) OR when II=1 flatten of a static GEMM nest requires it.
+  required steps:
+    - identify the parallel access pattern
+    - identify the accessed array dimension (for GEMM C[i][j]+=A[i][k]*B[k][j], that is dim k of A and B)
+    - choose complete/cyclic/block based on size and indexing; for fully unrolled k, prefer complete on k if budget allows else cyclic matched to unroll
+    - match factor to unroll factor or port demand
+    - check II, nest flatten (outer trip must not remain sequential), and resource usage
+  guards:
+    - do not complete-partition an entire large buffer when only one dimension is accessed in parallel — partition that dimension
+    - do not refuse complete/cyclic on the reduction (k) dimension of a static-bound GEMM when k is fully unrolled under PIPELINE II=1; that banking is required for nest flatten
+    - do not partition dimensions not accessed in parallel
+    - avoid partitioning when the bottleneck is off-chip memory bandwidth
+    - if complete on the parallel dim blows FF/BRAM, fall back to cyclic factor matched to unroll and keep flatten
+  template/example:
+    // GEMM on locals: bank the reduction dimension so (i,j) can flatten with II=1
+    #pragma HLS ARRAY_PARTITION variable=A_local complete dim=2  // k
+    #pragma HLS ARRAY_PARTITION variable=B_local complete dim=1  // k
+    // or: cyclic factor=UNROLL_K on those dims if complete is too heavy
+    
+    // Complete: small fully parallel dimension
+    #pragma HLS ARRAY_PARTITION variable=small_buf complete dim=1
+    
+    // Cyclic: lane-indexed interleaved access
+    #pragma HLS ARRAY_PARTITION variable=buf cyclic factor=UNROLL_FACTOR dim=1
+    
+    // Block: each worker owns a contiguous block
+    #pragma HLS ARRAY_PARTITION variable=buf block factor=PE dim=1
+[skill hls-pipeline-bank-local-buffers] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: a pipelined loop needs multiple local-buffer accesses per cycle, but the local array is not partitioned or banked enough to provide the required ports
+  strategy: partition or bank local arrays along the dimension accessed in parallel so the pipelined loop has enough local memory ports
+  required steps:
+    - identify arrays accessed multiple times per loop iteration
+    - identify the accessed dimension
+    - choose complete partition for small arrays
+    - choose cyclic partition for larger regularly indexed arrays
+    - match partition factor to unroll factor or access count
+    - re-run synthesis and check achieved II
+  guards:
+    - do not complete-partition large arrays blindly
+    - do not partition the wrong dimension
+    - do not use local partitioning to solve AXI bandwidth bottlenecks
+  template/example:
+    data_t buf[N];
+    #pragma HLS ARRAY_PARTITION variable=buf cyclic factor=4 dim=1
+[skill hls-pipeline-hot-loop-achieve-ii] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: a frequently executed loop is scheduled sequentially or has high interval, and the loop can be made pipeline-eligible without violating true dependencies
+  strategy: pipeline the selected hot loop so achieved II improves, then ensure nested static-bound output loops are flattened so total latency is not M times a thin inner pipeline. Achieved II=1 on an inner j loop is not success if outer i remains Pipelined=no with trip=M.
+  required steps:
+    - identify the hottest loop from trip count and latency contribution
+    - for static-bound GEMM/matmul nests on locals, target the (i,j) output nest as one flattened pipeline — not only the innermost j
+    - add PIPELINE with a realistic target II; add LOOP_FLATTEN on the perfect nest or collapse to one ij loop
+    - fully unroll the reduction k (or unroll with matching partition) inside that pipeline
+    - partition A/B (and temps) on the k access dimension so ports allow II=1 after flatten
+    - check achieved II AND that the report has one pipelined region over ~M*N trips (reject outer i with Pipelined=no, II=-)
+    - if II is blocked by local memory ports, partition or bank local arrays on the parallel dim
+    - if II is blocked by AXI/global memory, stage data into local buffers
+    - if II is blocked by false dependencies, add dependence pragmas only when proven safe
+    - if II is blocked by true recurrence, restructure legally or accept the best legal II
+  guards:
+    - do not treat requested II as achieved II
+    - do not suppress true dependencies
+    - do not pipeline an outer loop if it causes unintended full unrolling or resource explosion — instead flatten a perfect (i,j) nest with PIPELINE on the nest and fully unroll k, or rewrite as a single ij loop
+    - do not ignore the reported scheduling bottleneck
+    - do not celebrate inner II=1 while csynth still shows an unpipelined outer compute_* with trip=M
+    - do not celebrate flatten+k-unroll when Final II remains huge from a serial FP accumulator
+  template/example:
+    // GOOD: flattened static GEMM nest on locals
+    #pragma HLS ARRAY_PARTITION variable=A_local complete dim=2
+    #pragma HLS ARRAY_PARTITION variable=B_local complete dim=1
+    compute: for (int i = 0; i < M; ++i) {
+      for (int j = 0; j < N; ++j) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS LOOP_FLATTEN
+        T sum = 0;
+        for (int k = 0; k < K; ++k) {
+    #pragma HLS UNROLL
+          sum += A_local[i][k] * B_local[k][j];
+        }
+        C_local[i][j] = sum;
+      }
+    }
+    // FAIL if csynth still shows compute outer: trip=M, II=-, Pipelined=no
+[skill hls-pipeline-innermost-memory-copy-loop] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: tile load/store phases copying between m_axi ports and local buffers with nested i-j loops
+  strategy: Structure load_tile and store_tile as outer sequential row/tile loops with innermost pipelined contiguous copy loop over j (or flat index). Scalar vector loads/stores (b[i], y[i]) execute once per row outside the pipelined inner loop.
+  required steps:
+    - outer loop: for i over TILE_SIZE or fixed tile rows — no PIPELINE on outer
+    - inner loop: for j over N — #pragma HLS PIPELINE II=1 on inner only
+    - load local_A[i][j] from A[tile_i+i][j] in inner pipelined loop
+    - load local_b[i] from b[tile_i+i] after inner j loop completes for row i
+    - mirror structure for store_tile
+  guards:
+    - use if (tile_i+i < N) guards when tile tail is partial
+    - local arrays should be BRAM with bounds from header macros
+  template/example:
+    load_tile: for (int i = 0; i < TILE_SIZE; i++) {
+        for (int j = 0; j < N; j++) {
+    #pragma HLS PIPELINE II=1
+            local_A[i][j] = A[tile_i + i][j];
+        }
+        local_b[i] = b[tile_i + i];
+    }
+    store_tile: for (int i = 0; i < TILE_SIZE; i++) {
+        for (int j = 0; j < N; j++) {
+    #pragma HLS PIPELINE II=1
+            A[tile_i + i][j] = local_A[i][j];
+        }
+        y[tile_i + i] = local_y[i];
+    }
+[skill hls-pipeline-local-compute-after-tiling] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: data is already staged into local tile buffers, but the compute loop over the local tile remains serial, unpipelined, or underuses local memory bandwidth
+  strategy: pipeline the compute loop over the local tile and restructure local buffers, dependencies, and small inner loops so the pipeline can be fed from local memory. If the 'tile' is the full problem (full-workspace staging), flatten the (i,j) nest instead of leaving outer i sequential.
+  required steps:
+    - identify local buffers created by tiling or staging
+    - identify the main compute loop over the local tile
+    - apply PIPELINE to the local compute loop
+    - partition local buffers if multiple reads/writes are needed per cycle
+    - unroll small independent inner loops when needed to expose compute parallelism
+    - check achieved II and resource growth
+  guards:
+    - do not pipeline before checking true loop-carried dependencies
+    - do not leave local buffers unpartitioned if port conflicts block II
+    - do not assume tiling alone improves compute latency
+    - preserve boundary, tail, and numerical behavior
+    - keep an outer tile loop sequential only when it is a true tile iterator over partial working sets; do not treat full-workspace GEMM outer i as a tile loop — flatten it
+  template/example:
+    compute_tile: for (int i = 0; i < TILE; ++i) {
+    #pragma HLS PIPELINE II=1
+        ... use local_tile[i] ...
+    }
+[skill hls-pipeline-stage-global-memory] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: a loop is pipeline-eligible, but direct global-memory access through m_axi prevents low II or stable scheduling
+  strategy: separate global-memory load/store from compute, stage data into local buffers with pipelined burst-friendly loops, and pipeline the compute loop over local memory
+  required steps:
+    - identify global-memory accesses inside the target compute loop
+    - separate load, compute, and store phases when legal
+    - load a bounded region into a local buffer
+    - pipeline the local compute loop
+    - store results back with a pipelined loop
+    - combine with coalescing or tiling when access pattern supports it
+  guards:
+    - do not stage unbounded data into local memory
+    - do not add local buffering if each element is used once and no scheduling benefit appears
+    - preserve output order and boundary behavior
+    - handle tails safely
+  template/example:
+    load_loop: for (...) {
+    #pragma HLS PIPELINE II=1
+        local[i] = in[i];
+    }
+    compute_loop: for (...) {
+    #pragma HLS PIPELINE II=1
+        out_local[i] = f(local[i]);
+    }
+[skill hls-pipeline-unroll-small-inner-loops] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: the target outer loop is pipelined, but the loop body contains small fixed-bound inner loops that serialize arithmetic or prevent efficient per-iteration computation
+  strategy: unroll small independent inner loops inside the pipelined loop, partition local buffers for the expanded body, and for static (i,j,k) GEMM nests ensure the (i,j) parent nest is flattened so unrolling k does not leave outer i sequential.
+  required steps:
+    - identify small fixed-bound inner loops
+    - prove inner iterations are independent or reducible
+    - unroll inner loops conservatively or completely if small
+    - partition local arrays used by the unrolled body
+    - check resource growth and achieved II
+    - for GEMM-like nests, confirm csynth does not retain an unpipelined outer i with trip=M
+    - after unrolling a FP reduction, verify achieved Final II; if II ≫ 1, rewrite reduction or pipeline-on-k
+  guards:
+    - do not unroll large loops blindly
+    - do not unroll across true dependencies
+    - for reductions, use a valid partial-sum or tree structure
+    - after unrolling k under PIPELINE on j, verify outer i is absorbed by flatten; if not, add LOOP_FLATTEN / ij rewrite and k-dim partition
+    - for FP reductions under outer PIPELINE, do not complete-unroll k with a single serial accumulator; use tree/partials or pipeline-on-k (hls-avoid-serial-fp-acc-under-full-k-unroll)
+  template/example:
+    // GEMM: pipeline+flatten (i,j); fully unroll k with matching partition
+    for (int i = 0; i < M; ++i) {
+      for (int j = 0; j < N; ++j) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS LOOP_FLATTEN
+        T sum = 0;
+        for (int k = 0; k < K; ++k) {
+    #pragma HLS UNROLL
+          sum += A[i][k] * B[k][j];
+        }
+        C[i][j] = sum;
+      }
+    }
+    // Non-GEMM small inner under a truly outer pipeline:
+    OUTER: for (int i = 0; i < N; ++i) {
+    #pragma HLS PIPELINE II=1
+    ...
+[skill hls-rewrite-variable-trip-fixed-bound-guard] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: triangular or variable-bound loops such as for (k=0; k<i), for (k=0; k<j), for (j=i+1; j<N), or for (i=0; i<tile_size) blocking II=1 pipeline
+  strategy: Rewrite to fixed compile-time bounds (N, TILE_SIZE from header macros) and preserve semantics with if guards on the induction variable.
+  required steps:
+    - replace runtime or outer-dependent bounds with fixed TILE_SIZE or N
+    - wrap body in if (idx < original_bound) to skip out-of-range iterations
+    - apply PIPELINE II=1 only on the fixed-bound inner loop after rewrite
+    - keep tile_size as a scalar for guard comparisons, not as the loop bound when pipelining
+  guards:
+    - do not change numerical results — guards must match original iteration set
+    - prefer TILE_SIZE macro over function parameter for synthesizable bounds
+  template/example:
+    // BEFORE: for (int k = 0; k < j; k++)
+    // AFTER:
+    for (int k = 0; k < TILE_SIZE; k++) {
+    #pragma HLS PIPELINE II=1
+        if (k < j) {
+            ...
+        }
+    }
+[skill hls-single-load-dual-local-layout] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: algorithm needs both row-major and column-oriented (transposed) local views of the same matrix for matrix-vector or multi-phase compute
+  strategy: Load the matrix from m_axi once and populate both normal and transposed local buffers from the same external read stream. Do not read the full matrix twice from m_axi unless explicitly required by correctness.
+  required steps:
+    - identify phases that need A[i][j] and A[j][i] or column-slice vs row-slice access
+    - single pipelined load loop: read A[i][j] from m_axi once per element
+    - write the value into row-major local_A[i][j] and transposed local_AT[j][i] in the same iteration
+    - run compute from locals only — no second full-matrix m_axi load
+    - store outputs once after local finalize
+  guards:
+    - on-chip BRAM budget must fit both layouts or tile the shared load
+    - transposed layout indexing must match compute access pattern
+    - const m_axi inputs: one read per element per logical load pass
+  template/example:
+    load_matrix_dual: for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+    #pragma HLS PIPELINE II=1
+            data_t v = A[i][j];           // one m_axi read
+            local_A[i][j] = v;
+            local_AT[j][i] = v;           // transpose view from same read
+        }
+    }
+    // compute uses local_A / local_AT — no second full-matrix m_axi traversal
+[skill hls-syr2k-triangle-flatten-k-unroll] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: syr2k/syrk/symm-style nest on locals: L1 over i sequential; optional L2 beta scale; L3 over k; L4 over j with PIPELINE II=1 and if (j<=i) — csynth L1 trip=N Pipelined=no, iteration latency ≈ L2 + L3_L4 (e.g. ~4934), total ≈ N*that (e.g. ~394k for N=80)
+  strategy: Do not pipeline only L4 under sequential L1/L3. Use FIXED j<N (and i<N, k<M) bounds with if (j<=i) guards. Separate beta scale (PIPELINE+LOOP_FLATTEN on (i,j)). Then one update pass: PIPELINE+LOOP_FLATTEN on (i,j), fully UNROLL k, ARRAY_PARTITION A/B on k dim so each (i,j) iteration does the full reduction in one II. Optional fuse: C = beta*C + alpha*sum in one pass. Never use for (j=0; j<=i; ++j) as the loop bound.
+  required steps:
+    - stage A,B,C into locals if not already (load/store keep PIPELINE II=1, fixed bounds)
+    - ARRAY_PARTITION local_A and local_B complete (or cyclic) on the k dimension (dim=2 for [N][M])
+    - rewrite any j<=i / k<i loop bounds to fixed N/M + if guards
+    - phase scale: for i, for j < N { PIPELINE II=1; LOOP_FLATTEN; if (j<=i) C[i][j]*=beta; }
+    - phase update: for i, for j < N { PIPELINE II=1; LOOP_FLATTEN; if (j<=i) { sum=0; for k UNROLL sum+=...; C[i][j]+=alpha*sum; } }
+    - success: top latency much below N*(M*N); L1 must not remain Pipelined=no with iter latency ≈ M*N
+    - keep BRAM/DSP/FF/LUT/URAM device util ≤ 100%
+  guards:
+    - preserve lower/upper triangular semantics (only touch j<=i or as specified)
+    - do not use variable trip counts for the triangle
+    - if complete partition on k overflows, use cyclic factor and partial unroll of k, but still flatten (i,j)
+    - resource legality ≤ 100% device
+  template/example:
+    #pragma HLS ARRAY_PARTITION variable=local_A complete dim=2
+    #pragma HLS ARRAY_PARTITION variable=local_B complete dim=2
+    // optional: partition local_C cyclic/complete on dim=2 if needed for II
+    scale: for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS LOOP_FLATTEN
+        if (j <= i) local_C[i][j] *= beta;
+      }
+    }
+    update: for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS LOOP_FLATTEN
+        if (j <= i) {
+          double sum = 0.0;
+    ...
+[skill hls-tile-1d-reuse-and-compute-restructure] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: a one-dimensional loop or flattened array traversal repeatedly accesses a bounded contiguous region from global memory, and this working set can be staged locally to enable reuse, pipelining, unrolling, or local-buffer partitioning
+  strategy: strip-mine the 1D iteration space into tiles, stage each tile into local memory, rewrite compute indexing from global indices to local tile indices, reuse tile data or exploit local tile bandwidth, and expose parallelism through pipelining, lane/inner-loop unrolling, and buffer partitioning when legal
+  required steps:
+    - identify the reused or repeatedly accessed 1D global-memory region
+    - choose a compile-time TILE size that fits BRAM/URAM/LUTRAM
+    - rewrite the outer loop to advance by TILE
+    - load each tile into a local buffer with pipelined unit-stride accesses
+    - rewrite compute from in[global_index] to tile[local_index] where legal
+    - pipeline the tile compute loop
+    - unroll independent local-index or lane loops when useful
+    - partition or bank local buffers to support the unrolled compute
+    - handle N not divisible by TILE
+    - store only valid output elements
+  guards:
+    - do not tile only because the array is large
+    - do not tile pure streaming loops with no reuse or scheduling benefit
+    - do not copy into a local buffer while leaving the computation effectively scalar and unchanged
+    - do not allocate dynamic or excessive local buffers
+    - validate that tiling improves II, latency, memory traffic, or enables local parallelism
+  template/example:
+    data_t tile[TILE];
+    data_t out_tile[TILE];
+    #pragma HLS ARRAY_PARTITION variable=tile cyclic factor=UNROLL_FACTOR dim=1
+    #pragma HLS ARRAY_PARTITION variable=out_tile cyclic factor=UNROLL_FACTOR dim=1
+    
+    for (int tile_base = 0; tile_base < N; tile_base += TILE) {
+        load_tile: for (int i = 0; i < TILE; ++i) {
+    #pragma HLS PIPELINE II=1
+            int idx = tile_base + i;
+            if (idx < N) tile[i] = in[idx];
+        }
+    
+        compute_tile: for (int i = 0; i < TILE; i += UNROLL_FACTOR) {
+    #pragma HLS PIPELINE II=1
+            lane_loop: for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {
+    #pragma HLS UNROLL
+    ...
+[skill hls-tile-2d-locality-and-halo] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: the computation operates on a 2D grid, matrix, image, or dynamic-programming table where each output depends on nearby elements that are reused across neighboring iterations
+  strategy: tile the 2D iteration space, load the tile plus halo/border region into local memory, rewrite neighbor accesses from global coordinates to local tile coordinates, and pipeline/unroll computation over the valid tile interior
+  required steps:
+    - identify TILE_R and TILE_C
+    - identify halo radius in rows and columns
+    - allocate a local tile buffer including halo
+    - load tile interior and halo safely
+    - rewrite global neighbor accesses to local tile-buffer accesses
+    - compute only valid output points for the tile
+    - pipeline row/column compute loops
+    - unroll an independent inner dimension if local buffer banking supports it
+    - partition or bank local tile buffers when needed
+    - preserve original boundary behavior
+  guards:
+    - do not ignore top, bottom, left, or right boundaries
+    - do not compute halo-only elements as valid outputs unless the original algorithm does so
+    - ensure tile plus halo fits local memory
+    - avoid changing numerical behavior at grid borders
+    - handle partial tiles at matrix/image edges
+  template/example:
+    data_t local_tile[TILE_R + 2 * HALO_R][TILE_C + 2 * HALO_C];
+    #pragma HLS ARRAY_PARTITION variable=local_tile cyclic factor=UNROLL_C dim=2
+    
+    for (int r0 = 0; r0 < ROWS; r0 += TILE_R) {
+      for (int c0 = 0; c0 < COLS; c0 += TILE_C) {
+        // 1. Load tile interior plus halo into local_tile.
+        // 2. Rewrite A[r + dr][c + dc] as local_tile[local_r + dr + HALO_R][local_c + dc + HALO_C].
+        // 3. Pipeline and optionally unroll compute over valid tile interior.
+        // 4. Store only valid outputs.
+      }
+    }
+[skill hls-tile-compute-inner-parallelism] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: a tile is already staged in local memory, but the compute loop still processes tile elements serially despite independent operations or available local memory bandwidth
+  strategy: pipeline the tile compute loop and partially unroll an independent inner dimension; partition or bank local tile buffers so all unrolled operations can be fed from local memory without port conflicts
+  required steps:
+    - identify independent inner-loop dimension inside the tile
+    - apply PIPELINE II=1 to the tile compute loop
+    - apply conservative UNROLL to the independent inner loop
+    - partition or bank local tile buffers to match the unroll factor
+    - check resource growth and achieved II
+  guards:
+    - do not unroll across true loop-carried dependencies
+    - do not unroll if local buffer ports cannot support the requested parallelism
+    - avoid complete partitioning of large tile buffers
+    - preserve numerical behavior for reductions or accumulations
+  template/example:
+    #pragma HLS ARRAY_PARTITION variable=tile cyclic factor=UNROLL_FACTOR dim=1
+    
+    compute_tile: for (int i = 0; i < TILE; i += UNROLL_FACTOR) {
+    #pragma HLS PIPELINE II=1
+        inner: for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {
+    #pragma HLS UNROLL
+            int local_idx = i + lane;
+            if (local_idx < TILE) out_tile[local_idx] = f(tile[local_idx]);
+        }
+    }
+[skill hls-tile-partition-local-buffers] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: tiled compute introduces parallel local-buffer accesses, but the local tile buffer has insufficient memory ports to support pipelining or unrolling
+  strategy: partition or bank local tile buffers along the dimension accessed in parallel, matching the partition factor to the unroll factor or access pattern
+  required steps:
+    - identify which local buffer dimension is accessed in parallel
+    - match cyclic or complete partitioning to the unroll factor
+    - prefer complete partition for small lane buffers
+    - prefer cyclic partition for larger regularly indexed tile buffers
+    - inspect II and local memory resource usage after partitioning
+  guards:
+    - avoid complete partitioning of large 2D tiles
+    - partition the dimension that corresponds to parallel accesses
+    - do not partition if it does not address the actual port conflict
+  template/example:
+    data_t tile[TILE];
+    #pragma HLS ARRAY_PARTITION variable=tile cyclic factor=UNROLL_FACTOR dim=1
+    
+    for (int i = 0; i < TILE; i += UNROLL_FACTOR) {
+    #pragma HLS PIPELINE II=1
+        for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {
+    #pragma HLS UNROLL
+            ... tile[i + lane] ...
+        }
+    }
+[skill hls-unroll-column-partition-matrix-vector] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: matrix-vector multiply or dot-product inner loop unrolled over column index j+k accessing matrix row i and vector y[j+k]
+  strategy: When unrolling over column index j+k, explicitly partition the matrix along the column dimension and partition the vector along its only dimension. Do not rely on HLS to infer missing partitions.
+  required steps:
+    - set UF unroll factor on the j+k column loop
+    - add #pragma HLS ARRAY_PARTITION on matrix A cyclic or complete on dim=2 (columns) with factor=UF
+    - add #pragma HLS ARRAY_PARTITION on vector y cyclic factor=UF dim=1
+    - verify csynth reports no local memory port conflicts on the unrolled accesses
+    - match partition factors to the actual UNROLL factor on j+k
+  guards:
+    - complete partition only when column/vector slice is small
+    - row-major A[i][j+k] needs column-dim partition for simultaneous j+k reads
+  template/example:
+    const int UF = 4;
+    data_t A_local[N][N];
+    data_t y_local[N];
+    #pragma HLS ARRAY_PARTITION variable=A_local cyclic factor=UF dim=2
+    #pragma HLS ARRAY_PARTITION variable=y_local cyclic factor=UF dim=1
+    
+    for (int k = 0; k < UF; k++) {
+    #pragma HLS UNROLL
+        partial[k] += A_local[i][j + k] * y_local[j + k];
+    }
+[skill hls-unroll-independent-loop] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: a hot loop has independent iterations and performance is limited by arithmetic throughput or per-iteration compute latency rather than global-memory bandwidth
+  strategy: Completely unroll small static independent loops; for larger loops use a bandwidth/resource-matched factor. Never default to UNROLL factor=2 on Mini/ChatHLS-sized kernels.
+  required steps:
+    - prove loop iterations are independent
+    - if trip count is a small compile-time constant (<=64), choose complete `#pragma HLS UNROLL`
+    - if trip count is large or resources are tight, choose the largest factor in {8,16,32,...} that fits budget — not factor=2 by default
+    - pipeline the surrounding loop when appropriate
+    - partition or bank arrays accessed by the unrolled lanes to match the unroll exactly
+    - check resource growth and achieved latency
+    - validate correctness
+  guards:
+    - do not unroll across true loop-carried dependencies
+    - do not unroll memory-bound AXI copy loops before fixing burst/widen/staging
+    - do not use complete unroll on large variable-trip loops
+    - watch DSP/LUT/FF growth and keep device util <=100%
+    - forbid mismatched partition vs unroll factors
+  template/example:
+    // Small static N: complete unroll
+    for (int j = 0; j < N; ++j) {
+    #pragma HLS UNROLL
+      ...
+    }
+    // Large N under budget pressure: partial with matching partition
+    for (int j = 0; j < N; j += UF) {
+    #pragma HLS PIPELINE II=1
+      for (int lane = 0; lane < UF; ++lane) {
+    #pragma HLS UNROLL
+        int idx = j + lane; if (idx < N) ...;
+      }
+    }
+[skill hls-unroll-with-array-partition] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: an unrolled loop requires multiple accesses to the same local array or buffer per cycle, but the memory layout has insufficient ports
+  strategy: partition or bank local arrays along the dimension accessed by unrolled lanes, matching the partition factor to the unroll factor or access count
+  required steps:
+    - identify arrays accessed by unrolled lanes
+    - identify access dimension and stride
+    - choose complete partition for small lane buffers
+    - choose cyclic partition for regular lane-indexed access
+    - choose block partition when each unrolled worker uses a contiguous block
+    - re-run synthesis and check II/resource usage
+  guards:
+    - do not complete-partition large arrays blindly
+    - do not partition the wrong dimension
+    - do not assume partitioning fixes AXI bandwidth
+  template/example:
+    data_t buf[N];
+    #pragma HLS ARRAY_PARTITION variable=buf cyclic factor=UNROLL_FACTOR dim=1
+    
+    LOOP: for (int i = 0; i < N; i += UNROLL_FACTOR) {
+    #pragma HLS PIPELINE II=1
+        for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {
+    #pragma HLS UNROLL
+            ... buf[i + lane] ...
+        }
+    }
+[skill ii-false-dependence-index-rewrite-then-pragma] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: the HLS scheduler reports a loop-carried memory dependence, but manual index analysis shows different iterations access non-overlapping elements or independent lanes
+  strategy: first rewrite indexing so non-overlap is explicit to the scheduler; only if the report remains conservative, apply DEPENDENCE inter false to the specific array and variable after proving safety
+  required steps:
+    - identify the reported dependent variable and loop
+    - derive the exact read and write index expressions for two arbitrary iterations
+    - prove that the accessed index ranges do not overlap across iterations
+    - rewrite loop structure to base-plus-lane, split arrays, or use temporaries so independence is syntactically visible
+    - apply DEPENDENCE variable=<name> inter false only if the tool remains conservative
+    - validate csim/cosim and check the achieved II report
+  guards:
+    - never apply inter false to a true read-after-write, write-after-read, or write-after-write dependence
+    - do not use dependence pragmas as a generic II fix
+    - for reductions or same-address updates, use partial accumulators or privatization instead
+    - keep the pragma scoped to the exact variable and loop where non-overlap is proven
+  template/example:
+    loop: for (int base = 0; base < N; base += LANES) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS DEPENDENCE variable=buf inter false
+        lanes: for (int lane = 0; lane < LANES; ++lane) {
+    #pragma HLS UNROLL
+            int idx = base + lane;
+            if (idx < N) {
+                ... buf[idx] ...
+            }
+        }
+    }
+    // Use the pragma only after proving no cross-iteration aliasing for buf.
+[skill ii-gmem-stage-request-response-decouple] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: a pipelined compute loop directly issues m_axi/gmem reads and immediately consumes the response, or directly writes results, so request/response latency or AXI scheduling prevents low II
+  strategy: decouple global-memory request/response from compute by splitting load, compute, and store stages; use burst-friendly load/store loops, local buffers or hls::stream FIFOs, DATAFLOW, and optionally ping-pong buffering to keep compute working on local data
+  required steps:
+    - identify m_axi reads/writes inside the II-limited compute loop
+    - split global load, compute, and global store into separate loops or functions
+    - make load/store addresses contiguous and burst-friendly where possible
+    - stage bounded chunks into local buffers or streams
+    - apply DATAFLOW at the parent scope when stages can run concurrently
+    - use ping-pong buffers for tiled/chunked stages when the same buffer would serialize load and compute
+    - set appropriate burst length and outstanding transaction pragmas where legal
+    - pipeline compute over local memory and validate burst/report behavior
+  guards:
+    - do not stage unbounded arrays into local memory
+    - DATAFLOW requires legal producer/consumer structure and bounded stream behavior
+    - do not change host ABI or pointer types unless explicitly allowed
+    - if each element is used once and access is already streaming, staging should still enable burst/dataflow or it may add overhead
+  template/example:
+    #pragma HLS DATAFLOW
+    load_stage(in, local_or_stream, n);
+    compute_stage(local_or_stream, out_local_or_stream, n);
+    store_stage(out_local_or_stream, out, n);
+    
+    // load/store stages should be pipelined, burst-friendly, and bounded by tile/chunk size.
+[skill ii-memory-port-bank-to-two-accesses-per-bram] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: a BRAM-backed local buffer is accessed more than two times per cycle by a pipelined or unrolled loop, but the accesses have a regular pattern that can be distributed across banks
+  strategy: rewrite indexing and choose cyclic or block banking so each BRAM bank sees no more than its supported read/write ports per cycle; match banking factor to unroll factor, stencil width, or per-iteration access count instead of immediately reducing unroll
+  required steps:
+    - count reads and writes to the buffer per target loop iteration and per unrolled lane
+    - identify the dimension and stride of concurrent accesses
+    - select cyclic partition for interleaved/lane-indexed accesses
+    - select block partition when each lane or PE owns a contiguous region
+    - rewrite loop indexing if needed so concurrent lanes map to different banks
+    - match partition factor to unroll factor or access demand
+    - verify each bank sees no more than feasible port demand and check achieved II
+  guards:
+    - do not bank the wrong dimension
+    - do not assume partitioning fixes arbitrary/conflicting indirect accesses
+    - if several lanes can still hit the same bank, use privatization, replication, or conflict-free scheduling
+    - avoid complete partitioning large arrays when cyclic/block banking is sufficient
+  template/example:
+    data_t buf[TILE];
+    #pragma HLS ARRAY_PARTITION variable=buf cyclic factor=UNROLL_FACTOR dim=1
+    
+    for (int i = 0; i < TILE; i += UNROLL_FACTOR) {
+    #pragma HLS PIPELINE II=1
+        lane_loop: for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {
+    #pragma HLS UNROLL
+            int idx = i + lane;
+            ... buf[idx] ...
+        }
+    }
+[skill ii-memory-port-complete-partition-small-ff] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: a small local array or a small dimension of a local buffer must provide many parallel reads/writes in a pipelined or unrolled loop, and BRAM two-port limits are the direct II bottleneck
+  strategy: fully partition the small array or small accessed dimension into registers/FFs so each element has independent access; use this aggressively only when the dimension is small enough to avoid FF/LUT explosion
+  required steps:
+    - identify the local array reported in the port-conflict or memory-port bottleneck
+    - confirm the array or accessed dimension is small and compile-time bounded
+    - apply ARRAY_PARTITION complete to the accessed dimension
+    - if only lanes are parallel, partition the lane dimension rather than the whole buffer
+    - re-run synthesis and inspect achieved II plus FF/LUT growth
+  guards:
+    - do not complete-partition an entire large buffer blindly — partition the parallel dimension
+    - for static GEMM with fully unrolled k, complete or cyclic on dim k is appropriate even if k is tens (e.g. 50-80), subject to FF/BRAM budget
+    - complete partition turns storage into registers/FFs and can explode LUT/FF/routing cost if over-applied
+    - partition the dimension that is accessed in parallel, not an arbitrary dimension
+    - this fixes local memory ports, not off-chip AXI bandwidth
+  template/example:
+    data_t small_buf[UNROLL_FACTOR];
+    #pragma HLS ARRAY_PARTITION variable=small_buf complete dim=1
+    
+    loop: for (int i = 0; i < N; i += UNROLL_FACTOR) {
+    #pragma HLS PIPELINE II=1
+        lanes: for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {
+    #pragma HLS UNROLL
+            ... small_buf[lane] ...
+        }
+    }
+[skill ii-raw-dependency-pingpong-old-new-buffers] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: an iterative update reads old values and writes new values through the same array, causing loop-carried RAW/WAR hazards or forcing sequential update semantics when Jacobi-style old/new separation is valid
+  strategy: split storage into old and new buffers, compute from a read-only old buffer into a write-only new buffer, and swap or copy buffers between time steps; prefer full-grid or line-buffer old/new staging over spatial tiling with per-tile global load/store inside each iteration; combine with partitioning when multiple neighbor reads are needed per cycle
+  required steps:
+    - determine whether the algorithm can use old/new state separation without changing semantics
+    - allocate separate input/current and output/next local buffers
+    - load the current state into the read buffer
+    - rewrite the compute loop to read only from old/current and write only to new/next
+    - swap buffer roles or copy back after each iteration/time step
+    - partition the read buffer if multiple reads per cycle block II
+    - pipeline the compute loop and validate boundary handling
+  guards:
+    - do not use old/new buffering for algorithms that intentionally require immediate in-place Gauss-Seidel-style updates
+    - ensure swap/copy-back occurs at the correct time-step granularity
+    - do not double buffer arrays so large that BRAM/URAM use becomes infeasible
+    - preserve boundary cells and unchanged elements
+  template/example:
+    data_t old_buf[TILE];
+    data_t new_buf[TILE];
+    
+    compute: for (int i = 0; i < TILE; ++i) {
+    #pragma HLS PIPELINE II=1
+        new_buf[i] = update_from_old(old_buf, i);
+    }
+    
+    // After the step: swap old_buf/new_buf or copy new_buf back as required.
+[skill ii-reduction-lane-partial-tree] confidence=high pass=0/0
+  kind: advanced_transformation
+  pattern: a hot pipelined loop has a scalar reduction or accumulation, and the loop-carried accumulator latency prevents the requested II or blocks useful unrolling/lane parallelism
+  strategy: replace the single accumulator with lane-local partial accumulators, update them in parallel, and combine them with a final tree or cleanup reduction; preserve serial order only when exact order is required
+  required steps:
+    - confirm the operation is a valid reduction such as sum, min, max, bitwise operation, or another associative/commutative form
+    - choose a lane or unroll factor that matches available memory bandwidth and resources
+    - create partial accumulators indexed by lane
+    - completely partition the partial accumulator array
+    - rewrite the main loop to update partial[lane] instead of one shared accumulator
+    - pipeline the main loop and unroll the lane loop
+    - perform final reduction across partial accumulators
+    - check numerical tolerance for floating-point or non-associative expressions
+  guards:
+    - do not apply when the operation is order-sensitive or non-associative under required correctness checks
+    - floating-point results may differ from serial accumulation due to reassociation
+    - ensure input bandwidth can feed the chosen lane factor
+    - do not suppress the true accumulator dependence with a false-dependence pragma
+  template/example:
+    data_t partial[UNROLL_FACTOR];
+    #pragma HLS ARRAY_PARTITION variable=partial complete dim=1
+    
+    init: for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {
+    #pragma HLS UNROLL
+        partial[lane] = 0;
+    }
+    
+    main: for (int i = 0; i < N; i += UNROLL_FACTOR) {
+    #pragma HLS PIPELINE II=1
+        lanes: for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {
+    #pragma HLS UNROLL
+            int idx = i + lane;
+            if (idx < N) partial[lane] += f(in[idx]);
+        }
+    }
+    ...
+[skill ii-rmw-privatize-partial-merge] confidence=high pass=0/0
+  kind: advanced_transformation
+  pattern: a pipelined loop performs read-modify-write updates to an array element, such as hist[key] += v, acc[idx] = acc[idx] + v, or scatter accumulation, and the scheduler cannot prove that consecutive iterations update different addresses
+  strategy: privatize the accumulator array by lane, processing element, bank, or tile; perform independent read-modify-write updates locally; then merge the partial arrays in a separate reduction/merge phase so the hot update loop can pipeline without same-array inter-iteration hazards
+  required steps:
+    - identify the array updated through read-modify-write in the II-limited loop
+    - determine whether collisions can occur across iterations and whether accumulation is associative enough for partial merging
+    - create lane-local, PE-local, bank-local, or tile-local copies of the accumulator
+    - partition the privatized dimension completely so each lane has independent storage ports
+    - rewrite the hot loop to update only its private accumulator copy
+    - add a separate merge loop or tree reduction over private copies
+    - pipeline the hot update loop and the merge loop where legal
+    - validate numerical equivalence, especially for floating-point accumulation order
+  guards:
+    - do not use this when the exact sequential update order is semantically required
+    - floating-point reassociation can change bit-exact results
+    - ensure the privatized arrays fit local memory or reduce the number of lanes/PEs
+    - do not add dependence inter false to a real same-address update hazard
+    - merge phase must cover all bins/elements and preserve boundary conditions
+  template/example:
+    data_t acc_priv[LANES][BINS];
+    #pragma HLS ARRAY_PARTITION variable=acc_priv complete dim=1
+    
+    update_loop: for (int i = 0; i < N; i += LANES) {
+    #pragma HLS PIPELINE II=1
+        lane_loop: for (int lane = 0; lane < LANES; ++lane) {
+    #pragma HLS UNROLL
+            int idx = i + lane;
+            if (idx < N) acc_priv[lane][key[idx]] += val[idx];
+        }
+    }
+    
+    merge_bins: for (int b = 0; b < BINS; ++b) {
+    #pragma HLS PIPELINE II=1
+        data_t sum = 0;
+        for (int lane = 0; lane < LANES; ++lane) {
+    ...
+[skill ii-rmw-scalarize-repeated-same-element] confidence=high pass=0/0
+  kind: transformation_operator
+  pattern: a loop repeatedly reads and writes the same scalar-like array element or a small fixed set of array elements, creating an avoidable memory read-after-write dependence through an array port
+  strategy: scalarize the hot read-modify-write state into registers, update the scalar inside the pipelined loop, and write the array element back once after the loop or after the tile; for a small fixed set, completely partition the state and keep each element in a separate register
+  required steps:
+    - identify array elements whose index is invariant or from a very small fixed set inside the loop
+    - load the initial value into scalar or fully partitioned local state before the hot loop
+    - rewrite the loop body to update the scalar/register state instead of reading and writing the array each iteration
+    - write the final scalar/register state back after the loop or tile
+    - pipeline the hot loop and inspect whether the memory dependence disappears
+  guards:
+    - only scalarize when no other code observes the intermediate array updates during the loop
+    - do not scalarize variable-index updates that may target many different elements; use privatization or banking instead
+    - preserve initialization and final write-back behavior
+    - for floating point, scalarization preserves serial order but may still be recurrence-limited by operator latency
+  template/example:
+    data_t acc_reg = acc[0];
+    loop: for (int i = 0; i < N; ++i) {
+    #pragma HLS PIPELINE II=1
+        acc_reg = update(acc_reg, in[i]);
+    }
+    acc[0] = acc_reg;
+[skill ii-stencil-linebuffer-window-shift] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: a 1D/2D stencil, convolution, image, grid, or neighbor-access loop repeatedly reads adjacent elements from global or local memory, causing port conflicts, redundant loads, or loop-carried neighbor dependencies
+  strategy: replace repeated neighbor reads with line buffers and a sliding window/shift register; load one new element per cycle, shift local window state, compute from the partitioned window, and write valid outputs after boundary guards
+  required steps:
+    - identify stencil radius and neighbor access pattern
+    - create line buffers for previous rows or shift registers for previous columns/elements
+    - create a small fully partitioned compute window
+    - stream new input values through the line buffer/window update each cycle
+    - rewrite neighbor references to window entries
+    - pipeline the main traversal loop with II=1 when legal
+    - handle warm-up, borders, halos, and partial tiles explicitly
+  guards:
+    - do not ignore boundary conditions or halo behavior
+    - window update order must preserve old neighbor values before shifting
+    - ensure line-buffer depth matches image/grid width or tile width
+    - if the stencil has true time-step dependencies, use old/new buffers or wavefront scheduling as needed
+  template/example:
+    data_t window[KH][KW];
+    #pragma HLS ARRAY_PARTITION variable=window complete dim=0
+    
+    for (int r = 0; r < ROWS; ++r) {
+      for (int c = 0; c < COLS; ++c) {
+    #pragma HLS PIPELINE II=1
+        // shift window, insert new pixel/value from stream or line buffer
+        // compute output from fully partitioned window when r,c are in valid region
+      }
+    }
+[skill local-axi-staging-for-ii] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: a pipeline-eligible loop directly accesses AXI/global memory, causing high II, unstable scheduling, or repeated memory latency, and the data can be staged into a bounded local buffer
+  strategy: separate global-memory load/store from compute, stage data into local buffers with pipelined burst-friendly loops, and pipeline the compute loop over local memory; combine with tiling, coalescing, or partitioning when the access pattern supports it
+  required steps:
+    - identify global-memory accesses inside the target compute loop
+    - separate load, compute, and store phases when legal
+    - stage a bounded region into a local buffer
+    - pipeline the local compute loop
+    - partition local buffers if multiple local accesses per cycle are needed
+    - store results back with a pipelined loop
+    - handle tails and boundaries safely
+  guards:
+    - do not stage unbounded data into local memory
+    - do not add local buffering if each element is used once and no scheduling benefit appears
+    - preserve output order and boundary behavior
+    - combine with coalescing for contiguous global loads/stores when appropriate
+  template/example:
+    float tile[TILE];
+    load_tile: for (int i = 0; i < TILE; ++i) tile[i] = in[base + i];
+    compute_tile: for (int i = 0; i < TILE; ++i) {
+    #pragma HLS PIPELINE II=1
+        ... tile[i] ...
+    }
+[skill partition-cyclic-on-port-conflict] confidence=high pass=0/0
+  kind: supporting_transformation
+  pattern: a pipelined or unrolled loop requires multiple local-buffer accesses per cycle, but the array is not banked or partitioned enough to provide the required ports
+  strategy: partition or bank the local array along the dimension accessed in parallel, choosing cyclic, block, or complete partitioning based on the access pattern and matching the factor to the unroll factor or per-iteration access count
+  required steps:
+    - identify the array causing the memory port conflict
+    - identify the dimension and access count per loop iteration
+    - choose complete partition for small fully accessed arrays
+    - choose cyclic partition for regular strided or lane-indexed accesses
+    - match partition factor to unroll factor or access count
+    - re-run synthesis and check achieved II
+  guards:
+    - do not complete-partition large arrays blindly
+    - partition the dimension actually accessed in parallel
+    - avoid partitioning if the bottleneck is AXI bandwidth rather than local memory ports
+  template/example:
+    float buf[N];
+    #pragma HLS ARRAY_PARTITION variable=buf cyclic factor=4 dim=1
+    
+    LOOP: for (int i = 0; i < N; ++i) {
+    #pragma HLS PIPELINE II=1
+        ... buf[i] ... buf[i + 1] ...
+    }
+[skill prompt-coalescing] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: narrow per-element AXI burst or scalar global-memory access on a contiguous read/write loop
+  strategy: preserve the public kernel ABI by default; request max_widen_bitwidth=512 on m_axi ports; improve burst lengths, outstanding transactions, local staging, and tail-safe contiguous access; then restructure the compute loop so the wider memory beat feeds multiple parallel lane operations when legal
+  required steps:
+    - identify contiguous global-memory access
+    - apply burst-friendly m_axi configuration when legal
+    - stage or reshape memory access if needed
+    - rewrite compute to exploit widened/local data when legal
+    - handle tails and validate reports
+  guards:
+    - do not assume coalescing succeeded without checking reports
+    - do not expose benchmark or hidden-test provenance
+    - do not over-unroll if the new bottleneck becomes compute resources or local memory ports
+  template/example:
+    #pragma HLS INTERFACE m_axi port=in  offset=slave bundle=gmem max_widen_bitwidth=512 max_read_burst_length=64 num_read_outstanding=16
+    #pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem max_widen_bitwidth=512 max_write_burst_length=64 num_write_outstanding=16
+    // Do not stop at pragmas: rewrite the compute loop around LANES = 512 / element_bitwidth if safe.
+[skill prompt-pipeline] confidence=high pass=0/0
+  kind: compound_transformation
+  pattern: a frequently executed loop is scheduled sequentially or has high interval, and the loop body is pipeline-eligible after resolving true dependencies, memory-port limits, global-memory access issues, or serialized inner-loop body latency
+  strategy: do not only insert a PIPELINE pragma; choose the right hot loop, request a realistic II, and restructure dependencies, memory accesses, local buffers, and small inner loops so the achieved II actually improves
+  required steps:
+    - identify the hottest loop from trip count and latency contribution
+    - select the innermost feasible loop that preserves correctness and exposes useful work
+    - apply PIPELINE with a realistic target II
+    - inspect achieved II rather than only requested II
+    - if II is blocked by local memory ports, partition or bank local arrays
+    - if II is blocked by AXI/global memory, stage data into local buffers
+    - if II is blocked by small serialized inner loops, unroll them only when legal
+    - if II is blocked by false dependencies, add dependence pragmas only when proven safe
+    - if II is blocked by true recurrences, restructure legally or accept the best legal II
+    - validate csim/cosim and inspect scheduling reports
+  guards:
+    - do not add PIPELINE blindly without checking achieved II
+    - do not use dependence inter false on a real loop-carried dependence
+    - do not pipeline an outer loop if it causes unintended full unrolling or resource explosion; for static GEMM (i,j) nests prefer LOOP_FLATTEN with k unrolled instead of leaving outer i sequential
+    - do not ignore memory-port conflicts after pipelining
+    - do not claim success if the report still shows the same II bottleneck
+  template/example:
+    HOT_LOOP: for (int i = 0; i < N; ++i) {
+    #pragma HLS PIPELINE II=1
+        ...
+    }
+    // Check achieved II in the synthesis report; if II is blocked, resolve the specific bottleneck.
+[skill dependence-inter-false-on-accum] confidence=medium pass=0/0
+  kind: supporting_transformation
+  pattern: a pipelined loop fails to achieve low II because the HLS tool reports a conservative loop-carried dependence that can be proven false from indexing, non-overlapping accesses, or independent lanes
+  strategy: use a dependence pragma only after proving the dependence is false; prefer code restructuring that makes independence explicit, and never suppress a true recurrence or reduction dependence
+  required steps:
+    - identify the reported dependence variable
+    - check whether different loop iterations can access the same memory location
+    - prove non-overlap from index expressions, bounds, or lane structure
+    - prefer rewriting code to expose independence when possible
+    - use dependence inter false only when safe
+    - validate csim/cosim after applying
+  guards:
+    - do not suppress a true dependence
+    - do not use dependence pragmas as a generic II fix
+    - for reductions, use a proper reduction transformation rather than false-dependence suppression
+  template/example:
+    LOOP: for (int i = 0; i < N; ++i) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS DEPENDENCE variable=buf inter false
+        ...
+    }
+    // Use only when non-overlap across iterations is proven.
+[skill hls-coalescing-lane-parallel-reduction] confidence=medium pass=0/0
+  kind: transformation_operator
+  pattern: the widened memory beat provides multiple scalar elements per cycle, but the computation is a reduction with a serial accumulator that prevents lane-level parallelism
+  strategy: replace the serial accumulator with lane-local partial sums or a reduction tree so multiple elements from each widened memory beat can be consumed in parallel
+  required steps:
+    - compute LANES = 512 / element_bitwidth
+    - create lane-local partial accumulators
+    - unroll lane updates
+    - combine partial accumulators through a tree or final reduction loop
+    - preserve numerical tolerance expectations for floating-point reductions
+  guards:
+    - floating-point associativity changes can alter bit-exact results
+    - only use if the test tolerance or algorithm permits reassociation
+    - for bit-exact reductions, keep serial order or use a guarded mode
+  template/example:
+    const int LANES = 512 / (8 * sizeof(data_t));
+    data_t partial[LANES];
+    #pragma HLS ARRAY_PARTITION variable=partial complete dim=1
+    
+    init: for (int lane = 0; lane < LANES; ++lane) {
+    #pragma HLS UNROLL
+        partial[lane] = 0;
+    }
+    
+    main_loop: for (int base = 0; base < N; base += LANES) {
+    #pragma HLS PIPELINE II=1
+        for (int lane = 0; lane < LANES; ++lane) {
+    #pragma HLS UNROLL
+            int idx = base + lane;
+            if (idx < N) partial[lane] += f(in[idx]);
+        }
+    ...
+[skill hls-multibank-balance-memory-traffic] confidence=medium pass=0/0
+  kind: diagnostic_or_transform
+  pattern: one memory bundle or bank carries most of the traffic while other banks are unused or underused
+  strategy: redistribute independent arrays, read-only tables, or output streams across available memory banks so traffic is balanced and concurrent accesses avoid contention
+  required steps:
+    - estimate memory traffic by port
+    - identify independent streams that can move banks
+    - separate high-read and high-write streams when useful
+    - update m_axi bundle names and host/linker mapping
+    - validate performance and correctness
+  guards:
+    - do not move ports without updating host/linker bank assignment if needed
+    - do not split dependent streams in a way that complicates correctness
+    - ensure the chosen platform actually has multiple memory banks
+  template/example:
+    // Example policy:
+    // high-read input  -> gmem0
+    // second input     -> gmem1
+    // output stream    -> gmem2
+    // small scalars    -> control or shared bundle as appropriate
+[skill hls-pipeline-handle-true-recurrence] confidence=medium pass=0/0
+  kind: diagnostic_or_transform
+  pattern: a loop has a real loop-carried dependence, such as an accumulator, recurrence, dynamic-programming dependency, or feedback value from the previous iteration
+  strategy: do not force II=1 by suppressing the dependence; either accept the legal II, restructure the algorithm, use partial accumulators or tree reduction when mathematically valid, or expose independent work elsewhere
+  required steps:
+    - identify whether the dependence is true or false
+    - if it is a reduction, consider partial sums or tree reduction when reassociation is legal
+    - if it is a dynamic-programming recurrence, look for rolling-buffer or wavefront structure if legal
+    - if it is inherently serial, accept the best legal II
+    - preserve numerical and dependency semantics
+  guards:
+    - do not add dependence inter false to true recurrences
+    - floating-point reductions may change bit-exact results if reassociated
+    - do not change algorithmic dependency order unless correctness allows it
+  template/example:
+    for (int i = 0; i < N; ++i) {
+    #pragma HLS PIPELINE
+        acc = update(acc, in[i]);
+    }
+[skill hls-pipeline-realistic-ii-selection] confidence=medium pass=0/0
+  kind: diagnostic_or_transform
+  pattern: a loop is pipeline-eligible, but II=1 may be blocked by memory ports, arithmetic latency, recurrence, or resource constraints
+  strategy: request II=1 when legal, but accept or specify a higher II when true resource or dependence constraints make II=1 unrealistic; focus on achieved II improvement and resource/latency tradeoff
+  required steps:
+    - identify the limiting resource or dependence
+    - resolve false dependencies and port conflicts when possible
+    - if II=1 is still illegal or too costly, use the best legal II
+    - compare latency/resource tradeoff
+    - do not call the transformation failed only because II is greater than 1
+  guards:
+    - do not force II=1 with unsafe dependence suppression
+    - do not ignore resource explosion caused by aggressive II targets
+    - always distinguish requested II from achieved II
+  template/example:
+    LOOP: for (int i = 0; i < N; ++i) {
+    #pragma HLS PIPELINE II=2
+        ...
+    }
+[skill hls-pipeline-recurrence-with-shift-register] confidence=medium pass=0/0
+  kind: advanced_transformation
+  pattern: a loop has structured recurrence or neighbor dependency, but the dependency can be represented with local rolling buffers, shift registers, previous/current row buffers, or rotating local state
+  strategy: preserve the true dependency while restructuring storage into rolling buffers or shift-register-like local arrays so the scheduler can pipeline the loop
+  required steps:
+    - identify the recurrence direction and required previous values
+    - create former/current, rolling, or shift-register local buffers
+    - partition small recurrence buffers when multiple reads are needed
+    - update buffers in a shift or rotate pattern
+    - pipeline the recurrence loop only after preserving dependency order
+    - validate output carefully
+  guards:
+    - do not suppress true dependencies with false-dependence pragmas
+    - do not change dynamic-programming or recurrence semantics
+    - this is correctness-sensitive and should be validated with csim/cosim
+  template/example:
+    state_t prev[WINDOW];
+    state_t curr[WINDOW];
+    #pragma HLS ARRAY_PARTITION variable=prev complete dim=1
+[skill hls-pipeline-resolve-false-dependence] confidence=medium pass=0/0
+  kind: supporting_transformation
+  pattern: the HLS report indicates a loop-carried dependence that appears conservative or false based on array indexing, independent lanes, or non-overlapping accesses
+  strategy: add a dependence pragma only after proving the dependence is false, or restructure the code so independence is explicit to the scheduler
+  required steps:
+    - identify the reported dependence variable
+    - check whether different loop iterations can access the same memory location
+    - prove non-overlap from index expressions or loop bounds
+    - prefer code restructuring when possible
+    - use dependence inter false only when safe
+    - validate csim/cosim after applying
+  guards:
+    - do not suppress a true dependence
+    - do not use dependence pragmas as a generic II fix
+    - for reductions, use a proper reduction transformation instead of false-dependence suppression
+  template/example:
+    #pragma HLS DEPENDENCE variable=buf inter false
+[skill hls-unroll-independent-tasks-processing-elements] confidence=medium pass=0/0
+  kind: advanced_transformation
+  pattern: the workload contains independent jobs, records, particles, points, alignments, or work items that can be processed by replicated processing elements
+  strategy: batch independent work items, allocate per-lane local buffers, unroll the processing-element loop, and partition buffers along the PE dimension
+  required steps:
+    - identify independent work items
+    - choose number of processing elements
+    - reshape input/output buffers by PE or lane
+    - partition PE dimension completely
+    - unroll the PE loop
+    - preserve per-item output mapping
+  guards:
+    - do not use if work items have cross-item dependencies
+    - ensure memory bandwidth can feed replicated PEs
+    - avoid excessive local buffer replication
+  template/example:
+    data_t in_buf[PE][ITEMS_PER_PE];
+    #pragma HLS ARRAY_PARTITION variable=in_buf complete dim=1
+    
+    PE_LOOP: for (int pe = 0; pe < PE; ++pe) {
+    #pragma HLS UNROLL
+        process_items(in_buf[pe], out_buf[pe]);
+    }
+[skill hls-unroll-reduction-partial-sums] confidence=medium pass=0/0
+  kind: advanced_transformation
+  pattern: a hot loop is a reduction or accumulation where a serial accumulator prevents direct unrolling, but reassociation or partial accumulation is legal
+  strategy: replace the single serial accumulator with lane-local partial accumulators, unroll updates across lanes, and combine partial results using a final reduction or tree reduction
+  required steps:
+    - confirm the computation is a reduction
+    - confirm reassociation is legal for the required numerical tolerance
+    - create partial accumulators indexed by lane
+    - unroll lane updates
+    - partition partial accumulator storage
+    - combine partial sums at the end
+  guards:
+    - floating-point reassociation can break bit-exact tests
+    - do not use when reduction order must be preserved exactly
+    - do not suppress true dependence with a false-dependence pragma
+  template/example:
+    data_t partial[UNROLL_FACTOR];
+    #pragma HLS ARRAY_PARTITION variable=partial complete dim=1
+    
+    for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {
+    #pragma HLS UNROLL
+        partial[lane] = 0;
+    }
+    
+    LOOP: for (int i = 0; i < N; i += UNROLL_FACTOR) {
+    #pragma HLS PIPELINE II=1
+        for (int lane = 0; lane < UNROLL_FACTOR; ++lane) {
+    #pragma HLS UNROLL
+            int idx = i + lane;
+            if (idx < N) partial[lane] += f(in[idx]);
+        }
+    }
+    ...
+[skill ii-axi-burst-outstanding-prefetch-queue] confidence=medium pass=0/0
+  kind: supporting_transformation
+  pattern: the compute pipeline stalls waiting for global-memory responses even though future addresses are known early enough to prefetch or issue longer bursts
+  strategy: issue burst-friendly prefetches into a local queue, stream, or tile buffer ahead of compute; increase safe outstanding transactions and burst length so memory latency is hidden behind local computation
+  required steps:
+    - confirm future read addresses are predictable before data is consumed
+    - rewrite accesses to monotonic contiguous bursts when legal
+    - create a local prefetch buffer, FIFO, or tile cache with bounded depth
+    - pipeline the prefetch loop and the compute loop separately
+    - set num_read_outstanding and max_read_burst_length on relevant m_axi ports
+    - guard prefetch distance, tails, and bounds
+    - inspect reports for actual burst inference and outstanding behavior
+  guards:
+    - do not prefetch indirect or data-dependent addresses unless correctness and bounds are guaranteed
+    - prefetch depth must fit local memory and avoid FIFO deadlock
+    - outstanding transaction pragmas may not help if access pattern is non-burstable
+    - preserve ordering when memory side effects or aliasing matter
+  template/example:
+    #pragma HLS INTERFACE m_axi port=in offset=slave bundle=gmem max_read_burst_length=64 num_read_outstanding=16
+    
+    prefetch: for (int i = 0; i < TILE; ++i) {
+    #pragma HLS PIPELINE II=1
+        buf[i] = in[base + i];
+    }
+    compute: for (int i = 0; i < TILE; ++i) {
+    #pragma HLS PIPELINE II=1
+        out_buf[i] = f(buf[i]);
+    }
+[skill ii-dataflow-variable-latency-decoupling] confidence=medium pass=0/0
+  kind: advanced_transformation
+  pattern: one stage in a loop body has variable or long latency, such as memory access, filtering, parsing, or conditional work, and it serializes otherwise independent producer/consumer work
+  strategy: split the loop body into producer, compute, and consumer stages connected by hls::stream FIFOs under DATAFLOW, so backpressure is localized and independent stages can run concurrently
+  required steps:
+    - identify separable producer/compute/consumer work in the loop body
+    - extract stages into functions or loops with clear interfaces
+    - connect stages with hls::stream or bounded local FIFOs
+    - set stream depth large enough to absorb burstiness but small enough for resources
+    - apply DATAFLOW at the parent scope
+    - guard stream counts so producer and consumer agree exactly
+    - validate no deadlock and inspect dataflow viewer/report
+  guards:
+    - do not create cyclic streams without a proven schedule
+    - producer and consumer token counts must match or be explicitly framed
+    - DATAFLOW does not remove true data dependencies
+    - stream depth tuning is required for variable-latency stages
+  template/example:
+    #pragma HLS DATAFLOW
+    hls::stream<data_t> s1, s2;
+    #pragma HLS STREAM variable=s1 depth=64
+    #pragma HLS STREAM variable=s2 depth=64
+    producer(in, s1, n);
+    compute(s1, s2, n);
+    consumer(s2, out, n);
+[skill ii-loop-order-contiguous-and-banked-inner-loop] confidence=medium pass=0/0
+  kind: compound_transformation
+  pattern: a loop nest misses II because the innermost pipelined loop uses strided/non-contiguous global accesses, repeatedly hits the same local memory bank, or places the dependency-carrying dimension in the hot pipeline
+  strategy: reorder or strip-mine loops so the pipelined inner loop is unit-stride for global memory, maps parallel lanes to distinct local banks, or moves true dependencies to an outer sequential dimension when legal
+  required steps:
+    - identify current inner-loop memory stride and dependency direction
+    - determine whether loop interchange or strip-mining preserves semantics
+    - choose an inner dimension with contiguous global access or conflict-free bank mapping
+    - update local buffer layout and ARRAY_PARTITION dim to match the new inner loop
+    - rewrite index expressions and boundary/tail handling
+    - pipeline the new hot loop and inspect burst/II reports
+  guards:
+    - do not interchange loops when it violates data dependencies or output order
+    - manual loop interchange is not useful if the tool already performs it and no access pattern changes
+    - after reordering, partition the dimension actually accessed in parallel
+    - verify boundaries and row-major/column-major indexing carefully
+  template/example:
+    // Prefer inner loop over contiguous/banked dimension.
+    for (int outer = 0; outer < OUTER; ++outer) {
+        inner: for (int inner = 0; inner < INNER; ++inner) {
+    #pragma HLS PIPELINE II=1
+            int idx = outer * INNER + inner;
+            ... A[idx] ...
+        }
+    }
+[skill ii-memory-port-readonly-replication-per-lane] confidence=medium pass=0/0
+  kind: supporting_transformation
+  pattern: many unrolled lanes read the same small read-only lookup table, constants array, coefficient vector, or stencil weights, and memory-port limits prevent II=1
+  strategy: replicate the small read-only table per lane or fully partition the small coefficient dimension so each unrolled lane has an independent read path
+  required steps:
+    - identify read-only local arrays used by multiple parallel lanes
+    - confirm the table is small enough to replicate or partition
+    - create per-lane copies or apply complete partition to the coefficient dimension
+    - initialize all copies consistently before the hot loop
+    - rewrite each lane to read its own copy or partitioned element
+    - check FF/LUT/BRAM cost against II improvement
+  guards:
+    - only replicate read-only or lane-private state
+    - do not replicate large tables without resource budget
+    - ensure all replicated copies are initialized identically
+    - replication solves local read ports, not global memory bandwidth
+  template/example:
+    coef_t coeff_lane[LANES][K];
+    #pragma HLS ARRAY_PARTITION variable=coeff_lane complete dim=1
+    
+    lanes: for (int lane = 0; lane < LANES; ++lane) {
+    #pragma HLS UNROLL
+        y_lane[lane] = use_coeff(coeff_lane[lane], x_lane[lane]);
+    }
+[skill ii-resource-limited-operator-restructure] confidence=medium pass=0/0
+  kind: compound_transformation
+  pattern: the achieved II is limited by arithmetic operator availability, high-latency operations, or resource sharing rather than memory ports or false dependencies
+  strategy: restructure expensive arithmetic instead of only reducing unroll: replace divides with reciprocal/multiply when legal, precompute loop-invariant expressions, use balanced trees for reductions, choose fixed-point or narrower types when acceptable, and ensure operators are bound/pipelined appropriately
+  required steps:
+    - identify the operator reported as the II/resource bottleneck
+    - check for loop-invariant or repeated arithmetic that can be hoisted or precomputed
+    - replace division/modulo/sqrt or expensive floating-point operations only when numerical requirements allow
+    - use balanced reduction trees for associative expressions
+    - consider fixed-point or narrower integer types when precision permits
+    - bind operators to suitable resources if the default mapping is poor
+    - compare resource growth, timing, and achieved II
+  guards:
+    - do not change numerical precision or arithmetic semantics without tolerance support
+    - do not duplicate expensive operators until memory can feed the added compute
+    - operator binding is tool/platform sensitive and must be validated by synthesis reports
+    - if the real bottleneck is memory, use memory skills first
+  template/example:
+    // Examples, only when numerically legal:
+    // y = x / c;  ->  inv_c precomputed, y = x * inv_c;
+    // serial sum  ->  partial sums/tree reduction;
+    // repeated coeff expression -> precompute coeff_local before hot loop.
+[skill ii-resource-limited-shared-to-lane-local-state] confidence=medium pass=0/0
+  kind: supporting_transformation
+  pattern: multiple unrolled lanes or processing elements contend for one shared variable, state object, random-number state, lookup state, or accumulator resource, creating a serialized resource or dependence bottleneck
+  strategy: make state lane-local or PE-local, partition the state dimension completely, and merge or reconcile state after the parallel section when needed
+  required steps:
+    - identify shared state accessed by multiple lanes or PEs in the hot loop
+    - determine whether the state can be made independent per lane or per work item
+    - reshape state as state[LANES][...] or state[PE][...]
+    - partition the lane/PE dimension completely
+    - rewrite each lane to access only its own state
+    - merge or copy back final state only if semantically required
+  guards:
+    - do not privatize state that intentionally coordinates lanes or enforces order
+    - ensure state initialization and finalization are correct for each lane
+    - watch local memory growth from replication
+    - if lane-local state changes output order, preserve original mapping explicitly
+  template/example:
+    state_t state_lane[LANES];
+    #pragma HLS ARRAY_PARTITION variable=state_lane complete dim=1
+    
+    lanes: for (int lane = 0; lane < LANES; ++lane) {
+    #pragma HLS UNROLL
+        out_lane[lane] = step(in_lane[lane], state_lane[lane]);
+    }
+[skill ii-stencil-wavefront-loop-skew] confidence=medium pass=0/0
+  kind: advanced_transformation
+  pattern: a 2D dynamic-programming, grid, or stencil-like update has true dependencies on left/top/diagonal or previous-neighbor values, and the current loop order places a dependent dimension inside the pipelined loop
+  strategy: change traversal to a wavefront/diagonal or loop-skewed order so all cells on the same wavefront are independent and can be pipelined or partially unrolled, while preserving dependency order across wavefronts
+  required steps:
+    - map each output dependence direction, such as left, top, top-left, previous row, or previous column
+    - identify an iteration order where ready cells are processed after their dependencies
+    - rewrite loops around anti-diagonals, tiles, or skewed coordinates
+    - use rolling buffers for prior wavefronts or rows
+    - pipeline or unroll independent cells within a wavefront when memory banking supports it
+    - handle triangular wavefront bounds and edges
+    - validate against the original recurrence on small cases
+  guards:
+    - do not reorder true dependencies illegally
+    - wavefront bounds are error-prone; verify start/end indices carefully
+    - not every stencil is wavefront-parallel within a time step
+    - preserve numerical and boundary semantics
+  template/example:
+    for (int s = 0; s <= ROWS + COLS - 2; ++s) {
+        wavefront: for (int r = max(0, s - (COLS - 1)); r <= min(ROWS - 1, s); ++r) {
+    #pragma HLS PIPELINE II=1
+            int c = s - r;
+            // cell(r,c) uses only earlier wavefronts when dependencies are left/top/diag
+        }
+    }
+[skill prompt-tiling] confidence=medium pass=1/1
+  kind: compound_transformation
+  pattern: a loop nest repeatedly accesses a bounded region of a large array, matrix, grid, or neighbor window from global memory, and this region can be staged locally to enable reuse, pipelining, unrolling, or local-buffer partitioning
+  strategy: do not tile only because the array is large; reshape the loop nest around tiles, stage the reusable working set into local memory, rewrite compute indexing to use local tile coordinates, and exploit the local tile through pipelining, inner-loop unrolling, and buffer partitioning when legal
+  required steps:
+    - identify the reused or repeatedly accessed global-memory region
+    - choose compile-time tile dimensions that fit local memory
+    - rewrite outer loops to iterate over tile blocks
+    - load the tile with pipelined unit-stride accesses
+    - rewrite compute indexing from global references to local tile-buffer references
+    - reuse local tile values or exploit local tile bandwidth for parallel computation
+    - pipeline the tile compute loop
+    - unroll independent inner loops when local memory bandwidth can support it
+    - partition or bank local buffers to match unroll factor
+    - handle tails, boundaries, and halo regions safely
+  guards:
+    - do not tile only because an array is large
+    - do not apply tiling if each element is streamed once with no reuse or scheduling benefit
+    - do not simply copy data into a local buffer while leaving scalar compute unchanged
+    - do not allocate dynamic or excessively large tile buffers
+    - preserve boundary conditions and numerical behavior
+  template/example:
+    for (int tile_base = 0; tile_base < N; tile_base += TILE) {
+        load_tile: for (int i = 0; i < TILE; ++i) {
+    #pragma HLS PIPELINE II=1
+            if (tile_base + i < N) tile[i] = in[tile_base + i];
+        }
+    
+        compute_tile: for (int i = 0; i < TILE; ++i) {
+    #pragma HLS PIPELINE II=1
+            if (tile_base + i < N) out_tile[i] = f(tile[i]);
+        }
+    
+        store_tile: for (int i = 0; i < TILE; ++i) {
+    #pragma HLS PIPELINE II=1
+            if (tile_base + i < N) out[tile_base + i] = out_tile[i];
+        }
+    }
+[skill avoid-dataflow-nonunit-tile-loop] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: #pragma HLS DATAFLOW placed inside a tile loop using non-unit increment such as for (tile_i = 0; tile_i < N; tile_i += TILE_SIZE)
+  strategy: Do not place DATAFLOW inside tile_i += TILE_SIZE loops. Use a unit-increment tile index and compute the base offset outside the dataflow region.
+  required steps:
+    - detect DATAFLOW pragma nested under tile_i += TILE_SIZE or similar non-unit outer loop
+    - replace with for (int tile = 0; tile < NUM_TILES; tile++) and tile_i = tile * TILE_SIZE
+    - move #pragma HLS DATAFLOW to a helper called once per tile with canonical load/compute/store calls
+    - keep dynamic tail handling inside subfunctions, not as control flow inside the DATAFLOW region
+  guards:
+    - NUM_TILES = (N + TILE_SIZE - 1) / TILE_SIZE must be compile-time friendly
+    - last partial tile handled inside load/compute/store functions with guards
+  template/example:
+    // BAD:
+    for (int tile_i = 0; tile_i < N; tile_i += TILE_SIZE) {
+    #pragma HLS DATAFLOW
+        ...
+    }
+    // GOOD:
+    for (int tile = 0; tile < NUM_TILES; tile++) {
+        const int tile_i = tile * TILE_SIZE;
+        process_tile_lcs(A, b, y, tile_i);  // helper contains DATAFLOW + 3 calls
+    }
+[skill avoid-dataflow-temporal-loop-as-parallel-tasks] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: #pragma HLS DATAFLOW wrapping a for (t = 0; t < TSTEPS; t++) loop that calls alternating compute tasks which read/write the same local arrays (stencil time steps, iterative relaxation)
+  strategy: Temporal iteration (tsteps, time loops) belongs inside a single compute task, not as multiple concurrent DATAFLOW tasks in an outer t-loop. Use ping-pong locals (A_in/A_out or buf0/buf1) inside that one compute task for alternating read/write phases.
+  required steps:
+    - detect outer t-loop or phase-loop inside #pragma HLS DATAFLOW
+    - move the entire t-loop into one static compute_* task with INLINE off
+    - use separate local arrays for alternating phases (local_A, local_B, local_A_new) — each array has one writer per iteration inside the compute task
+    - keep DATAFLOW as load_task → compute_all_timesteps_task → store_task only
+    - never call compute_phase_A and compute_phase_B as sibling tasks under DATAFLOW inside a shared t-loop
+  guards:
+    - fixes HLS 200-979 'can only be written in one process' on stencil locals
+    - DATAFLOW overlap is load || compute || store, not per-timestep task parallelism
+    - label inner t-loop and phase loops for audit
+  template/example:
+    // BAD: t-loop inside DATAFLOW with alternating writers on local_A
+    #pragma HLS DATAFLOW
+    load(...);
+    for (int t = 0; t < TSTEPS; t++) {
+        compute_B(local_A, local_B);
+        compute_A(local_B, local_A);  // HLS 200-979
+    }
+    store(...);
+    
+    // GOOD: one compute task owns the t-loop
+    #pragma HLS DATAFLOW
+    load(..., local_A);
+    compute_timesteps(local_A, local_B, local_A_new);
+    store(..., local_B);
+[skill avoid-dataflow-without-stream-or-overlap-proof] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: #pragma HLS DATAFLOW wrapping multiple tasks that communicate only through shared local arrays or caller globals (no hls::stream, no ping-pong with proven overlap) while all m_axi ports use one bundle=gmem
+  strategy: In the DATAFLOW refactor step, always keep `#pragma HLS DATAFLOW`. Prove producer–consumer overlap with hls::stream FIFOs, distinct gmemN bundles per port, or ping-pong buffers — fix structure until overlap is real. Never omit DATAFLOW or revert to sequential load → compute → store without the pragma.
+  required steps:
+    - inspect every DATAFLOW region: list tasks, how data moves between them, and whether hls::stream or distinct bundles exist
+    - reject task graphs where multiple concurrent tasks write the same local array without ping-pong or streams
+    - reject parallel per-port loaders on shared bundle=gmem — rebundle to gmem0/gmem1/... first
+    - require an overlap report (stage pairing | overlap? | evidence) and fix gaps with gmemN, streams, or ping-pong
+    - never remove #pragma HLS DATAFLOW in this step — repair task boundaries instead
+    - if ap_ctrl_none is used with DATAFLOW, prefer ap_ctrl_chain or fix task interfaces to avoid deadlock (HLS 200-656)
+  guards:
+    - increasing FIFO depth (HLS 200-1019/1020) is not a substitute for real overlap
+    - tasks must not read caller m_axi arrays directly while also having a DATAFLOW predecessor (HLS 200-1449)
+    - decorative multi-task DATAFLOW often loses to flash-selected sequential pipelined code
+  template/example:
+    OVERLAP REPORT (required if DATAFLOW kept):
+    | stage pairing | overlap? | evidence (stream / gmemN / schedule) |
+    
+    // BAD: tasks share locals only, one gmem bundle
+    #pragma HLS DATAFLOW
+    load_all(...);   // writes shared local_A
+    compute_all(...); // reads same local_A — no stream, no overlap proof
+    
+    // GOOD: streams between tasks OR distinct gmemN + proven concurrent schedule
+    #pragma HLS DATAFLOW
+    hls::stream<tile_t> q;
+    load_tile(A, q, tile_i);
+    compute_tile(q, out_q);
+    store_tile(out_q, y, tile_i);
+[skill avoid-fake-ping-pong-without-tile-overlap] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: ping-pong or double buffers (buf[2], tile&1, in_buf/out_buf alternation) across sequential tile iterations without load of tile t+1 overlapping compute or store of tile t
+  strategy: Ping-pong is valid only when load of tile t+1 overlaps compute/store of tile t, or a clearly defined multi-stage dataflow pipeline overlaps independent tiles. If tiles run strictly sequentially with no concurrent stages, use a single local buffer.
+  required steps:
+    - identify ping-pong buffer indexing (tile % 2, buf[0]/buf[1], in_ping/in_pong)
+    - verify concurrent producer-consumer schedule: while computing tile t, loading tile t+1 (or storing t-1)
+    - if stages still run serially per tile, remove ping-pong and use one local_A/local_b buffer
+    - prioritize inner-loop II=1, memory copy placement, and reduction fixes before re-adding overlap
+    - state in the response whether ping-pong provides actual overlap; remove if it does not
+  guards:
+    - doubling local BRAM without overlap increases resource pressure with no throughput gain
+    - alternating buffer indices alone does not create hardware overlap
+  template/example:
+    // BAD: fake ping-pong — still serial per tile
+    for (int tile = 0; tile < NUM_TILES; tile++) {
+        load_tile(A, buf[tile & 1], tile);
+        compute_tile(buf[tile & 1], out_buf[tile & 1]);
+        store_tile(out_buf[tile & 1], A, tile);
+    }
+    // GOOD without overlap: single local buffer + pipelined loops
+    // GOOD with overlap: DATAFLOW helper where load(t+1) || compute(t) || store(t-1)
+[skill avoid-fp-scalar-recurrence-in-pipelined-loop] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: floating-point reduction or accumulation into one scalar inside a loop claimed II=1 (e.g. w -= a*b, sum += expr, acc = acc + expr as the only accumulation chain)
+  strategy: Do not accumulate into a single scalar inside a pipelined loop. Use private partial accumulators with complete ARRAY_PARTITION, unrolled init/update, then a final tree or serial reduction.
+  required steps:
+    - detect FP update statements that read and write the same scalar accumulator in the pipelined loop
+    - allocate partial[UF] with complete partition
+    - unroll init and per-lane updates inside pipelined fixed-bound loops
+    - reduce partial[] after the pipelined loop
+  guards:
+    - choose UF to match available DSP/budget
+    - preserve numerics within acceptable reordering for independent partials
+  template/example:
+    // BAD:
+    for (int k = 0; k < N; k++) {
+    #pragma HLS PIPELINE II=1
+        w -= a[k] * b[k];
+    }
+    // GOOD: partial accumulators + final reduce (see hls-fp-reduction-partial-accumulators)
+[skill avoid-fused-multi-array-load-outer-pipeline] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: single load task pipelines the outer row loop for multiple large matrices in sequence (matrix A, then B, then C…) each with #pragma HLS PIPELINE II=1 on the outer i loop
+  strategy: Split per-matrix load into its own function with innermost pipelined dimension only, or fuse into one flat index loop over all elements. Do not stack multiple outer-pipelined row loops in one task — each outer pipeline asks HLS to move an entire row per cycle and serializes memory ports.
+  required steps:
+    - detect load functions that outer-pipeline for (i) over rows for more than one large array
+    - remove PIPELINE from outer row loops; pipeline innermost contiguous index (j or flat idx) only
+    - prefer separate load_matrix_A / load_matrix_B helpers or one fused flat load loop
+    - if parallel load tasks are needed, pair each with distinct gmemN bundles and DATAFLOW overlap proof
+    - verify csynth II on hot copy loop — not inflated outer-row pipeline
+  guards:
+    - pair with hls-pipeline-innermost-memory-copy-loop for each matrix
+    - scalar vector loads (b[i]) stay outside inner pipelined j loop
+    - partial final tile uses TILE_SIZE bound + if guards, not runtime tile_size as loop bound
+  template/example:
+    // BAD: stacked outer-pipelined row loops in one task
+    void load_all(...) {
+        for (int i = 0; i < TILE_SIZE; i++) {
+    #pragma HLS PIPELINE II=1
+            for (int j = 0; j < N; j++) local_A[i][j] = A[...][j];
+        }
+        for (int i = 0; i < TILE_SIZE; i++) {
+    #pragma HLS PIPELINE II=1
+            for (int j = 0; j < N; j++) local_B[i][j] = B[...][j];
+        }
+    }
+    // GOOD: innermost pipeline per matrix or flat fused index
+    for (int i = 0; i < TILE_SIZE; i++) {
+        for (int j = 0; j < N; j++) {
+    #pragma HLS PIPELINE II=1
+            local_A[i][j] = A[tile_i + i][j];
+    ...
+[skill avoid-local-output-rmw-in-pipelined-unroll] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: matrix-vector or dot-product style loops that update an output accumulator array element inside a pipelined and/or unrolled loop (e.g. local_x[i] += expr under #pragma HLS PIPELINE II=1 or UNROLL over column index j+k)
+  strategy: Never read-modify-write the same local output accumulator element inside a pipelined unrolled loop. Use private partial accumulators with complete partitioning, reduce once after the pipelined loop, then assign local_x[i] exactly once.
+  required steps:
+    - detect local_x[i] += or equivalent in-place update inside PIPELINE II=1 or unrolled j+k loops
+    - allocate partial[UF] per output lane or per unroll lane with #pragma HLS ARRAY_PARTITION complete
+    - accumulate into partial[p] inside the pipelined/unrolled loop
+    - reduce partial[] to a scalar after the loop and write local_x[i] once
+    - do not leave loop-carried dependence on local_x[i] in the hot pipeline
+  guards:
+    - applies to local staging buffers as well as m_axi outputs — same RMW discipline
+    - pair with hls-fp-reduction-partial-accumulators for FP dot-product chains
+    - preserve numerical semantics when splitting partial sums
+  template/example:
+    // BAD: RMW on local output inside pipelined unroll
+    for (int k = 0; k < UF; k++) {
+    #pragma HLS UNROLL
+    #pragma HLS PIPELINE II=1
+        local_x[i] += A[i][j + k] * y[j + k];
+    }
+    // GOOD: partial accumulators, single write
+    partial[p] += A[i][j+p] * y[j+p];  // in pipelined loop
+    local_x[i] = reduce(partial);        // once after loop
+[skill avoid-loop-tripcount-flatten-variable-bounds] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: variable-trip-count loops (triangular, tile_size, k<i, k<j, j=i+1..N) fixed only with LOOP_TRIPCOUNT or LOOP_FLATTEN without rewriting to static bounds
+  strategy: LOOP_TRIPCOUNT is for reporting/estimation only — it does not make a loop statically bounded, fully unrollable, or dependency-free. Do not rely on LOOP_FLATTEN or LOOP_TRIPCOUNT to legalize pipeline on variable-bound nests.
+  required steps:
+    - identify loops whose bound depends on an outer induction variable or runtime tile_size
+    - do not add LOOP_TRIPCOUNT as a substitute for static bounds
+    - rewrite to fixed-bound loops with if guards using N or TILE_SIZE constants
+    - re-validate pipeline legality on the rewritten nest
+  guards:
+    - preserve original semantics with if (idx < bound) guards
+    - use header macro constants for fixed bounds
+  template/example:
+    // BAD: variable bound, tripcount pragma only
+    for (int k = 0; k < j; k++) {
+    #pragma HLS LOOP_TRIPCOUNT min=1 max=N
+    #pragma HLS PIPELINE II=1
+        ...
+    }
+    // GOOD: fixed bound + guard
+    for (int k = 0; k < TILE_SIZE; k++) {
+    #pragma HLS PIPELINE II=1
+        if (k < j) { ... }
+    }
+[skill avoid-m_axi-accumulate-in-tiled-phase] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: tiled load/compute/store phase reads x[gi] from m_axi, accumulates into local_x[i], then writes x[gi] back within the same tile iteration — per-tile RMW on external port
+  strategy: Load the output vector into local memory once (or hold per-element local state across tiles), accumulate entirely in local memory until all contributions for that element are complete, then perform a single store per output element to m_axi.
+  required steps:
+    - detect per-tile patterns: load x[global_i] → local_x[i] += expr → store x[global_i]
+    - replace with load full or partial x into local_x once before tiled compute, or keep local_x across tile loop without per-tile m_axi writeback
+    - accumulate in local_x[i] or private scalar during compute tiles only
+    - write each m_axi output element once after all tiles that touch that element have finished
+    - if output is too large for one local buffer, tile outputs with local finalize per tile region — still no inner-tile m_axi RMW
+  guards:
+    - extends avoid-no-rmw-m_axi-direct to tiled staging specifically
+    - const m_axi inputs may still be loaded per tile; in-place outputs need local write-back discipline
+    - preserve numerical semantics when deferring store to end of tile sequence
+  template/example:
+    // BAD: per-tile m_axi RMW on output vector
+    for (int tile = 0; tile < NUM_TILES; tile++) {
+        for (int i = 0; i < TILE_SIZE; i++) {
+            local_x[i] = x[tile_i + i];      // m_axi read
+            ... local_x[i] += contrib ...
+            x[tile_i + i] = local_x[i];        // m_axi write same element
+        }
+    }
+    
+    // GOOD: local accumulate, single store pass
+    load_x_to_local(x, local_x);           // once or per region
+    tiled_compute_accumulate(local_x, ...);
+    store_x_from_local(x, local_x);         // one write per element
+[skill avoid-m_axi-read-inside-dataflow-outer-loop] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: for (tile = 0; tile < NUM_TILES; tile++) loop placed inside #pragma HLS DATAFLOW calling load tasks that read the same m_axi port each iteration — HLS instantiates parallel readers on one bundle (HLS 200-1013 / 200-984)
+  strategy: Never put a tile-indexed for-loop inside #pragma HLS DATAFLOW if the loop body calls tasks that read/write m_axi ports. Either: (1) fuse all tile loads into one task with pipelined inner loops, (2) move the tile loop outside DATAFLOW into a helper that calls a per-tile DATAFLOW body with private buffers, or (3) use hls::stream tile pipeline (load_tile→compute_tile→store_tile) with depth≥2.
+  required steps:
+    - detect for (i0 = 0; i0 < N; i0 += TILE_SIZE) inside #pragma HLS DATAFLOW
+    - if body calls load_* tasks touching m_axi, refactor to single fused load OR stream pipeline
+    - each m_axi port: at most one concurrent reader and one concurrent writer across DATAFLOW tasks
+    - for multi-phase kernels (two passes over same matrix), preload full matrix into locals in one task before phased compute
+    - verify csynth no longer reports bundled bus interface read in multiple processes
+  guards:
+    - distinct gmemN per port does not fix multiple concurrent readers on the same port
+    - pair with hls-single-load-dual-local-layout when one matrix needs two access patterns
+    - ARRAY_PARTITION local tile buffers for compute parallelism after fused load
+  template/example:
+    // BAD: tile loop inside DATAFLOW — parallel A readers
+    #pragma HLS DATAFLOW
+    for (int i0 = 0; i0 < N; i0 += TILE_SIZE) {
+        load_tile_A(A, local_A, i0);  // HLS 200-1013 on gmem for A
+        compute_tile(...);
+    }
+    
+    // GOOD: fused load once, or stream pipeline
+    #pragma HLS DATAFLOW
+    fused_load_all_inputs(...);   // single reader per port
+    compute_all_tiles(...);       // locals only
+    fused_store_all_outputs(...);
+[skill avoid-manual-cse-inside-pipelined-loop] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: repeated identical sub-expressions inside a pipelined loop body
+  strategy: manual common-subexpression elimination via temporary variables
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - do not apply the blocked transformation when this pattern is present
+    - do not claim success from pragma insertion alone
+    - choose an alternative skill that addresses the actual bottleneck
+[skill avoid-manual-loop-interchange-on-perfect-nest] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: perfectly nested loops where Vitis can interchange automatically
+  strategy: rewriting the loop nesting order by hand (Vitis 2022.2+ already does this)
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - do not apply the blocked transformation when this pattern is present
+    - do not claim success from pragma insertion alone
+    - choose an alternative skill that addresses the actual bottleneck
+[skill avoid-no-rmw-m_axi-direct] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: compute loops perform read-modify-write updates directly on arrays mapped to m_axi ports (e.g. A[i][j] = A[i][j] + expr, x[i] = x[i] + expr, w[i] = w[i] + expr inside nested loops)
+  strategy: Treat every m_axi argument as external DRAM/HBM. Never read and write the same external element inside an inner loop. Do not use global/m_axi arrays as temporary storage or assume HLS will cache m_axi data across iterations.
+  required steps:
+    - scan every loop for statements that read and write the same m_axi port element
+    - reject direct accumulation into m_axi arrays
+    - reject repeated reads of the same output element from DRAM/HBM inside an inner loop
+    - reject repeated writes to the same output element inside an inner loop
+    - replace with load-compute-store using local buffers or private scalar accumulators
+    - for reductions, accumulate in a private scalar or local array, then write back once
+    - if the full array is too large, tile/block but still finalize each tile locally before one store
+  guards:
+    - preserve numerical semantics when staging into locals
+    - const read-only m_axi inputs may be read once per tile into locals
+    - in-place outputs still require local write-back buffers, not inner-loop RMW on the port
+  template/example:
+    // FORBIDDEN when A/x/w are m_axi ports:
+    //   A[i][j] = A[i][j] + expr;
+    //   x[i] = x[i] + expr;
+    // GOOD: load -> local acc/buffer -> single store
+    //   double acc = x_local[i];
+    //   for (int j = 0; j < N; j++) acc += beta * A_local[j][i] * y_local[j];
+    //   x_local[i] = acc;
+    //   x[i] = x_local[i];  // one write per element
+[skill avoid-noncanonical-dataflow-region] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: DATAFLOW region containing complex if/else, non-unit loop increments, or dynamic control logic instead of declarations and function calls
+  strategy: Use canonical DATAFLOW regions: stream/buffer declarations and calls to load/compute/store subfunctions only. Move control logic, boundary handling, and non-unit loops outside or into subfunctions called from the dataflow region.
+  required steps:
+    - split load, compute, store into separate functions
+    - inside #pragma HLS DATAFLOW: declare hls::stream or ping-pong buffers and call subfunctions
+    - move if/else tile guards into subfunctions or use bounded canonical loops
+    - no non-unit stride loops or dynamic allocation inside the dataflow region
+  guards:
+    - subfunctions must be synthesizable with stable interfaces
+    - fifo depths must cover producer-consumer latency
+  template/example:
+    // GOOD canonical DATAFLOW:
+    #pragma HLS DATAFLOW
+    hls::stream<tile_t> load_to_compute;
+    load_tile(A, load_to_compute, tile_i);
+    compute_tile(load_to_compute, compute_to_store);
+    store_tile(compute_to_store, A, tile_i);
+[skill avoid-outer-memory-loop-pipeline-over-row] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: memory load/store tile loops with #pragma HLS PIPELINE II=1 on the outer row/tile loop (for i) while an inner loop iterates all N columns per outer step
+  strategy: Pipeline the innermost contiguous memory loop only. Do not ask HLS to load or store an entire matrix row per pipeline cycle. Outer i loops should be sequential; inner j loop gets PIPELINE II=1.
+  required steps:
+    - find load_tile/store_tile nests pipelining the outer i loop
+    - remove PIPELINE from outer loop over tile rows
+    - move PIPELINE II=1 to innermost j loop over contiguous elements
+    - keep scalar row loads (b[i], y[i]) outside or after the inner pipelined j loop
+  guards:
+    - pair with local buffers so inner loop touches BRAM not m_axi when possible
+    - one element per pipeline iteration for m_axi when pipelining global access
+  template/example:
+    // BAD (asks HLS to move whole row per cycle):
+    for (int i = 0; i < TILE_SIZE; i++) {
+    #pragma HLS PIPELINE II=1
+        for (int j = 0; j < N; j++) A[i][j] = local_A[i][j];
+        y[i] = local_y[i];
+    }
+    // GOOD:
+    for (int i = 0; i < TILE_SIZE; i++) {
+        for (int j = 0; j < N; j++) {
+    #pragma HLS PIPELINE II=1
+            A[i][j] = local_A[i][j];
+        }
+        y[i] = local_y[i];
+    }
+[skill avoid-over-unroll-axi-dep] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: II miss or latency is caused by AXI bandwidth, global-memory dependency, or memory-port pressure rather than insufficient arithmetic parallelism
+  strategy: do not respond with large UNROLL or complete partitioning first; route to coalescing, tiling/local staging, memory banking, or local partitioning depending on the true bottleneck
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - unrolling a memory-bound loop can increase pressure without improving latency
+    - fix burst behavior, local reuse, or memory banking before increasing arithmetic parallelism
+    - verify the post-unroll bottleneck is not worse
+[skill avoid-ping-pong-cross-tile-deps-triangular] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: triangular factorization, triangular solve, or other pivot-dependent tiled algorithms using ping-pong or DATAFLOW tile overlap without proving cross-tile dependence safety
+  strategy: Algorithms with cross-tile dependencies (especially triangular factorization or solve with pivot-dependent active regions) require a dependence proof before overlapping tiles. Default to sequential tiles with local staging; do not assume ping-pong is legal.
+  required steps:
+    - identify cross-tile read-after-write or triangular dependencies (pivot row, active column, forward substitution)
+    - reject ping-pong/DATAFLOW across tiles unless dependence analysis shows independence
+    - process dependent tiles sequentially; overlap only separate load/compute/store stages within one tile via canonical DATAFLOW if legal
+    - document dependence reasoning when proposing any tile overlap
+  guards:
+    - numerical correctness overrides throughput — wrong overlap breaks triangular factorization/solve
+    - pivot-dependent active regions make arbitrary tile overlap unsafe
+  template/example:
+    // Triangular/pivot-dependent tiles often depend on prior rows/columns
+    // BAD: ping-pong across tiles without dependence proof
+    // GOOD: sequential tiles; optional DATAFLOW only inside one tile:
+    void process_tile_lcs(...) {
+    #pragma HLS DATAFLOW
+        load_tile(...);
+        compute_tile(...);
+        store_tile(...);
+    }
+[skill avoid-pipeline-parent-with-nested-child-loop] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: #pragma HLS PIPELINE II=1 on a parent loop whose body contains another loop that is not fully unrolled (including UNROLL factor=N partial unroll)
+  strategy: Do not pipeline the parent when a child loop still exists. Partial unroll is not full unroll. Pipeline only the innermost loop, fully unroll the child, or use an explicitly flattenable nest — never assume LOOP_FLATTEN fixes a variable or partially-unrolled child.
+  required steps:
+    - detect parent PIPELINE pragma with a nested for-loop in the body
+    - check whether every child loop is fully unrolled or the nest is provably flattenable
+    - if any child loop remains, move PIPELINE to innermost legal loop or fully unroll child
+    - do not treat UNROLL factor=4 as removing the child loop
+  guards:
+    - LOOP_FLATTEN does not substitute for full unroll when bounds are variable
+    - validate II on the actual pipelined loop after moving pragmas
+  template/example:
+    // BAD: parent pipelined, child loop remains
+    for (int i = 0; i < TILE; i++) {
+    #pragma HLS PIPELINE II=1
+        for (int j = 0; j < N; j++) {  // child still exists
+            A[i][j] = local_A[i][j];
+        }
+    }
+    // GOOD: pipeline innermost only
+    for (int i = 0; i < TILE; i++) {
+        for (int j = 0; j < N; j++) {
+    #pragma HLS PIPELINE II=1
+            A[i][j] = local_A[i][j];
+        }
+    }
+[skill hls-avoid-benchmark-provenance-assumption] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: agent attempts to infer or mention the source benchmark suite, hidden test design, target variant sequence, or expected optimization step from skill names or evaluation feedback
+  strategy: optimize only from current code, reports, constraints, and feedback; do not assume a benchmark family, stepwise target, or one-shot target
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - do not include source benchmark names in agent-visible prompts
+    - do not encode baseline-to-target sequences in skill IDs
+    - do not expose private evaluator metadata
+[skill hls-avoid-coalescing-interface-only] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: a proposed coalescing transformation only adds m_axi pragmas or changes interface width while leaving memory access structure and computation scalar
+  strategy: do not mark coalescing as complete after interface pragmas alone; require burst-friendly access rewrite and compute-side lane parallelism when legal
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - max_widen_bitwidth=512 can improve memory movement but does not directly parallelize computation
+    - if compute remains one scalar element at a time, the design may underuse the widened memory interface
+    - validate both memory report improvements and end-to-end latency improvements
+[skill hls-avoid-doublebuffer-memory-overuse] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: double buffering would duplicate large local arrays and exceed or severely pressure BRAM/URAM resources
+  strategy: reduce tile size, buffer only the required stream, use smaller staging buffers, or avoid double buffering if memory duplication outweighs overlap benefit
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - do not duplicate large 2D/3D tiles blindly
+    - check local memory resource budget
+    - prefer smaller tile size or stream buffering when possible
+[skill hls-avoid-doublebuffer-without-overlap] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: a proposed double-buffering transformation duplicates buffers but load, compute, and store phases still execute serially or cannot overlap because of dependencies
+  strategy: do not treat double buffering as complete unless stages actually overlap and interval/latency improves
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - ping-pong buffers alone do not guarantee overlap
+    - check DATAFLOW report or schedule evidence
+    - avoid adding memory overhead without reducing interval
+[skill hls-avoid-multibank-without-host-platform-support] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: a proposed multi-bank transformation changes m_axi bundles or physical bank assignment without evidence that the host code, linker config, and target platform support the mapping
+  strategy: do not assume bundle changes alone are valid; require explicit platform/host/linker support for physical bank mapping
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - preserve host ABI unless changes are explicitly allowed
+    - verify platform memory bank availability
+    - update host allocation and linker connectivity when required
+    - do not expose hidden test or benchmark provenance
+[skill hls-avoid-outer-sequential-gemm-after-inner-pipeline] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: csynth shows L1 / compute_outer / scale outer with Trip=M, II='-', Pipelined=no while a nested L4 / j pipeline reports II=1 — including syr2k/syrk form L1{ L2; L3{ L4 PIPELINE } } where per-i cost ≈ L2 + K*N and total ≈ M*(L2+K*N)
+  strategy: Treat as a latency bug. Do not stop after L4 II=1. Apply hls-gemm-static-nest-flatten-and-k-partition or hls-syr2k-triangle-flatten-k-unroll: fixed j bounds + if guards, (i,j) PIPELINE+FLATTEN, k UNROLL, matching ARRAY_PARTITION. Re-synth until L1 is no longer an unpipelined trip=M loop dominating latency. After flatten+k-unroll, if Final II ≫ 1 from a serial FP accumulator, continue with hls-avoid-serial-fp-acc-under-full-k-unroll — do not stop.
+  required steps:
+    - detect outer L1/compute with Pipelined=no and II=- next to an II=1 inner j/L4 pipeline
+    - do not accept the design as optimized
+    - for syr2k/syrk also reject for (j=0;j<=i) variable bounds — rewrite to j<N + if (j<=i)
+    - route to hls-syr2k-triangle-flatten-k-unroll / hls-gemm-static-nest-flatten-and-k-partition
+    - re-synth and confirm outer sequential L1 is gone or no longer dominates (flattened (i,j) trip)
+    - if flattened region still has Final II ≫ 1 from serial FP reduction, route to hls-avoid-serial-fp-acc-under-full-k-unroll
+  guards:
+    - applies to static-bound full-workspace or within-tile GEMM nests, not irreducible true dependencies
+  template/example:
+    // BAD (reject): L1 sequential, only L4 pipelined
+    L1: for (int i = 0; i < N; ++i) {              // trip=N, Pipelined=no
+      L2: for (int j = 0; j < N; ++j) if (j<=i) C[i][j]*=beta;
+      L3: for (int k = 0; k < M; ++k)
+        L4: for (int j = 0; j < N; ++j) {
+    #pragma HLS PIPELINE II=1
+          if (j<=i) C[i][j] += ...;
+        }
+    }
+    // GOOD: see hls-syr2k-triangle-flatten-k-unroll
+[skill hls-avoid-pipeline-innermost-only-goal-on-gemm] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: optimization stops because the innermost feasible loop achieved II=1, while total module latency is still dominated by a sequential outer trip over rows/columns of a static GEMM
+  strategy: II on one loop is not the objective — total cycles are. For static GEMM and syr2k/syrk nests, require flatten of the (i,j) nest (with k unrolled) and validate against top latency / L1 table, not only Final II=1 on L4/j. Use hls-syr2k-triangle-flatten-k-unroll for triangular updates Total cycles require both flatten and low achieved II on the flattened region (reject serial-FP-acc II blowups via hls-avoid-serial-fp-acc-under-full-k-unroll).
+  required steps:
+    - after any PIPELINE success on an inner loop, read the parent loop table
+    - if parent is unpipelined with large trip count, continue with flatten+partition repairs
+    - compare sibling phases and fix any phase that did not flatten
+  guards:
+    - still prefer innermost pipeline for non-flattenable or true-recurrence cases
+[skill hls-avoid-pipeline-pragma-only] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: a proposed pipeline transformation only adds a PIPELINE pragma but does not address the reported reason why II is high or scheduling is blocked
+  strategy: do not treat PIPELINE pragma insertion as complete unless achieved II or latency improves, or the actual scheduling bottleneck is addressed
+  required steps:
+    - check achieved II, not only requested II
+    - read scheduling warnings and dependency reports
+    - resolve memory ports, false dependencies, AXI access, recurrences, or body latency as appropriate
+    - do not claim success if the report still shows the same II bottleneck
+  guards:
+    - PIPELINE is a scheduling request, not proof that the schedule improved
+    - pragma-only changes should be rejected when the report bottleneck remains unchanged
+[skill hls-avoid-serial-fp-acc-under-full-k-unroll] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: static-bound GEMM/matmul (or 2mm/3mm phase) on locals with PIPELINE on (i,j) (often + LOOP_FLATTEN) and full UNROLL on reduction k, but csynth Final II remains huge (tens–hundreds) because a single float/double accumulator carries a true FP dependence and/or dmul/dadd are resource-shared down to ~1 instance — so latency ≈ trip×II stays catastrophic despite 'k fully unrolled'
+  strategy: Do not treat full k UNROLL or outer flatten as success when achieved II ≫ 1. Rewrite the reduction with lane/partial sums or a tree (hls-unroll-reduction-partial-sums / ii-reduction-lane-partial-tree), allocate enough FP operators for the chosen parallelism, or fall back to pipeline-on-k with modest outer/j unroll (ChatHLS-style). Re-synth until Final II is near the legal target.
+  required steps:
+    - detect full k UNROLL under (i,j) pipeline with serial sum += a*b (float/double)
+    - read csynth Final II, accumulator dependence, and dmul/dadd binding/sharing
+    - if Final II ≫ 1 from FP reduction or resource limit, reject the design as optimized
+    - route to partial-sum/tree reduction + matching resources, or pipeline-on-k fallback
+    - re-synth and confirm Final II improved; do not stop at flatten-only success
+  guards:
+    - still prefer flatten of sequential outer i when that is the bug (hls-avoid-outer-sequential-gemm-after-inner-pipeline)
+    - preserve numerical tolerance expectations when reassociating FP reductions
+    - device util ≤ 100% after allocating more operators / wider trees
+  template/example:
+    // BAD: full k UNROLL with serial FP accumulator under (i,j) PIPELINE
+    for (int i = 0; i < M; ++i)
+      for (int j = 0; j < N; ++j) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS LOOP_FLATTEN
+        double sum = 0.0;
+        for (int k = 0; k < K; ++k) {
+    #pragma HLS UNROLL
+          sum += A[i][k] * B[k][j];  // carried dep → Final II ≫ 1 if 1×dadd
+        }
+        C[i][j] = sum;
+      }
+    // GOOD: partial/tree reduction (or pipeline-on-k if resources cannot parallelize)
+[skill hls-avoid-single-gmem-for-independent-streams] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: multiple independent high-bandwidth m_axi ports are assigned to the same bundle or memory bank, causing avoidable contention
+  strategy: avoid placing all high-bandwidth arrays on one gmem bundle when the platform and host flow support multiple memory banks
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - single bundle may serialize or contend independent accesses
+    - separate only when host/platform support exists
+    - keep low-traffic or dependent ports together when separation has no benefit
+[skill hls-avoid-superficial-tiling] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: a proposed tiling transformation only copies global memory into a local buffer but does not reduce repeated global-memory traffic, improve locality, enable local parallelism, or improve scheduling
+  strategy: do not treat tiling as complete unless the compute is rewritten to use the local tile for reuse or parallelism; otherwise prefer pipelining, coalescing, or dataflow depending on the bottleneck
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - large arrays alone do not justify tiling
+    - local buffering without reuse may add overhead
+    - tiling should change the computation structure or memory traffic pattern
+    - after tiling, check whether compute still uses scalar/global-style access
+[skill hls-avoid-tiling-without-reuse] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: the loop streams through global memory once with little or no reuse, and tiling would only copy data into a local buffer before immediately using it once
+  strategy: do not apply tiling as the primary optimization; prefer pipelining, coalescing, burst-friendly access, or dataflow unless local staging is required for another transformation
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - large arrays alone do not justify tiling
+    - tiling should reduce global-memory traffic, improve locality, resolve II, or enable local parallelism
+    - avoid adding BRAM and copy overhead without measurable benefit
+[skill hls-avoid-tiny-partial-unroll-on-small-static] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: kernel uses `#pragma HLS UNROLL factor=2` (or similarly tiny factor) on a small compile-time-constant inner loop (e.g. atax/bicg N~38-42) while local arrays are only partially partitioned, leaving most parallelism on the table and high total latency
+  strategy: Treat UNROLL factor=2 on Mini/ChatHLS-sized static loops as a defect. Use complete unroll + matching partition for on-chip compute; only partial-unroll if util overflows.
+  required steps:
+    - detect tiny partial unroll on small static trip count
+    - replace with `#pragma HLS UNROLL` (complete) on that inner loop
+    - set ARRAY_PARTITION to match (prefer complete on the unrolled dimension)
+    - keep AXI load loops II=1/burst-oriented; do not expect unroll alone to fix gmem
+    - re-synth and confirm util <=100% and lower latency
+  guards:
+    - applies when inner trip count is a known small constant (typical atax/bicg/mvt/gesummv: 30-42)
+    - still respect true dependences and AXI load bandwidth limits
+    - if complete unroll + matching partition exceeds 100% DSP/FF/LUT/BRAM, then reduce factor
+  template/example:
+    // BAD (atax/bicg-sized):
+    #pragma HLS ARRAY_PARTITION variable=local_A cyclic factor=4 dim=2
+    for (int j = 0; j < n; ++j) { #pragma HLS UNROLL factor=2 ... }
+    // GOOD:
+    #pragma HLS ARRAY_PARTITION variable=local_A complete dim=2
+    for (int j = 0; j < n; ++j) { #pragma HLS UNROLL ... }
+[skill hls-avoid-unroll-memory-bound-loop] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: the loop is limited by global-memory bandwidth or AXI burst behavior, and adding arithmetic lanes would increase memory pressure without feeding the lanes
+  strategy: do not apply unrolling as the primary optimization; first use coalescing, memory banking, local staging, or tiling to provide enough data bandwidth
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - unrolling cannot compensate for insufficient memory bandwidth
+    - check whether the loop is compute-bound before increasing parallelism
+    - avoid unroll factors that exceed memory supply
+[skill hls-avoid-unroll-resource-explosion] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: a proposed unroll factor replicates too much arithmetic, local storage, or routing and creates excessive DSP/LUT/FF/BRAM usage or timing degradation
+  strategy: If complete unroll overflows the device, reduce factor stepwise (32→16→8→4) while keeping partition matched; use factor=2 only as a last resort. For small static dims, complete unroll is usually legal on U280 — do not preemptively cripple parallelism.
+  required steps:
+    - detect whether this avoid-rule pattern is present
+    - do not apply the unsafe or superficial transformation
+    - route to a safer skill based on the actual bottleneck
+    - validate with synthesis and correctness feedback
+  guards:
+    - do not maximize unroll factor blindly on large arrays
+    - compare latency improvement against resource growth
+    - when backing off from complete unroll on LARGE trip counts, try 32/16/8 before 4/2
+    - on small static PolyBench/ChatHLS mini dims (N<=64), do NOT treat factor=2 as the preferred safe default — prefer complete unroll unless synth util >100%
+[skill ii-avoid-complete-partition-large-buffer-ff-explosion] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: a proposed fix completely partitions an entire large local buffer or large multidimensional tile into registers only because there is a memory dependency or port conflict, without targeting the actual parallel access dimension
+  strategy: do not use complete partition of an entire large buffer as the default; instead partition the parallel access dimension (complete if that dim is modest or required for GEMM flatten; else cyclic/block), or use line buffers / smaller tiles / per-lane small buffers. This avoid-rule does NOT forbid complete/cyclic on GEMM reduction dim k when needed for II=1 flatten.
+  required steps:
+    - detect whether complete partition is being applied to a large array or large tile
+    - estimate FF/LUT/routing growth from full partitioning
+    - identify the actual parallel access dimension and access count
+    - prefer cyclic/block partitioning, reshape, local banking, or small lane-buffer complete partition
+    - validate whether the alternative resolves II without resource explosion
+  guards:
+    - complete partition of a whole large Nd array can destroy timing — prefer partitioning one parallel dim
+    - complete/cyclic on a compile-time k dimension of size ~<=128 for a flattened GEMM is in-scope and often required
+    - do not use resource-heavy partitioning to mask an off-chip bandwidth bottleneck
+[skill ii-avoid-false-dependence-pragma-on-true-rmw] confidence=avoid pass=0/0
+  kind: avoid_rule
+  pattern: a proposed fix uses DEPENDENCE inter false on an array or accumulator that is truly read and written across iterations, such as a reduction, histogram, in-place update, or same-address read-modify-write
+  strategy: reject the false-dependence pragma and use a legal transformation instead: partial sums for reductions, privatized accumulators for RMW/scatter, old/new buffers for Jacobi-style updates, or accept the legal II for inherently serial recurrences
+  required steps:
+    - check whether two iterations can access the same location with at least one write
+    - classify the dependence as reduction, scatter/RMW, stencil/in-place update, or inherent recurrence
+    - route to partial accumulators, privatization, old/new buffering, wavefront, or best-legal-II handling
+    - remove unsafe false-dependence pragma proposals
+    - validate correctness before measuring II
+  guards:
+    - false-dependence pragmas can silently produce incorrect hardware when applied to true hazards
+    - do not prioritize II=1 over semantic correctness
+    - if exact sequential order is required, algorithmic restructuring may not be legal

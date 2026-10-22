@@ -1,0 +1,582 @@
+[
+ {
+  "bench": "StreamCluster",
+  "dtype": "float",
+  "nature": "fp_compute",
+  "floor": 110,
+  "cap": 8121,
+  "balance_work": 1440768,
+  "dep_note": "",
+  "mem_cycles": 13100
+ },
+ {
+  "bench": "aes",
+  "dtype": "int",
+  "nature": "memory/control",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 1
+ },
+ {
+  "bench": "cfd_flux",
+  "dtype": "float",
+  "nature": "fp_compute",
+  "floor": 355,
+  "cap": 8121,
+  "balance_work": 863232,
+  "dep_note": "",
+  "mem_cycles": 2432
+ },
+ {
+  "bench": "cfd_step_factor",
+  "dtype": "float",
+  "nature": "fp_compute",
+  "floor": 73,
+  "cap": 8121,
+  "balance_work": 32768,
+  "dep_note": "",
+  "mem_cycles": 448
+ },
+ {
+  "bench": "fft",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 580,
+  "cap": 8121,
+  "balance_work": 148608,
+  "dep_note": "",
+  "mem_cycles": 256
+ },
+ {
+  "bench": "gemm_ncubed",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 2389,
+  "cap": 8121,
+  "balance_work": 3670016,
+  "dep_note": "",
+  "mem_cycles": 1536
+ },
+ {
+  "bench": "hlsfactory_2mm",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 2470,
+  "cap": 8121,
+  "balance_work": 5775200,
+  "dep_note": "",
+  "mem_cycles": 2337
+ },
+ {
+  "bench": "hlsfactory_3mm",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 2596,
+  "cap": 8121,
+  "balance_work": 7560000,
+  "dep_note": "",
+  "mem_cycles": 2912
+ },
+ {
+  "bench": "hlsfactory_atax",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 218,
+  "cap": 8121,
+  "balance_work": 402752,
+  "dep_note": "",
+  "mem_cycles": 1843
+ },
+ {
+  "bench": "hlsfactory_bicg",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 217,
+  "cap": 8121,
+  "balance_work": 402752,
+  "dep_note": "",
+  "mem_cycles": 1858
+ },
+ {
+  "bench": "hlsfactory_cholesky",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 1120,
+  "cap": 8121,
+  "balance_work": 4031720,
+  "dep_note": "",
+  "mem_cycles": 3600
+ },
+ {
+  "bench": "hlsfactory_correlation",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 1674,
+  "cap": 8121,
+  "balance_work": 4720000,
+  "dep_note": "",
+  "mem_cycles": 2820
+ },
+ {
+  "bench": "hlsfactory_covariance",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 1631,
+  "cap": 8121,
+  "balance_work": 4584000,
+  "dep_note": "",
+  "mem_cycles": 2810
+ },
+ {
+  "bench": "hlsfactory_doitgen",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 1629,
+  "cap": 8121,
+  "balance_work": 6300000,
+  "dep_note": "",
+  "mem_cycles": 3866
+ },
+ {
+  "bench": "hlsfactory_durbin",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 1680,
+  "cap": 8121,
+  "balance_work": null,
+  "dep_note": "sequential recursion over k (N=120): at most ~120 mul+add per step",
+  "mem_cycles": 30
+ },
+ {
+  "bench": "hlsfactory_fdtd-2d",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 2974,
+  "cap": 8121,
+  "balance_work": 10720920,
+  "dep_note": "",
+  "mem_cycles": 3605
+ },
+ {
+  "bench": "hlsfactory_floyd-warshall",
+  "dtype": "int",
+  "nature": "int_compute",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 4050
+ },
+ {
+  "bench": "hlsfactory_gemm",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 3594,
+  "cap": 8121,
+  "balance_work": 8446200,
+  "dep_note": "",
+  "mem_cycles": 2350
+ },
+ {
+  "bench": "hlsfactory_gemver",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 300,
+  "cap": 8121,
+  "balance_work": 1123560,
+  "dep_note": "",
+  "mem_cycles": 3750
+ },
+ {
+  "bench": "hlsfactory_gesummv",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 111,
+  "cap": 8121,
+  "balance_work": 229050,
+  "dep_note": "",
+  "mem_cycles": 2059
+ },
+ {
+  "bench": "hlsfactory_gramschmidt",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 2068,
+  "cap": 8121,
+  "balance_work": 5376000,
+  "dep_note": "",
+  "mem_cycles": 2600
+ },
+ {
+  "bench": "hlsfactory_heat-3d",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 6317,
+  "cap": 8121,
+  "balance_work": 43390080,
+  "dep_note": "floor lowered from 8121 to 6317 (70%) so the window is not zero-width",
+  "mem_cycles": 3000
+ },
+ {
+  "bench": "hlsfactory_jacobi-1d",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 2040,
+  "cap": 8121,
+  "balance_work": null,
+  "dep_note": "120 points per time step, 40 steps in sequence",
+  "mem_cycles": 45
+ },
+ {
+  "bench": "hlsfactory_jacobi-2d",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 4691,
+  "cap": 8121,
+  "balance_work": 14248960,
+  "dep_note": "",
+  "mem_cycles": 3037
+ },
+ {
+  "bench": "hlsfactory_lu",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 2212,
+  "cap": 8121,
+  "balance_work": 7963480,
+  "dep_note": "",
+  "mem_cycles": 3600
+ },
+ {
+  "bench": "hlsfactory_ludcmp",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 2240,
+  "cap": 8121,
+  "balance_work": 8163400,
+  "dep_note": "",
+  "mem_cycles": 3645
+ },
+ {
+  "bench": "hlsfactory_mvt",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 213,
+  "cap": 8121,
+  "balance_work": 403200,
+  "dep_note": "",
+  "mem_cycles": 1890
+ },
+ {
+  "bench": "hlsfactory_nussinov",
+  "dtype": "int",
+  "nature": "int_compute",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 4050
+ },
+ {
+  "bench": "hlsfactory_seidel-2d",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 1440,
+  "cap": 8121,
+  "balance_work": null,
+  "dep_note": "in-place Gauss-Seidel: only a ~60-point wavefront is independent",
+  "mem_cycles": 3600
+ },
+ {
+  "bench": "hlsfactory_symm",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 2561,
+  "cap": 8121,
+  "balance_work": 5762400,
+  "dep_note": "",
+  "mem_cycles": 2250
+ },
+ {
+  "bench": "hlsfactory_syr2k",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 3692,
+  "cap": 8121,
+  "balance_work": 10338840,
+  "dep_note": "",
+  "mem_cycles": 2800
+ },
+ {
+  "bench": "hlsfactory_syrk",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 2225,
+  "cap": 8121,
+  "balance_work": 4895640,
+  "dep_note": "",
+  "mem_cycles": 2200
+ },
+ {
+  "bench": "hlsfactory_trisolv",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 55,
+  "cap": 8121,
+  "balance_work": null,
+  "dep_note": "forward substitution: row i needs x[0..i-1]",
+  "mem_cycles": 1830
+ },
+ {
+  "bench": "hlsfactory_trmm",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 1233,
+  "cap": 8121,
+  "balance_work": 2035200,
+  "dep_note": "",
+  "mem_cycles": 1650
+ },
+ {
+  "bench": "hotspot",
+  "dtype": "float",
+  "nature": "fp_compute",
+  "floor": 6317,
+  "cap": 8121,
+  "balance_work": 603979776,
+  "dep_note": "floor lowered from 8121 to 6317 (70%) so the window is not zero-width",
+  "mem_cycles": 65536
+ },
+ {
+  "bench": "kmeans",
+  "dtype": "float",
+  "nature": "fp_compute",
+  "floor": 544,
+  "cap": 8121,
+  "balance_work": 487424000,
+  "dep_note": "",
+  "mem_cycles": 896010
+ },
+ {
+  "bench": "knn",
+  "dtype": "float",
+  "nature": "fp_compute",
+  "floor": 75,
+  "cap": 8121,
+  "balance_work": 14680064,
+  "dep_note": "",
+  "mem_cycles": 196608
+ },
+ {
+  "bench": "lavaMD",
+  "dtype": "float",
+  "nature": "fp_compute",
+  "floor": 6317,
+  "cap": 8121,
+  "balance_work": 207360000,
+  "dep_note": "floor lowered from 8121 to 6317 (70%) so the window is not zero-width",
+  "mem_cycles": 2400
+ },
+ {
+  "bench": "lc_dilate",
+  "dtype": "float",
+  "nature": "memory/control",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 34944
+ },
+ {
+  "bench": "lc_gicov",
+  "dtype": "float",
+  "nature": "fp_compute",
+  "floor": 2858,
+  "cap": 8121,
+  "balance_work": 35117712,
+  "dep_note": "",
+  "mem_cycles": 12288
+ },
+ {
+  "bench": "lc_mgvf",
+  "dtype": "float",
+  "nature": "fp_compute",
+  "floor": 6317,
+  "cap": 8121,
+  "balance_work": 4898947072,
+  "dep_note": "floor lowered from 8121 to 6317 (70%) so the window is not zero-width",
+  "mem_cycles": 262144
+ },
+ {
+  "bench": "lud",
+  "dtype": "float",
+  "nature": "fp_compute",
+  "floor": 3393,
+  "cap": 8121,
+  "balance_work": 27798400,
+  "dep_note": "",
+  "mem_cycles": 8192
+ },
+ {
+  "bench": "machsuite_backprop",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 6317,
+  "cap": 8121,
+  "balance_work": 55285036,
+  "dep_note": "floor lowered from 8121 to 6317 (70%) so the window is not zero-width",
+  "mem_cycles": 1638
+ },
+ {
+  "bench": "machsuite_bfs_bulk",
+  "dtype": "int",
+  "nature": "memory/control",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 585
+ },
+ {
+  "bench": "machsuite_bfs_queue",
+  "dtype": "int",
+  "nature": "memory/control",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 585
+ },
+ {
+  "bench": "machsuite_gemm_blocked",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 1792,
+  "cap": 8121,
+  "balance_work": 3670016,
+  "dep_note": "",
+  "mem_cycles": 2048
+ },
+ {
+  "bench": "machsuite_md_grid",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 3218,
+  "cap": 8121,
+  "balance_work": 2330112,
+  "dep_note": "",
+  "mem_cycles": 724
+ },
+ {
+  "bench": "machsuite_sort_radix",
+  "dtype": "int",
+  "nature": "memory/control",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 520
+ },
+ {
+  "bench": "machsuite_spmv_ellpack",
+  "dtype": "double",
+  "nature": "mixed",
+  "floor": 62,
+  "cap": 8121,
+  "balance_work": 69160,
+  "dep_note": "",
+  "mem_cycles": 1111
+ },
+ {
+  "bench": "machsuite_stencil3D",
+  "dtype": "int",
+  "nature": "int_compute",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 2048
+ },
+ {
+  "bench": "md_knn",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 1353,
+  "cap": 8121,
+  "balance_work": 606208,
+  "dep_note": "",
+  "mem_cycles": 448
+ },
+ {
+  "bench": "nw",
+  "dtype": "int",
+  "nature": "int_compute",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 12
+ },
+ {
+  "bench": "pathfinder",
+  "dtype": "int",
+  "nature": "int_compute",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 65600
+ },
+ {
+  "bench": "sort_merge",
+  "dtype": "int",
+  "nature": "memory/control",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 256
+ },
+ {
+  "bench": "spmv_crs",
+  "dtype": "double",
+  "nature": "mixed",
+  "floor": 50,
+  "cap": 8121,
+  "balance_work": 23324,
+  "dep_note": "",
+  "mem_cycles": 466
+ },
+ {
+  "bench": "srad",
+  "dtype": "float",
+  "nature": "fp_compute",
+  "floor": 907,
+  "cap": 8121,
+  "balance_work": 11272192,
+  "dep_note": "",
+  "mem_cycles": 12432
+ },
+ {
+  "bench": "stencil2D",
+  "dtype": "int",
+  "nature": "int_compute",
+  "floor": 0,
+  "cap": null,
+  "balance_work": null,
+  "dep_note": "",
+  "mem_cycles": 1024
+ },
+ {
+  "bench": "viterbi",
+  "dtype": "double",
+  "nature": "fp_compute",
+  "floor": 3322,
+  "cap": 8121,
+  "balance_work": 3442944,
+  "dep_note": "",
+  "mem_cycles": 1036
+ }
+]

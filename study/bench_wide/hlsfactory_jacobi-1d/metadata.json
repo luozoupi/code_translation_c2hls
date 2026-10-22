@@ -1,0 +1,56 @@
+{
+  "benchmark": "hlsfactory_jacobi-1d",
+  "source_repo": "HLSFactory",
+  "algorithm_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/jacobi-1d/src/jacobi-1d.cpp",
+  "gold_hls_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/jacobi-1d/src/jacobi-1d.cpp",
+  "gold_hls_source_file": "gold_hls_source.cpp",
+  "gold_hls_baseline_file": "hls_baseline.cpp",
+  "kernel_file": "jacobi-1d.cpp",
+  "header_file": "jacobi-1d.h",
+  "baseline_variant": "hlsfactory_jacobi-1d_0_baseline",
+  "variants": [
+    {
+      "name": "hlsfactory_jacobi-1d_0_baseline",
+      "file": "hls_baseline.cpp",
+      "source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/jacobi-1d/src/jacobi-1d.cpp"
+    }
+  ],
+  "variant_source_paths": {
+    "hlsfactory_jacobi-1d_0_baseline": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/jacobi-1d/src/jacobi-1d.cpp"
+  },
+  "plain_c_file": "plain.cpp",
+  "testbench_file": "testbench.cpp",
+  "kernel_top": "kernel_jacobi_1d",
+  "hls_top": "kernel_jacobi_1d",
+  "translated_hls_top": "kernel_jacobi_1d",
+  "support_files": [],
+  "include_dirs": [],
+  "supports_csim": true,
+  "supports_cosim": true,
+  "cosim_depths": {},
+  "strip_report": {
+    "removed_hls_pragmas": 1,
+    "removed_accel_pragmas": 0,
+    "removed_support_includes": 0,
+    "removed_ap_int_includes": 0,
+    "removed_extern_c_blocks": 0,
+    "plain_contains_hls_pragmas": false,
+    "plain_contains_accel_pragmas": false,
+    "plain_contains_ap_uint": false
+  },
+  "provenance": {
+    "gold_hls_source_sha256": "8d2a1e3a3118be8fed59820e4acfe0c79b5fad6235309b2646c38cc6f7c235b4",
+    "gold_hls_baseline_sha256": "8d2a1e3a3118be8fed59820e4acfe0c79b5fad6235309b2646c38cc6f7c235b4",
+    "plain_c_sha256": "43799720528925d886dfe4454ec63a346b2ed6c862c457d8dd44a31eb6190f48",
+    "plain_derived_from_gold_hls": true
+  },
+  "header_source_path": "/mnt/e/courses/UMN/c2hls/HLSFactory/hlsfactory/hls_dataset_sources/polybench__reproducible/polybench__float__small/jacobi-1d/src/jacobi-1d.h",
+  "cosim_size_overrides": {
+    "N": 8,
+    "TSTEPS": 8
+  },
+  "cosim_testbench_file": "testbench_cosim.cpp",
+  "cosim_support_files": [
+    "gold_kernel_for_cosim.cpp"
+  ]
+}

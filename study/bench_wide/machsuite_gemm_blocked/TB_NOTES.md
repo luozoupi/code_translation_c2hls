@@ -1,0 +1,13 @@
+# TB_NOTES: machsuite_gemm_blocked
+- Arg classification (from plain.cpp): m1, m2 inputs; prod in-out accumulator (+= never zeroed; input_to_data memsets it to 0, kept as the real initial data).
+- Golden: check.data (covers prod).
+- Tolerance: double 1e-6*fmax(1,|ref|) (SPEC)
+- Poison: none (accumulator)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 4096 errors!
+- Control 3 (one bug, must fail): Failed with 512 errors! (last jj block skipped)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Only testbench.cpp edited.
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> support.c local_support.c (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/machsuite_gemm_blocked/).

@@ -1,0 +1,13 @@
+# TB_NOTES: md_knn
+- Arg classification (from plain.cpp): force_x/y/z pure outputs; positions, NL inputs.
+- Golden: TB's own md_ref (same arithmetic as plain.cpp's md_kernel), srand(42), no self-neighbours.
+- Tolerance: double 1e-6*fmax(1,|ref|) (SPEC); orig 1e-6 abs
+- Poison: force_x/y/z = 12345.0 (was memset 0)
+- Report: every element checked, first 10 mismatches printed, then exactly `Passed!` (return 0) or `Failed with N errors!` (return 1).
+- Original testbench kept as testbench.orig.cpp.
+- Control 1 (plain.cpp as kernel, must pass): Passed!
+- Control 2 (kernel returns immediately, must fail): Failed with 768 errors!
+- Control 3 (one bug, must fail): Failed with 1 errors! (last force_z not written back)
+- hls_baseline.cpp as kernel: Passed!
+- Notes: Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/md_knn/).

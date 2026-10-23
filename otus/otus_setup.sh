@@ -9,6 +9,8 @@
 #   copy     step 5b: rsync the results and the extra folders from Fir. Refuses while Fir still has jobs queued or the
 #            driver running (step 1); SKIP_FIR_CHECK=1 overrides. Optional: OPTIONAL=1 (Fir's LightningSim source,
 #            AutoSA), COPY_ENV=1 (the judge's .env).
+#   unpack   step 5b without ssh (Otus needs a VPN, so Fir can't reach it): unpack the tarballs that otus/pack_for_otus.sh
+#            made on Fir and Globus brought to $B/transfer_from_fir (or the folder given as $2); checks SHA256SUMS first
 #   site     step 6: the path/account/python/login-host sed (OTUS_LOGIN=<login node> required), apply_otus_site.sh,
 #            one commit in the clone
 #   venv     the c2hls venv (otus/setup_venv_otus.sh)
@@ -25,7 +27,7 @@ set -euo pipefail
 W=${W:-/scratch/hpc-prf-llmfpga/asa582/projects/workspaces}; B=${W%/workspaces}
 [ "$B" != "$W" ] || { echo "W must end in /workspaces (B is the folder above it): $W"; exit 1; }
 FIR=${FIR:-asa582@fir.alliancecan.ca}
-REPO=${REPO:-git@github.com:luozoupi/code_translation_c2hls.git} BRANCH=${BRANCH:-c2hls_enhanced_l_pc2_api_layout_study}
+REPO=${REPO:-https://github.com/luozoupi/code_translation_c2hls.git} BRANCH=${BRANCH:-c2hls_enhanced_l_pc2_api_layout_study}   # public: no GitHub key
 J=$W/code_translation_c2hls CC=$W/c2hls_claude_code
 export LSIM_T=${LSIM_T:-$B/tools/lightningsim}
 ACCT=hpc-prf-llmfpga VITIS=/opt/software/FPGA/Xilinx/Vitis/2023.2/settings64.sh
@@ -43,7 +45,9 @@ check)
   [ -f "$VITIS" ] && ok "Vitis 2023.2: $VITIS" || bad "no $VITIS"
   P=$(ls -d /opt/software/FPGA/Xilinx/platforms/*u280* 2>/dev/null | head -1 || true)
   [ -n "$P" ] && ok "U280 platform: $P" || echo "  [warn] no U280 platform under /opt/software/FPGA/Xilinx/platforms (only xclbin needs it; OTUS_U280_XPFM)"
-  $SSH -o ConnectTimeout=20 "$FIR" true && ok "ssh to $FIR" || bad "ssh to $FIR (the copy stage needs it; or rsync from Fir to Otus)"
+  $SSH -o ConnectTimeout=20 -o BatchMode=yes "$FIR" true 2>/dev/null && ok "ssh to $FIR" \
+    || echo "  [warn] no ssh to $FIR: use Globus (otus/pack_for_otus.sh on Fir, then the unpack stage) instead of copy"
+  git ls-remote "$REPO" "refs/heads/$BRANCH" >/dev/null 2>&1 && ok "GitHub: $BRANCH" || bad "GitHub not reachable: the clone stage needs it"
   echo "  disk and quota for $(dirname "$B"):"; df -h "$(dirname "$B")" | tail -1 | sed 's/^/    /'
   { lfs quota -h -u "$USER" "$(dirname "$B")" 2>/dev/null || quota -s 2>/dev/null || true; } | sed 's/^/    /'
   echo "  the copy needs about 9.7 GB and 124k files (the study results alone: 5.5 GB, 108k files)"
@@ -104,6 +108,21 @@ copy)
   else echo "  skipped Fir's LightningSim source and AutoSA (OPTIONAL=1)"; fi
   if [ "${COPY_ENV:-0}" = 1 ]; then "${R[@]}" "$FIR:/scratch/asa582/workspaces/code_translation_c2hls/.env" "$J/.env"; chmod 600 "$J/.env"
   else echo "  skipped the judge's .env (COPY_ENV=1)"; fi
+  echo "next: OTUS_LOGIN=<login node> $0 site" ;;
+
+unpack)
+  need_clone; IN=${2:-$B/transfer_from_fir}; cd "$IN"
+  [ -f MANIFEST.tsv ] && [ -f SHA256SUMS ] || { echo "no MANIFEST.tsv/SHA256SUMS in $IN"; exit 1; }
+  echo "checking SHA256SUMS in $IN"; sha256sum -c SHA256SUMS
+  KEY=$(echo "$W/dse_v4_claude" | sed 's|[^A-Za-z0-9]|-|g')
+  while IFS=$'\t' read -r f to; do
+    to=${to//'$J'/$J}; to=${to//'$W'/$W}; to=${to//'$B'/$B}; to=${to//'$KEY'/$KEY}; to=${to/#\~/$HOME}
+    echo "== $f -> $to"; mkdir -p "$to"; tar -xf "$IN/$f" -C "$to"
+  done < MANIFEST.tsv
+  [ -f "$J/.env" ] && chmod 600 "$J/.env"
+  echo "memory -> ~/.claude/projects/$KEY/memory (start claude in $W/dse_v4_claude once and check the name in ~/.claude/projects/)"
+  echo "study files now: $(find "$CC/" | wc -l)"
+  echo "the tarballs in $IN can go once 'verify' and 'compare' pass"
   echo "next: OTUS_LOGIN=<login node> $0 site" ;;
 
 site)

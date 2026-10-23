@@ -131,6 +131,14 @@ My memory files go across with rsync in step 5. Claude Code keys project memory 
 
 ## 5. Clone and copy the results (on Otus)
 
+**Otus needs a VPN, and Fir doesn't have one, so the two clusters can't reach each other over ssh. Use Globus instead.** Globus is slow with many small files, doesn't carry symlinks, and has no rsync-style excludes. So the copy goes as a few tarballs:
+1. On Fir, after the freeze: `bash /scratch/asa582/workspaces/c2hls_claude_code/otus/pack_for_otus.sh`. It refuses while jobs are queued, a driver/shim/proxy/agent process runs on login2, or C r4 has no `exit_code`. It writes `/scratch/asa582/tmp/c2hls/otus_transfer/` with `study_results.tar.gz`, `workspaces_extra.tar.gz` (`soda_src`, `dse_v4_claude`), `tmp_c2hls.tar` (Vitis headers, LightningSim projects), `claude_memory.tar.gz`, `MANIFEST.tsv` and `SHA256SUMS`. The excludes are the ones the rsync below uses.
+2. Globus: transfer the folder's contents to `/scratch/hpc-prf-llmfpga/asa582/projects/transfer_from_fir/` on Otus.
+3. On Otus, after `clone`: `otus/otus_setup.sh unpack`. It checks `SHA256SUMS`, then unpacks each tarball where `MANIFEST.tsv` says. The study goes into the clone's real `c2hls_claude_code/` folder, not through the link.
+
+Tested on small trees on Fir: the excluded Vitis folders and `.git` were left out; check kernels and `csynth.xml` reports were kept; the link was intact. The rsync commands below are for the case where ssh works.
+
+
 ```bash
 W=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces; mkdir -p $W ../tmp/c2hls ../cache
 cd $W

@@ -515,3 +515,10 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - SODA cosims: 14 pass (+ patched heat3d_u2 1,885,266, contrast_u1 468,963), 3 deadlock, 15 xelab SIGSEGV; 53 running.
   - Driver: **agb_fft_r1** done (1 h 31 min; HLSmith with an agent backend): baseline 36,494 cycles → 367 cycles, DSP 6,800, LUT 952,742, csim True. Now agb_hlsfactory_cholesky_r1 (3826558).
   - xclbin 3820417: still in implementation (4 strategies, 0 of 5 complete). lsim 3826441 (the 4 big ones, 480G) is running.
+- 2026-10-23 22:15 check:
+  - SODA cosims: 17 pass, 3 deadlock, 15 xelab SIGSEGV of 35; 50 running. New passes and other non-jacobi/seidel passes: designs_patched/heat3d_u4 1319877;designs_patched/heat3d_u4_b128 1319877;designs_patched/jacobi3d_u4 1339146.
+  - Driver (HLSmith with an agent backend, `exp_hlsmith/runs/skills_agb_hlsfactory_*_r1_*`):
+    - **agb_hlsfactory_cholesky_r1**: 68,337,001 → 5,336 cycles, DSP 5,946, LUT 419,007, csim passed. N = 120; the final kernel is a blocked right-looking Cholesky (4×4 pivot blocks, an II=1 trailing update of 256 MACs per cycle), so ~576 k MACs / 256 ≈ 2,250 cycles: plausible.
+    - **agb_hlsfactory_fdtd-2d_r1** (6 min 45 s): 98,261,801 → 3,818 cycles, DSP 3,806, LUT 501,848, csim passed.
+    - Now agb_hlsfactory_gramschmidt_r1 (3828007).
+  - xclbin 3820417: still 0 of 5 implementation runs complete (about 3 h in implementation).

@@ -10,6 +10,7 @@ HERE=$(dirname "$(readlink -f "$0")")
 T=${LSIM_T:-/scratch/hpc-prf-llmfpga/asa582/projects/tools/lightningsim}
 mkdir -p "$T/bin" "$T/tmp"
 export MAMBA_ROOT_PREFIX=$T/mamba
+export CONDA_PKGS_DIRS=$T/mamba/pkgs   # not the account's ~/.condarc pkgs_dirs (on Otus it named another user's folder)
 [ -x "$T/bin/micromamba" ] || curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xj -C "$T" bin/micromamba
 [ -d "$T/env" ]     || "$T/bin/micromamba" create -y -p "$T/env"     --file "$HERE/lsim_env_explicit.txt"
 [ -d "$T/rustenv" ] || "$T/bin/micromamba" create -y -p "$T/rustenv" --file "$HERE/rust_env_explicit.txt"

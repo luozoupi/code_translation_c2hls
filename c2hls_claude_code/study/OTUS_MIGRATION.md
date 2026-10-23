@@ -46,6 +46,8 @@ What each check needs to show:
 
 ## 1. Freeze Fir (you run these: I can't cancel jobs)
 
+**Chosen on 2026-10-22 at 20:25: no freeze.** Fir keeps its 113 queued jobs as a contingency; nothing is cancelled. The driver is stopped (so no new agent tag starts on Fir), and C r4 ended at 20:08 (`exit_code` 0, but its v1 csim 66851704 never left the queue, so it has no result). Pack with `LIVE=1 bash otus/pack_for_otus.sh`: it skips the freeze checks, keeps a file a running job changes mid-pack as read, and writes `PACKED_AT` and `fir_queue_at_pack.txt`. On Otus the resubmit scripts run the same jobs again, so for a while both clusters run them; Fir results that land after `PACKED_AT` can come over later in a second, smaller transfer. The freeze steps below are kept for reference.
+
 **State at 17:40 on 2026-10-22:** `pl_refv2_cc_r2` finished (COMPLETED, 1 h). The driver then started **C r4** (`afw_hlsm_r4`): a Claude Code session on login2 with a 3-hour budget, in `study/agentfw/runs/mm1024_hlsm_r4`. It submits its own csim and csynth jobs (`afw_csim`, `afw_csynth`). Let it finish on Fir. Resuming it on Otus would mix the two clusters in one run, and C r4 is compared with r1–r3, which all ran on Fir.
 
 ```bash

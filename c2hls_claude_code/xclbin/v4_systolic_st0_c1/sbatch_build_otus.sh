@@ -22,7 +22,7 @@ set -u
 command -v v++
 XPFM=xilinx_u280_gen3x16_xdma_1_202211_1.xpfm
 PLAT=${OTUS_U280_XPFM:-$(for d in ${PLATFORM_REPO_PATHS:-} /opt/xilinx/platforms /opt/software/FPGA/Xilinx/platforms /opt/software/FPGA/platforms; do
-  [ -d "$d" ] && find "$d" -maxdepth 3 -name "$XPFM" 2>/dev/null; done | head -1)}
+  [ -d "$d" ] && find "$d" -maxdepth 3 -name "$XPFM" 2>/dev/null || true; done | sed -n 1p)}   # || true: a missing last dir would end the script under pipefail
 [ -n "$PLAT" ] && [ -f "$PLAT" ] || { echo "U280 platform $XPFM not found: set OTUS_U280_XPFM"; exit 1; }
 echo "platform $PLAT"
 # Everything bulky (HLS project, Vivado project, all four implementation runs) goes to a temp dir that is deleted.
@@ -52,5 +52,5 @@ run "v++ -l -t hw --platform $PLAT --config link.cfg kernel0.xo -o kernel0.xclbi
 date; echo "== package"
 cp "$T/kernel0.xclbin" "$T/kernel0.xo" "$B/out/"
 run "xclbinutil --info --input kernel0.xclbin" > "$B/out/kernel0.xclbin.info"
-grep -iE "Frequency|clock" "$B/out/kernel0.xclbin.info" | head
+grep -iE "Frequency|clock" "$B/out/kernel0.xclbin.info" | sed -n 1,10p || true
 date; echo "done"

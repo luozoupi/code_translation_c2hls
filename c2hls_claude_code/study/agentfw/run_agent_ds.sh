@@ -31,7 +31,7 @@ export CLAUDE_CONFIG_DIR=$WS/.claude_cfg ANTHROPIC_BASE_URL=http://login5:18095 
 export ANTHROPIC_MODEL=deepseek-v4-flash ANTHROPIC_SMALL_FAST_MODEL=deepseek-v4-flash CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_TELEMETRY=1
 unset ANTHROPIC_API_KEY
 mkdir -p $CLAUDE_CONFIG_DIR
-timeout ${H}h /home/asa582/.local/bin/claude -p "$PROMPT" "${RES[@]}" \
+timeout ${H}h /pc2/users/h/haqc2/.local/bin/claude -p "$PROMPT" "${RES[@]}" \
   --model deepseek-v4-flash --output-format stream-json --verbose \
   --tools "$TOOLS" --allowedTools "$ALLOW" --permission-mode acceptEdits \
   --strict-mcp-config --setting-sources "" --disable-slash-commands \

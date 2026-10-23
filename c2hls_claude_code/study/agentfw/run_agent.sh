@@ -24,7 +24,7 @@ if [ "${RESUME:-0}" = 1 ]; then
 else
   date -u +%FT%TZ > started_at
 fi
-timeout ${H}h /home/asa582/.local/bin/claude -p "$PROMPT" "${RES[@]}" \
+timeout ${H}h /pc2/users/h/haqc2/.local/bin/claude -p "$PROMPT" "${RES[@]}" \
   --model claude-opus-5-5 --output-format stream-json --verbose \
   --tools "$TOOLS" --allowedTools "$ALLOW" --permission-mode acceptEdits \
   --strict-mcp-config --setting-sources "" --disable-slash-commands \

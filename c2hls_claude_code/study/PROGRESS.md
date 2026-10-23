@@ -527,3 +527,7 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - lsim_u16cr 3831009 (contrast_u16_cr): rc 1 after 25 s, `undefined reference to _autotb_FifoCanRead_i33/_i513`. This is the same LightningSim limitation as the 46 lsim_soda2 projects (non-blocking FIFO reads), so the unpatched contrast_u16_cr has no LightningSim number.
   - Driver: **agb_hlsfactory_gramschmidt_r1** done (1 h 7 min): no gain, final = baseline = 2,270,081 cycles, DSP 660, LUT 66,797, csim True. Now agb_hlsfactory_jacobi-2d_r1 (3831013).
   - SODA cosims unchanged: 19 pass / 3 deadlock / 15 SIGSEGV; 48 running. xclbin 3820417: about 5 h in implementation, still 0 of 5 complete (2-day limit).
+- 2026-10-24 01:20 check:
+  - **3 posthoc csynths TIMEOUT at 12 h** (3813787–89): `mm1024_hlsm_ds_r1/exp_v2_T64J32K4_csim`, `mm1024_hlsm_ds_r1/exp_v4_T67J128K1_csim`, `mm1024_hlsm_ds_r2/exp_v2a_csim` (MaxRSS ~5 GB). Their non-csim twins in the agent sessions on Fir also never finished csynth (`agentfw/runs/.../exp/v2_T64J32K4`, `v4_T67J128K1`: 3 TIMEOUTs each; `v2a_128x64`: 2), so the slowness is in these kernels, not Otus. Rerun once with a 3-day limit (normal allows 21 days): **3831181, 3831182, 3831183**. If they time out again, treat them as "csynth does not finish".
+  - Driver: agb_hlsfactory_jacobi-2d_r1 done (1 h 2 min): 3,112,241 → 4,453 cycles, DSP 7,040, LUT 1,233,442, csim True. Now agb_hlsfactory_lu_r1.
+  - xclbin 3820417: 1 of 5 implementation runs complete. SODA cosims unchanged (19/3/15; 48 running).

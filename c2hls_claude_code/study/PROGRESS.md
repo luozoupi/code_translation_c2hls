@@ -522,3 +522,4 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
     - **agb_hlsfactory_fdtd-2d_r1** (6 min 45 s): 98,261,801 → 3,818 cycles, DSP 3,806, LUT 501,848, csim passed.
     - Now agb_hlsfactory_gramschmidt_r1 (3828007).
   - xclbin 3820417: still 0 of 5 implementation runs complete (about 3 h in implementation).
+- 2026-10-23 23:15 check: **lsim_proj 3813805 done** (9 h 39 min): `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/soda/contrast_u16_cr/proj.tar.gz` (184 MB, "proj ok"); its LightningSim run was submitted as **3831009** (`lsim_u16cr`, PAR=1, 192G). SODA cosims: 19 pass (+ patched jacobi3d_u4_b128 1,339,137, jacobi3d_u8 669,915), 3 deadlock, 15 xelab SIGSEGV; 48 running. Driver on agb_hlsfactory_gramschmidt_r1. xclbin 3820417: still 0 of 5 implementation runs complete.

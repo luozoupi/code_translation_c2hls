@@ -8,3 +8,4 @@
 3814218 -J lsim_proj -t 24:00:00 --mem=192G -o /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls/c2hls_claude_code/study/soda/lsim/logs/proj_contrast_u16_cr-%j.out /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls/c2hls_claude_code/study/soda/lsim/job_proj_otus.sh /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls/c2hls_claude_code/study/soda/dse/designs/contrast_u16_cr /scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/soda/contrast_u16_cr
 3820398 -J lsim_soda_pat --cpus-per-task=8 --mem=192G -t 24:00:00 PAR=4 (rerun of the 35 OOM/bus-error projects of 3814217)
 3826441 -J lsim_soda_pat --mem=480G -t 24:00:00 PAR=1 (the 4 still OOM in 3820398: pat_jacobi3d_u4_b128_laafd pat_heat3d_u4_b128_laafd pat_denoise3d_u4_b128_laafd pat_jacobi3d_u8)
+3831009 -J lsim_u16cr --mem=192G PAR=1 ONLY=contrast_u16_cr (after lsim_proj 3813805 built proj.tar.gz)

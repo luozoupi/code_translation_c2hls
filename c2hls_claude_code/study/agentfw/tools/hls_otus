@@ -27,7 +27,7 @@ LOG = EXP / "log.jsonl"
 TIERS = ["01:00:00", "03:00:00", "06:00:00"]
 STUDY = next(p for p in Path(__file__).resolve().parents if (p / "jobs" / "keep_copy.sh").is_file())
 DFDIAG = str(STUDY / "dfdiag" / "dfdiag.py")
-VITIS = os.environ.get("OTUS_VITIS_SETTINGS", "/opt/software/FPGA/Xilinx/Vitis/2023.2/settings64.sh")
+VITIS = os.environ.get("OTUS_VITIS_SETTINGS", "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/otus/vitis_settings_otus.sh")
 EVAL = Path(__file__).resolve().parent / "hls_eval_job.py"   # sits next to this script (workspace bin/)
 
 

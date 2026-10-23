@@ -26,7 +26,7 @@ export C2HLS_TMP_ROOT=$B/tmp/c2hls C2HLS_VITIS_USER_HOME=$B/tmp/vitis_user_home
 export PATH="${HOME}/.local/bin:${PATH}"
 mkdir -p "${C2HLS_TMP_ROOT}" "${C2HLS_VITIS_USER_HOME}"
 # Vitis, natively
-export C2HLS_VITIS_SETTINGS=${OTUS_VITIS_SETTINGS:-/opt/software/FPGA/Xilinx/Vitis/2023.2/settings64.sh}
+export C2HLS_VITIS_SETTINGS=${OTUS_VITIS_SETTINGS:-/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/otus/vitis_settings_otus.sh}
 set +u; source "$C2HLS_VITIS_SETTINGS" >/dev/null; set -u
 command -v vitis-run
 export C2HLS_COMPILE_INCLUDE_PATHS=${C2HLS_COMPILE_INCLUDE_PATHS_OTUS:-$XILINX_HLS/include}

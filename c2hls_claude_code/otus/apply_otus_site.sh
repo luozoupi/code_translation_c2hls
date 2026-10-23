@@ -47,7 +47,7 @@ echo "6. hardened-bench headers"
 INC=$B/tmp/c2hls/vitis_hls_2023.2_include
 if [ -f "$INC/ap_int.h" ]; then echo "  $INC present"
 else
-  set +u; source "${OTUS_VITIS_SETTINGS:-/opt/software/FPGA/Xilinx/Vitis/2023.2/settings64.sh}" >/dev/null 2>&1 || true; set -u
+  set +u; source "${OTUS_VITIS_SETTINGS:-/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/otus/vitis_settings_otus.sh}" >/dev/null 2>&1 || true; set -u
   [ -f "${XILINX_HLS:-}/include/ap_int.h" ] || { echo "  no $INC and no \$XILINX_HLS/include: rsync it from Fir (step 5)"; exit 1; }
   echo "  $INC -> $XILINX_HLS/include (symlink)"; [ $DRY = 1 ] || { mkdir -p "$(dirname "$INC")"; ln -sfn "$XILINX_HLS/include" "$INC"; }
 fi

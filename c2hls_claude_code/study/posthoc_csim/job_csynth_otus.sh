@@ -10,7 +10,7 @@
 set -eo pipefail
 STUDY=${STUDY_DIR:?}
 module load lang Python/3.11.5-GCCcore-13.2.0 2>/dev/null || true
-export C2HLS_VITIS_SETTINGS=${OTUS_VITIS_SETTINGS:-/opt/software/FPGA/Xilinx/Vitis/2023.2/settings64.sh}
+export C2HLS_VITIS_SETTINGS=${OTUS_VITIS_SETTINGS:-/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/otus/vitis_settings_otus.sh}
 W=$(dirname "$(dirname "$STUDY")")                        # workspaces (study -> c2hls_claude_code -> ..)
 [ -f "$W/hls_eval.py" ] && W=$(dirname "$W")   # combined branch: the study is a subfolder of the judge clone
 B=$(dirname "$W")                                          # projects root

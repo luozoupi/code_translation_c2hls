@@ -18,7 +18,7 @@ HERE=${LSIM_HERE:?}
 module load lang Python/3.11.5-GCCcore-13.2.0 2>/dev/null || true
 PY=python3
 ulimit -c 0
-set +u; source ${OTUS_VITIS_SETTINGS:-/opt/software/FPGA/Xilinx/Vitis/2023.2/settings64.sh} >/dev/null; set -u
+set +u; source ${OTUS_VITIS_SETTINGS:-/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/otus/vitis_settings_otus.sh} >/dev/null; set -u
 export LSIM_T PY
 set +e
 ROOT=${ROOT:?}; MODEL=${MODEL:-v2023}; PAR=${PAR:-8}; TAG=${TAG:-$MODEL}

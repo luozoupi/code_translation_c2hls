@@ -8,7 +8,7 @@
 #SBATCH --mem=64G
 set -eo pipefail
 D=$1; MODE=$2
-source ${OTUS_VITIS_SETTINGS:-/opt/software/FPGA/Xilinx/Vitis/2023.2/settings64.sh}
+source ${OTUS_VITIS_SETTINGS:-/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/otus/vitis_settings_otus.sh}
 command -v vitis-run
 KEEP=${STUDY_DIR:?}/jobs/keep_copy.sh
 # File-count quota on /scratch: run in node-local storage, copy back only reports/sources/json/logs (keep_copy.sh).

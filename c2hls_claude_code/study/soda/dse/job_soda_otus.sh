@@ -16,7 +16,7 @@ D=$(readlink -f $1); MODE=$2
 TOP=$(python3 -c "import json;print(json.load(open('$D/config.json'))['top'])")
 ARGV=$(python3 -c "import json;print(json.load(open('$D/config.json'))['argv'])")
 ulimit -c 0
-source ${OTUS_VITIS_SETTINGS:-/opt/software/FPGA/Xilinx/Vitis/2023.2/settings64.sh}
+source ${OTUS_VITIS_SETTINGS:-/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/otus/vitis_settings_otus.sh}
 command -v vitis-run
 L=${SLURM_TMPDIR:-${OTUS_LOCAL_TMP:-/tmp}/$USER/$SLURM_JOB_ID}
 W=$L/soda_$(basename $D)_$MODE; mkdir -p $W/home/.Xilinx $W/tmp

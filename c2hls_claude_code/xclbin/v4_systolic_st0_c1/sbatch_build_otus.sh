@@ -16,7 +16,7 @@ B=${XCLBIN_DIR:-$SLURM_SUBMIT_DIR}
 [ -f "$B/link.cfg" ] || { echo "submit from xclbin/v4_systolic_st0_c1 (or set XCLBIN_DIR)"; exit 1; }
 ulimit -c 0  # no core dumps
 set +u
-source "${OTUS_VITIS_SETTINGS:-/opt/software/FPGA/Xilinx/Vitis/2023.2/settings64.sh}" >/dev/null
+source "${OTUS_VITIS_SETTINGS:-/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/otus/vitis_settings_otus.sh}" >/dev/null
 XRT=${OTUS_XRT_SETUP:-/opt/xilinx/xrt/setup.sh}; [ -f "$XRT" ] && source "$XRT" >/dev/null || echo "no XRT setup at $XRT: xclbinutil may be missing"
 set -u
 command -v v++

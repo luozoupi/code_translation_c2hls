@@ -33,7 +33,7 @@ lsim() {   # lsim <job name> <names file> <par> <cpus> <time>
       "$HERE/sbatch_lsim_otus.sh"
 }
 if [ "$MODE" = --check ]; then
-  n=$(for x in $(grep -v '^#' "$HERE/names_lsim_soda2.txt"); do [ -f "$ROOT/$x/lsim_v2023.json" ] && echo "$x" || true; done | head -1)
+  n=$(for x in $(grep -v '^#' "$HERE/names_lsim_soda2.txt"); do [ -f "$ROOT/$x/lsim_v2023.json" ] && echo "$x" || true; done | sed -n 1p)   # not head -1: its SIGPIPE ends the script under pipefail
   [ -n "$n" ] || { echo "no finished Fir project to compare against"; exit 1; }
   echo "check project: $n (Fir result: $(python3 -c "import json;print(json.load(open('$ROOT/$n/lsim_v2023.json'))['end'])"))"
   echo "when done: python3 -c \"import json;print(json.load(open('$ROOT/$n/lsim_otuscheck.json'))['end'])\"  # must be equal"

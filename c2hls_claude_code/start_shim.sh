@@ -19,7 +19,7 @@ fi
 if [[ -f "$D/$NAME.pid" ]] && kill -0 "$(cat "$D/$NAME.pid")" 2>/dev/null; then
   echo "$NAME already running (pid $(cat "$D/$NAME.pid")): $(cat "$D/${NAME}_url.txt")"; exit 0
 fi
-PORT=$(python3 -c "import socket;s=socket.socket();s.bind(('',0));print(s.getsockname()[1])")
+PORT=${PORT:-$(python3 -c "import socket;s=socket.socket();s.bind(('',0));print(s.getsockname()[1])")}   # PORT=38585: the port serial_driver.py probes
 LOG="$D/logs/${NAME}_$(date +%Y%m%dT%H%M%S)"; mkdir -p "$LOG"
 nohup python3 "$D/claude_code_shim.py" --port "$PORT" --workers "${1:-2}" --log-dir "$LOG" "${EXTRA[@]}" \
   > "$LOG/server.log" 2>&1 &

@@ -509,3 +509,9 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - SODA cosims: 12 pass (+ seidel2d_u4 356,724, seidel2d_u4_b128 356,733), 3 deadlock, 15 xelab SIGSEGV; 55 running.
   - afw_post `mm1024_team_r1/exp_post/v4_ti36_csynth` done (7 h 10 min): 911,371 cycles, interval 983,532, DSP 8,834, LUT 1,244,462, FF 2,069,037, BRAM 2,197. v4_ti40 is still running.
   - xclbin 3820417: still in implementation (0 of 5 runs complete). Driver: agb_fft_r1 still running.
+- 2026-10-23 21:15 check:
+  - afw_post `mm1024_team_r1/exp_post/v4_ti40_csynth` done: 883,480 cycles, DSP 8,706, LUT 1,454,056, FF 2,271,406, BRAM 2,197 (with v4_ti36's 911,371 at 20:15, the team pair is complete).
+  - Posthoc `skills_ag_dspredo_r2_.../call_00016_3_csim`: 724,446 cycles, DSP 8,323, LUT 844,430, FF 1,361,090, BRAM 120.
+  - SODA cosims: 14 pass (+ patched heat3d_u2 1,885,266, contrast_u1 468,963), 3 deadlock, 15 xelab SIGSEGV; 53 running.
+  - Driver: **agb_fft_r1** done (1 h 31 min; HLSmith with an agent backend): baseline 36,494 cycles → 367 cycles, DSP 6,800, LUT 952,742, csim True. Now agb_hlsfactory_cholesky_r1 (3826558).
+  - xclbin 3820417: still in implementation (4 strategies, 0 of 5 complete). lsim 3826441 (the 4 big ones, 480G) is running.

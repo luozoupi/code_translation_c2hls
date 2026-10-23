@@ -12,7 +12,7 @@
 #SBATCH --mem=448G
 #SBATCH --time=2-00:00:00
 set -euo pipefail
-B=${XCLBIN_DIR:-$SLURM_SUBMIT_DIR}
+B=${XCLBIN_DIR:-$PWD}   # resubmit_xclbin_otus.sh sets --chdir; SLURM_SUBMIT_DIR is wherever sbatch ran
 [ -f "$B/link.cfg" ] || { echo "submit from xclbin/v4_systolic_st0_c1 (or set XCLBIN_DIR)"; exit 1; }
 ulimit -c 0  # no core dumps
 set +u

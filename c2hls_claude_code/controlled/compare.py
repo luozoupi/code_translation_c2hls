@@ -9,7 +9,7 @@ normalising run-specific temp paths? Per variant and model: pass rate and median
 import glob, json, re, statistics, subprocess
 from pathlib import Path
 
-CC = Path("/scratch/asa582/workspaces/c2hls_claude_code")
+CC = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code")
 R = CC / "runs_controlled"
 MODEL = {"cc": "Claude Code (claude-opus-5-5)", "ds": "DeepSeek (deepseek-v4-flash)"}
 VARIANT = {"zs": "zero-shot", "noskills": "flash, no skills", "skills": "flash + skills (no DSP gates)",

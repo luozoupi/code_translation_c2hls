@@ -85,15 +85,15 @@ Design 02 can't be built below 1024³: its `C_LOAD_START` = 8192 needs `K/16·25
 ## How to run
 
 ```bash
-cd /scratch/asa582/workspaces/c2hls_claude_code/cosim/lsim
+cd /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/cosim/lsim
 # 1. a Vitis 2023.2 project (csynth is enough for LightningSim; --cosim adds the reference cycles)
 sbatch --job-name=ld_x --export=ALL,NAME=x,KERNEL=/path/kernel.cpp,SIZE=1024 sbatch_design.sh
 # 2. LightningSim (v2023) on it, inside the Vitis container -> designs/x_n1024/lsim_v2023.json (end cycle)
-sbatch --export=ALL,ROOT=/scratch/asa582/tmp/c2hls/lsim/designs,ONLY=x_n1024,MODEL=v2023 sbatch_lsim.sh
+sbatch --export=ALL,ROOT=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/designs,ONLY=x_n1024,MODEL=v2023 sbatch_lsim.sh
 # 3. predicted cosim report and comparison
-$PY compare.py /scratch/asa582/tmp/c2hls/lsim/designs --tags v2023 --match '_n1024$'
+$PY compare.py /scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/designs --tags v2023 --match '_n1024$'
 # T3 (once our 256^3 cosims and the queued LightningSim jobs finish) and T4 (as the Vitis 1024^3 jobs finish)
-$PY compare.py /scratch/asa582/tmp/c2hls/lsim/designs --tags v2021,v2023 --match '_n256$' --md T3_n256.md --csv T3_n256.csv
+$PY compare.py /scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/designs --tags v2021,v2023 --match '_n256$' --md T3_n256.md --csv T3_n256.csv
 $PY t4_table.py
 ```
 
@@ -114,7 +114,7 @@ $PY t4_table.py
 | `build_lsim.sh`, `lightningsim-vitis2023-axi.patch` | rebuild/install the fork; its diff from upstream v0.2.6 |
 
 **Data:**
-- `/scratch/asa582/tmp/c2hls/lsim/{mb,mb_vcd,mb_vcd2,designs,designs_vcd2}`: one `proj.tar.gz` per project, to limit the file count.
+- `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/{mb,mb_vcd,mb_vcd2,designs,designs_vcd2}`: one `proj.tar.gz` per project, to limit the file count.
 - The env, fork and Rust toolchain take about 18.6K files in `/scratch/asa582/tools/lightningsim`.
 
 ## Limitations

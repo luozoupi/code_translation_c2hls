@@ -13,7 +13,7 @@ State as of 2026-10-11. See `README.md` for the full method, and the `T*_*.md` t
   - The c2hls checkout is read-only.
   - Never touch the running 1024³ Vitis cosim jobs (`../jobs.txt`).
   - Storage is limited by file count, so keep Vitis projects as one `proj.tar.gz` each. Never clone LightningSim with its `llvm-project` (119K files).
-  - Temp files go under `/scratch/asa582/tmp/c2hls` (`/tmp` is a memory disk); jobs run on node-local `$SLURM_TMPDIR`.
+  - Temp files go under `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls` (`/tmp` is a memory disk); jobs run on node-local `$SLURM_TMPDIR`.
   - Slurm account `def-zhenman`. No tight polling: chain jobs with `--dependency`, or check on demand.
 
 ## 2. Implementation state
@@ -24,7 +24,7 @@ State as of 2026-10-11. See `README.md` for the full method, and the `T*_*.md` t
 | Env (conda/micromamba), Rust 1.85 build env | `/scratch/asa582/tools/lightningsim/{env,rustenv,cargo}` |
 | Patch vs upstream | `lightningsim-vitis2023-axi.patch` |
 | Harness, tables, README | this directory (`cosim/lsim/`) |
-| Projects and data (tarballs, VCDs, dumps) | `/scratch/asa582/tmp/c2hls/lsim/{mb,mb_vcd,mb_vcd2,designs,designs_vcd2}` |
+| Projects and data (tarballs, VCDs, dumps) | `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/{mb,mb_vcd,mb_vcd2,designs,designs_vcd2}` |
 
 - **Switch:** `LSIM_AXI_MODEL=v2021|v2023`. The default is `v2021`, which reproduces stock LightningSim bit for bit; `run_lsim.sh` defaults to `v2023`.
 - **Changed Rust files:** `backend/lightningsim-core/{axi_interface.rs, edge.rs, lib.rs, builder/{axi_builder.rs, axi_rctl.rs, event.rs, mod.rs}}`.
@@ -99,7 +99,7 @@ report = P·ceil((E − END_OFFSET − 3)/P) + K,   P = 6 + n,   K = 27 + 12n
    - Design 12 is also wrong in Verilator at 1024³ (finishes at 533K with all outputs wrong). LightningSim's 2.35M for 12 times the C code.
 4. **`st0_c1`** (dse_v4 128-PE kernel, no cosim job): the LightningSim v2023 run failed after 27 min.
    - The error is in `trace_file.py:153`: `int(basic_block)` received `0x5652763ae150`. A `trace_bb`/`loop_bb` trace line carries a pointer instead of a basic-block number, probably interleaved or corrupted trace output from the dataflow design's many processes.
-   - Not investigated yet. Inputs are in `/scratch/asa582/tmp/c2hls/lsim/st0c1_inputs/` and the project in `designs/st0_c1_n1024/`.
+   - Not investigated yet. Inputs are in `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/st0c1_inputs/` and the project in `designs/st0_c1_n1024/`.
 5. **Known model limits:**
    - Write-credit-bound long bursts: `wr_n1024_out4` is −1.3%.
    - The schedule-tail offset is handled as a constant (±3 cycles).
@@ -114,12 +114,12 @@ report = P·ceil((E − END_OFFSET − 3)/P) + K,   P = 6 + n,   K = 27 + 12n
 ## 7. Commands
 
 ```bash
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh          # gives $PY; sbatch scripts source Vitis themselves
-cd /scratch/asa582/workspaces/c2hls_claude_code/cosim/lsim
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh          # gives $PY; sbatch scripts source Vitis themselves
+cd /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/cosim/lsim
 sbatch --export=ALL,NAME=x,KERNEL=/path/kernel.cpp,SIZE=1024[,COSIM=1] sbatch_design.sh        # project (+cosim)
-sbatch --export=ALL,ROOT=/scratch/asa582/tmp/c2hls/lsim/designs,ONLY=x_n1024,MODEL=v2023[,IO=1] sbatch_lsim.sh
-$PY compare.py /scratch/asa582/tmp/c2hls/lsim/designs --tags v2021,v2023 --match '_n256$'   # T3-style table
+sbatch --export=ALL,ROOT=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/designs,ONLY=x_n1024,MODEL=v2023[,IO=1] sbatch_lsim.sh
+$PY compare.py /scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/designs --tags v2021,v2023 --match '_n256$'   # T3-style table
 $PY t4_table.py                                                                              # T4 table
-sbatch --export=ALL,OUT=/scratch/asa582/tmp/c2hls/lsim/mb,ONLY=a:b[,TRACE=port,VCD=1] sbatch_ref.sh  # microbench cosim
+sbatch --export=ALL,OUT=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/mb,ONLY=a:b[,TRACE=port,VCD=1] sbatch_ref.sh  # microbench cosim
 $PY io_compare.py <axi_timing.json> <lsim_io.json>                                           # per-event check
 ```

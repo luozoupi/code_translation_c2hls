@@ -1,7 +1,7 @@
 #!/bin/bash
 # Plain loop (no LLM): every 30 min, escalate the 5 long LUD csynth jobs (12 h -> 24 h -> 2 days, per-tag tiers in the
 # ledger). Exits when none of them is queued or running after an escalation pass.
-cd /scratch/asa582/workspaces/c2hls_claude_code/study
+cd /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study
 M='^lud_n(20_st5|24_st5|32_st3|32_st4|32_st5)_csynth$'
 while true; do
   python3 jobs/ledger.py escalate --match "$M" >> lud/csynth_escalate.log 2>&1

@@ -1,20 +1,21 @@
 #!/bin/bash
 # Vitis 2023.2 csynth + cosim of the m_axi microbenchmarks (reference cycles), one node.
-#   sbatch --export=ALL,OUT=/scratch/asa582/tmp/c2hls/lsim/mb,ONLY=rd_n1024:wr_n1024,TRACE=port,PAR=12 sbatch_ref.sh
+#   sbatch --export=ALL,OUT=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/mb,ONLY=rd_n1024:wr_n1024,TRACE=port,PAR=12 sbatch_ref.sh
 # Each config runs in $SLURM_TMPDIR; the whole project is tarred to $OUT/NAME/proj.tar.gz (one file, for
 # LightningSim later), and the cosim report, the AESL AXI memory models and a log tail are kept unpacked.
 #SBATCH --job-name=lsim_ref
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --time=0-12:00:00
-#SBATCH --output=/scratch/asa582/workspaces/c2hls_claude_code/cosim/lsim/logs/ref-%j.out
-#SBATCH --error=/scratch/asa582/workspaces/c2hls_claude_code/cosim/lsim/logs/ref-%j.err
+#SBATCH --output=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/cosim/lsim/logs/ref-%j.out
+#SBATCH --error=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/cosim/lsim/logs/ref-%j.err
 set -uo pipefail
-HERE=/scratch/asa582/workspaces/c2hls_claude_code/cosim/lsim
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+HERE=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/cosim/lsim
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 ulimit -c 0
 export APPTAINER_BINDPATH="/scratch/${USER},${HOME}/.Xilinx,${SLURM_TMPDIR}"
 dse_v3_source_vitis >/dev/null

@@ -3,7 +3,7 @@
 This is the persistent record for the seven-part study requested on 2026-10-13. Update it after every step; it must
 let a new session resume without the chat history. Measured values only. Anything estimated is marked "(est.)".
 
-Root: `/scratch/asa582/workspaces/c2hls_claude_code/study/`. Earlier work stays where it is and is never overwritten.
+Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/`. Earlier work stays where it is and is never overwritten.
 
 ## Fixed rules
 
@@ -29,7 +29,7 @@ Root: `/scratch/asa582/workspaces/c2hls_claude_code/study/`. Earlier work stays 
 | Claude agent mode (shim with tools + `hls_check.sh`) | Exists; used only for ladder and refined-agent runs | `claude_code_shim.py`, `agent/` |
 | Vitis cosim of 13 earlier designs | Running for days; no cycle counts yet | `cosim/` |
 | LightningSim v2023 predictions | Done for the 13 cosim designs | `cosim/lsim/T4_n1024.md` |
-| AutoSA checkout and container | Present; `autosa_tests/lu` exists | `/scratch/asa582/workspaces/AutoSA` |
+| AutoSA checkout and container | Present; `autosa_tests/lu` exists | `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/AutoSA` |
 | Bench C-semantics fix | **Done**: `study/bench_fixed/` (C = A·Bᵀ, C poisoned with 12345.0f); re-csim of the 41 old kernels submitted | task 0 |
 | 1. Effort and knowledge-extraction analysis | **Done for all existing runs** (`study/effort/EFFORT.md`); agentfw runs to be added | task 1 |
 | 2. Manual true dataflow of refnf r2 | **Running**: v0 (C= baseline), v1 (DATAFLOW tile loop, PIPO A/C, B streamed in during tile 0) | `study/manual_df/` |
@@ -174,7 +174,7 @@ Root: `/scratch/asa582/workspaces/c2hls_claude_code/study/`. Earlier work stays 
       It skips cosim dirs and anything modified in the last 90 min.
   - **Prevention:** Vitis now runs in node-local `$SLURM_TMPDIR` (or `$HLS_LOCAL_ROOT`), and `jobs/keep_copy.sh`
     copies back only reports (.rpt/.xml), sources, json, logs, tcl and txt. Applied to:
-    - `sbatch_flash_cc.sh`: copies to `/scratch/asa582/tmp/c2hls_kept/<TAG>/...`;
+    - `sbatch_flash_cc.sh`: copies to `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls_kept/<TAG>/...`;
     - `lud/job_vitis.sh`;
     - `agentfw/tools/hls_eval_job.py`;
     - `jobs/run_eval_local.py` (used by `manual_df/mk.sh`);
@@ -305,7 +305,7 @@ Root: `/scratch/asa582/workspaces/c2hls_claude_code/study/`. Earlier work stays 
     (st2 at N=12, 16, 20, 24, 32). It submits csim (1 h) and csynth (3 h → 12 h → 24 h → 2 days, per-tag tiers).
   - **Escalation:** `jobs/escalate_loop.sh '^lud_dfix_'` runs on login3.
 - 2026-10-16: **SODA** (user asked for the SODA stencil kernels; LLM side = Refined + Res.-Req only, Opus + DeepSeek, 1 run).
-  - Repo cloned to `/scratch/asa582/workspaces/soda_src/soda` (UCLA-VAST/soda @720e4e2); sodac in
+  - Repo cloned to `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/soda_src/soda` (UCLA-VAST/soda @720e4e2); sodac in
     `soda_src/venv`.
   - Research is in `soda/SODA_RESEARCH.md`. 11 kernels; single tile only (the multi-tile host is buggy); replication
     crashes; the border is undefined, so compare the interior only.
@@ -340,7 +340,7 @@ Root: `/scratch/asa582/workspaces/c2hls_claude_code/study/`. Earlier work stays 
 - 2026-10-19 **SODA target = patched SODA (user decision) — reporting caveat, keep:** the patched SODA target is OUR modified SODA. sodac's loops run until the end-of-stream flag (one design, any size); Vitis 2023.2 does not pipeline them (≈4× slow). Our patch replaces each data-driven loop with a fixed trip count measured for one exact problem size (e.g. 262,658 / 131,329 for 1024² blur at 128-bit u4) plus blocking reads, so each patched design works only at that size. Any "beats SODA" claim must say "SODA hand-patched for Vitis 2023.2 (fixed trip counts)" and show the unpatched (as-generated) numbers beside it. Status: first patch (fixed counts, empty() guards kept) deadlocked in RTL — guarded empty iterations consumed the count; corrected patch (fixed counts + blocking reads, g++ golden PASS) cosim job 66013498 pending, not yet verified.
 - 2026-10-19 **login3 rebooted (~12:00, load ~1,100 after)**: all login3 processes died (Opus 58-bench driver, Opus SODA driver, SODA + LUD escalation loops, plain Claude shim 38585, DeepSeek proxy 18094). Restarted on **login2**: escalation loops (regex now also lsim_proj_/soda_diag_), shim 38585 (`logs/start_shim_38585_login2.sh`), ds_proxy 18094, bench_driver, soda_driver. URLs moved to login2: shim_url.txt, controlled/ds_proxy_url.txt, agentic_ablation/serial_driver.py PLAIN_SHIM (backups *.bak_20261020). Catch-up escalation pass resubmitted ~30 SODA as-generated cosims at 2 d. bench_driver resubmitted bw_viterbi_cc as try 3 (6 h, job 66038607).
 - 2026-10-19 **bench_soda sizes = LAAFD** (user): contrast 1024² (was 512²), denoise3d/jacobi3d/heat3d 256³ (was 128³). Old bench kept in `bench_soda_v1_20261016sizes/`. gen_bench.py edited (backup .bak_20261019). New `bench_soda/check_bench.py` reruns the controls (plain pass, early-return fail, one-bug fail, hls_baseline pass): all 4 OK, written to TB_NOTES. floors_soda.json: cells/mem_cycles/balance_work scaled; floors unchanged (ratio). DeepSeek reruns sd_{contrast,denoise3d,jacobi3d,heat3d}_ds (66038585–88, 6 h→12 h→24 h; 3D at 192G). Opus SODA queue (soda_driver) starts after bench_driver's "driver done" and uses the new bench. The 512²/128³ DeepSeek runs and SODA target dirs stay as old-size data only.
-- 2026-10-19 LightningSim on SODA targets: `study/soda/lsim/job_proj.sh` (csynth → proj.tar.gz with SODA host as TB, argv in hls.app <Simulation>), 81 jobs lsim_proj_* (77 configs + 4 blur diag variants), projects in /scratch/asa582/tmp/c2hls/lsim/soda/; LightningSim (v2023) batch 66030863 on the first 15.
+- 2026-10-19 LightningSim on SODA targets: `study/soda/lsim/job_proj.sh` (csynth → proj.tar.gz with SODA host as TB, argv in hls.app <Simulation>), 81 jobs lsim_proj_* (77 configs + 4 blur diag variants), projects in /scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/soda/; LightningSim (v2023) batch 66030863 on the first 15.
 - 2026-10-20 **patched SODA target verified on blur_u4_b128**: fixed counts + blocking reads (diag/v_fixblock_cosim) cosim **350,460 cycles, golden PASS** (as generated 1,050,885; LAAFD ideal 264,192). Remaining 33% gap above ideal unexplained (all modules II=1, bursts inferred) — check with LightningSim.
 - 2026-10-20 `soda/dse/patch_soda.py` (measured per-function trip counts from an instrumented g++ run at the config size; rejects if instances disagree; golden check) → `designs_patched/`. 75/77 PASS (identical to the verified blur variant); contrast_u16{,_cr} rerun in job 66100567 (3 h limit hit). 72 patched cosims submitted, tags `soda_dse_pat_<cfg>_cosim` (int kernels 3h→12h→24h; float 2d→7d), list `patched_cosim_submitted.txt`. Not submitted: the 3 float 256³ `_laafd` (would exceed 7 days).
 - 2026-10-20 as-generated float cosims: not hung, 13–100K cycles/h (DSP48E1 unisim models + OPMODE warning flood, 0.5–0.9 GB logs); most need 55–100 h, 256³ ones 7–27 days. Ledger: the 3 as-generated 256³ float cosims (65861616/7/8) marked failed (given up); scancel denied to Claude — user to cancel.
@@ -349,7 +349,7 @@ Root: `/scratch/asa582/workspaces/c2hls_claude_code/study/`. Earlier work stays 
 - 2026-10-20 patched SODA cosims, 24 done (all golden PASS): blur/sobel2d 3.0× faster than as generated (cycles = 1.34× module iterations, e.g. blur_u32 44,028); erosion/xcorr **slower** when patched (no CR: 6.7–7.0× iterations, e.g. erosion_u16 444,780 vs 333,765 as generated; CR: 2.2–2.4×, ≈ as generated for erosion, 2.5–2.7× faster for xcorr). Cause unknown. The width-32 erosion/xcorr cosims (patched and as generated) fail with an xelab SIGSEGV (snapshot not created) — retry with `ulimit -s unlimited`.
 - 2026-10-20 DeepSeek sd_contrast_ds at 1024²: fell back to the baseline again (2,282,749,953 cycles, 5 DSP).
 - 2026-10-20 **LightningSim on SODA**: first runs failed (Vitis rewrote the TB's -I../.. to -I../../../../.; fixed in all 80 projects and job_proj.sh). Rerun (66131309): exact match on the two blocking-read blur designs — diag_v_blockall 1,050,885 vs cosim 1,050,885, diag_v_fixblock (patched) 350,460 vs 350,460 (mapped, n=3 s_axilite). The 21 as-generated designs fail to link: LightningSim does not support non-blocking FIFO reads (`fifo.empty()` → `_autotb_FifoCanRead`). So LightningSim covers the patched SODA target but not SODA as generated. Submitted 75 project builds `lsim_proj_pat_<cfg>` and a waiter that runs LightningSim on them and writes `soda/lsim/lsim_vs_cosim.csv`.
-- 2026-10-20 **LightningSim on SODA**: designs with SODA's non-blocking `fifo.empty()` cannot be simulated (link error `_autotb_FifoCanRead_i513`, NbReadReq unsupported). Blocking-read designs work and match cosim exactly: diag_v_blockall 1,050,885 = cosim, diag_v_fixblock (patched blur_u4_b128) 350,460 = cosim (0.00%). Fix needed first: Vitis stores the TB `-I../..` as `-I../../../../.` in hls.app; all 80 tarballs rewritten, job_proj.sh fixed. Submitted lsim_proj_pat_<cfg> for 75 patched designs (→ /scratch/asa582/tmp/c2hls/lsim/soda/pat_<cfg>); a waiter submits LightningSim on them when built. compare_soda.py maps pat_ → designs_patched/.
+- 2026-10-20 **LightningSim on SODA**: designs with SODA's non-blocking `fifo.empty()` cannot be simulated (link error `_autotb_FifoCanRead_i513`, NbReadReq unsupported). Blocking-read designs work and match cosim exactly: diag_v_blockall 1,050,885 = cosim, diag_v_fixblock (patched blur_u4_b128) 350,460 = cosim (0.00%). Fix needed first: Vitis stores the TB `-I../..` as `-I../../../../.` in hls.app; all 80 tarballs rewritten, job_proj.sh fixed. Submitted lsim_proj_pat_<cfg> for 75 patched designs (→ /scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/soda/pat_<cfg>); a waiter submits LightningSim on them when built. compare_soda.py maps pat_ → designs_patched/.
 - 2026-10-20 LUD figures on the story page (make_story_v13.py): AutoSA LU design space (30 points, correct / wrong U / csynth error / pending) and the LUD ablation at N=32; lud/check/dse_table.json regenerated (n20_st5 2,456; n24_st5 3,044; n32_st3 4,305 wrong U; n32_st4 4,395 correct; n32_st5 pending).
 - 2026-10-20 **Supervisor's question: HLSmith's agentic flow vs Claude Code's own agent mode** (skills and resource requirement accepted). `study/exp_hlsmith/driver.py` on login2 (serial Opus; reuses agentic_ablation/serial_driver.py; adds logs/shim_20261020_login2 to the usage-limit scan):
   - **C (first):** agentfw variant `hlsm` (new_task.py, backup .bak_20261020): free Claude Code agent, base tools, the same 138-skill refined v2 pack as ag_win7080 (knowledge_hlsm/), DSP window 6,317–7,219 as a hard requirement, same seed (hls_baseline.cpp) and fixed bench, 10 h cap; runs agentfw/runs/mm1024_hlsm_r1..3; compare with ag_win7080_r1..3 (591K/836K/792K). r1 started 22:15.
@@ -431,7 +431,7 @@ Root: `/scratch/asa582/workspaces/c2hls_claude_code/study/`. Earlier work stays 
     - `resubmit_lsim_otus.sh [--dry-run|--check]`, which covers lsim_soda2, lsim_soda_pat and lsim_proj for contrast_u16_cr.
   - `study/soda/lsim/job_proj_otus.sh`.
   - LUD: `study/lud/job_vitis_otus.sh` and `study/lud/resubmit_lud_otus.sh` (n32_st5 csynth).
-  - The packed projects in `/scratch/asa582/tmp/c2hls/lsim/soda` (3.8 GB) were added to the rsync list.
+  - The packed projects in `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/soda` (3.8 GB) were added to the rsync list.
   - All 3 resubmit scripts refuse a real submission when `CC_CLUSTER=fir`. The dry runs on Fir were checked.
 - 2026-10-22 **Otus move, xclbin + sd_heat3d_ds:**
   - `xclbin/v4_systolic_st0_c1/sbatch_build_otus.sh` uses native Vitis and XRT. It searches for the U280 platform or takes `OTUS_U280_XPFM`, and stops early if it finds none. `resubmit_xclbin_otus.sh` submits it with Fir job 64165394's settings: 32 cpus, 448G, 2 days.
@@ -455,7 +455,7 @@ Root: `/scratch/asa582/workspaces/c2hls_claude_code/study/`. Earlier work stays 
     - `agent/hls_check_otus.sh.template` and `agent/hls_check_otus.py`: HLSmith with an agent backend, for experiment B. The template was rendered as the shim does, and the outer and inner shells parse.
     - `hls_eval_job_otus.py` now finds study/ by walking up to `jobs/keep_copy.sh`, so it works from a workspace's bin/.
   - **Flash job:** the driver's `sbatch_flash_cc.sh` is replaced on Otus by `otus/sbatch_flash_cc_otus.sh`.
-  - **Hardened bench:** `verify_hard.py` reads `/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include`, which is now in the step-5 rsync, with a symlink fallback to `$XILINX_HLS/include`.
+  - **Hardened bench:** `verify_hard.py` reads `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include`, which is now in the step-5 rsync, with a symlink fallback to `$XILINX_HLS/include`.
   - **Installer:** `otus/apply_otus_site.sh [--dry-run]` installs everything above and also:
     - copies the tools into the unfinished workspaces (mm1024_hlsm_r4, smoke_base);
     - sets the shim's `--agent-account` default;
@@ -471,4 +471,4 @@ Root: `/scratch/asa582/workspaces/c2hls_claude_code/study/`. Earlier work stays 
 - 2026-10-22 17:40 **Fir moved on**: `pl_refv2_cc_r2` (66683742) COMPLETED in 1 h at 17:15; the driver started **C r4** (`afw_hlsm_r4`, 3 h budget, login2) at 17:17, and it submitted `afw_csim` 66851704. 113 jobs queued.
   - Freeze plan (OTUS_MIGRATION step 1) changed: stop the driver only (C r4's `run_agent.sh` keeps running: `pkill -f "python3 driver.py"` signals PID 93132 alone, checked); wait for C r4's `exit_code`; then save the queue, stop the services, `scancel -u asa582`.
   - `otus_reset_state.py` now handles agent tags: `exit_code` present → final `exit N` (tested on a copy); missing → a warning, because the Otus driver would resume the session and mix the two clusters.
-- 2026-10-22 **Globus instead of rsync** (Otus needs a VPN; Fir has none): `otus/pack_for_otus.sh` (Fir: freeze checks, then tarballs + MANIFEST.tsv + SHA256SUMS in `/scratch/asa582/tmp/c2hls/otus_transfer/`) and `otus_setup.sh unpack` (Otus: checksums, then unpack per manifest from `$B/transfer_from_fir`). Tested end to end on small trees. The clone now uses HTTPS (public repo, no GitHub key on Otus); `check` also tests GitHub and only warns when there's no ssh to Fir.
+- 2026-10-22 **Globus instead of rsync** (Otus needs a VPN; Fir has none): `otus/pack_for_otus.sh` (Fir: freeze checks, then tarballs + MANIFEST.tsv + SHA256SUMS in `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/otus_transfer/`) and `otus_setup.sh unpack` (Otus: checksums, then unpack per manifest from `$B/transfer_from_fir`). Tested end to end on small trees. The clone now uses HTTPS (public repo, no GitHub key on Otus); `check` also tests GitHub and only warns when there's no ssh to Fir.

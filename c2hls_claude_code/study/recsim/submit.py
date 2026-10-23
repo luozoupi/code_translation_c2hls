@@ -5,7 +5,7 @@ Usage: submit.py [--dry]   -> writes study/recsim/<tag>/ and jobs.txt; never tou
 """
 import glob, json, re, subprocess, sys
 from pathlib import Path
-CC = Path("/scratch/asa582/workspaces/c2hls_claude_code")
+CC = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code")
 BENCH = CC / "study/bench_fixed/n1024/autosa_mm"
 TEMPLATE = CC / "verify/ctl_cc_zs_r1"          # run_eval.py + sbatch_csim.sh (strict n1024 csim harness)
 HERE = Path(__file__).resolve().parent

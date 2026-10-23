@@ -1,14 +1,14 @@
 #!/bin/bash
 # Run LightningSim (CLI mode) on one Vitis HLS solution directory, inside the Vitis 2023.2 container.
 #   run_lsim.sh SOLUTION_DIR [extra lightningsim args]
-# Needs: source /scratch/asa582/workspaces/dse_v3_claude/env.sh; dse_v3_source_vitis  (gives $XILINX_SIF, apptainer)
+# Needs: source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh; dse_v3_source_vitis  (gives $XILINX_SIF, apptainer)
 # LSIM_AXI_MODEL (v2021|v2023) is passed through to the patched fork.
 set -euo pipefail
 SOL=$(realpath "${1:?solution dir}"); shift
 ENV=/scratch/asa582/tools/lightningsim/env
 : "${XILINX_SIF:?run dse_v3_source_vitis first}"
 export APPTAINERENV_LSIM_AXI_MODEL="${LSIM_AXI_MODEL:-v2023}"
-export APPTAINERENV_TMPDIR="${LSIM_TMPDIR:-${TMPDIR:-/scratch/asa582/tmp/c2hls/lsim/tmp}}"
+export APPTAINERENV_TMPDIR="${LSIM_TMPDIR:-${TMPDIR:-/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/tmp}}"
 mkdir -p "$APPTAINERENV_TMPDIR"
 # Per-interface m_axi adapter settings from the generated RTL (v2023 model).
 CFG="$APPTAINERENV_TMPDIR/axi_cfg.json"

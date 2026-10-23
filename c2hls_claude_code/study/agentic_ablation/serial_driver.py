@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-CC = Path("/scratch/asa582/workspaces/c2hls_claude_code")
+CC = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code")
 HERE = CC / "study/agentic_ablation"
 RUNS = HERE / "runs"
 STATE = HERE / "driver_state.json"
@@ -25,7 +25,7 @@ LOG = HERE / "driver.log"
 LEDGER = CC / "study/jobs/ledger.py"
 TIERS = ["01:00:00", "03:00:00", "06:00:00"]
 SHIM_LOGS = [CC / "logs/shim_agent_abl_20261015", CC / "logs/shim_20261013T1130"]
-PLAIN_SHIM = "http://login2:38585/v1"  # login3 rebooted 2026-10-19
+PLAIN_SHIM = "http://login5:38585/v1"  # login3 rebooted 2026-10-19
 TZ = ZoneInfo("America/Vancouver")
 LIMIT_RE = re.compile(r"hit your (session |usage |weekly )?limit|usage limit|rate limit reached|limit reached", re.I)
 RESET_RE = re.compile(r"resets\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)", re.I)

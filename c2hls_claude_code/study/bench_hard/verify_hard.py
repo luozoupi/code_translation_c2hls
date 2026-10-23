@@ -15,10 +15,10 @@ import argparse, csv, glob, json, os, re, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-CC = Path("/scratch/asa582/workspaces/c2hls_claude_code")
+CC = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code")
 BENCH = CC / "study/bench_hard/n1024/autosa_mm"
-INC = "/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include"
-TMP = Path(os.environ.get("SLURM_TMPDIR") or "/scratch/asa582/tmp/c2hls") / "verify_hard"
+INC = "/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include"
+TMP = Path(os.environ.get("SLURM_TMPDIR") or "/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls") / "verify_hard"
 
 
 def kernels():

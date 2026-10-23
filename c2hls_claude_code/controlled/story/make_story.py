@@ -7,7 +7,7 @@ so rerunning this script after new jobs finish fills in the pending rungs.
 import glob, html, json, math, re, subprocess, time
 from pathlib import Path
 
-CC = Path("/scratch/asa582/workspaces/c2hls_claude_code")
+CC = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code")
 R = CC / "runs_controlled"
 OUT = Path(__file__).resolve().parent / "story.html"
 CAP = {"dsp": 9024, "lut": 1303680, "bram": 4032, "uram": 960, "ff": 2607360}   # xcu280 device totals

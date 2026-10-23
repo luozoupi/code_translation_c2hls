@@ -1,7 +1,7 @@
 #include "kernel.h"
 #include <stdio.h>
 static_assert(I == 1024 && J == 1024 && K == 1024, "cosim must run the 1024^3 bench");
-#define COSIM_RESULT_FILE "/scratch/asa582/workspaces/c2hls_claude_code/cosim/13_win7080_r2/tb_results.txt"
+#define COSIM_RESULT_FILE "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/cosim/13_win7080_r2/tb_results.txt"
 extern "C" void autosa_mm(data_t A[I][K], data_t B[J][K], data_t C[I][J]);
 
 int main(int argc, char **argv) {

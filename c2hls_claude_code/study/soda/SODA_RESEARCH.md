@@ -1,7 +1,7 @@
 # SODA research notes (stencil compiler as the expert tool for stencil kernels)
 
-Repo read: /scratch/asa582/workspaces/soda_src/soda (UCLA-VAST/soda, commit 720e4e2, read-only). sodac was run from
-/scratch/asa582/workspaces/soda_src/venv. Generated artifacts, build scripts and logs are in
+Repo read: /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/soda_src/soda (UCLA-VAST/soda, commit 720e4e2, read-only). sodac was run from
+/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/soda_src/venv. Generated artifacts, build scripts and logs are in
 /home/asa582/.claude/jobs/72130906/tmp/soda_research/ (gen/*.cpp, gen/*.host.cpp, bin/, build.sh).
 Papers: ICCAD'18 (https://about.blaok.me/pub/iccad18.pdf, 8 pp) and DAC'20 SODA-CR (https://about.blaok.me/pub/dac20-soda-cr.pdf, 6 pp);
 both fetched and read via pdftotext. No Vitis/Vivado was run; no Slurm job was submitted.
@@ -14,7 +14,7 @@ sodac itself generates). Everything marked UNVERIFIED needs Vitis, TAPA/tapacc o
 ## 0. Headline findings (read this first)
 
 1. All 11 repo kernels generate with sodac and PASS a native g++ csim at the repo default sizes, using a 1-line stub `frt.h`
-   (VERIFIED; the headers come from /scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include). Csim of 1024x1024 or 128^3
+   (VERIFIED; the headers come from /scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include). Csim of 1024x1024 or 128^3
    problems takes 1 to 7 s each (build 3 to 50 s; big-expression kernels sobel/denoise/contrast/xcorr build slowest).
 2. The generated host golden is the exact C reference, and it is the definitive spec for valid regions (section 2). The generated
    `main()` initialises the int kernels (blur, erosion, xcorr, sobel2d) with the ramp `p+q`, which is a weak test; use random data.

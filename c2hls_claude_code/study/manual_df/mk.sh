@@ -1,7 +1,7 @@
 #!/bin/bash
 # mk.sh <variant dir> : set up strict csim (fixed bench) and csynth jobs for study/manual_df/<variant>/kernel.cpp
 set -euo pipefail
-H=/scratch/asa582/workspaces/c2hls_claude_code
+H=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code
 D=$(cd "$1" && pwd); T=$H/verify/ctl_cc_zs_r1; BEN=$H/study/bench_fixed/n1024/autosa_mm
 cp $BEN/kernel.h $BEN/testbench.cpp $D/; cp $H/study/jobs/run_eval_local.py $D/run_eval.py
 sed -e "s#$T#$D#g" -e 's/--cpus-per-task=8/--cpus-per-task=2/' -e 's/--mem=64G/--mem=16G/' -e 's/--time=24:00:00/--time=01:00:00/' \

@@ -4,14 +4,15 @@
 #   cosim : csynth + cosim with SODA's own test main (host.cpp, -DSODA_TEST_MAIN -DSODA_CPP_BINDING) as testbench;
 #           no waveform. Cycles from the cosim report; correctness = SODA's golden ("INFO: PASS").
 # Keeps only reports + log tails in <design dir>/<mode>/.
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 set -eo pipefail
 D=$(readlink -f $1); MODE=$2
 TOP=$(python3 -c "import json;print(json.load(open('$D/config.json'))['top'])")
 ARGV=$(python3 -c "import json;print(json.load(open('$D/config.json'))['argv'])")
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 ulimit -c 0
 export APPTAINER_BINDPATH="/scratch/${USER},${HOME}/.Xilinx,${SLURM_TMPDIR}"
 dse_v3_source_vitis

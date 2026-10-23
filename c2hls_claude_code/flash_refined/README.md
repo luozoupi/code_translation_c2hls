@@ -33,7 +33,7 @@ On the earlier reports, the check rejects refined r2 (4.43Ã—), refined r3 (3.19Ã
 ## Run
 
 ```bash
-cd /scratch/asa582/workspaces/c2hls_claude_code
+cd /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code
 "$PY" run_flash_cc.py --flavor skills --refined --shim-url "$(cat shim_url.txt)" --dry-run --show-refined   # render what c2hls will send
 sbatch --export=ALL,FLAVOR=skills,REFINED=1 sbatch_flash_cc.sh                                              # plain
 sbatch --export=ALL,FLAVOR=skills,REFINED=1,CLAUDE_CODE_SHIM_URL=$(cat shim_agent_url.txt) sbatch_flash_cc.sh  # agent mode

@@ -18,7 +18,7 @@ import json, re, shutil, subprocess, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-INC = "/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include"
+INC = "/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include"
 LOOP = re.compile(r"for \(bool enable = true; enable;\)\n(\s*\{\n(?:#pragma[^\n]*\n)+)(\s*)if \(([^\n]*)\)\n(\s*\{\n)")
 
 

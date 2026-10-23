@@ -1,6 +1,6 @@
 #!/bin/bash
 # Read-only status of the controlled DeepSeek-vs-Claude campaign.
-CC=/scratch/asa582/workspaces/c2hls_claude_code; R=$CC/runs_controlled
+CC=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code; R=$CC/runs_controlled
 date
 echo "== endpoints"; echo "shim: $(curl -s -m 10 $(cat $CC/shim_url.txt)/health)"; echo "ds_proxy: $(curl -s -m 10 $(cat $CC/controlled/ds_proxy_url.txt)/health)"
 echo "== slurm"; sacct -X -n -P -j $(awk '{print $2}' $R/jobs.txt | paste -sd,) -o JobName,JobID,State,Elapsed | column -t -s'|'

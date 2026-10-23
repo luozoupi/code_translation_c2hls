@@ -6,18 +6,18 @@
   Control 2 plain.cpp with `return;` at the top of workload -> must fail
   Control 3 plain.cpp with one bug (gen_bench's bug pair, from bench_soda_check/<k>/info.json) -> must fail
   hls_baseline.cpp as kernel -> must pass
-Scratch: /scratch/asa582/tmp/c2hls/bench_soda_check/<k>/. Exit 1 if any control gives the wrong verdict.
+Scratch: /scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/bench_soda_check/<k>/. Exit 1 if any control gives the wrong verdict.
 """
 import json, re, subprocess, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-INC = "/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include"
+INC = "/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include"
 INFO = Path("/home/asa582/.claude/jobs/72130906/tmp/bench_soda_check")
 
 
 def run(k, name, src):
-    w = Path("/scratch/asa582/tmp/c2hls/bench_soda_check") / k / name
+    w = Path("/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/bench_soda_check") / k / name
     w.mkdir(parents=True, exist_ok=True)
     (w / "kernel.cpp").write_text(src)
     r = subprocess.run(f"g++ -O2 -I{HERE / k} -I{INC} {HERE / k}/testbench.cpp kernel.cpp -o tb && ./tb; rm -f tb",

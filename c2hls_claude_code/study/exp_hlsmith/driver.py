@@ -25,7 +25,7 @@ import importlib.util, json, re, subprocess, sys, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-CC = Path("/scratch/asa582/workspaces/c2hls_claude_code")
+CC = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code")
 spec = importlib.util.spec_from_file_location("serial_driver", CC / "study/agentic_ablation/serial_driver.py")
 sd = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sd)
@@ -35,10 +35,10 @@ spec.loader.exec_module(bw)
 
 OUT = HERE / "runs"
 FB = CC / "study/bench_fixed/n1024"
-INC = "/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include"
-PY311 = "/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3"
+INC = "/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include"
+PY311 = "python3"
 AGENT_PORT = 36016
-HOST = "login2"
+HOST = "login5"
 RUNGS_A = ["noskills", "skills", "dspredo", "refneu", "refnf", "refv2", "win7080"]
 BENCH_B = ["fft", "hlsfactory_cholesky", "hlsfactory_fdtd-2d", "hlsfactory_gramschmidt", "hlsfactory_jacobi-2d",
            "hlsfactory_lu", "hlsfactory_ludcmp", "lud"]
@@ -130,7 +130,7 @@ def agent_shim(bench):
            "--agent-match", AGENT_MATCH, "--agent-bench-dir", str(CC / f"study/bench_wide/{bench}"),
            "--agent-header", meta["header_file"], "--agent-top", meta["hls_top"], "--agent-max-checks", "12",
            "--agent-csim-time", "01:00:00", "--agent-csynth-time", "01:00:00",
-           "--claude-bin", "/home/asa582/.local/bin/claude"]
+           "--claude-bin", "/pc2/users/h/haqc2/.local/bin/claude"]
     with open(HERE / f"shim_{bench}.out", "w") as fp:
         _shim["proc"] = subprocess.Popen(cmd, cwd=CC, stdout=fp, stderr=subprocess.STDOUT, start_new_session=True)
     _shim["bench"] = bench

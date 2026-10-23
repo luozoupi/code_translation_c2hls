@@ -6,7 +6,7 @@
 # A name whose ROOT/NAME/lsim_v2023.json already exists is left out (ALL=1 keeps it); a list left empty is not submitted.
 # --check : first run, before the rest: one project Fir already finished, written as lsim_otuscheck.json; its "end"
 #           cycle must equal the one in lsim_v2023.json from Fir.
-# Env: LSIM_T (setup_lsim_otus.sh dir), LSIM_ROOT (the packed projects, rsynced from Fir's /scratch/asa582/tmp/c2hls/lsim/soda).
+# Env: LSIM_T (setup_lsim_otus.sh dir), LSIM_ROOT (the packed projects, rsynced from Fir's /scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/soda).
 set -eo pipefail
 HERE=$(dirname "$(readlink -f "$0")")        # cosim/lsim/otus
 LS=$(dirname "$HERE")                         # cosim/lsim

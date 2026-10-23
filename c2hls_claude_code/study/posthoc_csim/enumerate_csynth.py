@@ -4,7 +4,7 @@ A kernel counts as synthesized if any csynth of that run (session check, control
 byte-identical text. Writes candidates_csynth.json."""
 import json, glob
 from pathlib import Path
-CC = Path("/scratch/asa582/workspaces/c2hls_claude_code"); S = CC / "study"
+CC = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code"); S = CC / "study"
 out = []
 # Claude Code on its own
 for w in sorted(glob.glob(str(S / "agentfw/runs/mm1024_*"))):

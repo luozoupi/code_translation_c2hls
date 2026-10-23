@@ -2,7 +2,7 @@
 # AutoSA LU DSE on U280 / 3.33 ns: every N in the paper (12,16,20,24) plus the README default (32), every space_time 0..5.
 # Generation in the AutoSA container (login node, seconds); csim + csynth on Slurm via study/jobs/ledger.py (1h->3h->6h).
 set -uo pipefail
-S=/scratch/asa582/workspaces/c2hls_claude_code/study/lud; L=/scratch/asa582/workspaces/c2hls_claude_code/study/jobs/ledger.py
+S=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/lud; L=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/jobs/ledger.py
 for N in 12 16 20 24 32; do for ST in 0 1 2 3 4 5; do
   D=$S/dse/n${N}_st${ST}
   if [ ! -s $D/out/src/kernel_kernel.cpp ]; then

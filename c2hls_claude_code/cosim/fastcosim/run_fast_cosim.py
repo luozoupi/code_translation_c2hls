@@ -22,9 +22,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "vendor"))
-sys.path.insert(0, "/scratch/asa582/workspaces/code_translation_c2hls")
-BENCH = Path("/scratch/asa582/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm")
-TMP = Path(os.environ.get("C2HLS_TMP_ROOT", "/scratch/asa582/tmp/c2hls"))
+sys.path.insert(0, "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls")
+BENCH = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm")
+TMP = Path(os.environ.get("C2HLS_TMP_ROOT", "/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls"))
 PART, CLOCK_NS, TOP = "xcu280-fsvh2892-2L-e", 3.33, "autosa_mm"
 TB_CLOCK_PERIOD_NS = 4  # tapa-fast-cosim testbench: HALF_CLOCK_PERIOD = 2
 

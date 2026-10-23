@@ -17,9 +17,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-C2HLS = Path("/scratch/asa582/workspaces/code_translation_c2hls")
+C2HLS = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls")
 BENCH = C2HLS / "artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm"
-TMP = Path(os.environ.get("C2HLS_TMP_ROOT", "/scratch/asa582/tmp/c2hls"))
+TMP = Path(os.environ.get("C2HLS_TMP_ROOT", "/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls"))
 VERILATOR = Path(os.environ.get("VERILATOR_BIN", "/scratch/asa582/tools/verilator-v5.044/bin/verilator"))
 PART, CLOCK_NS, TOP = "xcu280-fsvh2892-2L-e", 3.33, "autosa_mm"
 sys.path.insert(0, str(C2HLS))

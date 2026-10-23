@@ -14,7 +14,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, os.environ.get("C2HLS_ROOT", "/scratch/asa582/workspaces/code_translation_c2hls"))
+CC = Path(__file__).resolve().parents[1]           # c2hls_claude_code (this file is agent/hls_check.py)
+# the judge: next to c2hls_claude_code/ (Fir layout) or its parent (study as a subfolder of the judge clone)
+_J = CC.parent if (CC.parent / "hls_eval.py").is_file() else CC.parent / "code_translation_c2hls"
+sys.path.insert(0, os.environ.get("C2HLS_ROOT", str(_J)))
 import hls_eval  # noqa: E402
 
 PART = os.environ.get("AGENT_PART", "xcu280-fsvh2892-2L-e")
@@ -30,6 +33,9 @@ def main(mode: str) -> int:
     work.mkdir(parents=True, exist_ok=True)
     # file-count quota on /scratch: run Vitis on node-local storage; copy back only reports/sources/json/logs
     local = os.environ.get("HLS_LOCAL_ROOT") or os.environ.get("SLURM_TMPDIR")
+    own = None
+    if not local and os.environ.get("SLURM_JOB_ID"):   # Otus: node-local fallback when $SLURM_TMPDIR is unset
+        local = own = os.path.join(os.environ.get("OTUS_LOCAL_TMP", "/tmp"), os.environ.get("USER", "u"), os.environ["SLURM_JOB_ID"])
     run = Path(local) / "agent_check" / work.name if local else work
     run.mkdir(parents=True, exist_ok=True)
     if local:
@@ -57,8 +63,10 @@ def main(mode: str) -> int:
         print("usage: hls_check.sh compile|csim|csynth")
         return 2
     if run != work:
-        subprocess.run(["/scratch/asa582/workspaces/c2hls_claude_code/study/jobs/keep_copy.sh", str(run), str(work)],
-                       check=False)
+        subprocess.run([str(CC / "study/jobs/keep_copy.sh"), str(run), str(work)], check=False)
+        if own:
+            import shutil
+            shutil.rmtree(own, ignore_errors=True)
     (ws / "checks" / f"{os.environ.get('AGENT_CHECK_N', '0')}_{mode}.txt").write_text(text)
     print(text, end="")
     return 0

@@ -1,7 +1,7 @@
 # LUD / AutoSA: reproducible commands (U280, 3.33 ns, Vitis HLS 2023.2)
 
 All commands below were run or syntax-checked on the login node unless marked "NOT RUN". No Slurm job was submitted.
-Paths: `W=/scratch/asa582/workspaces`, study dir `S=$W/c2hls_claude_code/study/lud`.
+Paths: `W=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces`, study dir `S=$W/c2hls_claude_code/study/lud`.
 
 ## 0. Two gotchas found while reproducing (both verified)
 
@@ -15,7 +15,7 @@ Paths: `W=/scratch/asa582/workspaces`, study dir `S=$W/c2hls_claude_code/study/l
 
 ```bash
 module load apptainer/1.3.5
-SIF=/scratch/asa582/workspaces/AutoSA/autosa_docker.sif      # Ubuntu 20.04, python 3.8.10, AutoSA at /usr/src/docker_autosa
+SIF=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/AutoSA/autosa_docker.sif      # Ubuntu 20.04, python 3.8.10, AutoSA at /usr/src/docker_autosa
 # AutoSA source in the container = git b61a1b4132d631600696feba59eb606acb34d304 (Nov 23 2021, "Add min/max template in tapa code")
 # = HEAD of https://github.com/UCLA-VAST/AutoSA as cloned on 2026-10-13.  The container has no vivado_hls/vitis_hls.
 ```
@@ -53,11 +53,11 @@ Upstream (Vivado HLS 2019.2, U200 part) `autosa_tests/lu/hls_script.tcl`: `csim_
 (csim line commented in; host `kernel_host.cpp` prints `Passed!` / `Failed with N errors!`).
 ```bash
 # inside the Fir Vitis container (same as dse_v4_claude env.sh: dse_v4_source_vitis)
-module load apptainer/1.3.5; source /scratch/asa582/workspaces/code_translation_c2hls/scripts/fir/fir_container_env.sh
+module load apptainer/1.3.5; source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls/scripts/fir/fir_container_env.sh
 cd $S/out_n32_st3/out && vitis-run --tcl --input_file $S/hls_csynth_u280.tcl      # edit: uncomment csim_design for functional check
 ```
 This must go through sbatch (login node forbids long Vitis jobs; project policy): wrap exactly like `dse_v4_claude/sbatch_csynth.sh`
-(`--account=def-zhenman`, 8 cpu, 64G, >= 12 h; N=32 has ~30k lines of HLS C++ with 528 PEs so expect long csynth).
+(`--account=hpc-prf-llmfpga --partition=normal`, 8 cpu, 64G, >= 12 h; N=32 has ~30k lines of HLS C++ with 528 PEs so expect long csynth).
 
 ## 4. Csynth target (U280, 3.33 ns, 2023.2)
 

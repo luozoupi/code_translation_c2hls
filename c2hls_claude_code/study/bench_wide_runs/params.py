@@ -10,10 +10,10 @@ gate's compute floor is work / DSP (fp32 mul 3 / add 2, fp64 mul 11 / add 3 DSP)
 import json, sys
 from pathlib import Path
 
-CC = Path("/scratch/asa582/workspaces/c2hls_claude_code")
+CC = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code")
 BW = CC / "study/bench_wide"
 OUT = CC / "study/bench_wide_runs/runs"
-INC = "/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include"
+INC = "/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include"
 
 
 def export(bench, model, tag):

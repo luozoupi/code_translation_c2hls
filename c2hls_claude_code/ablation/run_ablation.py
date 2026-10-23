@@ -24,7 +24,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 SRC = ROOT / "logs/shim_20261007T023853/call_00005"
-BENCH = Path("/scratch/asa582/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm")
+BENCH = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm")
 EVAL_SRC = Path("/scratch/asa582/clean_u280/eval")
 FENCE_RE = re.compile(r"```(?:cpp|c\+\+|c|hls)?[^\n]*\n(.*?)```", re.S)
 

@@ -299,7 +299,7 @@ def main() -> None:
     ap.add_argument("--call-timeout", type=float, default=3600)
     ap.add_argument("--max-output-tokens", type=int, default=64000)
     ap.add_argument("--log-dir", required=True)
-    ap.add_argument("--tmp-dir", default="/scratch/asa582/tmp/claude_code_shim")
+    ap.add_argument("--tmp-dir", default="/scratch/hpc-prf-llmfpga/asa582/projects/tmp/claude_code_shim")
     ap.add_argument("--claude-bin", default=shutil.which("claude") or "claude")
     ap.add_argument("--agent-match", default="",
                     help="regex (multiline) on the user prompt; matching requests run as a tool-using agent")
@@ -311,7 +311,7 @@ def main() -> None:
     ap.add_argument("--agent-max-checks", type=int, default=12)
     ap.add_argument("--agent-csim-time", default="02:00:00")
     ap.add_argument("--agent-csynth-time", default="08:00:00")
-    ap.add_argument("--agent-account", default="def-zhenman")
+    ap.add_argument("--agent-account", default="hpc-prf-llmfpga")
     ap.add_argument("--agent-timeout", type=float, default=12 * 3600, help="seconds per agent session")
     ARGS = ap.parse_args()
     if ARGS.agent_match and not (Path(ARGS.agent_bench_dir) / "testbench.cpp").is_file():  # and the header named by --agent-header

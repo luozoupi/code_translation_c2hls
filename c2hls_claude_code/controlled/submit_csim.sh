@@ -1,7 +1,7 @@
 #!/bin/bash
 # Strict n1024 csim of a controlled run's selected kernel: controlled/submit_csim.sh ctl_<m>_<v>_r<n>
 set -euo pipefail
-CC=/scratch/asa582/workspaces/c2hls_claude_code
+CC=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code
 T=$1; SRC=verify/ctl_cc_zs_r1
 cell=$(ls -d $CC/runs_controlled/*_${T}_*/autosa_mm | tail -1)
 D=$CC/verify/$T; mkdir -p $D

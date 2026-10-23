@@ -24,7 +24,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-C2HLS = Path(os.environ.get("C2HLS_ROOT", "/scratch/asa582/workspaces/code_translation_c2hls"))
+C2HLS = Path(os.environ.get("C2HLS_ROOT", "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls"))
 sys.path.insert(0, str(C2HLS))
 sys.path.insert(0, str(C2HLS / "scripts"))
 sys.path.insert(0, str(C2HLS / "scripts" / "pc2"))

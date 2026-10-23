@@ -18,7 +18,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-C2HLS = Path("/scratch/asa582/workspaces/code_translation_c2hls")
+C2HLS = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls")
 SRC = C2HLS / "hls_full_optimization_skills_schema_1_1_package" / \
     "skills_ii_target_miss_solutions_added(90skills)_plus_gemm_flatten_v2.json"
 OUT_DIR = Path(__file__).resolve().parent

@@ -10,4 +10,4 @@
 - Control 3 (one bug, must fail): Failed with 201 errors! (last b0.x block row skipped)
 - hls_baseline.cpp as kernel: Passed!
 - Notes: Only testbench.cpp edited.
-- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> support.c local_support.c (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/machsuite_md_grid/).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> support.c local_support.c (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/machsuite_md_grid/).

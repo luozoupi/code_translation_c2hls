@@ -2,16 +2,17 @@
 # DSP ladder (flash_refined v2, seeded stages L1 25% -> L2 2x -> L3 toward the 80% roof) with Claude Code as the LLM.
 #   sbatch --export=ALL,TAG=r1 sbatch_flash_ladder.sh
 #SBATCH --job-name=flash_ladder
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=72:00:00
-#SBATCH --chdir=/scratch/asa582/workspaces/c2hls_claude_code
-#SBATCH --output=/scratch/asa582/workspaces/c2hls_claude_code/logs/flash_ladder-%j.out
-#SBATCH --error=/scratch/asa582/workspaces/c2hls_claude_code/logs/flash_ladder-%j.err
+#SBATCH --chdir=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code
+#SBATCH --output=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/logs/flash_ladder-%j.out
+#SBATCH --error=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/logs/flash_ladder-%j.err
 set -euo pipefail
-D=/scratch/asa582/workspaces/c2hls_claude_code
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+D=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 dse_v3_source_vitis
 unset C2HLS_DSE_V3 C2HLS_DSE_V3_HARNESS C2HLS_DSE_V4 C2HLS_DSE_V2_GRID DSE_V3_TRIAL_ROOT C2HLS_VITIS_JOBS C2HLS_VITIS_JOBS_FROM_SLURM
 export C2HLS_CSIM_TIMEOUT=86400 C2HLS_SYNTH_TIMEOUT=86400

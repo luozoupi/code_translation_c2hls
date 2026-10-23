@@ -10,4 +10,4 @@
 - Control 3 (one bug, must fail): Failed with 1 errors! (last force_z not written back)
 - hls_baseline.cpp as kernel: Passed!
 - Notes: Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
-- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/md_knn/).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/md_knn/).

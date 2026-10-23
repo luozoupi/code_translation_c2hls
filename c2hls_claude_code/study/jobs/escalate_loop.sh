@@ -1,7 +1,7 @@
 #!/bin/bash
 # escalate_loop.sh REGEX LOG [SECONDS]: plain loop (no LLM). Every SECONDS (default 1800) run
 # `ledger.py escalate --match REGEX`; exit when no matching, not-failed ledger job is queued or running.
-cd /scratch/asa582/workspaces/c2hls_claude_code/study
+cd /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study
 RX=$1; LOG=$2; SEC=${3:-1800}
 while true; do
   python3 jobs/ledger.py escalate --match "$RX" >> "$LOG" 2>&1

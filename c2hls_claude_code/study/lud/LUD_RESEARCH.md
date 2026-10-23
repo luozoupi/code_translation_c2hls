@@ -1,7 +1,7 @@
 # AutoSA LU decomposition (LUD): research notes for reproduction on U280 @ 3.33 ns
 
 Date of research: 2026-10-13. Legend: **[C]** certain (read in a file/paper or executed), **[I]** inferred, **[U]** unknown.
-Everything lives under `/scratch/asa582/workspaces/c2hls_claude_code/study/lud/` (`S` below). Commands: `S/commands.md`.
+Everything lives under `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/lud/` (`S` below). Commands: `S/commands.md`.
 
 ## 1. Bottom line
 
@@ -19,7 +19,7 @@ Everything lives under `/scratch/asa582/workspaces/c2hls_claude_code/study/lud/`
 
 | Item | Where | Notes |
 |---|---|---|
-| Local checkout | `/scratch/asa582/workspaces/AutoSA` | **Skeleton**: `autosa_tests/*`, `autosa_scripts/*`, `autosa_config/*_libs`, `src/*`, `autosa_sandbox` are empty dirs; only `autosa_docker.sif` (1.5 GB), `docs/*`, `artifacts/`, `scripts/pc2/` are all empty directories, and the dir is not a git repo; only `autosa_docker.sif` (1.5 GB) is real **[C]**. Real content is inside the sif and in `/scratch/asa582/workspaces/AutoSA_20260709_0438.tar` (34 GB). |
+| Local checkout | `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/AutoSA` | **Skeleton**: `autosa_tests/*`, `autosa_scripts/*`, `autosa_config/*_libs`, `src/*`, `autosa_sandbox` are empty dirs; only `autosa_docker.sif` (1.5 GB), `docs/*`, `artifacts/`, `scripts/pc2/` are all empty directories, and the dir is not a git repo; only `autosa_docker.sif` (1.5 GB) is real **[C]**. Real content is inside the sif and in `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/AutoSA_20260709_0438.tar` (34 GB). |
 | AutoSA revision | container `/usr/src/docker_autosa`, `git log -1` | `b61a1b4132d631600696feba59eb606acb34d304` (2021-11-23 "Add min/max template in tapa code") **[C]**; equals HEAD of github UCLA-VAST/AutoSA master on 2026-10-13 (shallow clone has only this commit) **[C]**. Tarball `.git/HEAD` = `refs/heads/master`. |
 | Upstream clone | `S/upstream/AutoSA` (49 MB) | `autosa_tests/lu`, `docs/examples/lu.rst`, `autosa_scripts/{tuner,odyssey,optimizer.py,...}` byte-identical to container for the files I diffed (tuner, lu/kernel.h, lu/README.md) **[C]**. No LU config other than the one in README/lu.rst anywhere in the repo (grep of `autosa_tests`, `docs`, tuner/odyssey tasks) **[C]**. |
 | Paper PDF | `S/upstream/paper/autosa_fpga21.pdf` (+ `.txt`) | https://par.nsf.gov/servlets/purl/10250371 (NSF-PAR copy of Wang, Guo, Cong, FPGA'21, DOI 10.1145/3431920.3439292, pp. 93-104). The ACM and cadlab/vast.cs.ucla.edu URLs returned 403/404/no route from this host. |

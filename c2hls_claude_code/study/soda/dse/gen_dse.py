@@ -16,8 +16,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 BS = HERE.parents[1] / "bench_soda"
-SODAC = "/scratch/asa582/workspaces/soda_src/venv/bin/sodac"
-INC = "/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include"
+SODAC = "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/soda_src/venv/bin/sodac"
+INC = "/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include"
 INT16 = {"blur", "erosion", "sobel2d", "xcorr"}
 CR = {"contrast", "erosion", "xcorr"}
 

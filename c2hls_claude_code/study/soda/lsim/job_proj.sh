@@ -3,14 +3,15 @@
 # saved as <out>/proj.tar.gz in the layout LightningSim reads (../lsim harness: hls_proj/sol1 + host.cpp, frt.h).
 # The testbench is SODA's host (-DSODA_TEST_MAIN -DSODA_CPP_BINDING); its argv (config.json) goes into hls.app's
 # <Simulation argv=...>, which is where LightningSim reads it. Nothing else is changed.
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 set -eo pipefail
 D=$(readlink -f $1); O=$(readlink -f -m $2); mkdir -p $O
 TOP=$(python3 -c "import json;print(json.load(open('$D/config.json'))['top'])")
 ARGV=$(python3 -c "import json;print(json.load(open('$D/config.json'))['argv'])")
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 ulimit -c 0
 export APPTAINER_BINDPATH="/scratch/${USER},${HOME}/.Xilinx,${SLURM_TMPDIR}"
 dse_v3_source_vitis

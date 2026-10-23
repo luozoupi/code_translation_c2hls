@@ -12,7 +12,7 @@ D="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAME=shim; EXTRA=()
 if [[ "${AGENT:-0}" == 1 ]]; then
   NAME=shim_agent
-  BENCH_DIR="${BENCH_DIR:-/scratch/asa582/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm}"
+  BENCH_DIR="${BENCH_DIR:-/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm}"
   EXTRA=(--agent-match '^(FLASH MODE:|HARD REJECT —|The current HLS code already synthesizes, but the controller flagged)'
          --agent-bench-dir "$BENCH_DIR" --agent-max-checks "${MAX_CHECKS:-12}")
 fi

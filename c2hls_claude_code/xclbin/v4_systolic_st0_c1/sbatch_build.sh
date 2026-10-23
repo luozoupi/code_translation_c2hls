@@ -1,18 +1,19 @@
 #!/bin/bash
 # Build the U280 xclbin for autosa_mm (v4_systolic_st0_c1). Keeps only the xclbin, its info, reports and gzipped logs.
 #SBATCH --job-name=xclbin_v4_systolic_st0_c1
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=448G
 #SBATCH --time=5-00:00:00
-#SBATCH --chdir=/scratch/asa582/workspaces/c2hls_claude_code/xclbin/v4_systolic_st0_c1
-#SBATCH --output=/scratch/asa582/workspaces/c2hls_claude_code/xclbin/v4_systolic_st0_c1/logs/build-%j.out
-#SBATCH --error=/scratch/asa582/workspaces/c2hls_claude_code/xclbin/v4_systolic_st0_c1/logs/build-%j.err
+#SBATCH --chdir=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/xclbin/v4_systolic_st0_c1
+#SBATCH --output=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/xclbin/v4_systolic_st0_c1/logs/build-%j.out
+#SBATCH --error=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/xclbin/v4_systolic_st0_c1/logs/build-%j.err
 set -euo pipefail
-B=/scratch/asa582/workspaces/c2hls_claude_code/xclbin/v4_systolic_st0_c1
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+B=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/xclbin/v4_systolic_st0_c1
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 ulimit -c 0  # no core dumps
 export APPTAINER_BINDPATH="/scratch/${USER},${HOME}/.Xilinx,${SLURM_TMPDIR}"
 dse_v3_source_vitis

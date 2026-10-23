@@ -9,6 +9,9 @@
   hls list                              all experiments and their state
 Csynth wall time follows the study rule: 1 h, then 3 h, then 6 h on TIMEOUT (automatic resubmit by `hls wait`).
 Every action is appended to exp/log.jsonl.
+Otus copy of tools/hls: Otus account and partition, native Vitis 2023.2 (C2HLS_VITIS_SETTINGS) instead of the Fir
+container, python3 instead of the dse_v3 venv (hls_eval_job.py needs only the standard library), dfdiag found from this
+file's location. otus/apply_otus_site.sh installs it as tools/hls and into unfinished workspaces' bin/.
 Budget mode (task.json "budget": {"checks": N}; experiment C/D, matched to HLSmith's agent): at most N submissions in
 total, one job at a time (a submit is refused while an earlier job is pending or running), and no wall-time escalation
 (a TIMEOUT at 1 h is final), the same terms as HLSmith's blocking hls_check.sh (12 checks, 1 h each).
@@ -22,8 +25,9 @@ EXP = WS / "exp"
 EXP.mkdir(exist_ok=True)
 LOG = EXP / "log.jsonl"
 TIERS = ["01:00:00", "03:00:00", "06:00:00"]
-ENV = "/scratch/asa582/workspaces/dse_v3_claude/env.sh"
-DFDIAG = "/scratch/asa582/workspaces/c2hls_claude_code/study/dfdiag/dfdiag.py"
+STUDY = next(p for p in Path(__file__).resolve().parents if (p / "jobs" / "keep_copy.sh").is_file())
+DFDIAG = str(STUDY / "dfdiag" / "dfdiag.py")
+VITIS = os.environ.get("OTUS_VITIS_SETTINGS", "/opt/software/FPGA/Xilinx/Vitis/2023.2/settings64.sh")
 EVAL = Path(__file__).resolve().parent / "hls_eval_job.py"   # sits next to this script (workspace bin/)
 
 
@@ -37,18 +41,19 @@ def sbatch(d: Path, mode: str, tier: int) -> str:
     script = d / f"job_{mode}.sh"
     script.write_text(f"""#!/bin/bash
 #SBATCH --job-name=afw_{mode}
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --cpus-per-task={cpus}
 #SBATCH --mem={mem}
 #SBATCH --time={TIERS[tier]}
 #SBATCH --output={d}/{mode}-%j.out
 #SBATCH --error={d}/{mode}-%j.err
 set -eo pipefail
-source {ENV}
-dse_v3_source_vitis
-unset C2HLS_DSE_V3 C2HLS_DSE_V3_HARNESS C2HLS_DSE_V4 C2HLS_DSE_V2_GRID C2HLS_SITE C2HLS_VITIS_JOBS C2HLS_VITIS_JOBS_FROM_SLURM DSE_V3_TRIAL_ROOT
+module load lang Python/3.11.5-GCCcore-13.2.0 2>/dev/null || true
+export C2HLS_VITIS_SETTINGS={VITIS}
+unset C2HLS_USE_CONTAINER XILINX_SIF C2HLS_DSE_V3 C2HLS_DSE_V3_HARNESS C2HLS_DSE_V4 C2HLS_DSE_V2_GRID C2HLS_SITE C2HLS_VITIS_JOBS C2HLS_VITIS_JOBS_FROM_SLURM DSE_V3_TRIAL_ROOT
 export C2HLS_CSIM_TIMEOUT=86400 C2HLS_SYNTH_TIMEOUT=86400
-"$PY" {EVAL} {mode} {d} {WS / 'task.json'}
+python3 {EVAL} {mode} {d} {WS / 'task.json'}
 """)
     out = subprocess.run(["sbatch", "--parsable", str(script)], capture_output=True, text=True)
     if out.returncode:

@@ -4,7 +4,7 @@ One dir per kernel: <run>/<name>/{kernel.cpp, source.txt, job.sh}; results land 
 import json, subprocess
 from pathlib import Path
 H = Path(__file__).resolve().parent
-EVAL = "/scratch/asa582/workspaces/c2hls_claude_code/study/agentfw/tools/hls_eval_job.py"
+EVAL = "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/agentfw/tools/hls_eval_job.py"
 sub = []
 for c in json.loads((H / "candidates.json").read_text()):
     d = H / c["run"] / c["name"].replace("_csynth.txt", "")
@@ -13,7 +13,8 @@ for c in json.loads((H / "candidates.json").read_text()):
     (d / "source.txt").write_text(json.dumps(c, indent=1) + "\n")
     (d / "job.sh").write_text(f"""#!/bin/bash
 # Post-hoc csim, 2026-10-22, of {c['kernel']}: synthesized in its session, never csim'd there.
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --job-name=posthoc_csim
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=16G
@@ -21,7 +22,7 @@ for c in json.loads((H / "candidates.json").read_text()):
 #SBATCH --output={d}/csim-%j.out
 #SBATCH --error={d}/csim-%j.err
 set -eo pipefail
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 dse_v3_source_vitis
 unset C2HLS_DSE_V3 C2HLS_DSE_V3_HARNESS C2HLS_DSE_V4 C2HLS_DSE_V2_GRID C2HLS_SITE C2HLS_VITIS_JOBS C2HLS_VITIS_JOBS_FROM_SLURM DSE_V3_TRIAL_ROOT
 export C2HLS_CSIM_TIMEOUT=10000 C2HLS_SYNTH_TIMEOUT=10000

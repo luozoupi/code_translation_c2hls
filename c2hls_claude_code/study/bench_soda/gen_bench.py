@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Sizes match LAAFD (arXiv 2602.06085) since 2026-10-19: 2D 1024^2, 3D 256^3 (was contrast 512^2, 3D 128^3;
 old bench kept in ../bench_soda_v1_20261016sizes).
-Generator for /scratch/asa582/workspaces/c2hls_claude_code/study/bench_soda/<kernel>/ (plain, baseline, TB, header, metadata, notes)."""
+Generator for /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/bench_soda/<kernel>/ (plain, baseline, TB, header, metadata, notes)."""
 import hashlib, json, os, re, sys
 
-ROOT = "/scratch/asa582/workspaces/c2hls_claude_code/study/bench_soda"
-SODA_SRC = "/scratch/asa582/workspaces/soda_src/soda/tests/src"
+ROOT = "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/bench_soda"
+SODA_SRC = "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/soda_src/soda/tests/src"
 
 CT = {"float": "float", "uint16": "uint16_t", "int16": "int16_t"}
 

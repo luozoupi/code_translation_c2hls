@@ -5,9 +5,9 @@
 #   a5065  : r5065 in Claude agent mode (tools + hls_check, fixed bench)           <- from the agentic ladder (L3 > 60%)
 # Fixed bench (C = A*B^T, C poisoned), controlled LLM layer, 128 GB, wall time via study/jobs/ledger.py (1h -> 3h -> 6h).
 set -euo pipefail
-cd /scratch/asa582/workspaces/c2hls_claude_code
+cd /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code
 FB=$PWD/study/bench_fixed/n1024; OUT=$PWD/study/dsp5065/runs
-INC=/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include
+INC=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include
 COMMON="ALL,CONTROLLED=1,C2HLS_THINKING=enabled,C2HLS_FLASH_MAX_TOKENS=262144,CTRL_MIN_MAX_TOKENS=262144,OUT_ROOT=$OUT,C2HLS_COMPILE_INCLUDE_PATHS=$INC,SEED_CODE=$FB/autosa_mm/hls_baseline.cpp,BENCH_ROOT=$FB"
 CC="MODEL=claude-opus-5-5,CLAUDE_CODE_SHIM_URL=$(cat shim_url.txt)"
 DS="MODEL=deepseek-v4-flash,CLAUDE_CODE_SHIM_URL=$(cat controlled/ds_proxy_url.txt)"

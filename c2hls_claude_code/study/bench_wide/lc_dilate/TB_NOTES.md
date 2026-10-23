@@ -10,4 +10,4 @@
 - Control 3 (one bug, must fail): Failed with 544 errors! (last column skipped)
 - hls_baseline.cpp as kernel: Passed!
 - Notes: New testbench. dilate.h includes support/common/mc.h (present in the dir; -I bench dir is enough, no extra files needed). Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
-- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/lc_dilate/).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/lc_dilate/).

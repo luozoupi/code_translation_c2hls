@@ -36,7 +36,7 @@ def verilator_cycles(name):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--designs", default="/scratch/asa582/tmp/c2hls/lsim/designs")
+    ap.add_argument("--designs", default="/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/designs")
     ap.add_argument("--md", default=str(HERE / "T4_n1024.md"))
     ap.add_argument("--csv", default=str(HERE / "T4_n1024.csv"))
     a = ap.parse_args()

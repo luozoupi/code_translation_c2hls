@@ -6,7 +6,7 @@ Writes candidates.json."""
 import json, glob, os, re
 from datetime import datetime, timezone
 from pathlib import Path
-CC = Path("/scratch/asa582/workspaces/c2hls_claude_code"); S = CC / "study"
+CC = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code"); S = CC / "study"
 LUT, DSP = 1303680, 9024; CAP = 0.8 * LUT
 WIN = (6317, 7219)
 out = []

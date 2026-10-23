@@ -12,4 +12,4 @@
 - Control 3 (one bug, must fail): Failed with 753104 errors! (one fewer chained iteration (it < ITERATE-1))
 - hls_baseline.cpp as kernel: Passed!
 - SODA cross-check: sodac kernel (--tile-size = width, --iterate 10) run as C++ on random data; its own golden: INFO: PASS!; plain.cpp vs SODA kernel output on the valid interior: compared 1008016 elements, mismatches 0, max rel err 0.
-- Build: g++ -O2 -I<dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch under /home/asa582/.claude/jobs/72130906/tmp/bench_soda_check/jacobi2d/).
+- Build: g++ -O2 -I<dir> -I/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch under /home/asa582/.claude/jobs/72130906/tmp/bench_soda_check/jacobi2d/).

@@ -10,7 +10,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-sys.path.insert(0, "/scratch/asa582/workspaces/code_translation_c2hls")
+sys.path.insert(0, "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls")
 import hls_eval
 import run_cosim_one
 

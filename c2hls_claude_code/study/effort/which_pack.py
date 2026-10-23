@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Identify which skills pack a run used by comparing its saved skills_source.json with candidate pack files."""
 import json, glob, sys, os, hashlib
-P = "/scratch/asa582/workspaces/code_translation_c2hls/hls_full_optimization_skills_schema_1_1_package/"
-F = "/scratch/asa582/workspaces/c2hls_claude_code/flash_refined/"
+P = "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls/hls_full_optimization_skills_schema_1_1_package/"
+F = "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/flash_refined/"
 cands = glob.glob(P + "*90skills*.json") + glob.glob(F + "*90skills*.json")
 def load(p):
     d = json.load(open(p)); s = d["skills"] if isinstance(d, dict) and "skills" in d else d

@@ -1,49 +1,39 @@
 {
-  "saved_at": "2026-09-29T01:56:55Z",
+  "saved_at": "2026-10-10T19:14:18-0700",
   "schema": "1.1",
-  "derived_from": [
-    "skills_ii_target_miss_solutions_added(90skills).json",
-    "skills_ii_target_miss_solutions_added(90skills)_gemm_flatten_v2.json"
-  ],
-  "merge_rule": "Union of the 90-skill package and gemm_flatten_v2. On id conflicts, gemm_flatten_v2 replaces the 90-skill entry.",
-  "source_counts": {
-    "gemm_flatten_v2": 104,
-    "90": 30
-  },
-  "skill_count": 134,
   "skills": [
     {
-      "id": "avoid-axi-widen-512-with-narrow-unroll",
-      "kind": "avoid_rule",
-      "confidence": "avoid",
-      "applicable_versions": [
-        "2023.2"
-      ],
       "applicable_fpgas": [
         "xcu280-fsvh2892-2L-e"
       ],
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "last_used_at": null,
-      "sec_pass": 0,
-      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
-      "pattern": "INTERFACE max_widen_bitwidth=512 is present, but the load/store pipeline still uses k += 2/4/8 (or UNROLL factor 2/4/8) and the consecutive-dim partition factor is smaller than LANES = 512 / element_bitwidth",
-      "strategy": "Reject that kernel as coalesced. Widening the adapter without a LANES-wide walk leaves trip at 1024 for a 64x64 float instead of 256. Rewrite the load/store body and matching partition before claiming 512-bit I/O is done.",
-      "required_steps": [
-        "detect max_widen_bitwidth=512 together with k += 4 (or factor=4) on a 32-bit ABI",
-        "do not accept INTERFACE-only widening as complete coalescing",
-        "route to hls-axi-load-step-matches-widen-lanes",
-        "re-synth and confirm load trip dropped by LANES (64x64 float: 1024 \u2192 256)"
-      ],
-      "guards": [
-        "LANES is AXI packing, not PE_BLK / tile width",
-        "do not widen by changing the top pointer type"
+      "applicable_versions": [
+        "2023.2"
       ],
       "bottleneck_kinds": [
         "underutilized_wide_memory",
         "compute_not_scaled_after_widening",
         "memory_bandwidth"
       ],
+      "confidence": "avoid",
+      "guards": [
+        "LANES is AXI packing, not PE_BLK / tile width",
+        "do not widen by changing the top pointer type"
+      ],
+      "id": "avoid-axi-widen-512-with-narrow-unroll",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
+      "pattern": "INTERFACE max_widen_bitwidth=512 is present, but the load/store pipeline still uses k += 2/4/8 (or UNROLL factor 2/4/8) and the consecutive-dim partition factor is smaller than LANES = 512 / element_bitwidth",
+      "required_steps": [
+        "detect max_widen_bitwidth=512 together with k += 4 (or factor=4) on a 32-bit ABI",
+        "do not accept INTERFACE-only widening as complete coalescing",
+        "route to hls-axi-load-step-matches-widen-lanes",
+        "re-synth and confirm load trip dropped by LANES (64x64 float: 1024 \u2192 256)"
+      ],
+      "sec_pass": 0,
+      "strategy": "Reject that kernel as coalesced. Widening the adapter without a LANES-wide walk leaves trip at 1024 for a 64x64 float instead of 256. Rewrite the load/store body and matching partition before claiming 512-bit I/O is done.",
       "tags": [
         "avoid",
         "coalescing",
@@ -219,32 +209,11 @@
       "template": "// BAD: fake ping-pong \u2014 still serial per tile\nfor (int tile = 0; tile < NUM_TILES; tile++) {\n    load_tile(A, buf[tile & 1], tile);\n    compute_tile(buf[tile & 1], out_buf[tile & 1]);\n    store_tile(out_buf[tile & 1], A, tile);\n}\n// GOOD without overlap: single local buffer + pipelined loops\n// GOOD with overlap: DATAFLOW helper where load(t+1) || compute(t) || store(t-1)"
     },
     {
-      "id": "avoid-fp-mac-recurrence-single-acc",
-      "kind": "avoid_rule",
-      "confidence": "avoid",
-      "applicable_versions": [
-        "2023.2"
-      ],
       "applicable_fpgas": [
         "xcu280-fsvh2892-2L-e"
       ],
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "last_used_at": null,
-      "sec_pass": 0,
-      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
-      "pattern": "PIPELINE II=1 on a k-loop that does acc[i][j] += a*b (or C[i][j] +=) every k. Csynth Final II=4 from the float MAC recurrence. Spatial unroll (16x32) may already be present; DSP may already be hundreds. csim and csynth still pass",
-      "strategy": "Reject the kernel as optimized. II=4 on the reduction is not a legal endpoint. Route to hls-fp-mac-k-step-independent-acc-banks. More DSPs or a wider tile under II=4 does not close II.",
-      "required_steps": [
-        "detect red_k / compute_k PIPELINE with acc[i][j] += every k",
-        "read csynth: pipelined yes, Final II=4, HLS 200-880 carried dependence",
-        "do not accept csim+csynth success as done",
-        "rewrite with k += 4 and named acc0..acc3 updated in one iteration"
-      ],
-      "guards": [
-        "DEPENDENCE inter false is not the fix",
-        "DSP fill / PE_BLK widening under II=4 is not the fix",
-        "inherently serial integer recurrences are out of scope"
+      "applicable_versions": [
+        "2023.2"
       ],
       "bottleneck_kinds": [
         "ii_target_miss",
@@ -252,6 +221,27 @@
         "true_loop_carried_dep",
         "recurrence_limited_ii"
       ],
+      "confidence": "avoid",
+      "guards": [
+        "DEPENDENCE inter false is not the fix",
+        "DSP fill / PE_BLK widening under II=4 is not the fix",
+        "inherently serial integer recurrences are out of scope"
+      ],
+      "id": "avoid-fp-mac-recurrence-single-acc",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
+      "pattern": "PIPELINE II=1 on a k-loop that does acc[i][j] += a*b (or C[i][j] +=) every k. Csynth Final II=4 from the float MAC recurrence. Spatial unroll (16x32) may already be present; DSP may already be hundreds. csim and csynth still pass",
+      "required_steps": [
+        "detect red_k / compute_k PIPELINE with acc[i][j] += every k",
+        "read csynth: pipelined yes, Final II=4, HLS 200-880 carried dependence",
+        "do not accept csim+csynth success as done",
+        "rewrite with k += 4 and named acc0..acc3 updated in one iteration"
+      ],
+      "sec_pass": 0,
+      "strategy": "Reject the kernel as optimized. II=4 on the reduction is not a legal endpoint. Route to hls-fp-mac-k-step-independent-acc-banks. More DSPs or a wider tile under II=4 does not close II.",
       "tags": [
         "avoid",
         "ii",
@@ -390,40 +380,41 @@
       "template": "// BAD: RMW on local output inside pipelined unroll\nfor (int k = 0; k < UF; k++) {\n#pragma HLS UNROLL\n#pragma HLS PIPELINE II=1\n    local_x[i] += A[i][j + k] * y[j + k];\n}\n// GOOD: partial accumulators, single write\npartial[p] += A[i][j+p] * y[j+p];  // in pipelined loop\nlocal_x[i] = reduce(partial);        // once after loop"
     },
     {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "preserve original semantics with if (idx < bound) guards",
+        "use header macro constants for fixed bounds"
+      ],
       "id": "avoid-loop-tripcount-flatten-variable-bounds",
       "kind": "avoid_rule",
-      "confidence": "avoid",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
       "origin": "flash_no_RMW_m_axi",
       "pattern": "variable-trip-count loops (triangular, tile_size, k<i, k<j, j=i+1..N) fixed only with LOOP_TRIPCOUNT or LOOP_FLATTEN without rewriting to static bounds",
-      "strategy": "LOOP_TRIPCOUNT is for reporting/estimation only \u2014 it does not make a loop statically bounded, fully unrollable, or dependency-free. Do not rely on LOOP_FLATTEN or LOOP_TRIPCOUNT to legalize pipeline on variable-bound nests.",
       "required_steps": [
         "identify loops whose bound depends on an outer induction variable or runtime tile_size",
         "do not add LOOP_TRIPCOUNT as a substitute for static bounds",
         "rewrite to fixed-bound loops with if guards using N or TILE_SIZE constants",
         "re-validate pipeline legality on the rewritten nest"
       ],
-      "guards": [
-        "preserve original semantics with if (idx < bound) guards",
-        "use header macro constants for fixed bounds"
-      ],
-      "bottleneck_kinds": [
-        "ii_target_miss",
-        "nested_loop"
-      ],
-      "applicable_versions": [
-        "2023.2"
-      ],
-      "applicable_fpgas": [
-        "xcu280-fsvh2892-2L-e"
-      ],
+      "sec_pass": 0,
+      "strategy": "LOOP_TRIPCOUNT is for reporting/estimation only \u2014 it does not make a loop statically bounded, fully unrollable, or dependency-free. Do not rely on LOOP_FLATTEN or LOOP_TRIPCOUNT to legalize pipeline on variable-bound nests.",
       "tags": [
         "avoid",
         "loop-tripcount",
         "loop-flatten",
-        "flash-mandatory",
-        "variable-bounds",
-        "merged-from-flash-no-RMW",
-        "gemm_flatten_v1"
+        "flash-mandatory"
       ],
       "template": "// BAD: variable bound, tripcount pragma only\nfor (int k = 0; k < j; k++) {\n#pragma HLS LOOP_TRIPCOUNT min=1 max=N\n#pragma HLS PIPELINE II=1\n    ...\n}\n// GOOD: fixed bound + guard\nfor (int k = 0; k < TILE_SIZE; k++) {\n#pragma HLS PIPELINE II=1\n    if (k < j) { ... }\n}"
     },
@@ -835,36 +826,36 @@
       "template": "// BAD: parent pipelined, child loop remains\nfor (int i = 0; i < TILE; i++) {\n#pragma HLS PIPELINE II=1\n    for (int j = 0; j < N; j++) {  // child still exists\n        A[i][j] = local_A[i][j];\n    }\n}\n// GOOD: pipeline innermost only\nfor (int i = 0; i < TILE; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        A[i][j] = local_A[i][j];\n    }\n}"
     },
     {
-      "id": "avoid-switch-k-mod-named-acc-banks",
-      "kind": "avoid_rule",
-      "confidence": "avoid",
-      "applicable_versions": [
-        "2023.2"
-      ],
       "applicable_fpgas": [
         "xcu280-fsvh2892-2L-e"
       ],
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "last_used_at": null,
-      "sec_pass": 0,
-      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
-      "pattern": "the rewrite splits acc0..acc3 but still uses for (k=0; k<K; ++k) PIPELINE with switch(k&3) / acc[k%4], so only one bank is written per iteration. HLS reports carried dependence distance=1 and Final II=4",
-      "strategy": "Reject switch(k&3) as the II=4 fix. Distance-4 is not visible to the scheduler in that form (observed: II=4 on acc2). Emit k += 4 and update all four named banks in the same pipeline iteration.",
-      "required_steps": [
-        "detect switch(k & 3) or acc[k%4] under a k++ PIPELINE",
-        "do not treat four named arrays as success unless k advances by 4 in the body",
-        "route to hls-fp-mac-k-step-independent-acc-banks"
-      ],
-      "guards": [
-        "named acc0..acc3 are necessary but not sufficient",
-        "do not add DEPENDENCE inter false to paper over the switch"
+      "applicable_versions": [
+        "2023.2"
       ],
       "bottleneck_kinds": [
         "ii_target_miss",
         "pipeline_blocked",
         "true_loop_carried_dep"
       ],
+      "confidence": "avoid",
+      "guards": [
+        "named acc0..acc3 are necessary but not sufficient",
+        "do not add DEPENDENCE inter false to paper over the switch"
+      ],
+      "id": "avoid-switch-k-mod-named-acc-banks",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
+      "pattern": "the rewrite splits acc0..acc3 but still uses for (k=0; k<K; ++k) PIPELINE with switch(k&3) / acc[k%4], so only one bank is written per iteration. HLS reports carried dependence distance=1 and Final II=4",
+      "required_steps": [
+        "detect switch(k & 3) or acc[k%4] under a k++ PIPELINE",
+        "do not treat four named arrays as success unless k advances by 4 in the body",
+        "route to hls-fp-mac-k-step-independent-acc-banks"
+      ],
+      "sec_pass": 0,
+      "strategy": "Reject switch(k&3) as the II=4 fix. Distance-4 is not visible to the scheduler in that form (observed: II=4 on acc2). Emit k += 4 and update all four named banks in the same pipeline iteration.",
       "tags": [
         "avoid",
         "ii",
@@ -1413,12 +1404,28 @@
       "template": ""
     },
     {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "latency_high",
+        "nested_loop",
+        "interval_exceeds_latency"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "applies to static-bound full-workspace or within-tile GEMM nests, not irreducible true dependencies"
+      ],
       "id": "hls-avoid-outer-sequential-gemm-after-inner-pipeline",
       "kind": "avoid_rule",
-      "confidence": "avoid",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
       "origin": "u280_chathls_vs_c2hls_2mm_3mm_20260721",
       "pattern": "csynth shows L1 / compute_outer / scale outer with Trip=M, II='-', Pipelined=no while a nested L4 / j pipeline reports II=1 \u2014 including syr2k/syrk form L1{ L2; L3{ L4 PIPELINE } } where per-i cost \u2248 L2 + K*N and total \u2248 M*(L2+K*N)",
-      "strategy": "Treat as a latency bug. Do not stop after L4 II=1. Apply hls-gemm-static-nest-flatten-and-k-partition or hls-syr2k-triangle-flatten-k-unroll: fixed j bounds + if guards, (i,j) PIPELINE+FLATTEN, k UNROLL, matching ARRAY_PARTITION. Re-synth until L1 is no longer an unpipelined trip=M loop dominating latency. After flatten+k-unroll, if Final II \u226b 1 from a serial FP accumulator, continue with hls-avoid-serial-fp-acc-under-full-k-unroll \u2014 do not stop.",
       "required_steps": [
         "detect outer L1/compute with Pipelined=no and II=- next to an II=1 inner j/L4 pipeline",
         "do not accept the design as optimized",
@@ -1427,20 +1434,8 @@
         "re-synth and confirm outer sequential L1 is gone or no longer dominates (flattened (i,j) trip)",
         "if flattened region still has Final II \u226b 1 from serial FP reduction, route to hls-avoid-serial-fp-acc-under-full-k-unroll"
       ],
-      "guards": [
-        "applies to static-bound full-workspace or within-tile GEMM nests, not irreducible true dependencies"
-      ],
-      "bottleneck_kinds": [
-        "latency_high",
-        "nested_loop",
-        "interval_exceeds_latency"
-      ],
-      "applicable_versions": [
-        "2023.2"
-      ],
-      "applicable_fpgas": [
-        "xcu280-fsvh2892-2L-e"
-      ],
+      "sec_pass": 0,
+      "strategy": "Treat as a latency bug. Do not stop after L4 II=1. Apply hls-gemm-static-nest-flatten-and-k-partition or hls-syr2k-triangle-flatten-k-unroll: fixed j bounds + if guards, (i,j) PIPELINE+FLATTEN, k UNROLL, matching ARRAY_PARTITION. Re-synth until L1 is no longer an unpipelined trip=M loop dominating latency. After flatten+k-unroll, if Final II \u226b 1 from a serial FP accumulator, continue with hls-avoid-serial-fp-acc-under-full-k-unroll \u2014 do not stop.",
       "tags": [
         "2mm",
         "3mm",
@@ -1494,31 +1489,35 @@
       "template": ""
     },
     {
-      "id": "hls-avoid-pipeline-innermost-only-goal-on-gemm",
-      "kind": "avoid_rule",
-      "confidence": "avoid",
-      "origin": "u280_chathls_vs_c2hls_2mm_3mm_20260721",
-      "pattern": "optimization stops because the innermost feasible loop achieved II=1, while total module latency is still dominated by a sequential outer trip over rows/columns of a static GEMM",
-      "strategy": "II on one loop is not the objective \u2014 total cycles are. For static GEMM and syr2k/syrk nests, require flatten of the (i,j) nest (with k unrolled) and validate against top latency / L1 table, not only Final II=1 on L4/j. Use hls-syr2k-triangle-flatten-k-unroll for triangular updates Total cycles require both flatten and low achieved II on the flattened region (reject serial-FP-acc II blowups via hls-avoid-serial-fp-acc-under-full-k-unroll).",
-      "required_steps": [
-        "after any PIPELINE success on an inner loop, read the parent loop table",
-        "if parent is unpipelined with large trip count, continue with flatten+partition repairs",
-        "compare sibling phases and fix any phase that did not flatten"
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
       ],
-      "guards": [
-        "still prefer innermost pipeline for non-flattenable or true-recurrence cases"
+      "applicable_versions": [
+        "2023.2"
       ],
       "bottleneck_kinds": [
         "latency_high",
         "ii_target_miss",
         "nested_loop"
       ],
-      "applicable_versions": [
-        "2023.2"
+      "confidence": "avoid",
+      "guards": [
+        "still prefer innermost pipeline for non-flattenable or true-recurrence cases"
       ],
-      "applicable_fpgas": [
-        "xcu280-fsvh2892-2L-e"
+      "id": "hls-avoid-pipeline-innermost-only-goal-on-gemm",
+      "kind": "avoid_rule",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "u280_chathls_vs_c2hls_2mm_3mm_20260721",
+      "pattern": "optimization stops because the innermost feasible loop achieved II=1, while total module latency is still dominated by a sequential outer trip over rows/columns of a static GEMM",
+      "required_steps": [
+        "after any PIPELINE success on an inner loop, read the parent loop table",
+        "if parent is unpipelined with large trip count, continue with flatten+partition repairs",
+        "compare sibling phases and fix any phase that did not flatten"
       ],
+      "sec_pass": 0,
+      "strategy": "II on one loop is not the objective \u2014 total cycles are. For static GEMM and syr2k/syrk nests, require flatten of the (i,j) nest (with k unrolled) and validate against top latency / L1 table, not only Final II=1 on L4/j. Use hls-syr2k-triangle-flatten-k-unroll for triangular updates Total cycles require both flatten and low achieved II on the flattened region (reject serial-FP-acc II blowups via hls-avoid-serial-fp-acc-under-full-k-unroll).",
       "tags": [
         "avoid",
         "flash-mandatory",
@@ -1643,12 +1642,32 @@
       "template": ""
     },
     {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "latency_high",
+        "pipeline_body_latency",
+        "resource_limited",
+        "compute_bound"
+      ],
+      "confidence": "avoid",
+      "guards": [
+        "still prefer flatten of sequential outer i when that is the bug (hls-avoid-outer-sequential-gemm-after-inner-pipeline)",
+        "preserve numerical tolerance expectations when reassociating FP reductions",
+        "device util \u2264 100% after allocating more operators / wider trees"
+      ],
       "id": "hls-avoid-serial-fp-acc-under-full-k-unroll",
       "kind": "avoid_rule",
-      "confidence": "avoid",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
       "origin": "u280_chathls_kernel_2mm_ii250_20260722",
       "pattern": "static-bound GEMM/matmul (or 2mm/3mm phase) on locals with PIPELINE on (i,j) (often + LOOP_FLATTEN) and full UNROLL on reduction k, but csynth Final II remains huge (tens\u2013hundreds) because a single float/double accumulator carries a true FP dependence and/or dmul/dadd are resource-shared down to ~1 instance \u2014 so latency \u2248 trip\u00d7II stays catastrophic despite 'k fully unrolled'; also a PIPELINE on k with acc[i][j] += a*b every k (Final II=4) after spatial unroll \u2014 csim+csynth pass is not success",
-      "strategy": "Do not treat full k UNROLL or outer flatten as success when achieved II \u226b 1. Rewrite the reduction with lane/partial sums or a tree (hls-unroll-reduction-partial-sums / ii-reduction-lane-partial-tree), allocate enough FP operators for the chosen parallelism, or fall back to pipeline-on-k with modest outer/j unroll (ChatHLS-style). Re-synth until Final II is near the legal target. Also reject II=4 on a k-pipeline that updates one acc bank every k. Route to k+=4 named acc0..acc3 in one iteration, not switch(k&3), and not more PE_BLK under II=4.",
       "required_steps": [
         "detect full k UNROLL under (i,j) pipeline with serial sum += a*b (float/double)",
         "read csynth Final II, accumulator dependence, and dmul/dadd binding/sharing",
@@ -1658,24 +1677,8 @@
         "detect PIPELINE on k with a single acc[i][j] += MAC and Final II=4",
         "reject that as optimized even if DSP is already hundreds"
       ],
-      "guards": [
-        "still prefer flatten of sequential outer i when that is the bug (hls-avoid-outer-sequential-gemm-after-inner-pipeline)",
-        "preserve numerical tolerance expectations when reassociating FP reductions",
-        "device util \u2264 100% after allocating more operators / wider trees"
-      ],
-      "bottleneck_kinds": [
-        "ii_target_miss",
-        "latency_high",
-        "pipeline_body_latency",
-        "resource_limited",
-        "compute_bound"
-      ],
-      "applicable_versions": [
-        "2023.2"
-      ],
-      "applicable_fpgas": [
-        "xcu280-fsvh2892-2L-e"
-      ],
+      "sec_pass": 0,
+      "strategy": "Do not treat full k UNROLL or outer flatten as success when achieved II \u226b 1. Rewrite the reduction with lane/partial sums or a tree (hls-unroll-reduction-partial-sums / ii-reduction-lane-partial-tree), allocate enough FP operators for the chosen parallelism, or fall back to pipeline-on-k with modest outer/j unroll (ChatHLS-style). Re-synth until Final II is near the legal target. Also reject II=4 on a k-pipeline that updates one acc bank every k. Route to k+=4 named acc0..acc3 in one iteration, not switch(k&3), and not more PE_BLK under II=4.",
       "tags": [
         "avoid",
         "gemm",
@@ -1690,11 +1693,7 @@
         "gemm_flatten_v2",
         "preventive"
       ],
-      "template": "// BAD: full k UNROLL with serial FP accumulator under (i,j) PIPELINE\nfor (int i = 0; i < M; ++i)\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    double sum = 0.0;\n    for (int k = 0; k < K; ++k) {\n#pragma HLS UNROLL\n      sum += A[i][k] * B[k][j];  // carried dep \u2192 Final II \u226b 1 if 1\u00d7dadd\n    }\n    C[i][j] = sum;\n  }\n// GOOD: partial/tree reduction (or pipeline-on-k if resources cannot parallelize)\n",
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "last_used_at": null,
-      "sec_pass": 0
+      "template": "// BAD: full k UNROLL with serial FP accumulator under (i,j) PIPELINE\nfor (int i = 0; i < M; ++i)\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    double sum = 0.0;\n    for (int k = 0; k < K; ++k) {\n#pragma HLS UNROLL\n      sum += A[i][k] * B[k][j];  // carried dep \u2192 Final II \u226b 1 if 1\u00d7dadd\n    }\n    C[i][j] = sum;\n  }\n// GOOD: partial/tree reduction (or pipeline-on-k if resources cannot parallelize)\n"
     },
     {
       "applicable_fpgas": [],
@@ -1980,34 +1979,11 @@
       "template": ""
     },
     {
-      "id": "hls-axi-load-step-matches-widen-lanes",
-      "kind": "transformation_operator",
-      "confidence": "high",
-      "applicable_versions": [
-        "2023.2"
-      ],
       "applicable_fpgas": [
         "xcu280-fsvh2892-2L-e"
       ],
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "last_used_at": null,
-      "sec_pass": 0,
-      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
-      "pattern": "m_axi has max_widen_bitwidth=512 on a 32-bit (or similarly narrow) pointer ABI, but the load/store pipeline still steps by 4 (or any factor smaller than LANES) and the local buffer is banked with that same small factor on the consecutive dimension",
-      "strategy": "LANES = 512 / element_bitwidth. For data_t float/int32 that is 16, not 4. The load/store inner loop must step by LANES with UNROLL, and ARRAY_PARTITION cyclic factor on the consecutive dim must equal LANES. max_widen_bitwidth=512 without rewriting the walk is incomplete. Compute row/col banking (16x32) is a different factor and must not replace the consecutive-dim LANES bank.",
-      "required_steps": [
-        "compute LANES = 512 / (8 * sizeof(data_t))",
-        "rewrite load/store: for (k = 0; k < K; k += LANES) PIPELINE II=1, inner UNROLL l < LANES",
-        "ARRAY_PARTITION cyclic factor=LANES on the consecutive (k) dim of the local buffer",
-        "keep compute-side row banking separate (it feeds parallel MACs, not the AXI beat)",
-        "target load trip \u2248 (rows * cols) / LANES, not one element per cycle"
-      ],
-      "guards": [
-        "do not change the public scalar pointer ABI to ap_uint<512>",
-        "do not use unroll 2/4/8 as the AXI load default when LANES=16",
-        "partition factor on the consecutive dim must match LANES, not a smaller guess",
-        "this skill does not require fused A+B; separate load_A / load_B is also legal"
+      "applicable_versions": [
+        "2023.2"
       ],
       "bottleneck_kinds": [
         "underutilized_wide_memory",
@@ -2015,6 +1991,29 @@
         "memory_bandwidth",
         "axi_burst_failed"
       ],
+      "confidence": "high",
+      "guards": [
+        "do not change the public scalar pointer ABI to ap_uint<512>",
+        "do not use unroll 2/4/8 as the AXI load default when LANES=16",
+        "partition factor on the consecutive dim must match LANES, not a smaller guess",
+        "this skill does not require fused A+B; separate load_A / load_B is also legal"
+      ],
+      "id": "hls-axi-load-step-matches-widen-lanes",
+      "kind": "transformation_operator",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
+      "pattern": "m_axi has max_widen_bitwidth=512 on a 32-bit (or similarly narrow) pointer ABI, but the load/store pipeline still steps by 4 (or any factor smaller than LANES) and the local buffer is banked with that same small factor on the consecutive dimension",
+      "required_steps": [
+        "compute LANES = 512 / (8 * sizeof(data_t))",
+        "rewrite load/store: for (k = 0; k < K; k += LANES) PIPELINE II=1, inner UNROLL l < LANES",
+        "ARRAY_PARTITION cyclic factor=LANES on the consecutive (k) dim of the local buffer",
+        "keep compute-side row banking separate (it feeds parallel MACs, not the AXI beat)",
+        "target load trip \u2248 (rows * cols) / LANES, not one element per cycle"
+      ],
+      "sec_pass": 0,
+      "strategy": "LANES = 512 / element_bitwidth. For data_t float/int32 that is 16, not 4. The load/store inner loop must step by LANES with UNROLL, and ARRAY_PARTITION cyclic factor on the consecutive dim must equal LANES. max_widen_bitwidth=512 without rewriting the walk is incomplete. Compute row/col banking (16x32) is a different factor and must not replace the consecutive-dim LANES bank.",
       "tags": [
         "hls",
         "coalescing",
@@ -2886,12 +2885,29 @@
       "template": "// BAD: tile loops inside DATAFLOW reload A each tile\n#pragma HLS DATAFLOW\nfor (i0 = 0; i0 < N; i0 += TILE) {\n    load_tile_A(A, local_A, i0);  // HLS 200-1013\n    compute_tile(...);\n}\n\n// GOOD: fused dual-layout load, phased compute on locals\n#pragma HLS DATAFLOW\nfused_load_task(y1, y2, A, local_y1, local_y2, local_A_row, local_A_col);\nphase1_task(local_x1, local_A_row, local_y1);\nphase2_task(local_x2, local_A_col, local_y2);\nfused_store_task(x1, x2, local_x1, local_x2);"
     },
     {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "confidence": "high",
+      "guards": [
+        "TILE_SIZE macro must match tiling pragma and local buffer allocation",
+        "preserve semantics for partial tail tile \u2014 skipped iterations must not change results",
+        "complements hls-rewrite-variable-trip-fixed-bound-guard for triangular inner bounds"
+      ],
       "id": "hls-fixed-tile-bound-not-runtime-tile-size",
       "kind": "supporting_transformation",
-      "confidence": "high",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
       "origin": "flash_no_RMW_m_axi",
       "pattern": "pipelined load_tile, compute_tile, or store_tile loops use for (i = 0; i < tile_size; i++) where tile_size is runtime-computed for the final partial tile",
-      "strategy": "Loop bound must be compile-time TILE_SIZE from header macros; use if (tile_i + i < N) guards for partial final tile. Runtime tile_size as loop bound blocks II=1 pipeline, UNROLL, and LOOP_FLATTEN (HLS 200-936/960).",
       "required_steps": [
         "replace for (i = 0; i < tile_size; i++) with for (i = 0; i < TILE_SIZE; i++)",
         "guard loads, stores, and compute with if (tile_i + i < N) or if (i < tile_size) only inside body \u2014 not as loop bound",
@@ -2899,60 +2915,21 @@
         "re-apply PIPELINE II=1 on inner fixed-bound loops after rewrite",
         "validate csynth no longer warns cannot unroll/flatten due to variable tile_size bound"
       ],
-      "guards": [
-        "TILE_SIZE macro must match tiling pragma and local buffer allocation",
-        "preserve semantics for partial tail tile \u2014 skipped iterations must not change results",
-        "complements hls-rewrite-variable-trip-fixed-bound-guard for triangular inner bounds"
-      ],
-      "bottleneck_kinds": [
-        "ii_target_miss",
-        "nested_loop"
-      ],
-      "applicable_versions": [
-        "2023.2"
-      ],
-      "applicable_fpgas": [
-        "xcu280-fsvh2892-2L-e"
-      ],
+      "sec_pass": 0,
+      "strategy": "Loop bound must be compile-time TILE_SIZE from header macros; use if (tile_i + i < N) guards for partial final tile. Runtime tile_size as loop bound blocks II=1 pipeline, UNROLL, and LOOP_FLATTEN (HLS 200-936/960).",
       "tags": [
         "tiling",
         "variable-bounds",
-        "flash-mandatory",
-        "merged-from-flash-no-RMW",
-        "gemm_flatten_v1"
+        "flash-mandatory"
       ],
       "template": "// BAD: runtime tile_size as pipelined loop bound\nint tile_size = (tile_i + TILE_SIZE > N) ? (N - tile_i) : TILE_SIZE;\nfor (int i = 0; i < tile_size; i++) {\n#pragma HLS PIPELINE II=1\n    local_A[i][j] = A[tile_i + i][j];\n}\n\n// GOOD: fixed TILE_SIZE bound + guard\nfor (int i = 0; i < TILE_SIZE; i++) {\n#pragma HLS PIPELINE II=1\n    if (tile_i + i < N) {\n        local_A[i][j] = A[tile_i + i][j];\n    }\n}"
     },
     {
-      "id": "hls-fp-mac-k-step-independent-acc-banks",
-      "kind": "transformation_operator",
-      "confidence": "high",
-      "applicable_versions": [
-        "2023.2"
-      ],
       "applicable_fpgas": [
         "xcu280-fsvh2892-2L-e"
       ],
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "last_used_at": null,
-      "sec_pass": 0,
-      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
-      "pattern": "a pipelined k-reduction updates the same float/double acc[i][j] (or C[i][j]) every iteration, so Vitis reports II=4 from the FP add/MAC recurrence even when the spatial tile is already 16x32",
-      "strategy": "Do not accept II=4 on that reduction. Advance k by the FP recurrence distance (typically 4) inside one PIPELINE II=1 iteration and update named accumulators acc0, acc1, acc2, acc3 in that same body, then tree-add them at store. Each bank is written once per iteration, so the scheduler sees no carried dep. Full UNROLL of k into an adder tree is also legal when DSP stays under the device cap. Do NOT use switch(k & 3) / acc[k%4] \u2014 HLS still reports distance=1.",
-      "required_steps": [
-        "keep spatial MACs (tile rows x cols) as they are",
-        "declare named acc0, acc1, acc2, acc3 with complete partition",
-        "red_k: for (k = 0; k < K; k += 4) PIPELINE II=1",
-        "in that body, UNROLL the spatial MAC into acc0..acc3 using A/B at k, k+1, k+2, k+3",
-        "store: result = (acc0+acc1)+(acc2+acc3) \u2014 do not fold back into one acc during k",
-        "re-synth until red_k Final II=1"
-      ],
-      "guards": [
-        "do not use switch(k&3) or acc[k%4][i][j] \u2014 that form stayed II=4",
-        "do not add DEPENDENCE inter false on a true FP MAC recurrence",
-        "do not treat more PE_BLK / more DSPs as the II=4 fix",
-        "preserve csim vs the reference accumulation within the harness tolerance"
+      "applicable_versions": [
+        "2023.2"
       ],
       "bottleneck_kinds": [
         "ii_target_miss",
@@ -2961,6 +2938,30 @@
         "recurrence_limited_ii",
         "reduction_loop"
       ],
+      "confidence": "high",
+      "guards": [
+        "do not use switch(k&3) or acc[k%4][i][j] \u2014 that form stayed II=4",
+        "do not add DEPENDENCE inter false on a true FP MAC recurrence",
+        "do not treat more PE_BLK / more DSPs as the II=4 fix",
+        "preserve csim vs the reference accumulation within the harness tolerance"
+      ],
+      "id": "hls-fp-mac-k-step-independent-acc-banks",
+      "kind": "transformation_operator",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "flash_redo3_vs_manual_wide_load_ii4_20260917",
+      "pattern": "a pipelined k-reduction updates the same float/double acc[i][j] (or C[i][j]) every iteration, so Vitis reports II=4 from the FP add/MAC recurrence even when the spatial tile is already 16x32",
+      "required_steps": [
+        "keep spatial MACs (tile rows x cols) as they are",
+        "declare named acc0, acc1, acc2, acc3 with complete partition",
+        "red_k: for (k = 0; k < K; k += 4) PIPELINE II=1",
+        "in that body, UNROLL the spatial MAC into acc0..acc3 using A/B at k, k+1, k+2, k+3",
+        "store: result = (acc0+acc1)+(acc2+acc3) \u2014 do not fold back into one acc during k",
+        "re-synth until red_k Final II=1"
+      ],
+      "sec_pass": 0,
+      "strategy": "Do not accept II=4 on that reduction. Advance k by the FP recurrence distance (typically 4) inside one PIPELINE II=1 iteration and update named accumulators acc0, acc1, acc2, acc3 in that same body, then tree-add them at store. Each bank is written once per iteration, so the scheduler sees no carried dep. Full UNROLL of k into an adder tree is also legal when DSP stays under the device cap. Do NOT use switch(k & 3) / acc[k%4] \u2014 HLS still reports distance=1.",
       "tags": [
         "hls",
         "ii",
@@ -3059,12 +3060,34 @@
       "template": "// BAD: three full local matrices + copy tasks between DATAFLOW stages\nlocal_T1[N][N]; local_T2[N][N]; local_T3[N][N];\n#pragma HLS DATAFLOW\nload_AB(...); gemm1_copy(...); gemm2_copy(...); store_C(...);\n\n// GOOD: K-panel reuse, innermost K pipelined\nfor (int k = 0; k < N; k++) {\n#pragma HLS PIPELINE II=1\n    for (int j = 0; j < TILE_SIZE; j++) {\n#pragma HLS UNROLL factor=UF\n        acc[j] += A[i][k] * B[k][j];\n    }\n}\n// optional: hls::stream<panel_t> between stages when overlap proven"
     },
     {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "latency_high",
+        "interval_exceeds_latency",
+        "ii_target_miss",
+        "nested_loop",
+        "port_conflict",
+        "non_pipelined_hot_loop"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not apply this flatten mandate to true outer tile loops over partial tiles \u2014 only full-workspace or within-tile (i,j) nests with static bounds",
+        "preserve numerical semantics of reductions",
+        "resource legality: BRAM/DSP/FF/LUT/URAM device util \u2264 100%",
+        "full k UNROLL requires a parallel reduction structure or enough FP units \u2014 a single serial float/double accumulator alone is not success if Final II \u226b 1"
+      ],
       "id": "hls-gemm-static-nest-flatten-and-k-partition",
       "kind": "compound_transformation",
-      "confidence": "high",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
       "origin": "u280_chathls_vs_c2hls_2mm_3mm_20260721",
       "pattern": "static-bound GEMM/matmul-like OR triangular syrk/syr2k/symm nests on local buffers (C[i][j] += ... over k, or C[i][j] += A[j][k]*B[i][k]+... with if (j<=i)) where PIPELINE II=1 is placed only on an inner j (L4) under sequential outer i (L1) and/or sequential k (L3), so csynth shows L1 trip=M Pipelined=no and latency \u2248 M*(K*N+Depth) instead of one flattened (i,j) pipeline",
-      "strategy": "Partition locals on the reduction dim k; PIPELINE II=1 the (i,j) nest with k fully unrolled; LOOP_FLATTEN (or single ij loop). For syrk/syr2k: keep FIXED j<N bounds with if (j<=i) guards (never for (j=0;j<=i)); optionally separate beta-scale pass, then one update pass that reduces over k inside each (i,j) iteration. Reject L1 sequential + only L4 II=1. Success also requires achieved Final II near 1 (or best legal). Full k UNROLL with a serial FP accumulator is insufficient if II stays huge \u2014 use partial/tree sums or enough FP operators, else pipeline-on-k (hls-avoid-serial-fp-acc-under-full-k-unroll).",
       "required_steps": [
         "confirm M,N,K (or N,M for syr2k) are compile-time constants and compute is on local arrays",
         "ARRAY_PARTITION A/B (and C as needed) on the k-accessed dimension \u2014 complete if budget allows",
@@ -3075,26 +3098,8 @@
         "re-check device Utilization (%) \u2264 100; if complete on k overshoots, use cyclic factor matched to unroll",
         "after flatten+k-unroll, check Final II; if II \u226b 1 from serial FP acc / shared dmul/dadd, apply hls-avoid-serial-fp-acc-under-full-k-unroll"
       ],
-      "guards": [
-        "do not apply this flatten mandate to true outer tile loops over partial tiles \u2014 only full-workspace or within-tile (i,j) nests with static bounds",
-        "preserve numerical semantics of reductions",
-        "resource legality: BRAM/DSP/FF/LUT/URAM device util \u2264 100%",
-        "full k UNROLL requires a parallel reduction structure or enough FP units \u2014 a single serial float/double accumulator alone is not success if Final II \u226b 1"
-      ],
-      "bottleneck_kinds": [
-        "latency_high",
-        "interval_exceeds_latency",
-        "ii_target_miss",
-        "nested_loop",
-        "port_conflict",
-        "non_pipelined_hot_loop"
-      ],
-      "applicable_versions": [
-        "2023.2"
-      ],
-      "applicable_fpgas": [
-        "xcu280-fsvh2892-2L-e"
-      ],
+      "sec_pass": 0,
+      "strategy": "Partition locals on the reduction dim k; PIPELINE II=1 the (i,j) nest with k fully unrolled; LOOP_FLATTEN (or single ij loop). For syrk/syr2k: keep FIXED j<N bounds with if (j<=i) guards (never for (j=0;j<=i)); optionally separate beta-scale pass, then one update pass that reduces over k inside each (i,j) iteration. Reject L1 sequential + only L4 II=1. Success also requires achieved Final II near 1 (or best legal). Full k UNROLL with a serial FP accumulator is insufficient if II stays huge \u2014 use partial/tree sums or enough FP operators, else pipeline-on-k (hls-avoid-serial-fp-acc-under-full-k-unroll).",
       "tags": [
         "2mm",
         "3mm",
@@ -4025,38 +4030,40 @@
       "template": "double local_A[M][K], local_B[K][N], local_C[M][N];\n#pragma HLS ARRAY_PARTITION variable=local_A complete dim=2\n#pragma HLS ARRAY_PARTITION variable=local_B complete dim=1\nload_arrays: for (int i = 0; i < M; i++)\n  for (int j = 0; j < K; j++) {\n#pragma HLS PIPELINE II=1\n    local_A[i][j] = A[i][j];\n  }\n// repeat for B (and C if needed), then flattened local compute, then one store pass"
     },
     {
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
+      ],
+      "applicable_versions": [
+        "2023.2"
+      ],
+      "bottleneck_kinds": [
+        "ii_target_miss",
+        "nested_loop"
+      ],
+      "confidence": "high",
+      "guards": [
+        "do not change numerical results \u2014 guards must match original iteration set",
+        "prefer TILE_SIZE macro over function parameter for synthesizable bounds"
+      ],
       "id": "hls-rewrite-variable-trip-fixed-bound-guard",
       "kind": "compound_transformation",
-      "confidence": "high",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
       "origin": "flash_no_RMW_m_axi",
       "pattern": "triangular or variable-bound loops such as for (k=0; k<i), for (k=0; k<j), for (j=i+1; j<N), or for (i=0; i<tile_size) blocking II=1 pipeline",
-      "strategy": "Rewrite to fixed compile-time bounds (N, TILE_SIZE from header macros) and preserve semantics with if guards on the induction variable.",
       "required_steps": [
         "replace runtime or outer-dependent bounds with fixed TILE_SIZE or N",
         "wrap body in if (idx < original_bound) to skip out-of-range iterations",
         "apply PIPELINE II=1 only on the fixed-bound inner loop after rewrite",
         "keep tile_size as a scalar for guard comparisons, not as the loop bound when pipelining"
       ],
-      "guards": [
-        "do not change numerical results \u2014 guards must match original iteration set",
-        "prefer TILE_SIZE macro over function parameter for synthesizable bounds"
-      ],
-      "bottleneck_kinds": [
-        "ii_target_miss",
-        "nested_loop"
-      ],
-      "applicable_versions": [
-        "2023.2"
-      ],
-      "applicable_fpgas": [
-        "xcu280-fsvh2892-2L-e"
-      ],
+      "sec_pass": 0,
+      "strategy": "Rewrite to fixed compile-time bounds (N, TILE_SIZE from header macros) and preserve semantics with if guards on the induction variable.",
       "tags": [
         "variable-bounds",
         "pipeline",
-        "flash-mandatory",
-        "merged-from-flash-no-RMW",
-        "gemm_flatten_v1"
+        "flash-mandatory"
       ],
       "template": "// BEFORE: for (int k = 0; k < j; k++)\n// AFTER:\nfor (int k = 0; k < TILE_SIZE; k++) {\n#pragma HLS PIPELINE II=1\n    if (k < j) {\n        ...\n    }\n}"
     },
@@ -4105,26 +4112,11 @@
       "template": "load_matrix_dual: for (int i = 0; i < N; i++) {\n    for (int j = 0; j < N; j++) {\n#pragma HLS PIPELINE II=1\n        data_t v = A[i][j];           // one m_axi read\n        local_A[i][j] = v;\n        local_AT[j][i] = v;           // transpose view from same read\n    }\n}\n// compute uses local_A / local_AT \u2014 no second full-matrix m_axi traversal"
     },
     {
-      "id": "hls-syr2k-triangle-flatten-k-unroll",
-      "kind": "compound_transformation",
-      "confidence": "high",
-      "origin": "u280_chathls_vs_c2hls_syr2k_20260722",
-      "pattern": "syr2k/syrk/symm-style nest on locals: L1 over i sequential; optional L2 beta scale; L3 over k; L4 over j with PIPELINE II=1 and if (j<=i) \u2014 csynth L1 trip=N Pipelined=no, iteration latency \u2248 L2 + L3_L4 (e.g. ~4934), total \u2248 N*that (e.g. ~394k for N=80)",
-      "strategy": "Do not pipeline only L4 under sequential L1/L3. Use FIXED j<N (and i<N, k<M) bounds with if (j<=i) guards. Separate beta scale (PIPELINE+LOOP_FLATTEN on (i,j)). Then one update pass: PIPELINE+LOOP_FLATTEN on (i,j), fully UNROLL k, ARRAY_PARTITION A/B on k dim so each (i,j) iteration does the full reduction in one II. Optional fuse: C = beta*C + alpha*sum in one pass. Never use for (j=0; j<=i; ++j) as the loop bound.",
-      "required_steps": [
-        "stage A,B,C into locals if not already (load/store keep PIPELINE II=1, fixed bounds)",
-        "ARRAY_PARTITION local_A and local_B complete (or cyclic) on the k dimension (dim=2 for [N][M])",
-        "rewrite any j<=i / k<i loop bounds to fixed N/M + if guards",
-        "phase scale: for i, for j < N { PIPELINE II=1; LOOP_FLATTEN; if (j<=i) C[i][j]*=beta; }",
-        "phase update: for i, for j < N { PIPELINE II=1; LOOP_FLATTEN; if (j<=i) { sum=0; for k UNROLL sum+=...; C[i][j]+=alpha*sum; } }",
-        "success: top latency much below N*(M*N); L1 must not remain Pipelined=no with iter latency \u2248 M*N",
-        "keep BRAM/DSP/FF/LUT/URAM device util \u2264 100%"
+      "applicable_fpgas": [
+        "xcu280-fsvh2892-2L-e"
       ],
-      "guards": [
-        "preserve lower/upper triangular semantics (only touch j<=i or as specified)",
-        "do not use variable trip counts for the triangle",
-        "if complete partition on k overflows, use cyclic factor and partial unroll of k, but still flatten (i,j)",
-        "resource legality \u2264 100% device"
+      "applicable_versions": [
+        "2023.2"
       ],
       "bottleneck_kinds": [
         "latency_high",
@@ -4134,12 +4126,31 @@
         "ii_target_met_but_latency_high",
         "port_conflict"
       ],
-      "applicable_versions": [
-        "2023.2"
+      "confidence": "high",
+      "guards": [
+        "preserve lower/upper triangular semantics (only touch j<=i or as specified)",
+        "do not use variable trip counts for the triangle",
+        "if complete partition on k overflows, use cyclic factor and partial unroll of k, but still flatten (i,j)",
+        "resource legality \u2264 100% device"
       ],
-      "applicable_fpgas": [
-        "xcu280-fsvh2892-2L-e"
+      "id": "hls-syr2k-triangle-flatten-k-unroll",
+      "kind": "compound_transformation",
+      "last_used_at": null,
+      "mean_advantage": 0.0,
+      "occurrences": 0,
+      "origin": "u280_chathls_vs_c2hls_syr2k_20260722",
+      "pattern": "syr2k/syrk/symm-style nest on locals: L1 over i sequential; optional L2 beta scale; L3 over k; L4 over j with PIPELINE II=1 and if (j<=i) \u2014 csynth L1 trip=N Pipelined=no, iteration latency \u2248 L2 + L3_L4 (e.g. ~4934), total \u2248 N*that (e.g. ~394k for N=80)",
+      "required_steps": [
+        "stage A,B,C into locals if not already (load/store keep PIPELINE II=1, fixed bounds)",
+        "ARRAY_PARTITION local_A and local_B complete (or cyclic) on the k dimension (dim=2 for [N][M])",
+        "rewrite any j<=i / k<i loop bounds to fixed N/M + if guards",
+        "phase scale: for i, for j < N { PIPELINE II=1; LOOP_FLATTEN; if (j<=i) C[i][j]*=beta; }",
+        "phase update: for i, for j < N { PIPELINE II=1; LOOP_FLATTEN; if (j<=i) { sum=0; for k UNROLL sum+=...; C[i][j]+=alpha*sum; } }",
+        "success: top latency much below N*(M*N); L1 must not remain Pipelined=no with iter latency \u2248 M*N",
+        "keep BRAM/DSP/FF/LUT/URAM device util \u2264 100%"
       ],
+      "sec_pass": 0,
+      "strategy": "Do not pipeline only L4 under sequential L1/L3. Use FIXED j<N (and i<N, k<M) bounds with if (j<=i) guards. Separate beta scale (PIPELINE+LOOP_FLATTEN on (i,j)). Then one update pass: PIPELINE+LOOP_FLATTEN on (i,j), fully UNROLL k, ARRAY_PARTITION A/B on k dim so each (i,j) iteration does the full reduction in one II. Optional fuse: C = beta*C + alpha*sum in one pass. Never use for (j=0; j<=i; ++j) as the loop bound.",
       "tags": [
         "hls",
         "syr2k",
@@ -4153,11 +4164,7 @@
         "chathls-ready",
         "gemm_flatten_v1"
       ],
-      "template": "#pragma HLS ARRAY_PARTITION variable=local_A complete dim=2\n#pragma HLS ARRAY_PARTITION variable=local_B complete dim=2\n// optional: partition local_C cyclic/complete on dim=2 if needed for II\nscale: for (int i = 0; i < N; ++i) {\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    if (j <= i) local_C[i][j] *= beta;\n  }\n}\nupdate: for (int i = 0; i < N; ++i) {\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    if (j <= i) {\n      double sum = 0.0;\n      for (int k = 0; k < M; ++k) {\n#pragma HLS UNROLL\n        sum += local_A[j][k] * local_B[i][k] + local_B[j][k] * local_A[i][k];\n      }\n      local_C[i][j] += alpha * sum;\n    }\n  }\n}\n",
-      "mean_advantage": 0.0,
-      "occurrences": 0,
-      "last_used_at": null,
-      "sec_pass": 0
+      "template": "#pragma HLS ARRAY_PARTITION variable=local_A complete dim=2\n#pragma HLS ARRAY_PARTITION variable=local_B complete dim=2\n// optional: partition local_C cyclic/complete on dim=2 if needed for II\nscale: for (int i = 0; i < N; ++i) {\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    if (j <= i) local_C[i][j] *= beta;\n  }\n}\nupdate: for (int i = 0; i < N; ++i) {\n  for (int j = 0; j < N; ++j) {\n#pragma HLS PIPELINE II=1\n#pragma HLS LOOP_FLATTEN\n    if (j <= i) {\n      double sum = 0.0;\n      for (int k = 0; k < M; ++k) {\n#pragma HLS UNROLL\n        sum += local_A[j][k] * local_B[i][k] + local_B[j][k] * local_A[i][k];\n      }\n      local_C[i][j] += alpha * sum;\n    }\n  }\n}\n"
     },
     {
       "applicable_fpgas": [],

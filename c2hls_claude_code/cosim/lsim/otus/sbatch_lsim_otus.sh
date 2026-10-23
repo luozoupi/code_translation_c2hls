@@ -1,6 +1,6 @@
 #!/bin/bash
 # LightningSim over every ROOT/*/proj.tar.gz (or a ':'-separated ONLY list), one node.
-#   sbatch --export=ALL,ROOT=/scratch/asa582/tmp/c2hls/lsim/mb,MODEL=v2023,PAR=8 sbatch_lsim.sh
+#   sbatch --export=ALL,ROOT=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/mb,MODEL=v2023,PAR=8 sbatch_lsim.sh
 # Each project is unpacked in $SLURM_TMPDIR; results go to ROOT/NAME/lsim_MODEL.{json,log}.
 # Otus copy of ../sbatch_lsim.sh: native Vitis and LightningSim (LSIM_T), no container; node-local dir falls back when
 # $SLURM_TMPDIR is unset; LSIM_HERE (cosim/lsim) and the output path come from resubmit_lsim_otus.sh.

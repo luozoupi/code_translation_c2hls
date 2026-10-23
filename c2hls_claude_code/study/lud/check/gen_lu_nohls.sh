@@ -3,8 +3,8 @@
 # usage: gen_lu.sh <N> <space_time 0..5> <outdir>   e.g. gen_lu.sh 32 3 $PWD/out_n32_st3
 set -euo pipefail
 N=${1:?N}; ST=${2:?space_time}; OUT=$(readlink -f "${3:?outdir}")
-SIF=${AUTOSA_SIF:-/scratch/asa582/workspaces/AutoSA/autosa_docker.sif}
-SRC=/scratch/asa582/workspaces/c2hls_claude_code/study/lud/upstream/AutoSA/autosa_tests/lu   # identical to container copy (rev b61a1b4)
+SIF=${AUTOSA_SIF:-/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/AutoSA/autosa_docker.sif}
+SRC=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/lud/upstream/AutoSA/autosa_tests/lu   # identical to container copy (rev b61a1b4)
 module load apptainer/1.3.5 2>/dev/null || true
 mkdir -p "$OUT"/{in,out/src,out/latency_est,out/resource_est}   # AutoSA needs these to exist
 cp "$SRC"/kernel.c "$SRC"/simd_info.json "$OUT/in/"

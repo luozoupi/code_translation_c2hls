@@ -5,8 +5,8 @@
 # ledger (csim 1 h; csynth 3 h -> 12 h -> 24 h -> 2 days). Designs without HLS 200-970 are not copied: their repaired
 # flow result is the plain AutoSA result, byte-identical source.
 set -euo pipefail
-cd /scratch/asa582/workspaces/c2hls_claude_code/study/lud
-L=/scratch/asa582/workspaces/c2hls_claude_code/study/jobs/ledger.py
+cd /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/lud
+L=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/jobs/ledger.py
 for d in dse/n*_st[0-9]; do
   b=$(basename $d); log=$(grep -l "HLS 200-970" $d/out/job_csynth-*.out 2>/dev/null | tail -1 || true)
   [ -n "$log" ] || continue

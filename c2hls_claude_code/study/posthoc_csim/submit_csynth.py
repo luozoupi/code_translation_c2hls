@@ -4,7 +4,7 @@ agentfw tool (hls_eval_job.py csynth, allow_compile_jobs=False, node-local work 
 import json, subprocess
 from pathlib import Path
 H = Path(__file__).resolve().parent
-EVAL = "/scratch/asa582/workspaces/c2hls_claude_code/study/agentfw/tools/hls_eval_job.py"
+EVAL = "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/agentfw/tools/hls_eval_job.py"
 sub = []
 for c in json.loads((H / "candidates_csynth.json").read_text()):
     if c["already_submitted"]:
@@ -15,7 +15,8 @@ for c in json.loads((H / "candidates_csynth.json").read_text()):
     (d / "source.txt").write_text(json.dumps(c, indent=1) + "\n")
     (d / "job.sh").write_text(f"""#!/bin/bash
 # Post-hoc csynth, 2026-10-22, of {c['kernel']}: csim passed in its session, never synthesized there.
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --job-name=posthoc_csynth
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
@@ -23,7 +24,7 @@ for c in json.loads((H / "candidates_csynth.json").read_text()):
 #SBATCH --output={d}/csynth-%j.out
 #SBATCH --error={d}/csynth-%j.err
 set -eo pipefail
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 dse_v3_source_vitis
 unset C2HLS_DSE_V3 C2HLS_DSE_V3_HARNESS C2HLS_DSE_V4 C2HLS_DSE_V2_GRID C2HLS_SITE C2HLS_VITIS_JOBS C2HLS_VITIS_JOBS_FROM_SLURM DSE_V3_TRIAL_ROOT
 export C2HLS_CSIM_TIMEOUT=200000 C2HLS_SYNTH_TIMEOUT=200000

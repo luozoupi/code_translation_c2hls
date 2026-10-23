@@ -1,19 +1,20 @@
 #!/bin/bash
 # LightningSim over every ROOT/*/proj.tar.gz (or a ':'-separated ONLY list), one node.
-#   sbatch --export=ALL,ROOT=/scratch/asa582/tmp/c2hls/lsim/mb,MODEL=v2023,PAR=8 sbatch_lsim.sh
+#   sbatch --export=ALL,ROOT=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/mb,MODEL=v2023,PAR=8 sbatch_lsim.sh
 # Each project is unpacked in $SLURM_TMPDIR; results go to ROOT/NAME/lsim_MODEL.{json,log}.
 #SBATCH --job-name=lsim_run
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --time=0-06:00:00
-#SBATCH --output=/scratch/asa582/workspaces/c2hls_claude_code/cosim/lsim/logs/lsim-%j.out
-#SBATCH --error=/scratch/asa582/workspaces/c2hls_claude_code/cosim/lsim/logs/lsim-%j.err
+#SBATCH --output=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/cosim/lsim/logs/lsim-%j.out
+#SBATCH --error=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/cosim/lsim/logs/lsim-%j.err
 set -uo pipefail
-HERE=/scratch/asa582/workspaces/c2hls_claude_code/cosim/lsim
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+HERE=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/cosim/lsim
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 ulimit -c 0
 export APPTAINER_BINDPATH="/scratch/${USER},${HOME}/.Xilinx,${SLURM_TMPDIR}"
 dse_v3_source_vitis >/dev/null

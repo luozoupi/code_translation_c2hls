@@ -2,7 +2,7 @@
 """Hardened-bench check (bench_hard/verify_hard.check, g++ -O2) of the post-hoc kernels and team v3. Writes hard.csv."""
 import csv, glob, sys
 from pathlib import Path
-sys.path.insert(0, "/scratch/asa582/workspaces/c2hls_claude_code/study/bench_hard")
+sys.path.insert(0, "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/bench_hard")
 import verify_hard as vh
 H = Path(__file__).resolve().parent
 vh.TMP.mkdir(parents=True, exist_ok=True)

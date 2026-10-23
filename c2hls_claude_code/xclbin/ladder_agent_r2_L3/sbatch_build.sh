@@ -1,23 +1,24 @@
 #!/bin/bash
 # Build the U280 xclbin for autosa_mm (agent ladder r2 L3). Keeps only the xclbin, its info, reports and gzipped logs.
 #SBATCH --job-name=xclbin_ladder_agent_r2_L3
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=448G
 #SBATCH --time=5-00:00:00
-#SBATCH --chdir=/scratch/asa582/workspaces/c2hls_claude_code/xclbin/ladder_agent_r2_L3
-#SBATCH --output=/scratch/asa582/workspaces/c2hls_claude_code/xclbin/ladder_agent_r2_L3/logs/build-%j.out
-#SBATCH --error=/scratch/asa582/workspaces/c2hls_claude_code/xclbin/ladder_agent_r2_L3/logs/build-%j.err
+#SBATCH --chdir=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/xclbin/ladder_agent_r2_L3
+#SBATCH --output=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/xclbin/ladder_agent_r2_L3/logs/build-%j.out
+#SBATCH --error=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/xclbin/ladder_agent_r2_L3/logs/build-%j.err
 set -euo pipefail
-B=/scratch/asa582/workspaces/c2hls_claude_code/xclbin/ladder_agent_r2_L3
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+B=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/xclbin/ladder_agent_r2_L3
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 ulimit -c 0  # no core dumps
 dse_v3_source_vitis
 PLAT=/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm
 # Everything bulky (HLS project, Vivado project, all four implementation runs) goes to a temp dir that is deleted.
-T=/scratch/asa582/tmp/c2hls/xclbin_ladder_agent_r2_L3_${SLURM_JOB_ID}
+T=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/xclbin_ladder_agent_r2_L3_${SLURM_JOB_ID}
 mkdir -p "$T" "$B/out/reports" "$B/out/logs"
 cleanup() {
   # keep: reports v++ copied, the timing/utilization reports of every implementation run, gzipped logs; then delete.

@@ -17,7 +17,7 @@ sys.path.insert(0, str(CC / "flash_refined"))
 import flash_refined  # noqa: E402
 import make_neutral_skills  # noqa: E402
 
-SRC_PACK = Path("/scratch/asa582/workspaces/code_translation_c2hls/hls_full_optimization_skills_schema_1_1_package/"
+SRC_PACK = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls/hls_full_optimization_skills_schema_1_1_package/"
                 "skills_ii_target_miss_solutions_added(90skills)_plus_gemm_flatten_v2.json")
 NEU_PACK = flash_refined.NEUTRAL_PACK
 

@@ -10,4 +10,4 @@
 - Control 3 (one bug, must fail): Failed with 5 errors! (last element skipped)
 - hls_baseline.cpp as kernel: Passed!
 - Notes: New testbench (no support headers needed; the build only needs cfd_flux.h). Controls 1-3 link a copy of plain.cpp whose workload() is declared extern "C" (the TB and hls_baseline.cpp use C linkage; plain.cpp itself has C++ linkage).
-- Build used: g++ -O1 -I<bench dir> -I/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/cfd_flux/).
+- Build used: g++ -O1 -I<bench dir> -I/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include testbench.cpp <kernel> (scratch dir under /home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/cfd_flux/).

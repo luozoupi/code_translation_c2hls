@@ -3,7 +3,7 @@ rows=json.load(open('rows.json'))
 FREE_MODEL={}
 def model_of(r):
     if r['family']=='F3':
-        p=f"/scratch/asa582/workspaces/c2hls_claude_code/study/agentfw/runs/{r['tag']}/transcript.jsonl"
+        p=f"/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/agentfw/runs/{r['tag']}/transcript.jsonl"
         if os.path.exists(p):
             for l in open(p):
                 try: e=json.loads(l)

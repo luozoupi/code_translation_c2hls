@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generator for /scratch/asa582/workspaces/c2hls_claude_code/study/bench_soda/<kernel>/ (plain, baseline, TB, header, metadata, notes)."""
+"""Generator for /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/bench_soda/<kernel>/ (plain, baseline, TB, header, metadata, notes)."""
 import hashlib, json, os, re, sys
 
-ROOT = "/scratch/asa582/workspaces/c2hls_claude_code/study/bench_soda"
-SODA_SRC = "/scratch/asa582/workspaces/soda_src/soda/tests/src"
+ROOT = "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/bench_soda"
+SODA_SRC = "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/soda_src/soda/tests/src"
 
 CT = {"float": "float", "uint16": "uint16_t", "int16": "int16_t"}
 

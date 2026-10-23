@@ -3,8 +3,8 @@
 # gemm_flatten, packaged skills only). mm 1024^3: s90 (flash + pack) and s90dsp (+ DSP floor, the "DSP redo" step);
 # LUD N=32: s90. Both models, 3 reps, fixed benches, controlled LLM layer, ledger wall time (1h -> 3h -> 6h).
 set -euo pipefail
-cd /scratch/asa582/workspaces/c2hls_claude_code
-INC=/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include; OUT=$PWD/study/s90/runs
+cd /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code
+INC=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include; OUT=$PWD/study/s90/runs
 PACK='skills_ii_target_miss_solutions_added(90skills).json'
 FB=$PWD/study/bench_fixed/n1024; LB=$PWD/study/lud/bench/n32
 CC="MODEL=claude-opus-5-5,CLAUDE_CODE_SHIM_URL=$(cat shim_url.txt)"

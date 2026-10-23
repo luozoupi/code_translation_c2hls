@@ -29,7 +29,7 @@ Keep the original as `testbench.orig.cpp` when you replace one.
 
 ## Validation (required for every bench you touch)
 
-With g++ (HLS include path `/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include` for ap_int/hls headers if needed),
+With g++ (HLS include path `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include` for ap_int/hls headers if needed),
 build `testbench.cpp` + a kernel file + any support files the original build used (see metadata.json and
 dataset_hls_csim.tcl), from a scratch dir under `/home/asa582/.claude/jobs/72130906/tmp/bench_wide_check/<bench>/`:
 - **control 1 (must pass):** kernel = `plain.cpp`. Must print `Passed!` and exit 0.

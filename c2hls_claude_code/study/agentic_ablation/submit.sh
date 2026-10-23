@@ -12,9 +12,9 @@
 # Agent jobs run in 6 Slurm singleton slots (one agent session per slot at a time; the agent shim has 6 workers) and
 # start at the 3 h tier; plain jobs start at 1 h. Wall time escalation: study/jobs/ledger.py escalate.
 set -euo pipefail
-cd /scratch/asa582/workspaces/c2hls_claude_code
+cd /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code
 FB=$PWD/study/bench_fixed/n1024; OUT=$PWD/study/agentic_ablation/runs; mkdir -p "$OUT"
-INC=/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include
+INC=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include
 BLOCK=$PWD/study/agentic_ablation/skills_block_90gemm_v1.txt
 COMMON="ALL,CONTROLLED=1,C2HLS_THINKING=enabled,C2HLS_FLASH_MAX_TOKENS=262144,CTRL_MIN_MAX_TOKENS=262144,OUT_ROOT=$OUT,C2HLS_COMPILE_INCLUDE_PATHS=$INC,BENCH_ROOT=$FB"
 SEED="SEED_CODE=$FB/autosa_mm/hls_baseline.cpp"

@@ -4,8 +4,8 @@
 set -euo pipefail
 T=/scratch/asa582/tools/lightningsim
 export PATH="$T/rustenv/bin:$T/env/bin:$PATH"
-export CARGO_HOME="$T/cargo" CARGO_TARGET_DIR="/scratch/asa582/tmp/c2hls/lsim/cargo-target"
-export TMPDIR=/scratch/asa582/tmp/c2hls/lsim/tmp
+export CARGO_HOME="$T/cargo" CARGO_TARGET_DIR="/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/cargo-target"
+export TMPDIR=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/tmp
 unset PYTHONPATH PIP_CONFIG_FILE
 mkdir -p "$TMPDIR"
 cd "$T/src/backend"

@@ -14,7 +14,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-sys.path.insert(0, "/scratch/asa582/workspaces/code_translation_c2hls")
+sys.path.insert(0, "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls")
 import run_cosim_one as rco  # noqa: E402
 
 PART, CLOCK = "xcu280-fsvh2892-2L-e", 3.33
@@ -78,7 +78,7 @@ def main():
     tag = f"{a.name}_n{a.size}"
     out = Path(a.out_root) / tag
     out.mkdir(parents=True, exist_ok=True)
-    work = Path(os.environ.get("C2HLS_TMP_ROOT", "/scratch/asa582/tmp/c2hls")) / f"lsim_{tag}"
+    work = Path(os.environ.get("C2HLS_TMP_ROOT", "/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls")) / f"lsim_{tag}"
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
     result_file = out / "tb_results.txt"

@@ -1,6 +1,6 @@
 # c2hls flash flow with Claude Code as the LLM
 
-The c2hls flash flow is unchanged: its prompts, skills, repair loops, gates, post-flash DSE and stream chains, and artifacts all come from the read-only checkout at `/scratch/asa582/workspaces/code_translation_c2hls`. The only change is the model endpoint. c2hls sends every LLM call through an OpenAI client when `OPENAI_BASE_URL` is set (`C2HLSOrchestrator._call_llm_with_model`). Here that URL points at `claude_code_shim.py`, which answers each request with one headless `claude -p`.
+The c2hls flash flow is unchanged: its prompts, skills, repair loops, gates, post-flash DSE and stream chains, and artifacts all come from the read-only checkout at `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls`. The only change is the model endpoint. c2hls sends every LLM call through an OpenAI client when `OPENAI_BASE_URL` is set (`C2HLSOrchestrator._call_llm_with_model`). Here that URL points at `claude_code_shim.py`, which answers each request with one headless `claude -p`.
 
 | File | Role |
 |---|---|
@@ -12,9 +12,9 @@ The c2hls flash flow is unchanged: its prompts, skills, repair loops, gates, pos
 ## Run
 
 ```bash
-cd /scratch/asa582/workspaces/c2hls_claude_code
+cd /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code
 ./start_shim.sh 2                      # on a login node; prints http://loginN:PORT/v1 (2 concurrent claude -p)
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 "$PY" run_flash_cc.py --flavor skills --shim-url "$(cat shim_url.txt)" --dry-run   # check the config
 sbatch --export=ALL,FLAVOR=skills sbatch_flash_cc.sh                             # full flash + DSE + stream
 kill "$(cat shim.pid)"                 # stop the shim when no job needs it

@@ -1,14 +1,15 @@
 #!/bin/bash
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=01:00:00
-#SBATCH --output=/scratch/asa582/workspaces/c2hls_claude_code/study/bench_wide/_doitgen_fix/job-%j.out
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+#SBATCH --output=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/bench_wide/_doitgen_fix/job-%j.out
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 export APPTAINER_BINDPATH="/scratch/${USER},${HOME}/.Xilinx,${SLURM_TMPDIR}"
 dse_v3_source_vitis
 set +e +u
-H=/scratch/asa582/workspaces/c2hls_claude_code/study/bench_wide/_doitgen_fix
+H=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/bench_wide/_doitgen_fix
 for v in v3_loopvars v4_localsum; do
   W=$SLURM_TMPDIR/$v; mkdir -p $W/home $W/tmp; cp $H/$v.cpp $W/kernel.cpp; cp $H/doitgen.h $W/
   cat > $W/run.tcl <<TCL

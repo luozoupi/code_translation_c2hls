@@ -3,7 +3,7 @@
 
   compare_soda.py [--csv OUT]
 Cosim cycles: the Verilog row of <design>/cosim/*cosim.rpt (designs/, diag/ for the blur variants).
-LightningSim: /scratch/asa582/tmp/c2hls/lsim/soda/<name>/lsim_v2023.json "end".
+LightningSim: /scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/soda/<name>/lsim_v2023.json "end".
 "mapped" applies ../../../cosim/lsim/compare.py's report mapping, which also counts the testbench's AXI-Lite
 programming and status poll: P*ceil((E - 11 - 3)/P) + K, P = 6 + n, K = 27 + 12n, with n = the kernel's s_axilite
 arguments (SODA kernels also pass one scalar, coalesced_data_num, so n = pointers + 1 here; the mapping was
@@ -13,7 +13,7 @@ import argparse, csv, json, math, re, sys
 from pathlib import Path
 
 DSE = Path(__file__).resolve().parent.parent / "dse"
-LS = Path("/scratch/asa582/tmp/c2hls/lsim/soda")
+LS = Path("/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/soda")
 RX = re.compile(r"\|\s*Verilog\|\s*(\w+)\|\s*(\d+)\|\s*(\d+)\|\s*(\d+)\|")
 
 

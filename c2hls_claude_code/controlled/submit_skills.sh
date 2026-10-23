@@ -1,10 +1,10 @@
 #!/bin/bash
 # Controlled flash-with-skills variant (no DSP gates), 3 replicates per model, interleaved, same settings as the others.
 set -euo pipefail
-cd /scratch/asa582/workspaces/c2hls_claude_code
+cd /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code
 R=runs_controlled
-SEED=/scratch/asa582/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm/hls_baseline.cpp
-INC=/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include
+SEED=/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm/hls_baseline.cpp
+INC=/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include
 COMMON="ALL,CONTROLLED=1,C2HLS_THINKING=enabled,C2HLS_FLASH_MAX_TOKENS=262144,CTRL_MIN_MAX_TOKENS=262144,OUT_ROOT=$PWD/$R,C2HLS_COMPILE_INCLUDE_PATHS=$INC,SEED_CODE=$SEED"
 for r in 1 2 3; do for v in skills; do
   V="FLAVOR=skills"   # skills on (default pack: 90 skills + gemm-flatten v1), no DSP floor or cap

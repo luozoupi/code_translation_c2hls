@@ -58,7 +58,7 @@ Those jobs still carry c2hls's 24-hour csynth timeout, which can't be changed fo
 
 **Missing headers.** c2hls's quick `g++` compile check found no Vitis HLS headers on the host (Vitis exists only inside the container). Any design that includes `<hls_stream.h>` or `<ap_int.h>` therefore failed with `fatal error: hls_stream.h: No such file or directory` before synthesis.
 - **Who it hit:** only Claude, in 4 of 6 runs. Three runs lost one attempt each; window r1 lost all three and failed. This biased the comparison against Claude.
-- **Fix:** the headers were copied once from the container to `/scratch/asa582/tmp/c2hls/vitis_hls_2023.2_include`, and every controlled run now sets `C2HLS_COMPILE_INCLUDE_PATHS` (a c2hls setting) to that path. It is recorded in each `cc_run_plan.json`.
+- **Fix:** the headers were copied once from the container to `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/vitis_hls_2023.2_include`, and every controlled run now sets `C2HLS_COMPILE_INCLUDE_PATHS` (a c2hls setting) to that path. It is recorded in each `cc_run_plan.json`.
 
 **Memory.** Job memory was raised from 64 GB to 128 GB for both models. DeepSeek window r3 lost two attempts to csynth `Out of Memory`.
 

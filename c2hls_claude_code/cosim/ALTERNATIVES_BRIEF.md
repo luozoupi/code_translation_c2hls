@@ -103,13 +103,13 @@ The cause was the **DEPENDENCE-pragma checker**. With `-disable_dependency_check
 
 | Item | Value |
 |---|---|
-| Workspace | `/scratch/asa582/workspaces/c2hls_claude_code` (cosim harnesses in `cosim/`, verified kernels in `verify/<run>/kernel.cpp`) |
-| c2hls checkout | `/scratch/asa582/workspaces/code_translation_c2hls`: **read-only, never modify** |
+| Workspace | `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code` (cosim harnesses in `cosim/`, verified kernels in `verify/<run>/kernel.cpp`) |
+| c2hls checkout | `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls`: **read-only, never modify** |
 | Bench | `…/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm/` (`kernel.h`, `testbench.cpp`) |
-| Vitis 2023.2 | Apptainer `/scratch/asa582/containers/xilinx_vitis_2023.2.standalone.sif`. Set up with `source /scratch/asa582/workspaces/dse_v3_claude/env.sh; dse_v3_source_vitis` (gives `$PY`, `vitis-run` wrapper, `$XILINX_SIF`). Use `apptainer exec $XILINX_SIF …` for vivado/xelab. |
+| Vitis 2023.2 | Apptainer `/scratch/asa582/containers/xilinx_vitis_2023.2.standalone.sif`. Set up with `source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh; dse_v3_source_vitis` (gives `$PY`, `vitis-run` wrapper, `$XILINX_SIF`). Use `apptainer exec $XILINX_SIF …` for vivado/xelab. |
 | Verilator | Not checked. Check the host modules (`module avail verilator`) or build ≥ 5.x in `/scratch/asa582`. |
-| Slurm | `--account=def-zhenman`, one node per job, e.g. 16 CPUs / 64–128 GB; 7-day partitions exist |
-| Storage | **Limited by file count** (≈475K of 1M files used). Work on node-local `$SLURM_TMPDIR` (add it to `APPTAINER_BINDPATH`), `ulimit -c 0`, no waveforms, keep only summary, reports and a log excerpt. Temp under `/scratch/asa582/tmp/c2hls` only; `/tmp` is a memory disk. |
+| Slurm | `--account=hpc-prf-llmfpga --partition=normal`, one node per job, e.g. 16 CPUs / 64–128 GB; 7-day partitions exist |
+| Storage | **Limited by file count** (≈475K of 1M files used). Work on node-local `$SLURM_TMPDIR` (add it to `APPTAINER_BINDPATH`), `ulimit -c 0`, no waveforms, keep only summary, reports and a log excerpt. Temp under `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls` only; `/tmp` is a memory disk. |
 | Don't | Touch the running Vitis cosim jobs, or start tight polling loops (check on demand, or at most hourly) |
 
 ## 6. The 13 designs (all pass strict csim; cosim job states as of the snapshot)

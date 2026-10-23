@@ -1,6 +1,6 @@
 #!/bin/bash
 # run_agent_ds.sh <workspace> [hours=10]: run_agent.sh with the Claude Code harness driven by DeepSeek (experiment D).
-# Claude Code talks to the local proxy study/exp_hlsmith/ds_anthropic_proxy.py (login2:18095), which adds the DeepSeek
+# Claude Code talks to the local proxy study/exp_hlsmith/ds_anthropic_proxy.py (login5:18095), which adds the DeepSeek
 # key and refuses any request containing the user's email. A fresh, empty CLAUDE_CONFIG_DIR per workspace means no
 # Anthropic account is logged in (so no account email in context); non-essential traffic is off.
 # RESUME=1 continues the session in transcript.jsonl (e.g. after a usage-limit stop) into transcript_resumeN.jsonl.
@@ -27,7 +27,7 @@ if [ "${RESUME:-0}" = 1 ]; then
 else
   date -u +%FT%TZ > started_at
 fi
-export CLAUDE_CONFIG_DIR=$WS/.claude_cfg ANTHROPIC_BASE_URL=http://login2:18095 ANTHROPIC_AUTH_TOKEN=local-proxy
+export CLAUDE_CONFIG_DIR=$WS/.claude_cfg ANTHROPIC_BASE_URL=http://login5:18095 ANTHROPIC_AUTH_TOKEN=local-proxy
 export ANTHROPIC_MODEL=deepseek-v4-flash ANTHROPIC_SMALL_FAST_MODEL=deepseek-v4-flash CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_TELEMETRY=1
 unset ANTHROPIC_API_KEY
 mkdir -p $CLAUDE_CONFIG_DIR

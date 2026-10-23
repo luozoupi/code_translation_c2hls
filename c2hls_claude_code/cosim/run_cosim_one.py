@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-BENCH = Path("/scratch/asa582/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm")
-TMP = Path(os.environ.get("C2HLS_TMP_ROOT", "/scratch/asa582/tmp/c2hls"))
-sys.path.insert(0, "/scratch/asa582/workspaces/code_translation_c2hls")
+BENCH = Path("/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls/artifacts/pc2/autosa_mm_ijk_benches/n1024/autosa_mm")
+TMP = Path(os.environ.get("C2HLS_TMP_ROOT", "/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls"))
+sys.path.insert(0, "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/code_translation_c2hls")
 
 
 def testbench(size: int, result_file: Path) -> str:

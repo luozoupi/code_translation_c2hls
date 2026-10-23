@@ -1,16 +1,17 @@
 #!/bin/bash
 # job_csynth.sh <design dir with src/kernel.cpp> <top> : Vitis HLS 2023.2 csynth of a sodac --xocl-kernel file, U280, 3.33 ns.
-#SBATCH --account=def-zhenman
+#SBATCH --account=hpc-prf-llmfpga
+#SBATCH --partition=normal
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 set -eo pipefail
 D=$1; TOP=$2
-source /scratch/asa582/workspaces/dse_v3_claude/env.sh
+source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/dse_v3_claude/env.sh
 dse_v3_source_vitis
 OUT=$D; LOCAL=${HLS_LOCAL_ROOT:-${SLURM_TMPDIR:-}}
 if [ -n "$LOCAL" ]; then
   W=$LOCAL/soda_$(basename $D); mkdir -p $W; cp -r $D/src $W/
-  back() { /scratch/asa582/workspaces/c2hls_claude_code/study/jobs/keep_copy.sh $W $OUT || true; }
+  back() { /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/study/jobs/keep_copy.sh $W $OUT || true; }
   trap back EXIT; trap 'back; exit 143' TERM
   D=$W
 fi

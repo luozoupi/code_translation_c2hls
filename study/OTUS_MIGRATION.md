@@ -46,18 +46,26 @@ What each check needs to show:
 
 ## 1. Freeze Fir (you run these: I can't cancel jobs)
 
+**State at 17:40 on 2026-10-22:** `pl_refv2_cc_r2` finished (COMPLETED, 1 h). The driver then started **C r4** (`afw_hlsm_r4`): a Claude Code session on login2 with a 3-hour budget, in `study/agentfw/runs/mm1024_hlsm_r4`. It submits its own csim and csynth jobs (`afw_csim`, `afw_csynth`). Let it finish on Fir. Resuming it on Otus would mix the two clusters in one run, and C r4 is compared with r1–r3, which all ran on Fir.
+
 ```bash
-# first save every pending job's command, arguments, working folder and --export (step 7 reads them; the copy carries them)
+# 1. stop the driver only. C r4's session keeps running: the kill doesn't reach its child processes.
+#    A driver left running would start the next tag on Fir as soon as C r4 ends.
+ssh login2 'pkill -f "python3 driver.py"'
+# 2. wait for C r4 to end (3 h budget from 17:17; the session waits for its own jobs). Check now and then, no tight loop:
+ls /scratch/asa582/workspaces/c2hls_claude_code/study/agentfw/runs/mm1024_hlsm_r4/exit_code
+# 3. then save every queued job's command, arguments, working folder and --export (step 7 reads them; the copy carries them)
 squeue -u asa582 -h -o '%i|%j|%o|%Z' > /scratch/asa582/workspaces/c2hls_claude_code/study/fir_pending_20261022.txt
 for j in $(squeue -u asa582 -h -o %i); do scontrol show job -o $j; done > /scratch/asa582/workspaces/c2hls_claude_code/study/fir_pending_20261022_full.txt
-ssh login2 'pkill -f "python3 driver.py"; pkill -f claude_code_shim.py; pkill -f ds_anthropic_proxy.py'
-scancel -u asa582 --state=PENDING          # all 113 jobs; every one is resubmitted on Otus in step 7
+# 4. stop the services and cancel everything left (pending, and any of the 113 that started meanwhile)
+ssh login2 'pkill -f claude_code_shim.py; pkill -f ds_anthropic_proxy.py'
+scancel -u asa582
 squeue -u asa582                           # should be empty
 ```
 
-**The order matters: kill the driver before the `scancel`.** A driver that's still running sees `pl_refv2_cc_r2` end as CANCELLED, records it as final, and submits C r4 on Fir. (`study/exp_hlsmith/otus_reset_state.py` reopens a CANCELLED tag anyway, but nothing would stop that C r4 submission on Fir.)
+The order matters. **Stop the driver first:** it moves on to the next tag the moment C r4 ends. **Cancel only after C r4 has `exit_code`:** its `afw_csim`/`afw_csynth` jobs are part of the session. On Otus, `study/exp_hlsmith/otus_reset_state.py` marks C r4 final from its `exit_code`, so the Otus driver doesn't resume it. If `exit_code` is missing, the script prints a warning instead.
 
-If you'd rather let the 19+2 post-hoc csynths finish on Fir, cancel by name instead and keep `posthoc_csynth` and `afw_post`.
+While you wait, some of the 113 jobs may start on Fir. `scancel -u asa582` cancels them too, and the resubmit scripts in step 7 skip only folders that already have a result. If you'd rather let the 19+2 post-hoc csynths finish on Fir, cancel by name instead and keep `posthoc_csynth` and `afw_post`.
 
 ## 2. The judge (`code_translation_c2hls`): no commit
 

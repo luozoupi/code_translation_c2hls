@@ -523,3 +523,7 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
     - Now agb_hlsfactory_gramschmidt_r1 (3828007).
   - xclbin 3820417: still 0 of 5 implementation runs complete (about 3 h in implementation).
 - 2026-10-23 23:15 check: **lsim_proj 3813805 done** (9 h 39 min): `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/soda/contrast_u16_cr/proj.tar.gz` (184 MB, "proj ok"); its LightningSim run was submitted as **3831009** (`lsim_u16cr`, PAR=1, 192G). SODA cosims: 19 pass (+ patched jacobi3d_u4_b128 1,339,137, jacobi3d_u8 669,915), 3 deadlock, 15 xelab SIGSEGV; 48 running. Driver on agb_hlsfactory_gramschmidt_r1. xclbin 3820417: still 0 of 5 implementation runs complete.
+- 2026-10-24 00:15 check:
+  - lsim_u16cr 3831009 (contrast_u16_cr): rc 1 after 25 s, `undefined reference to _autotb_FifoCanRead_i33/_i513`. This is the same LightningSim limitation as the 46 lsim_soda2 projects (non-blocking FIFO reads), so the unpatched contrast_u16_cr has no LightningSim number.
+  - Driver: **agb_hlsfactory_gramschmidt_r1** done (1 h 7 min): no gain, final = baseline = 2,270,081 cycles, DSP 660, LUT 66,797, csim True. Now agb_hlsfactory_jacobi-2d_r1 (3831013).
+  - SODA cosims unchanged: 19 pass / 3 deadlock / 15 SIGSEGV; 48 running. xclbin 3820417: about 5 h in implementation, still 0 of 5 complete (2-day limit).

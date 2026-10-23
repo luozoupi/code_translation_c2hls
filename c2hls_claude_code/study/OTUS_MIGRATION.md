@@ -185,6 +185,7 @@ The `sed` can't fix these. Edit them by hand:
 | Agent-session checks: `study/agentfw/tools/hls` (free agent, C/D; a copy already sits in `runs/mm1024_hlsm_r4/bin/`) and `agent/hls_check.sh.template` + `hls_check.py` (HLSmith with an agent backend, experiment B) | C r4, experiment B, any new agent run | `otus/apply_otus_site.sh` installs the `_otus` copies: Otus account and partition, native Vitis, paths from their own location. It also installs them into unfinished workspaces (`mm1024_hlsm_r4`, `smoke_base`) and sets the shim's `--agent-account` default. |
 | DeepSeek proxy for the controlled runs (`controlled/ds_proxy.py`, Fir login2:18094, **not running on Fir now**) | `sd_*_ds` runs | `bash otus/start_ds_proxy_otus.sh` (writes `controlled/ds_proxy_url.txt`) |
 | `--claude-bin /home/asa582/.local/bin/claude` | `logs/start_shim_*.sh`, `start_shim.sh` | `$(command -v claude)` |
+| `dse_v4_claude`: `env.sh`, `sbatch_csynth.sh`, `sbatch_csim.sh` (Fir container, absolute Fir paths) | the DSE v4 st0_c1 loop | already done: `env_otus.sh`, `sbatch_csynth_otus.sh`, `sbatch_csim_otus.sh` next to them (native Vitis, paths from the folder's location, same requests); its `CLAUDE.md` has an "On Otus" section. `dse_v4_claude` isn't in git: the step-5 copy carries them. |
 
 Before resubmitting anything, run the equivalence check in `study/posthoc_csim/OTUS_RUNBOOK.md` step 4 (team v3 must give 527,571 cycles, 8,192 DSP and 984,616 LUT). If it doesn't match, stop.
 

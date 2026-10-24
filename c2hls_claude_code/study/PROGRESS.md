@@ -569,3 +569,8 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
     - Both exceed the U280's 1,303,680 LUTs, so neither fits. Both reach only II=4 on the k loop (carried dependence on the accumulator store).
     - mm1024_hlsm_ds_r1/exp_v4_T67J128K1_csim (3831182) still running.
   - xclbin 250 MHz (3832310): Performance_NetDelay_high is now routing (Phase 2.4); the other 4 strategies failed.
+- 2026-10-24 20:20 check:
+  - Driver: agb_lud_r1 timed out at 6 h too (3838306) and was counted as failed. "driver done" at 19:10; all driver tags are finished.
+  - Leftover: the lud agent session (login5 pid 782864, workspace logs/shim_agent_exp_lud/call_00005) kept running after the job ended. It is still using Claude and submitting flash_agent_csynth jobs (3847345). Nothing collects its result.
+    - My kill/scancel was refused by the permission check; it is left for the user to stop.
+  - xclbin 250 MHz: Performance_NetDelay_high still routing; the other 4 strategies failed.

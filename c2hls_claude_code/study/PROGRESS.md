@@ -555,3 +555,9 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - Driver: agb_lud_r1 hit its 3 h limit; the driver reran it at 6 h (3838306, try 2).
   - xclbin 250 MHz (3832310): all 4 runs still in rip-up and reroute; overlapping nodes falling (impl_1 138,833 → 81,337; SpreadLogic_high 250,615 → 136,379; HighUtilSLRs 487,569 → 267,332; ExplorePostRoutePhysOpt 464,168 → 255,477).
   - Nothing else ended.
+- 2026-10-24 15:50 check, xclbin 250 MHz (3832310): 3 of 5 strategies have failed routing.
+  - impl_1: route_design failed (partially-conflicted nets).
+  - Congestion_SSI_SpreadLogic_high: "Routing results verification failed due to partially-conflicted nets".
+  - Performance_HighUtilSLRs: "46505 signals failed to route due to routing congestion", intermediate WNS -4.231 ns.
+  - Still open: Performance_ExplorePostRoutePhysOpt, in reroute, global iteration 1; Performance_NetDelay_high, just started (5th run, waited for a free slot).
+  - Lowering the clock did not fix the congestion. The next lever is placement/floorplan, not frequency. That is the user's decision.

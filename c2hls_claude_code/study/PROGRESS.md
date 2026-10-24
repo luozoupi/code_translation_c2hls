@@ -534,5 +534,5 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
 - 2026-10-24 02:20 check:
   - **lsim_soda_pat 3826441 (the 4 big ones, PAR=1, 480G) done** (5 h 38 min, MaxRSS 192 GB for one project): pat_jacobi3d_u4_b128_laafd 8,783,426 cycles; pat_heat3d_u4_b128_laafd 8,717,645; pat_jacobi3d_u8 574,472; pat_denoise3d_u4_b128_laafd LightningSim deadlock. **All 60 lsim_soda_pat projects now have a result**: 26 with an `end` cycle, 34 deadlock or link failures. (The laafd variants are ~7.6× slower than the plain u4_b128 ones: 8.78 M vs 1.15 M.)
   - Posthoc `mm1024_hlsm_ds_r2/exp_v3_csim` rerun at 192G (3825753): **the same `HLS 200-103 Out of Memory`**, again at MaxRSS 10.6 GB. So it is a Vitis-internal limit on this kernel, not the job's memory, and that is its final result.
-  - Earlier posthoc results in the job list: 3813783 COMPLETED (4 h 41 min) and 3813797 (logged at 21:15).
+  - Posthoc 3813783 `mm1024_hlsm_b12_ds_r1/exp_v2_csim`: success, 2,291,745 cycles (finished earlier and not logged until now).
   - xclbin 3820417: 3 of 5 implementation runs complete. Driver: agb_hlsfactory_lu_r1 running. SODA cosims unchanged (19/3/15; 48 running).

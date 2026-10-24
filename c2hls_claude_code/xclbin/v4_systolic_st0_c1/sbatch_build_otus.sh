@@ -13,7 +13,8 @@
 #SBATCH --time=2-00:00:00
 set -euo pipefail
 B=${XCLBIN_DIR:-$PWD}   # resubmit_xclbin_otus.sh sets --chdir; SLURM_SUBMIT_DIR is wherever sbatch ran
-[ -f "$B/link.cfg" ] || { echo "submit from xclbin/v4_systolic_st0_c1 (or set XCLBIN_DIR)"; exit 1; }
+CFG=${LINK_CFG:-link.cfg}   # LINK_CFG=link_250mhz.cfg: another link setup, same kernel0.xo
+[ -f "$B/$CFG" ] || { echo "submit from xclbin/v4_systolic_st0_c1 (or set XCLBIN_DIR)"; exit 1; }
 ulimit -c 0  # no core dumps
 set +u
 source "${OTUS_VITIS_SETTINGS:-/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/otus/vitis_settings_otus.sh}" >/dev/null
@@ -40,7 +41,7 @@ cleanup() {
 }
 trap cleanup EXIT
 run() { bash -c "export HOME=$T; ulimit -s unlimited || true; cd $T && $*"; }
-cp "$B/kernel.cpp" "$B/kernel.h" "$B/link.cfg" "$T/"
+cp "$B/kernel.cpp" "$B/kernel.h" "$B/$CFG" "$T/"
 date; echo "== compile (HLS)"
 if [ -f "$B/out/kernel0.xo" ]; then echo "reusing $B/out/kernel0.xo"; cp "$B/out/kernel0.xo" "$T/"
 else
@@ -48,7 +49,7 @@ else
   cp "$T/kernel0.xo" "$B/out/"   # keep the compiled kernel even if the link fails
 fi
 date; echo "== link (synth + 4 parallel implementation strategies)"
-run "v++ -l -t hw --platform $PLAT --config link.cfg kernel0.xo -o kernel0.xclbin --temp_dir $T/_x_l --log_dir $T/logs_l --report_dir $T/reports_l"
+run "v++ -l -t hw --platform $PLAT --config $CFG kernel0.xo -o kernel0.xclbin --temp_dir $T/_x_l --log_dir $T/logs_l --report_dir $T/reports_l"
 date; echo "== package"
 cp "$T/kernel0.xclbin" "$T/kernel0.xo" "$B/out/"
 run "xclbinutil --info --input kernel0.xclbin" > "$B/out/kernel0.xclbin.info"

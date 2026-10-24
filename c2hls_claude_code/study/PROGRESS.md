@@ -536,3 +536,4 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - Posthoc `mm1024_hlsm_ds_r2/exp_v3_csim` rerun at 192G (3825753): **the same `HLS 200-103 Out of Memory`**, again at MaxRSS 10.6 GB. So it is a Vitis-internal limit on this kernel, not the job's memory, and that is its final result.
   - Posthoc 3813783 `mm1024_hlsm_b12_ds_r1/exp_v2_csim`: success, 2,291,745 cycles (finished earlier and not logged until now).
   - xclbin 3820417: 3 of 5 implementation runs complete. Driver: agb_hlsfactory_lu_r1 running. SODA cosims unchanged (19/3/15; 48 running).
+- 2026-10-24 03:15 check: SODA cosims 20 pass (+ patched heat3d_u8 660,231), 3 deadlock, 15 SIGSEGV; 47 running (all 37 unpatched `designs/` still running at about 12 h of their 2 days). xclbin 3820417: 4 of 5 implementation runs complete. Driver: agb_hlsfactory_lu_r1 at about 3 h (its 3 h job limit: the driver retries a TIMEOUT at a longer limit).

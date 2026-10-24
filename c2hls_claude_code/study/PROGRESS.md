@@ -551,3 +551,7 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - xclbin 250 MHz (3832310): still in implementation, 0 of 5 runs complete, 4 in progress.
   - SODA cosims unchanged (20 pass / 3 deadlock / 15 xelab_segv; 47 running). lud_csynth and the 3 posthoc reruns still running.
 - 2026-10-24 12:50 check: no job ended. xclbin 250 MHz (3832310): all 4 implementation runs are routing (Phase 4 rip-up and reroute, global iteration 0); router estimate is global/short congestion level 6 (64x64). The 300 MHz run (3820417) ended with "not routable, global congestion level 7". Seen via srun --overlap on cn0607.
+- 2026-10-24 14:20 check:
+  - Driver: agb_lud_r1 hit its 3 h limit; the driver reran it at 6 h (3838306, try 2).
+  - xclbin 250 MHz (3832310): all 4 runs still in rip-up and reroute; overlapping nodes falling (impl_1 138,833 → 81,337; SpreadLogic_high 250,615 → 136,379; HighUtilSLRs 487,569 → 267,332; ExplorePostRoutePhysOpt 464,168 → 255,477).
+  - Nothing else ended.

@@ -562,3 +562,10 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - Still open: Performance_ExplorePostRoutePhysOpt, in reroute, global iteration 1; Performance_NetDelay_high, just started (5th run, waited for a free slot).
   - Lowering the clock did not fix the congestion. The next lever is placement/floorplan, not frequency. That is the user's decision.
 - 2026-10-24 17:20 check, xclbin 250 MHz (3832310): 4 of 5 strategies have failed routing. Performance_ExplorePostRoutePhysOpt also ended with "route_design failed due to earlier errors". The last one, Performance_NetDelay_high, is in placement (Phase 3.4). Nothing else ended. agb_lud_r1 try 2 is at 4.2 h of 6 h.
+- 2026-10-24 18:50 check:
+  - Posthoc 3-day reruns, 2 of 3 done (both success=True):
+    - mm1024_hlsm_ds_r1/exp_v2_T64J32K4_csim (3831181, 16.5 h): 772,269 cycles, DSP 6,240, LUT 1,573,076, FF 1,915,782, BRAM 2,138.
+    - mm1024_hlsm_ds_r2/exp_v2a_csim (3831183, 17.2 h): 749,101 cycles, DSP 6,144, LUT 1,454,646, FF 1,629,012, BRAM 2,138.
+    - Both exceed the U280's 1,303,680 LUTs, so neither fits. Both reach only II=4 on the k loop (carried dependence on the accumulator store).
+    - mm1024_hlsm_ds_r1/exp_v4_T67J128K1_csim (3831182) still running.
+  - xclbin 250 MHz (3832310): Performance_NetDelay_high is now routing (Phase 2.4); the other 4 strategies failed.

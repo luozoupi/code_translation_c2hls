@@ -1,0 +1,1266 @@
+===============================================================================
+Version:    v++ v2023.2 (64-bit)
+Build:      SW Build 4026344 on 2023-10-11-15:42:10
+Copyright:  Copyright 1986-2023 Xilinx, Inc. All Rights Reserved.
+Created:    Fri Oct 23 17:38:16 2026
+===============================================================================
+
+-------------------------------------------------------------------------------
+Design Name:             kernel0
+Target Device:           xilinx:u280:gen3x16_xdma_1:202211.1
+Target Clock:            300.000000MHz
+Total number of kernels: 1
+-------------------------------------------------------------------------------
+
+Kernel Summary
+Kernel Name  Type  Target              OpenCL Library  Compute Units
+-----------  ----  ------------------  --------------  -------------
+kernel0      c     fpga0:OCL_REGION_0  kernel0         1
+
+
+-------------------------------------------------------------------------------
+OpenCL Binary:     kernel0
+Kernels mapped to: clc_region
+
+Timing Information (MHz)
+Compute Unit  Kernel Name  Module Name                                                                 Target Frequency  Estimated Frequency
+------------  -----------  --------------------------------------------------------------------------  ----------------  -------------------
+kernel0_1     kernel0      entry_proc                                                                  300.300293        828.500427
+kernel0_1     kernel0      A_IO_L2_in_serialize                                                        300.300293        411.015198
+kernel0_1     kernel0      A_IO_L2_in                                                                  300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_inter_trans                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_intra_trans_Pipeline_VITIS_LOOP_76_1_VITIS_LOOP_77_2             300.300293        676.132507
+kernel0_1     kernel0      A_IO_L1_in_intra_trans                                                      300.300293        676.132507
+kernel0_1     kernel0      A_IO_L1_in                                                                  300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_1                                                        300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_2                                                        300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_3                                                        300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_4                                                        300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_5                                                        300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_6                                                        300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_7                                                        300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_8                                                        300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_9                                                        300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_10                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_11                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_12                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_13                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_14                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_15                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_16                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_17                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_18                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_19                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_20                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_21                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_22                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_23                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_24                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_25                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_26                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_27                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_28                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_29                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_30                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_31                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_32                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_33                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_34                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_35                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_36                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_37                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_38                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_39                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_40                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_41                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_42                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_43                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_44                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_45                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_46                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_47                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_48                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_49                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_50                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_51                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_52                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_53                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_54                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_55                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_56                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_57                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_58                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_59                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_60                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_61                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_62                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_63                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_64                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_65                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_66                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_67                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_68                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_69                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_70                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_71                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_72                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_73                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_74                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_75                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_76                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_77                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_78                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_79                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_80                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_81                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_82                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_83                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_84                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_85                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_86                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_87                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_88                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_89                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_90                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_91                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_92                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_93                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_94                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_95                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_96                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_97                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_98                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_99                                                       300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_100                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_101                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_102                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_103                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_104                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_105                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_106                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_107                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_108                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_109                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_110                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_111                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_112                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_113                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_114                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_115                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_116                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_117                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_118                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_119                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_120                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_121                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_122                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_123                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_124                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_125                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper_126                                                      300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_wrapper                                                          300.300293        411.015198
+kernel0_1     kernel0      A_IO_L1_in_inter_trans_boundary                                             300.300293        821.692688
+kernel0_1     kernel0      A_IO_L1_in_boundary                                                         300.300293        676.132507
+kernel0_1     kernel0      A_IO_L1_in_boundary_wrapper                                                 300.300293        676.132507
+kernel0_1     kernel0      B_IO_L2_in_boundary_serialize                                               300.300293        411.015198
+kernel0_1     kernel0      B_IO_L2_in_boundary_inter_trans                                             300.300293        413.736023
+kernel0_1     kernel0      B_IO_L2_in_boundary_intra_trans_Pipeline_VITIS_LOOP_178_1_VITIS_LOOP_179_2  300.300293        403.2258
+kernel0_1     kernel0      B_IO_L2_in_boundary_intra_trans                                             300.300293        403.2258
+kernel0_1     kernel0      B_IO_L2_in_boundary                                                         300.300293        403.2258
+kernel0_1     kernel0      PE                                                                          300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper                                                                  300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_127                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_128                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_129                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_130                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_131                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_132                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_133                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_134                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_135                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_136                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_137                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_138                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_139                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_140                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_141                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_142                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_143                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_144                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_145                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_146                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_147                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_148                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_149                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_150                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_151                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_152                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_153                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_154                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_155                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_156                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_157                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_158                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_159                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_160                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_161                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_162                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_163                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_164                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_165                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_166                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_167                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_168                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_169                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_170                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_171                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_172                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_173                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_174                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_175                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_176                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_177                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_178                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_179                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_180                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_181                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_182                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_183                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_184                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_185                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_186                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_187                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_188                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_189                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_190                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_191                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_192                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_193                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_194                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_195                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_196                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_197                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_198                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_199                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_200                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_201                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_202                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_203                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_204                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_205                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_206                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_207                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_208                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_209                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_210                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_211                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_212                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_213                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_214                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_215                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_216                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_217                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_218                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_219                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_220                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_221                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_222                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_223                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_224                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_225                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_226                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_227                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_228                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_229                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_230                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_231                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_232                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_233                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_234                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_235                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_236                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_237                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_238                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_239                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_240                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_241                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_242                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_243                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_244                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_245                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_246                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_247                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_248                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_249                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_250                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_251                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_252                                                              300.300293        411.015198
+kernel0_1     kernel0      PE_wrapper_253                                                              300.300293        411.015198
+kernel0_1     kernel0      B_PE_dummy_in                                                               300.300293        629.326599
+kernel0_1     kernel0      C_drain_IO_L1_out_intra_trans                                               300.300293        454.959076
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans_boundary                                      300.300293        513.610657
+kernel0_1     kernel0      C_drain_IO_L1_out_boundary                                                  300.300293        454.959076
+kernel0_1     kernel0      C_drain_IO_L1_out_boundary_wrapper                                          300.300293        454.959076
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans_Pipeline_VITIS_LOOP_308_3                     300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans_Pipeline_VITIS_LOOP_303_2                     300.300293        513.610657
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out                                                           300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper                                                   300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_254                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_255                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_256                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_257                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_258                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_259                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_260                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_261                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_262                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_263                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_264                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_265                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_266                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_267                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_268                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_269                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_270                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_271                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_272                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_273                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_274                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_275                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_276                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_277                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_278                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_279                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_280                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_281                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_282                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_283                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_284                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_285                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_286                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_287                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_288                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_289                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_290                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_291                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_292                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_293                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_294                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_295                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_296                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_297                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_298                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_299                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_300                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_301                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_302                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_303                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_304                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_305                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_306                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_307                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_308                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_309                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_310                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_311                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_312                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_313                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_314                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_315                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_316                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_317                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_318                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_319                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_320                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_321                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_322                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_323                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_324                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_325                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_326                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_327                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_328                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_329                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_330                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_331                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_332                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_333                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_334                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_335                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_336                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_337                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_338                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_339                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_340                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_341                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_342                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_343                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_344                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_345                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_346                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_347                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_348                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_349                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_350                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_351                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_352                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_353                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_354                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_355                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_356                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_357                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_358                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_359                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_360                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_361                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_362                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_363                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_364                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_365                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_366                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_367                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_368                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_369                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_370                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_371                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_372                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_373                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_374                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_375                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_376                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_377                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_378                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_379                                               300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L2_out                                                           300.300293        411.015198
+kernel0_1     kernel0      C_drain_IO_L2_out_serialize                                                 300.300293        411.015198
+kernel0_1     kernel0      kernel0                                                                     300.300293        403.2258
+
+Latency Information
+Compute Unit  Kernel Name  Module Name                                                                 Start Interval     Best (cycles)  Avg (cycles)  Worst (cycles)  Best (absolute)  Avg (absolute)  Worst (absolute)
+------------  -----------  --------------------------------------------------------------------------  -----------------  -------------  ------------  --------------  ---------------  --------------  ----------------
+kernel0_1     kernel0      entry_proc                                                                  0                  0              0             0               0 ns             0 ns            0 ns
+kernel0_1     kernel0      A_IO_L2_in_serialize                                                        1048650            1048650        1048650       1048650         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      A_IO_L2_in                                                                  1048578            1048578        1048578       1048578         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      A_IO_L1_in_inter_trans                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_intra_trans_Pipeline_VITIS_LOOP_76_1_VITIS_LOOP_77_2             130                130            130           130             0.433 us         0.433 us        0.433 us
+kernel0_1     kernel0      A_IO_L1_in_intra_trans                                                      1 ~ 131            1              66            131             3.333 ns         0.220 us        0.437 us
+kernel0_1     kernel0      A_IO_L1_in                                                                  undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_1                                                        undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_2                                                        undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_3                                                        undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_4                                                        undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_5                                                        undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_6                                                        undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_7                                                        undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_8                                                        undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_9                                                        undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_10                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_11                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_12                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_13                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_14                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_15                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_16                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_17                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_18                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_19                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_20                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_21                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_22                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_23                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_24                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_25                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_26                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_27                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_28                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_29                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_30                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_31                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_32                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_33                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_34                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_35                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_36                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_37                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_38                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_39                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_40                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_41                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_42                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_43                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_44                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_45                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_46                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_47                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_48                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_49                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_50                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_51                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_52                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_53                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_54                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_55                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_56                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_57                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_58                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_59                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_60                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_61                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_62                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_63                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_64                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_65                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_66                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_67                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_68                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_69                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_70                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_71                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_72                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_73                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_74                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_75                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_76                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_77                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_78                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_79                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_80                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_81                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_82                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_83                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_84                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_85                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_86                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_87                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_88                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_89                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_90                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_91                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_92                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_93                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_94                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_95                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_96                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_97                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_98                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_99                                                       undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_100                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_101                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_102                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_103                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_104                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_105                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_106                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_107                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_108                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_109                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_110                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_111                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_112                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_113                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_114                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_115                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_116                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_117                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_118                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_119                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_120                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_121                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_122                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_123                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_124                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_125                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper_126                                                      undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_wrapper                                                          undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      A_IO_L1_in_inter_trans_boundary                                             0                  0              0             0               0 ns             0 ns            0 ns
+kernel0_1     kernel0      A_IO_L1_in_boundary                                                         32915 ~ 1098005    32915          565460        1098005         0.110 ms         1.885 ms        3.660 ms
+kernel0_1     kernel0      A_IO_L1_in_boundary_wrapper                                                 32916 ~ 1098006    32916          565461        1098006         0.110 ms         1.885 ms        3.660 ms
+kernel0_1     kernel0      B_IO_L2_in_boundary_serialize                                               1048650            1048650        1048650       1048650         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      B_IO_L2_in_boundary_inter_trans                                             130                130            130           130             0.433 us         0.433 us        0.433 us
+kernel0_1     kernel0      B_IO_L2_in_boundary_intra_trans_Pipeline_VITIS_LOOP_178_1_VITIS_LOOP_179_2  131                131            131           131             0.437 us         0.437 us        0.437 us
+kernel0_1     kernel0      B_IO_L2_in_boundary_intra_trans                                             1 ~ 132            1              67            132             3.333 ns         0.223 us        0.440 us
+kernel0_1     kernel0      B_IO_L2_in_boundary                                                         1081491 ~ 1098006  1081491        1081557       1098006         3.605 ms         3.605 ms        3.660 ms
+kernel0_1     kernel0      PE                                                                          1048639            1048639        1048639       1048639         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper                                                                  1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_127                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_128                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_129                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_130                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_131                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_132                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_133                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_134                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_135                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_136                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_137                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_138                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_139                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_140                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_141                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_142                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_143                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_144                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_145                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_146                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_147                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_148                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_149                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_150                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_151                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_152                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_153                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_154                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_155                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_156                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_157                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_158                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_159                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_160                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_161                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_162                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_163                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_164                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_165                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_166                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_167                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_168                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_169                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_170                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_171                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_172                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_173                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_174                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_175                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_176                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_177                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_178                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_179                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_180                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_181                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_182                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_183                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_184                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_185                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_186                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_187                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_188                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_189                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_190                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_191                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_192                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_193                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_194                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_195                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_196                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_197                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_198                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_199                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_200                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_201                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_202                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_203                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_204                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_205                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_206                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_207                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_208                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_209                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_210                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_211                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_212                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_213                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_214                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_215                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_216                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_217                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_218                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_219                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_220                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_221                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_222                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_223                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_224                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_225                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_226                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_227                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_228                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_229                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_230                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_231                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_232                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_233                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_234                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_235                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_236                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_237                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_238                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_239                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_240                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_241                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_242                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_243                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_244                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_245                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_246                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_247                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_248                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_249                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_250                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_251                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_252                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      PE_wrapper_253                                                              1048640            1048640        1048640       1048640         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      B_PE_dummy_in                                                               1048578            1048578        1048578       1048578         3.495 ms         3.495 ms        3.495 ms
+kernel0_1     kernel0      C_drain_IO_L1_out_intra_trans                                               131                131            131           131             0.437 us         0.437 us        0.437 us
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans_boundary                                      34                 34             34            34              0.113 us         0.113 us        0.113 us
+kernel0_1     kernel0      C_drain_IO_L1_out_boundary                                                  10833              10833          10833         10833           36.106 us        36.106 us       36.106 us
+kernel0_1     kernel0      C_drain_IO_L1_out_boundary_wrapper                                          10834              10834          10834         10834           36.110 us        36.110 us       36.110 us
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans_Pipeline_VITIS_LOOP_308_3                     34                 34             34            34              0.113 us         0.113 us        0.113 us
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans_Pipeline_VITIS_LOOP_303_2                     34                 34             34            34              0.113 us         0.113 us        0.113 us
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out                                                           undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper                                                   undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_254                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_255                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_256                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_257                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_258                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_259                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_260                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_261                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_262                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_263                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_264                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_265                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_266                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_267                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_268                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_269                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_270                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_271                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_272                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_273                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_274                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_275                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_276                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_277                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_278                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_279                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_280                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_281                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_282                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_283                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_284                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_285                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_286                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_287                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_288                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_289                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_290                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_291                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_292                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_293                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_294                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_295                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_296                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_297                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_298                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_299                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_300                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_301                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_302                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_303                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_304                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_305                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_306                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_307                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_308                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_309                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_310                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_311                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_312                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_313                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_314                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_315                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_316                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_317                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_318                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_319                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_320                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_321                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_322                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_323                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_324                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_325                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_326                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_327                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_328                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_329                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_330                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_331                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_332                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_333                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_334                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_335                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_336                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_337                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_338                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_339                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_340                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_341                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_342                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_343                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_344                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_345                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_346                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_347                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_348                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_349                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_350                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_351                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_352                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_353                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_354                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_355                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_356                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_357                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_358                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_359                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_360                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_361                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_362                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_363                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_364                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_365                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_366                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_367                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_368                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_369                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_370                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_371                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_372                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_373                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_374                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_375                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_376                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_377                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_378                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_379                                               undef              undef          undef         undef           undef            undef           undef
+kernel0_1     kernel0      C_drain_IO_L2_out                                                           262146             262146         262146        262146          0.874 ms         0.874 ms        0.874 ms
+kernel0_1     kernel0      C_drain_IO_L2_out_serialize                                                 262215             262215         262215        262215          0.874 ms         0.874 ms        0.874 ms
+kernel0_1     kernel0      kernel0                                                                     undef              undef          undef         undef           undef            undef           undef
+
+Area Information
+Compute Unit  Kernel Name  Module Name                                                                 FF       LUT     DSP  BRAM  URAM
+------------  -----------  --------------------------------------------------------------------------  -------  ------  ---  ----  ----
+kernel0_1     kernel0      entry_proc                                                                  3        29      0    0     0
+kernel0_1     kernel0      A_IO_L2_in_serialize                                                        740      553     0    0     0
+kernel0_1     kernel0      A_IO_L2_in                                                                  25       128     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_inter_trans                                                      549      430     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_intra_trans_Pipeline_VITIS_LOOP_76_1_VITIS_LOOP_77_2             11       80      0    0     0
+kernel0_1     kernel0      A_IO_L1_in_intra_trans                                                      14       105     0    0     0
+kernel0_1     kernel0      A_IO_L1_in                                                                  1375     778     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_1                                                        1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_2                                                        1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_3                                                        1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_4                                                        1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_5                                                        1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_6                                                        1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_7                                                        1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_8                                                        1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_9                                                        1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_10                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_11                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_12                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_13                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_14                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_15                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_16                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_17                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_18                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_19                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_20                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_21                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_22                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_23                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_24                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_25                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_26                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_27                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_28                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_29                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_30                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_31                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_32                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_33                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_34                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_35                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_36                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_37                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_38                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_39                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_40                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_41                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_42                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_43                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_44                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_45                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_46                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_47                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_48                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_49                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_50                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_51                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_52                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_53                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_54                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_55                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_56                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_57                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_58                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_59                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_60                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_61                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_62                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_63                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_64                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_65                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_66                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_67                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_68                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_69                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_70                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_71                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_72                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_73                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_74                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_75                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_76                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_77                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_78                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_79                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_80                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_81                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_82                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_83                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_84                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_85                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_86                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_87                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_88                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_89                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_90                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_91                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_92                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_93                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_94                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_95                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_96                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_97                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_98                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_99                                                       1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_100                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_101                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_102                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_103                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_104                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_105                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_106                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_107                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_108                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_109                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_110                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_111                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_112                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_113                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_114                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_115                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_116                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_117                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_118                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_119                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_120                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_121                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_122                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_123                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_124                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_125                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper_126                                                      1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_wrapper                                                          1380     839     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_inter_trans_boundary                                             257      20      0    0     0
+kernel0_1     kernel0      A_IO_L1_in_boundary                                                         1339     360     0    0     0
+kernel0_1     kernel0      A_IO_L1_in_boundary_wrapper                                                 1343     403     0    0     0
+kernel0_1     kernel0      B_IO_L2_in_boundary_serialize                                               740      553     0    0     0
+kernel0_1     kernel0      B_IO_L2_in_boundary_inter_trans                                             19       80      0    0     0
+kernel0_1     kernel0      B_IO_L2_in_boundary_intra_trans_Pipeline_VITIS_LOOP_178_1_VITIS_LOOP_179_2  29       176     0    0     0
+kernel0_1     kernel0      B_IO_L2_in_boundary_intra_trans                                             32       201     0    0     0
+kernel0_1     kernel0      B_IO_L2_in_boundary                                                         97       595     0    16    0
+kernel0_1     kernel0      PE                                                                          5626     3073    0    1     0
+kernel0_1     kernel0      PE_wrapper                                                                  5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_127                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_128                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_129                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_130                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_131                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_132                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_133                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_134                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_135                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_136                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_137                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_138                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_139                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_140                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_141                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_142                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_143                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_144                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_145                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_146                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_147                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_148                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_149                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_150                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_151                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_152                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_153                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_154                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_155                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_156                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_157                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_158                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_159                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_160                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_161                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_162                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_163                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_164                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_165                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_166                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_167                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_168                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_169                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_170                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_171                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_172                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_173                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_174                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_175                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_176                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_177                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_178                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_179                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_180                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_181                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_182                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_183                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_184                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_185                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_186                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_187                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_188                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_189                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_190                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_191                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_192                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_193                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_194                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_195                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_196                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_197                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_198                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_199                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_200                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_201                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_202                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_203                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_204                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_205                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_206                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_207                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_208                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_209                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_210                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_211                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_212                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_213                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_214                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_215                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_216                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_217                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_218                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_219                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_220                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_221                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_222                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_223                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_224                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_225                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_226                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_227                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_228                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_229                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_230                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_231                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_232                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_233                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_234                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_235                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_236                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_237                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_238                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_239                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_240                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_241                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_242                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_243                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_244                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_245                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_246                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_247                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_248                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_249                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_250                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_251                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_252                                                              5631     3143    0    1     0
+kernel0_1     kernel0      PE_wrapper_253                                                              5631     3143    0    1     0
+kernel0_1     kernel0      B_PE_dummy_in                                                               24       108     0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_intra_trans                                               189      1392    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans_boundary                                      9        76      0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_boundary                                                  350      1755    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_boundary_wrapper                                          354      1798    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans_Pipeline_VITIS_LOOP_308_3                     9        87      0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans_Pipeline_VITIS_LOOP_303_2                     9        76      0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_inter_trans                                               63       343     0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out                                                           404      2031    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper                                                   408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_254                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_255                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_256                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_257                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_258                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_259                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_260                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_261                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_262                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_263                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_264                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_265                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_266                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_267                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_268                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_269                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_270                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_271                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_272                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_273                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_274                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_275                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_276                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_277                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_278                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_279                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_280                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_281                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_282                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_283                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_284                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_285                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_286                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_287                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_288                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_289                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_290                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_291                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_292                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_293                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_294                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_295                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_296                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_297                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_298                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_299                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_300                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_301                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_302                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_303                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_304                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_305                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_306                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_307                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_308                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_309                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_310                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_311                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_312                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_313                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_314                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_315                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_316                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_317                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_318                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_319                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_320                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_321                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_322                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_323                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_324                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_325                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_326                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_327                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_328                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_329                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_330                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_331                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_332                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_333                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_334                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_335                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_336                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_337                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_338                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_339                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_340                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_341                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_342                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_343                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_344                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_345                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_346                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_347                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_348                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_349                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_350                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_351                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_352                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_353                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_354                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_355                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_356                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_357                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_358                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_359                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_360                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_361                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_362                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_363                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_364                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_365                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_366                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_367                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_368                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_369                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_370                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_371                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_372                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_373                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_374                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_375                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_376                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_377                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_378                                               408      2083    0    0     0
+kernel0_1     kernel0      C_drain_IO_L1_out_wrapper_379                                               409      2092    0    0     0
+kernel0_1     kernel0      C_drain_IO_L2_out                                                           22       115     0    0     0
+kernel0_1     kernel0      C_drain_IO_L2_out_serialize                                                 765      442     0    0     0
+kernel0_1     kernel0      kernel0                                                                     1074052  880010  0    236   0
+-------------------------------------------------------------------------------

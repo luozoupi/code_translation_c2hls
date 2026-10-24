@@ -1,0 +1,2536 @@
+<ENTRY>
+{
+ "thisFile": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/kernel0.xclbin.link_summary",
+ "connectId": "",
+ "serverToken": "",
+ "timestamp": "0"
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct 23 17:38:23 2026",
+ "timestampMillis": "1792769903806",
+ "buildStep": {
+  "cmdId": "9cb27b6d-a80a-4d50-bbb6-12a2f5a33f08",
+  "name": "v++",
+  "logFile": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/link.steps.log",
+  "commandLine": "/opt/software/FPGA/Xilinx/Vitis/2023.2/bin/unwrapped/lnx64.o/v++  --vivado.prop \"run.__KERNEL__.{STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS}={-directive sdx_optimization_effort_high}\" --advanced.misc \"report=type report_timing_summary name impl_report_timing_summary_route_design_summary steps {route_design} runs {impl_1} options {-max_paths 10}\" --advanced.misc \"report=type report_timing_summary name impl_report_timing_summary_post_route_phys_opt_design_summary steps {post_route_phys_opt_design} runs {impl_1} options {-max_paths 10}\" -l -t hw --platform /opt/software/FPGA/Xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --config link.cfg kernel0.xo -o kernel0.xclbin --temp_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l --log_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/logs_l --report_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l ",
+  "args": [
+   "-l",
+   "-t",
+   "hw",
+   "--platform",
+   "/opt/software/FPGA/Xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+   "--config",
+   "link.cfg",
+   "kernel0.xo",
+   "-o",
+   "kernel0.xclbin",
+   "--temp_dir",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l",
+   "--log_dir",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/logs_l",
+   "--report_dir",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l"
+  ],
+  "iniFiles": [
+   {
+    "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/link.cfg",
+    "content": "# v++ --link config for autosa_mm (v4 systolic st0_c1, AutoSA 128 PEs, kernel0), xilinx_u280_gen3x16_xdma_1_202211_1, 300 MHz default kernel clock.\n[connectivity]\n# All three ports on separate HBM pseudo-channels (SLR0); the systolic array streams A and B through\n# IO modules, no DDR controller (no extra LUTs). Routability control for the broadcast-congestion diagnosis.\nnk=kernel0:1:kernel0_1\nsp=kernel0_1.A:HBM[0]\nsp=kernel0_1.B:HBM[1]\nsp=kernel0_1.C:HBM[2]\n# No SLR pinning: let Vivado spread the kernel across SLRs.\n\n[vivado]\n# Kernel synthesis: v++ already passes its own synth_design -directive to kernel runs, so a second DIRECTIVE\n# fails (\"'directive' can only be specified once\", attempt 1). Keep v++'s directive; add global retiming\n# (FFs are at ~48%, so retiming registers are affordable).\nprop=run.__KERNEL__.STEPS.SYNTH_DESIGN.ARGS.GLOBAL_RETIMING=on\n# Implementation: four strategies run in parallel; v++ keeps the best result.\nimpl.strategies=Congestion_SSI_SpreadLogic_high,Performance_HighUtilSLRs,Performance_ExplorePostRoutePhysOpt,Performance_NetDelay_high\nimpl.jobs=4\nsynth.jobs=16\n"
+   }
+  ],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 17:38:23 2026",
+ "timestampMillis": "1792769903807",
+ "status": {
+  "cmdId": "9cb27b6d-a80a-4d50-bbb6-12a2f5a33f08",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_FlowMetaData",
+ "dateTimestamp": "Fri Oct 23 17:38:44 2026",
+ "timestampMillis": "1792769924066",
+ "buildSummary": {
+  "hardwarePlatform": "xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+  "hardwareDsa": "",
+  "platformDirectory": "/opt/software/FPGA/Xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1",
+  "runtime": "OpenCL",
+  "systemConfig": "Linux",
+  "flow": "BF_LINK",
+  "target": "TT_HW",
+  "binaryContainer": {
+   "base": {
+    "type": "BT_UKNOWN",
+    "name": "kernel0",
+    "file": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/kernel0.xclbin",
+    "reports": [],
+    "uuid": ""
+   },
+   "kernels": []
+  },
+  "kernels": [
+   {
+    "base": {
+     "type": "KERNEL",
+     "name": "kernel0",
+     "file": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/kernel0.xo",
+     "reports": [],
+     "uuid": ""
+    },
+    "sources": [
+     "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/xo/kernel0/kernel0/cpu_sources/kernel.cpp"
+    ],
+    "psSources": [],
+    "cuNames": [
+     "kernel0_1"
+    ],
+    "type": "HLS",
+    "frequency": 0,
+    "freqUnits": ""
+   }
+  ],
+  "toolVersion": "Vitis V++ Compiler Release 2023.2. SW Build 4026344 on 2023-10-11-15:42:10"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct 23 17:38:44 2026",
+ "timestampMillis": "1792769924490",
+ "buildStep": {
+  "cmdId": "eb72451c-416c-47bc-ae36-4e11d0b3d47b",
+  "name": "system_link",
+  "logFile": "",
+  "commandLine": "system_link --xo /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/kernel0.xo --config /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/syslinkConfig.ini --xpfm /opt/software/FPGA/Xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --target hw --output_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int --temp_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/sys_link",
+  "args": [
+   "--xo",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/kernel0.xo",
+   "--config",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/syslinkConfig.ini",
+   "--xpfm",
+   "/opt/software/FPGA/Xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+   "--target",
+   "hw",
+   "--output_dir",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int",
+   "--temp_dir",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/sys_link"
+  ],
+  "iniFiles": [
+   {
+    "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/syslinkConfig.ini",
+    "content": "nk=kernel0:1:kernel0_1\nsp=kernel0_1.A:HBM[0]\nsp=kernel0_1.B:HBM[1]\nsp=kernel0_1.C:HBM[2]\n\n"
+   }
+  ],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 17:38:44 2026",
+ "timestampMillis": "1792769924491",
+ "status": {
+  "cmdId": "eb72451c-416c-47bc-ae36-4e11d0b3d47b",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 17:39:00 2026",
+ "timestampMillis": "1792769940706",
+ "status": {
+  "cmdId": "eb72451c-416c-47bc-ae36-4e11d0b3d47b",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct 23 17:39:00 2026",
+ "timestampMillis": "1792769940710",
+ "buildStep": {
+  "cmdId": "5c77a964-77aa-46e2-a768-02ae6085af12",
+  "name": "cf2sw",
+  "logFile": "",
+  "commandLine": "cf2sw -sdsl /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/sdsl.dat -rtd /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/cf2sw.rtd -nofilter /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/cf2sw_full.rtd -xclbin /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/xclbin_orig.xml -o /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/xclbin_orig.1.xml",
+  "args": [
+   "-sdsl",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/sdsl.dat",
+   "-rtd",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/cf2sw.rtd",
+   "-nofilter",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/cf2sw_full.rtd",
+   "-xclbin",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/xclbin_orig.xml",
+   "-o",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/xclbin_orig.1.xml"
+  ],
+  "iniFiles": [],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 17:39:00 2026",
+ "timestampMillis": "1792769940710",
+ "status": {
+  "cmdId": "5c77a964-77aa-46e2-a768-02ae6085af12",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 17:39:03 2026",
+ "timestampMillis": "1792769943708",
+ "status": {
+  "cmdId": "5c77a964-77aa-46e2-a768-02ae6085af12",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct 23 17:39:03 2026",
+ "timestampMillis": "1792769943723",
+ "buildStep": {
+  "cmdId": "03fc447a-4d86-451a-90a1-c2aed50a293f",
+  "name": "rtd2_system_diagram",
+  "logFile": "",
+  "commandLine": "rtd2SystemDiagram",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 17:39:03 2026",
+ "timestampMillis": "1792769943723",
+ "status": {
+  "cmdId": "03fc447a-4d86-451a-90a1-c2aed50a293f",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct 23 17:39:04 2026",
+ "timestampMillis": "1792769944077",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/systemDiagramModel.json",
+  "name": "",
+  "fileType": "JSON",
+  "reportType": "SYSTEM_DIAGRAM",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 17:39:04 2026",
+ "timestampMillis": "1792769944077",
+ "status": {
+  "cmdId": "03fc447a-4d86-451a-90a1-c2aed50a293f",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct 23 17:39:04 2026",
+ "timestampMillis": "1792769944080",
+ "buildStep": {
+  "cmdId": "62342bf3-f7de-4b19-83e2-e69b87abb62b",
+  "name": "vpl",
+  "logFile": "",
+  "commandLine": "vpl -t hw -f /opt/software/FPGA/Xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --remote_ip_cache /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/.ipcache --output_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int --log_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/logs_l/link --report_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link --config /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/vplConfig.ini -k /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/kernel_info.dat --webtalk_flag Vitis --temp_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link --no-info --iprepo /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/xo/ip_repo/xilinx_com_hls_kernel0_1_0 --messageDb /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/run_link/vpl.pb /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/dr.bd.tcl",
+  "args": [
+   "-t",
+   "hw",
+   "-f",
+   "/opt/software/FPGA/Xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm",
+   "--remote_ip_cache",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/.ipcache",
+   "--output_dir",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int",
+   "--log_dir",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/logs_l/link",
+   "--report_dir",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link",
+   "--config",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/vplConfig.ini",
+   "-k",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/kernel_info.dat",
+   "--webtalk_flag",
+   "Vitis",
+   "--temp_dir",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link",
+   "--no-info",
+   "--iprepo",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/xo/ip_repo/xilinx_com_hls_kernel0_1_0",
+   "--messageDb",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/run_link/vpl.pb",
+   "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/dr.bd.tcl"
+  ],
+  "iniFiles": [
+   {
+    "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/vplConfig.ini",
+    "content": "[advanced]\nmisc=report=type report_timing_summary name impl_report_timing_summary_route_design_summary steps {route_design} runs {impl_1} options {-max_paths 10}\nmisc=report=type report_timing_summary name impl_report_timing_summary_post_route_phys_opt_design_summary steps {post_route_phys_opt_design} runs {impl_1} options {-max_paths 10}\nparam=compiler.enablePerformanceTrace=1\nparam=compiler.vppCurrentWorkingDir=/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1\nmisc=BinaryName=kernel0\n\n[connectivity]\nnk=kernel0:1:kernel0_1\n\n[vivado]\nprop=run.__KERNEL__.{STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS}={-directive sdx_optimization_effort_high}\nsynth.jobs=16\nimpl.jobs=4\nimpl.strategies=Congestion_SSI_SpreadLogic_high,Performance_HighUtilSLRs,Performance_ExplorePostRoutePhysOpt,Performance_NetDelay_high\nprop=run.__KERNEL__.STEPS.SYNTH_DESIGN.ARGS.GLOBAL_RETIMING=on\n\n"
+   }
+  ],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 17:39:04 2026",
+ "timestampMillis": "1792769944080",
+ "status": {
+  "cmdId": "62342bf3-f7de-4b19-83e2-e69b87abb62b",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct 23 17:39:04 2026",
+ "timestampMillis": "1792769944903",
+ "buildStep": {
+  "cmdId": "1a539171-b7b0-49fc-be21-3f33ca174f17",
+  "name": "vpl",
+  "logFile": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/link.steps.log",
+  "commandLine": "/opt/software/FPGA/Xilinx/Vitis/2023.2/bin/unwrapped/lnx64.o/vpl -t hw -f /opt/software/FPGA/Xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm --remote_ip_cache /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/.ipcache --output_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int --log_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/logs_l/link --report_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link --config /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/vplConfig.ini -k /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/kernel_info.dat --webtalk_flag Vitis --temp_dir /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link --no-info --iprepo /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/xo/ip_repo/xilinx_com_hls_kernel0_1_0 --messageDb /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/run_link/vpl.pb /tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/dr.bd.tcl ",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/run_link"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 17:39:04 2026",
+ "timestampMillis": "1792769944903",
+ "status": {
+  "cmdId": "1a539171-b7b0-49fc-be21-3f33ca174f17",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_VivadoProject",
+ "dateTimestamp": "Fri Oct 23 17:39:08 2026",
+ "timestampMillis": "1792769948126",
+ "vivadoProject": {
+  "openDir": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl",
+  "openScript": "openprj.tcl",
+  "relativeProject": "prj/prj.xpr"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Fri Oct 23 17:39:08 2026",
+ "timestampMillis": "1792769948126",
+ "buildStep": {
+  "cmdId": "84b7aa79-f506-471b-a5a8-763ac4f7403d",
+  "name": "vivado",
+  "logFile": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl/vivado.log",
+  "commandLine": "vivado -log vivado.log -applog -m64 -messageDb vivado.pb -mode batch -source vpl.tcl -notrace",
+  "args": [
+   "-log",
+   "vivado.log",
+   "-applog",
+   " -m64",
+   "-messageDb",
+   "vivado.pb",
+   "-mode",
+   "batch",
+   "-source",
+   "vpl.tcl",
+   "-notrace"
+  ],
+  "iniFiles": [],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/run_link"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 17:39:08 2026",
+ "timestampMillis": "1792769948127",
+ "status": {
+  "cmdId": "84b7aa79-f506-471b-a5a8-763ac4f7403d",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Fri Oct 23 17:40:29 2026",
+ "timestampMillis": "1792770029033",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/int/automation_summary_pre_synthesis.txt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "VITIS_DESIGN_FLOW",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885143",
+ "buildStep": {
+  "cmdId": "42558381-a103-4b2d-8d2e-994a20839924",
+  "name": "vivado.impl",
+  "logFile": "",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885144",
+ "status": {
+  "cmdId": "42558381-a103-4b2d-8d2e-994a20839924",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885144",
+ "buildStep": {
+  "cmdId": "a4e109a1-2d06-494e-80b6-e0d1605bcd95",
+  "name": "vivado.impl.impl_1",
+  "logFile": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl/prj/prj.runs/impl_1/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl/prj/prj.runs/impl_1"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885144",
+ "status": {
+  "cmdId": "a4e109a1-2d06-494e-80b6-e0d1605bcd95",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885144",
+ "buildStep": {
+  "cmdId": "02a25485-be11-4392-a742-d3a52a99bc7f",
+  "name": "vivado.impl.impl_Congestion_SSI_SpreadLogic_high",
+  "logFile": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl/prj/prj.runs/impl_Congestion_SSI_SpreadLogic_high/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl/prj/prj.runs/impl_Congestion_SSI_SpreadLogic_high"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885144",
+ "status": {
+  "cmdId": "02a25485-be11-4392-a742-d3a52a99bc7f",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885144",
+ "buildStep": {
+  "cmdId": "429daf09-36fa-4ad9-9ba7-70310bae44ea",
+  "name": "vivado.impl.impl_Performance_HighUtilSLRs",
+  "logFile": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_HighUtilSLRs/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_HighUtilSLRs"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885144",
+ "status": {
+  "cmdId": "429daf09-36fa-4ad9-9ba7-70310bae44ea",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885145",
+ "buildStep": {
+  "cmdId": "9e05c9a1-7adb-4f9a-8d3d-9eccaf479559",
+  "name": "vivado.impl.impl_Performance_ExplorePostRoutePhysOpt",
+  "logFile": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_ExplorePostRoutePhysOpt/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_ExplorePostRoutePhysOpt"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885145",
+ "status": {
+  "cmdId": "9e05c9a1-7adb-4f9a-8d3d-9eccaf479559",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885145",
+ "buildStep": {
+  "cmdId": "5160683d-f38f-4013-abf2-59197dbd5803",
+  "name": "vivado.impl.impl_Performance_NetDelay_high",
+  "logFile": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_NetDelay_high/runme.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/link/vivado/vpl/prj/prj.runs/impl_Performance_NetDelay_high"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Fri Oct 23 18:28:05 2026",
+ "timestampMillis": "1792772885145",
+ "status": {
+  "cmdId": "5160683d-f38f-4013-abf2-59197dbd5803",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 24 01:00:09 2026",
+ "timestampMillis": "1792796409808",
+ "status": {
+  "cmdId": "a4e109a1-2d06-494e-80b6-e0d1605bcd95",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 24 01:00:09 2026",
+ "timestampMillis": "1792796409809",
+ "status": {
+  "cmdId": "5160683d-f38f-4013-abf2-59197dbd5803",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 24 01:38:52 2026",
+ "timestampMillis": "1792798732531",
+ "status": {
+  "cmdId": "9e05c9a1-7adb-4f9a-8d3d-9eccaf479559",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 24 01:44:52 2026",
+ "timestampMillis": "1792799092989",
+ "status": {
+  "cmdId": "02a25485-be11-4392-a742-d3a52a99bc7f",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 24 02:19:55 2026",
+ "timestampMillis": "1792801195682",
+ "status": {
+  "cmdId": "429daf09-36fa-4ad9-9ba7-70310bae44ea",
+  "state": "CS_DEMOTED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 24 05:45:41 2026",
+ "timestampMillis": "1792813541770",
+ "status": {
+  "cmdId": "84b7aa79-f506-471b-a5a8-763ac4f7403d",
+  "state": "CS_FAILED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543063",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_HighUtilSLRs_kernel_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543063",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_HighUtilSLRs_full_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543064",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_HighUtilSLRs_kernel_util_synthed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543064",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_HighUtilSLRs_slr_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543064",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_HighUtilSLRs_kernel_util_placed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543065",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_HighUtilSLRs_kernel_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543065",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_HighUtilSLRs_slr_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543065",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_HighUtilSLRs_full_util_synthed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543066",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_HighUtilSLRs_full_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543066",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_HighUtilSLRs_full_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543067",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_kernel_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543067",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_full_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543068",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_kernel_util_synthed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543068",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_slr_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543068",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_kernel_util_placed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543069",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_kernel_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543069",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_slr_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543070",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_full_util_synthed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543070",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_full_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543070",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_ExplorePostRoutePhysOpt_full_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543075",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_kernel_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543076",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_full_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543076",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_kernel_util_synthed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543076",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_slr_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543076",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_kernel_util_placed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543077",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_kernel_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543077",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_slr_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543077",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_full_util_synthed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543078",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_full_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543078",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Congestion_SSI_SpreadLogic_high_full_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543081",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_NetDelay_high_kernel_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543081",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_NetDelay_high_full_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543081",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_NetDelay_high_kernel_util_synthed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543081",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_NetDelay_high_slr_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543082",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_NetDelay_high_kernel_util_placed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543082",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_NetDelay_high_kernel_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543082",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_NetDelay_high_slr_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543083",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_NetDelay_high_full_util_synthed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543083",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_NetDelay_high_full_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543084",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_Performance_NetDelay_high_full_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543085",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_1_kernel_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543085",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_1_full_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543085",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_1_kernel_util_synthed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543086",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_1_slr_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543086",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_1_kernel_util_placed.xutil",
+  "name": "",
+  "fileType": "XUTIL",
+  "reportType": "KERNEL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543086",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_1_kernel_util_synthed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "KERNEL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543086",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_1_slr_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_SLR_UTIL_PLACED",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543087",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_1_full_util_synthed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_SYNTHESIS",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543087",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_1_full_util_placed.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543087",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/imp/impl_1_full_util_placed.pb",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_UTILIZATION_PLACEMENT",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543088",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_ulp_cmp_0_synth_1_ulp_ulp_cmp_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543089",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_ulp_ucs_0_synth_1_ulp_ulp_ucs_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543089",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_ctrl_slr1_0_synth_1_ulp_proc_sys_reset_ctrl_slr1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543089",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_ctrl_slr0_0_synth_1_ulp_proc_sys_reset_ctrl_slr0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543090",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_kernel_slr1_0_synth_1_ulp_proc_sys_reset_kernel_slr1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543090",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_kernel_slr0_0_synth_1_ulp_proc_sys_reset_kernel_slr0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543090",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_ctrl_slr2_0_synth_1_ulp_proc_sys_reset_ctrl_slr2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543090",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_kernel2_slr1_0_synth_1_ulp_proc_sys_reset_kernel2_slr1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543091",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_kernel2_slr0_0_synth_1_ulp_proc_sys_reset_kernel2_slr0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543091",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_kernel_slr2_0_synth_1_ulp_proc_sys_reset_kernel_slr2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543091",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_kernel2_slr2_0_synth_1_ulp_proc_sys_reset_kernel2_slr2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543092",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_freerun_slr1_0_synth_1_ulp_proc_sys_reset_freerun_slr1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543092",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_freerun_slr0_0_synth_1_ulp_proc_sys_reset_freerun_slr0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543092",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_proc_sys_reset_freerun_slr2_0_synth_1_ulp_proc_sys_reset_freerun_slr2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543093",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_regslice_control_userpf_0_synth_1_ulp_regslice_control_userpf_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543093",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_regslice_control_userpf_1_synth_1_ulp_regslice_control_userpf_1_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543093",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_axi_gpio_null_2_synth_1_ulp_axi_gpio_null_2_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543093",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_axi_vip_ctrl_userpf_2_synth_1_ulp_axi_vip_ctrl_userpf_2_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543094",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_regslice_control_userpf_2_synth_1_ulp_regslice_control_userpf_2_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543094",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_ii_level0_wire_0_synth_1_ulp_ii_level0_wire_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543095",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_hmss_0_0_synth_1_ulp_hmss_0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543095",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_axi_vip_data_0_synth_1_ulp_axi_vip_data_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543095",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_xbar_1_synth_1_bd_22c0_xbar_1_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543095",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_097b_user_debug_hub_0_synth_1_bd_097b_user_debug_hub_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543096",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_frequency_counter_aclk_kernel_01_0_synth_1_bd_22c0_frequency_counter_aclk_kernel_01_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543096",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_fanout_aresetn_kernel_00_slr2_3_0_synth_1_bd_22c0_fanout_aresetn_kernel_00_slr2_3_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543096",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_clock_throttling_aclk_kernel_00_0_synth_1_bd_22c0_clock_throttling_aclk_kernel_00_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543097",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_aclk_kernel_01_adapt_0_synth_1_bd_22c0_aclk_kernel_01_adapt_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543097",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_clkwiz_aclk_kernel_00_0_synth_1_bd_22c0_clkwiz_aclk_kernel_00_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543099",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_fanout_aresetn_kernel_01_slr0_1_0_synth_1_bd_22c0_fanout_aresetn_kernel_01_slr0_1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543099",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_psreset_kernel_01_0_synth_1_bd_22c0_psreset_kernel_01_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543099",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_58f6_lut_buffer_0_synth_1_bd_58f6_lut_buffer_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543100",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_58f6_xsdbm_0_synth_1_bd_58f6_xsdbm_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543100",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_7cf0_axi_jtag_0_synth_1_bd_7cf0_axi_jtag_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543100",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_097b_user_debug_bridge_0_synth_1_bd_097b_user_debug_bridge_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543101",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_7cf0_bs_switch_1_0_synth_1_bd_7cf0_bs_switch_1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543101",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_7cf0_bsip_0_synth_1_bd_7cf0_bsip_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543101",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_clkwiz_aclk_kernel_01_0_synth_1_bd_22c0_clkwiz_aclk_kernel_01_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543101",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_aclk_kernel_00_cont_adapt_0_synth_1_bd_22c0_aclk_kernel_00_cont_adapt_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543102",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_frequency_counter_aclk_hbm_0_synth_1_bd_22c0_frequency_counter_aclk_hbm_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543102",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_psreset_kernel_00_0_synth_1_bd_22c0_psreset_kernel_00_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543102",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_psreset_aclk_freerun_0_synth_1_bd_22c0_psreset_aclk_freerun_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543103",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_clock_throttling_aclk_kernel_01_0_synth_1_bd_22c0_clock_throttling_aclk_kernel_01_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543103",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_frequency_counter_aclk_0_synth_1_bd_22c0_frequency_counter_aclk_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543103",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_097b_build_info_0_synth_1_bd_097b_build_info_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543104",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_85ad_slice1_0_0_synth_1_bd_85ad_slice1_0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543104",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_85ad_interconnect3_2_0_synth_1_bd_85ad_interconnect3_2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543104",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_fanout_aresetn_hbm_0_synth_1_bd_22c0_fanout_aresetn_hbm_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543105",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_psreset_hbm_0_synth_1_bd_22c0_psreset_hbm_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543105",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_clkwiz_hbm_0_synth_1_bd_22c0_clkwiz_hbm_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543105",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_clock_throttling_avg_0_synth_1_bd_22c0_clock_throttling_avg_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543106",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_gapping_demand_toggle_0_synth_1_bd_22c0_gapping_demand_toggle_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543106",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_gapping_demand_update_0_synth_1_bd_22c0_gapping_demand_update_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543107",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_fanout_aresetn_ctrl_slr0_2_0_synth_1_bd_22c0_fanout_aresetn_ctrl_slr0_2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543107",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_build_info_0_synth_1_bd_22c0_build_info_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543107",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_gpio_gapping_demand_0_synth_1_bd_22c0_gpio_gapping_demand_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543107",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_fanout_aresetn_pcie_slr0_3_0_synth_1_bd_22c0_fanout_aresetn_pcie_slr0_3_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543108",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_clock_shutdown_latch_0_synth_1_bd_22c0_clock_shutdown_latch_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543108",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_clk_hbm_adapt_0_synth_1_bd_22c0_clk_hbm_adapt_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543109",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_xbar_0_synth_1_bd_22c0_xbar_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543109",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_gpio_ucs_control_status_0_synth_1_bd_22c0_gpio_ucs_control_status_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543109",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_85ad_slice0_3_0_synth_1_bd_85ad_slice0_3_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543110",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_85ad_init_reduce_0_synth_1_bd_85ad_init_reduce_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543110",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_xbar_2_synth_1_ulp_xbar_2_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543110",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_kernel0_1_0_synth_1_ulp_kernel0_1_0_utilization_synth.rpt",
+  "name": "kernel0",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543111",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_85ad_interconnect2_1_0_synth_1_bd_85ad_interconnect2_1_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543111",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_xbar_3_synth_1_ulp_xbar_3_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543111",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_85ad_interconnect0_3_0_synth_1_bd_85ad_interconnect0_3_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543112",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_auto_cc_1_synth_1_ulp_auto_cc_1_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543112",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_s00_regslice_18_synth_1_ulp_s00_regslice_18_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543112",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_m00_regslice_0_synth_1_ulp_m00_regslice_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543113",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_m01_regslice_0_synth_1_ulp_m01_regslice_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543113",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_s00_regslice_19_synth_1_ulp_s00_regslice_19_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543113",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/ulp_auto_cc_2_synth_1_ulp_auto_cc_2_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543114",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_85ad_axi_apb_bridge_inst_0_synth_1_bd_85ad_axi_apb_bridge_inst_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543114",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_85ad_hbm_inst_0_synth_1_bd_85ad_hbm_inst_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543114",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_22c0_auto_cc_0_synth_1_bd_22c0_auto_cc_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543114",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_85ad_vip_S00_0_synth_1_bd_85ad_vip_S00_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543115",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_85ad_interconnect1_0_0_synth_1_bd_85ad_interconnect1_0_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543115",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/syn/bd_85ad_hbm_reset_sync_SLR2_0_synth_1_bd_85ad_hbm_reset_sync_SLR2_0_utilization_synth.rpt",
+  "name": "",
+  "fileType": "TEXT",
+  "reportType": "GLOBAL_REPORT_UTILIZATION",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543117",
+ "status": {
+  "cmdId": "1a539171-b7b0-49fc-be21-3f33ca174f17",
+  "state": "CS_FAILED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543132",
+ "status": {
+  "cmdId": "62342bf3-f7de-4b19-83e2-e69b87abb62b",
+  "state": "CS_FAILED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543136",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/logs_l/optraceViewer.html",
+  "name": "",
+  "fileType": "HTML",
+  "reportType": "OPERATION_TRACE",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543137",
+ "status": {
+  "cmdId": "9cb27b6d-a80a-4d50-bbb6-12a2f5a33f08",
+  "state": "CS_FAILED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543160",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/reports_l/link/v++_link_kernel0_guidance.html",
+  "name": "",
+  "fileType": "HTML",
+  "reportType": "GLOBAL_RULECHECK_GUIDANCE",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Sat Oct 24 05:45:43 2026",
+ "timestampMillis": "1792813543160",
+ "report": {
+  "path": "/tmp/haqc2/3820417/xclbin_v4_systolic_st0_c1/_x_l/v++_link_kernel0_guidance.pb3",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_RULECHECK_GUIDANCE",
+  "cmdId": ""
+ }
+}
+</ENTRY>

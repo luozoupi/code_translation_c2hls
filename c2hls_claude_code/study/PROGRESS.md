@@ -575,3 +575,8 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
     - My kill/scancel was refused by the permission check; it is left for the user to stop.
   - xclbin 250 MHz: Performance_NetDelay_high still routing; the other 4 strategies failed.
 - 2026-10-24 21:50 check: the leftover lud agent (pid 782864) is gone and no flash_agent jobs remain. xclbin NetDelay_high still routing. Nothing else ended.
+- 2026-10-24 23:20: **xclbin 250 MHz (3832310) FAILED** after 14.5 h. All 5 strategies failed routing (partially-conflicted nets / congestion): "none of the implementation runs can meet timing".
+  - Placed utilization: LUT 815,416 (62.6%), DSP 5,124 (56.8%).
+  - Per SLR, LUT is SLR0 8.7%, SLR1 91.5%, SLR2 88.4%; DSP is SLR0 0, SLR1 80.7%, SLR2 86.1%.
+  - The placer packs the kernel into SLR1 and SLR2 and leaves SLR0 almost empty. That, not the clock, is why routing fails. The next lever is SLR assignment/floorplan (or a smaller array), which is the user's decision.
+  - Reports and logs moved to `xclbin/v4_systolic_st0_c1/out_250mhz_failed_3832310/`; `out/kernel0.xo` kept.

@@ -546,3 +546,7 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
 - 2026-10-24 07:40 **xclbin link retried at 250 MHz (user's request): job 3832310.** It reuses `out/kernel0.xo` (no HLS recompile) with `xclbin/v4_systolic_st0_c1/link_250mhz.cfg`, which is link.cfg plus `[clock] freqHz=250000000:kernel0_1.ap_clk`. The same HBM mapping, global retiming and 4 strategies. `sbatch_build_otus.sh` now takes `LINK_CFG` (default link.cfg); submitted with `LINK_CFG=link_250mhz.cfg bash resubmit_xclbin_otus.sh`. The cfgen line shows `-clock.freqHz 250000000:kernel0_1.ap_clk` (only a deprecation warning: v++ prefers `freqhz`). The failed 300 MHz reports/logs moved to `out_300mhz_failed_3820417/`.
 - 2026-10-24 08:20 check: no new results. xclbin 250 MHz (3832310) at block-level synthesis (141/142). Driver: agb_hlsfactory_ludcmp_r1 running (2.5 h of 3 h). SODA cosims unchanged (20/3/15; 47 running).
 - 2026-10-24 09:50 check: agb_hlsfactory_ludcmp_r1 hit its 3 h limit; the driver reran it at 6 h (3832533, try 2). xclbin 250 MHz (3832310) now in implementation (4 strategies, 0 of 5 complete). SODA cosims unchanged (20/3/15; 47 running).
+- 2026-10-24 11:20 check:
+  - Driver: agb_hlsfactory_ludcmp_r1 done on try 2 (1 h 6 min): 10,095,723 → 5,187 cycles, DSP 7,944, LUT 616,208, csim True. Now agb_lud_r1 (3833226).
+  - xclbin 250 MHz (3832310): still in implementation, 0 of 5 runs complete, 4 in progress.
+  - SODA cosims unchanged (20 pass / 3 deadlock / 15 xelab_segv; 47 running). lud_csynth and the 3 posthoc reruns still running.

@@ -574,3 +574,4 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - Leftover: the lud agent session (login5 pid 782864, workspace logs/shim_agent_exp_lud/call_00005) kept running after the job ended. It is still using Claude and submitting flash_agent_csynth jobs (3847345). Nothing collects its result.
     - My kill/scancel was refused by the permission check; it is left for the user to stop.
   - xclbin 250 MHz: Performance_NetDelay_high still routing; the other 4 strategies failed.
+- 2026-10-24 21:50 check: the leftover lud agent (pid 782864) is gone and no flash_agent jobs remain. xclbin NetDelay_high still routing. Nothing else ended.

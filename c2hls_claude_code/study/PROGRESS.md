@@ -600,3 +600,12 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - lu: 134,372,041 / 539,513,401.
   - ludcmp: 10,095,723 / 32,168,883.
   - The agb results are equal typical and worst except gramschmidt (2,270,081 typical / 4,529,281 worst = baseline).
+- 2026-10-25 **LightningSim vs cosim, all pairs** (`study/soda/lsim/compare_pat_otus.py` → `lsim_vs_cosim_otus_20261025.csv`):
+  - **Pairs:** 37 patched designs have both a cosim pass and a LightningSim end cycle. 13 patched designs have LightningSim only (cosim timed out or crashed). Unpatched designs have cosim only (FifoCanRead).
+  - **1D/2D designs, 27 pairs:** blur, sobel2d, erosion, xcorr, contrast, jacobi2d, seidel2d. The end cycle is 0.003–0.12% below cosim. With the compare.py report mapping the error is 0.000% to −0.005%.
+  - **3D designs, 10 pairs (heat3d, jacobi3d): LightningSim is 14–20% low**, in the same pattern for both:
+    - u1: −20.0%;
+    - u2: −16.0%;
+    - u4, u4_b128 and u8: −14.3%.
+  - This corrects the earlier "agrees to within 0.04%" note, which only held for the 1D/2D designs. Cause not investigated.
+  - The 3D LightningSim-only numbers (u16 and *_laafd) are therefore not trustworthy.

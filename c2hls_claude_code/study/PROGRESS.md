@@ -609,3 +609,10 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
     - u4, u4_b128 and u8: −14.3%.
   - This corrects the earlier "agrees to within 0.04%" note, which only held for the 1D/2D designs. Cause not investigated.
   - The 3D LightningSim-only numbers (u16 and *_laafd) are therefore not trustworthy.
+- 2026-10-25 **3D LightningSim gap, investigation** (`study/soda/inv3d/`):
+  - **Finding:** only the 3D designs (heat3d, jacobi3d) contain Vitis free-running pipelines (FRP). Their Module6Func, the 7-input weighted sum (PipeLatency 49), gets a `frp_fifoout` output buffer of depth 50.
+  - **Separation is perfect over the 37 pairs:** all 27 designs without FRP match cosim (0.000% to −0.005%); all 10 designs with FRP are −14% to −20%.
+  - **LightningSim (fork in /scratch/hpc-prf-llmfpga/asa582/projects/tools/lightningsim/src) has no FRP model.** Every pipeline is simulated as a stall pipeline.
+  - **Both simulators are slower than the ideal ~2.26M cycles of heat3d_u1** (II=1 at 2,261,648 trips), so a back-pressure limit exists in the fork/join of shallow FIFOs (depth 3–15). FRP changes how much.
+  - **Test:** heat3d_u1 with `style = stp` on Module6's pipeline (only change; `inv3d/heat3d_u1_stp/`). Jobs: cosim 3933015, LightningSim project 3933016, LightningSim 3933017.
+  - If cosim(stp) ≈ LightningSim, FRP is the cause.

@@ -595,3 +595,8 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
     - 15 xelab SIGSEGV (patched contrast_u4/u8 family and all u16);
     - 47 timeout at 2 days.
   - No Otus jobs left in the queue. Open decisions for the user: xclbin next step (SLR assignment / smaller array / stop), whether to rerun the 47 timeouts longer (partition max 21 days) or report them as "cosim does not finish in 2 days".
+- 2026-10-25: Baseline check, agb_hlsfactory_* vs bench_wide: same baseline reports. bench_wide `results_*.csv` gt_lat/lat are worst-case latency (latency_cycles_worst); my agb notes quoted typical latency.
+  - cholesky typical/worst: 68,337,001 / 270,927,961.
+  - lu: 134,372,041 / 539,513,401.
+  - ludcmp: 10,095,723 / 32,168,883.
+  - The agb results are equal typical and worst except gramschmidt (2,270,081 typical / 4,529,281 worst = baseline).

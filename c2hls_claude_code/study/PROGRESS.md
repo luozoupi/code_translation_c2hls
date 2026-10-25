@@ -580,3 +580,6 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - Per SLR, LUT is SLR0 8.7%, SLR1 91.5%, SLR2 88.4%; DSP is SLR0 0, SLR1 80.7%, SLR2 86.1%.
   - The placer packs the kernel into SLR1 and SLR2 and leaves SLR0 almost empty. That, not the clock, is why routing fails. The next lever is SLR assignment/floorplan (or a smaller array), which is the user's decision.
   - Reports and logs moved to `xclbin/v4_systolic_st0_c1/out_250mhz_failed_3832310/`; `out/kernel0.xo` kept.
+- 2026-10-25 02:20: posthoc rerun mm1024_hlsm_ds_r1/exp_v4_T67J128K1_csim (3831182) done after 24.1 h, success=True.
+  - Result: latency 1,021,869 cycles, interval 1,364,910, DSP 6,432, LUT 1,648,507 (> 1,303,680, does not fit), FF 1,979,351, BRAM 2,138. cmp_k reaches only II=4.
+  - All 3 slow posthoc csynths are now finished; none fits the U280 by LUT. Remaining: lud_csynth, 37 soda_cosim (unpatched), 10 soda_pat_cosim.

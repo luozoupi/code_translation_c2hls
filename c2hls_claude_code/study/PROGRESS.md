@@ -583,3 +583,6 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
 - 2026-10-25 02:20: posthoc rerun mm1024_hlsm_ds_r1/exp_v4_T67J128K1_csim (3831182) done after 24.1 h, success=True.
   - Result: latency 1,021,869 cycles, interval 1,364,910, DSP 6,432, LUT 1,648,507 (> 1,303,680, does not fit), FF 1,979,351, BRAM 2,138. cmp_k reaches only II=4.
   - All 3 slow posthoc csynths are now finished; none fits the U280 by LUT. Remaining: lud_csynth, 37 soda_cosim (unpatched), 10 soda_pat_cosim.
+- 2026-10-25 12:45:
+  - lud_csynth n32_st5 (3813694) TIMEOUT at the 2-day limit. On Fir it already timed out at 12 h, 24 h and the escalation tiers, so this is final: AutoSA LUD n32_st5 csynth does not finish in 2 days.
+  - The 47 SODA cosims (37 unpatched, 10 patched) reach their 2-day limit at 13:27 CET. Classifier is unchanged before that (20 pass / 3 deadlock / 15 xelab_segv).

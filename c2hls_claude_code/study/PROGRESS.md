@@ -586,3 +586,12 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
 - 2026-10-25 12:45:
   - lud_csynth n32_st5 (3813694) TIMEOUT at the 2-day limit. On Fir it already timed out at 12 h, 24 h and the escalation tiers, so this is final: AutoSA LUD n32_st5 csynth does not finish in 2 days.
   - The 47 SODA cosims (37 unpatched, 10 patched) reach their 2-day limit at 13:27 CET. Classifier is unchanged before that (20 pass / 3 deadlock / 15 xelab_segv).
+- 2026-10-25 13:40: **All 47 remaining SODA cosims TIMEOUT at the 2-day limit.**
+  - All 37 unpatched designs (the naive baseline generated from SODA).
+  - 10 patched: contrast_u1_cr, contrast_u2, contrast_u2_cr, denoise2d_u4/u4_b128/u8, denoise3d_u2/u4/u4_b128/u8.
+  - Final Otus SODA cosim tally, 85 designs:
+    - 20 pass (all patched);
+    - 3 deadlock (patched denoise2d_u1/u2, denoise3d_u1);
+    - 15 xelab SIGSEGV (patched contrast_u4/u8 family and all u16);
+    - 47 timeout at 2 days.
+  - No Otus jobs left in the queue. Open decisions for the user: xclbin next step (SLR assignment / smaller array / stop), whether to rerun the 47 timeouts longer (partition max 21 days) or report them as "cosim does not finish in 2 days".

@@ -626,3 +626,9 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - Each design gets a csynth project job and a LightningSim job (afterok). Results go to `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/inv3d/<d>_stp/lsim_v2023.json`.
   - Job IDs are in `inv3d/submitted.txt` (3973980–3974005). The laafd and u8 designs get 480G, because they ran out of memory at 192G before.
   - Check every built RTL for `frp_` before using a number.
+- 2026-10-26 **stp rebuild results (11 of 13 done; both laafd still running, 1.5 h in):**
+  - No rebuilt RTL contains `frp_fifoout`. The check works: the original pat_heat3d_u2 RTL has 12 hits.
+  - **Every LightningSim end cycle is identical to the earlier number for the same design**, e.g. heat3d_u16 283,421 and jacobi3d_u8 574,472.
+  - This is expected: LightningSim always simulated stall semantics, so forcing stp changes nothing it sees.
+  - **Meaning:** the old 3D LightningSim numbers are correct predictions for the stp variant of each design (validated by cosim only for heat3d_u1, exact). They are not predictions for the designs as Vitis builds them by default, which are 14–20% slower in cosim.
+  - Cosim of the other stp variants would validate the rest; not submitted.

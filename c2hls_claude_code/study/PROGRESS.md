@@ -678,3 +678,8 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
 
   - The remaining residual is +126 to +324 cycles, always positive, and grows with the number of FRP instances. Probably an FRP start/drain constant; not modelled.
   - Every FRP input FIFO matched by name, and none has depth ≤2. Results are in `inv3d/frp/*.json`.
+- 2026-10-26 **FRP rule is now in the LightningSim fork** (commit 6cf23e7ef in /scratch/hpc-prf-llmfpga/asa582/projects/tools/lightningsim/src). The fork is rebuilt and reinstalled; the previous site-packages copy is in `tools/lightningsim/tmp/lightningsim_site_backup_pre_frp_20261026`.
+  - **Change:** a per-FIFO `fifo_raw_extra` in SimulationParameters (Rust edge FifoRaw adds it), filled by `lightningsim/frp.py` from `ap_frp_data_req_*` in the RTL. On by default; `LSIM_FRP=0` turns it off. The log prints a `[lsim-frp] N FIFOs ...` line.
+  - **Saved for rebuilds:** `cosim/lsim/otus/fork_patches/0004-frp-...patch`. `fork_tree.txt` now holds 6c1cbd549ab1037cc654833dab08a220ebf09df5 (no longer Fir's tree; Fir's LightningSim has no FRP rule).
+  - **Check through the normal job path** (job 4016577, TAG=frpfork): heat3d_u1 3,770,048 and jacobi3d_u2 1,912,862, the same as lsim_frp.py. seidel2d_u1 (1,067,879) and blur_u8 (175,304) are unchanged.
+  - **Reruns** of the 3D designs that only have LightningSim numbers, default Vitis build: pat_heat3d_u16, pat_jacobi3d_u16, pat_heat3d_u4_b128_laafd, pat_jacobi3d_u4_b128_laafd (jobs 4016809–4016812, TAG=frp → `lsim_frp.json`).

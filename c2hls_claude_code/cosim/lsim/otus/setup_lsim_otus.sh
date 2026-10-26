@@ -3,7 +3,8 @@
 # Run once on a login node (needs internet: micromamba, conda-forge, sharc-lab channel, GitHub, crates.io).
 #   LSIM_T=<install dir> bash setup_lsim_otus.sh      (default /scratch/hpc-prf-llmfpga/asa582/projects/tools/lightningsim)
 # Same layout as Fir's /scratch/asa582/tools/lightningsim: bin/micromamba, env (exact package list from Fir),
-# rustenv (rust 1.85), src (upstream clone + the 3 fork commits), cargo. Checks that the source tree is Fir's tree.
+# rustenv (rust 1.85), src (upstream clone + the 4 fork commits: 3 m_axi + 0004 FRP), cargo. Checks the source tree against fork_tree.txt
+# (Fir's install has only the 3 m_axi commits, so its tree and results for designs with FRP pipelines differ).
 # No llvm-project submodule (119K files): the conda lightningsim package ships its LLVM; only the Rust core is rebuilt.
 set -euo pipefail
 HERE=$(dirname "$(readlink -f "$0")")

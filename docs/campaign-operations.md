@@ -1,5 +1,55 @@
 # Running migration validation
 
+## October 26 recovery and monitoring
+
+The DeepSeek queue resumed in a separate, hash-bound controller epoch on
+October 26 at 15:36 UTC. Only pending cells are dispatched, serially, using
+the original `v6` and `hlsmith-clean-f9e94eb` evaluators and registered limits.
+No earlier generation is retried, no selected design is changed, and neither
+the API ledger nor accumulated compute is reset.
+
+The stopped 2mm single-shot researcher cell is retained as a generation
+nonpass. Its original worker return code, logs, generation files and charges
+remain available. The missing top-level usage field is already present in its
+nested run record and history, with both calls matching the settled ledger.
+A separate correction proposal and derived measurement bind those artifacts
+by hash; this does not turn the generated design into a passing result.
+
+For subsequent occurrences of that specific early-return defect, the optional
+research helper `hlsmith.research.experiment_recovery` preserves the original
+returned result and adds only the verified usage metadata before the frozen
+worker's accounting check. Contradictory or incomplete evidence still stops
+dispatch. The helper does not import or modify numerical evaluators.
+
+The private control export is `runs/migration-validation-r2/recovery-runtime-20261026`.
+Its manifest SHA-256 is
+`461190af185ed238fa3c89a0f8a01b216b9a2493c72802b5bdfc65498c9cfd9a`.
+Every child verifies the same export identity before loading it. The execution
+epoch preserves the previous state, ledger, launch, controller and preflight
+receipts. Admission also leaves a 60-second cleanup allowance within the
+existing aggregate compute cap; job timeouts remain unchanged and actual
+elapsed time is charged. The official release and peak rates were rechecked
+before dispatch. A mutable hosted alias does not establish immutable weights
+across the interruption.
+
+The corrected read-only observer polls every 60 seconds. Stopped/error/cap
+states remain watched and show `needs_attention`; natural exit requires both
+campaigns genuinely complete. It does not resume jobs or call the provider.
+The old October 22 observer records remain preserved.
+
+```bash
+cat runs/progress-tracking-20261026/status.txt
+cat runs/progress-tracking-20261026/latest.json
+```
+
+The recovery helper passed 20 focused offline tests. Eight operations tests
+cover pending-only dispatch, retained charges and failures, dirty workspaces,
+unsettled accounting, frozen-control hashes and compute cleanup allowance.
+Nine observer tests cover lifecycle transitions and PID reuse. These tests
+establish the recovery boundary, not whole-pipeline or QoR equivalence.
+
+## Registered campaign operation
+
 The canonical development checkout is `/home/luo00466/code_translation_c2hls`.
 Its ignored `runs` link resolves to the private NAS directory
 `/mnt/data1/luo00466/c2hls_runs_20261018`.

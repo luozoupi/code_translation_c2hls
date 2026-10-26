@@ -1,5 +1,10 @@
 # Implementation map
 
+The October 23 [minimal implementation plan](minimal-core-plan.md) sets the next
+development scope: an independent small runner, optional vendor tools and a
+Verilator compatibility pilot. The map below describes the current runtime;
+those planned changes are not yet implemented.
+
 HLSmith translates public C/C++ inputs, checks functional behavior, synthesizes candidates, and selects feasible hardware designs. The controller keeps synthesis estimates separate from executed RTL measurements.
 
 | Component | Location | Responsibility |

@@ -1,5 +1,14 @@
 # Cleanup validation report
 
+October 26 operational update: the saved-design queue has finished all 648
+checks. The 239 jointly passing pairs agree on sources, cycles, resources and
+timing, while two frozen-pass/clean-timeout asymmetries remain. DeepSeek resumed
+pending-only dispatch after a hash-bound metadata correction; the original
+failed generation and all charges are retained. See
+[campaign operations](campaign-operations.md) for the new controller epoch and
+live monitoring. The minimal runner and open-source simulator backends remain
+planned. These updates do not establish experimental equivalence.
+
 This report separates preserved paper evidence, checks of the cleaned runtime,
 and new experiments. The offline checks below generated no designs and ran no
 hardware jobs. New campaign state is tracked separately under
@@ -64,9 +73,9 @@ simulate a design. Tool hashes are in [validation-tool-versions.json](validation
 | Archive integrity and representative restores | Passed | Private archive manifests and restore receipts |
 | Offline compatibility and paper numerical replay | Passed within the stated coverage | Test receipt and checksum-bound replay fixtures |
 | Whole-corpus deterministic runtime equivalence | Not established | Broader captured request, selection and tool-boundary replay |
-| Historical selected/comparator hardware replay | Running under the 250-hour cap | Fresh fixed-design native, CSim and RTL records; no repair or reselection |
-| Frozen versus clean DeepSeek paper-profile comparison | Queued after the hardware campaign | 26 kernels × 7 configurations × 3 repetitions for each implementation |
-| Readable prompt evaluation | Queued as a separate DeepSeek cohort | Separate clean-profile cohort with the same matrix |
+| Historical selected/comparator hardware replay | All 648 checks finished; acceptance remains open | 239 jointly passing pairs, two timeout asymmetries, preserved failures and blocked identities |
+| Frozen versus clean DeepSeek paper-profile comparison | Running; resumed pending-only on October 26 | 26 kernels × 7 configurations × 3 repetitions for each implementation |
+| Readable prompt evaluation | Running as a separate interleaved DeepSeek cohort | Separate clean-profile cohort with the same matrix |
 | Available frozen-checkpoint studies | Evidence and assets retained; live configurations require binding | See [study inventory](../reproducibility/studies.json) |
 | Default branch promotion | Pending validation | Correctness, resource eligibility and QoR evidence with uncertainty |
 

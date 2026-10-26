@@ -616,3 +616,8 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - **Both simulators are slower than the ideal ~2.26M cycles of heat3d_u1** (II=1 at 2,261,648 trips), so a back-pressure limit exists in the fork/join of shallow FIFOs (depth 3–15). FRP changes how much.
   - **Test:** heat3d_u1 with `style = stp` on Module6's pipeline (only change; `inv3d/heat3d_u1_stp/`). Jobs: cosim 3933015, LightningSim project 3933016, LightningSim 3933017.
   - If cosim(stp) ≈ LightningSim, FRP is the cause.
+- 2026-10-26 **3D gap resolved: FRP is the cause.** The stp cosim (job 3933015, 3 h 49 min) **passed** (`INFO: PASS`). It gives **3,016,143 cycles**.
+  - That is exactly LightningSim's mapped number (end 3,016,091 → 3,016,143 with the compare.py mapping), so the error is 0.000%.
+  - The original design, where Vitis picked FRP for Module6, takes 3,769,974 cycles in cosim. Forcing `style = stp` on that one pipeline makes the design 20% faster in cosim, and LightningSim then matches it exactly.
+  - **Conclusion:** LightningSim is exact for stall pipelines. It underestimates designs that contain Vitis free-running pipelines (here −14% to −20%). Flag the 3D LightningSim-only numbers (u16, *_laafd) as such, or rebuild them with stp.
+  - **Side result:** for these SODA 3D kernels FRP is slower than stp. The FRP output buffer's credit check plus shallow FIFOs throttle the fork/join.

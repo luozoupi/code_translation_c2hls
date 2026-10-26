@@ -683,3 +683,14 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - **Saved for rebuilds:** `cosim/lsim/otus/fork_patches/0004-frp-...patch`. `fork_tree.txt` now holds 6c1cbd549ab1037cc654833dab08a220ebf09df5 (no longer Fir's tree; Fir's LightningSim has no FRP rule).
   - **Check through the normal job path** (job 4016577, TAG=frpfork): heat3d_u1 3,770,048 and jacobi3d_u2 1,912,862, the same as lsim_frp.py. seidel2d_u1 (1,067,879) and blur_u8 (175,304) are unchanged.
   - **Reruns** of the 3D designs that only have LightningSim numbers, default Vitis build: pat_heat3d_u16, pat_jacobi3d_u16, pat_heat3d_u4_b128_laafd, pat_jacobi3d_u4_b128_laafd (jobs 4016809–4016812, TAG=frp → `lsim_frp.json`).
+- 2026-10-26 **FRP reruns of the LightningSim-only 3D designs** (jobs 4016809–4016812, all COMPLETED, rc 0). Every FRP input FIFO matched by name (`[lsim-frp]` lines: 140 to 672 FIFOs per design). LightningSim end cycles, default Vitis build, patched SODA target:
+
+  | Design | Old (no FRP rule) | With FRP rule | Change |
+  |---|---|---|---|
+  | pat_heat3d_u16 | 283,421 | **330,617** | +16.7% |
+  | pat_jacobi3d_u16 | 287,660 | **335,558** | +16.7% |
+  | pat_heat3d_u4_b128_laafd | 8,717,645 | **10,170,542** | +16.7% |
+  | pat_jacobi3d_u4_b128_laafd | 8,783,426 | **10,247,285** | +16.7% |
+
+  - No cosim exists for these (u16: xelab SIGSEGV; laafd: too long), so these are the numbers to report, with the caveat that the rule was validated on the 10 cosim pairs at +0.003% to +0.047%.
+  - Results: `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/soda/<design>/lsim_frp.json`; the old ones stay in `lsim_v2023.json`.

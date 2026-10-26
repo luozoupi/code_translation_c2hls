@@ -653,3 +653,11 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
     - The paper does not publish per-kernel baseline cycles (only trmm, 22,598,401), so this compares ratios, not cycles. The baselines may differ.
     - Our designs use 3.8k–7.9k DSPs. jacobi-2d uses about 95% of the U280's LUTs. The paper has no per-kernel resources.
     - Neither side has cosim for these kernels.
+- 2026-10-26 **LightningSim FRP model, first result** (user: "we need to fix the lighteningsim or patch it somehow").
+  - **Mechanism, from the Vitis RTL (Module6Func):** an FRP pipeline issues an iteration only when each input FIFO's `num_data_valid` is at least its outstanding requests (`ap_frp_data_req_*`) plus 1, and it reads at stage 1. So an item must be in the FIFO one cycle earlier than for a stall pipeline: the read-after-write delay on FRP input FIFOs is 2, not 1.
+  - **Test:** `study/soda/inv3d/lsim_frp.py` (job script `job_lsim_frp.sh`). It finds the FRP input FIFOs from `ap_frp_data_req_*` in the RTL and marks them as LightningSim RAM FIFOs (RAW 2, WAR 1) through their width. The trace is built once and re-executed for each variant.
+  - **heat3d_u1** (5 FRP Module6 instances, 35 input FIFOs):
+    - stock: 3,016,091;
+    - FRP input rule: **3,770,048** → mapped 3,770,100;
+    - cosim: 3,769,974, so **+0.003%** (was −20.0%).
+  - Validation on the other 9 3D designs with a cosim: jobs 4016478–4016486 (`inv3d/frp/`).

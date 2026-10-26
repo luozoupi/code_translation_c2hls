@@ -634,3 +634,22 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - Cosim of the other stp variants would validate the rest; not submitted.
 - 2026-10-26 **laafd stp done:** heat3d_u4_b128_laafd 8,717,645 and jacobi3d_u4_b128_laafd 8,783,426, both identical to the old LightningSim numbers. All 13 rebuilt 3D designs are done, with no frp and no change in LightningSim.
 - 2026-10-26 **stp cosims submitted** for the 13 other patched 3D designs (user: "yes, submit the stp cosims"): jobs 4015922–4015934, 2-day limit, same job script as the SODA cosims (`dse/job_soda_otus.sh <dir> cosim`). Reports go to `inv3d/<d>_stp/cosim/`. The u16 designs hit an xelab SIGSEGV unpatched and patched; expect that again.
+- 2026-10-26 **hlsfactory_* (HLSmith with an agent backend) vs the HLSmith arXiv paper, Sonnet 4.6** (arXiv 2608.06791).
+  - **Where the paper's numbers come from:** per-kernel values appear only in Fig. 6 (`figures/model_expertise_aligned.pdf` in the arXiv source). Row (a) is Sonnet 4.6, HLS synthesis, B_k/S_k.
+    - Labels were extracted with positions to `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/hlsmith_paper/src/fig6_labels.txt`.
+    - Mapping check: the geomean of the 25 values is 17.43× (paper: 17.46×), and the one missing kernel is doitgen, as the paper says.
+  - **Comparison** (ours = csynth, one run per kernel; speedup = baseline / selected design):
+
+    | Kernel | Paper, Sonnet | Ours, typical | Ours, worst-case | Our DSP / LUT |
+    |---|---|---|---|---|
+    | cholesky | 33.7× | 12,807× | 50,774× | 5,946 / 419k |
+    | fdtd-2d | 2.2× | 25,736× | 25,736× | 3,806 / 502k |
+    | gramschmidt | 1.2× | 1.0× | 1.0× | 660 / 67k |
+    | jacobi-2d | 77.9× | 699× | 699× | 7,040 / 1.23M |
+    | lu | 16.3× | 28,810× | 115,676× | 6,792 / 626k |
+    | ludcmp | 5.2× | 1,946× | 6,202× | 7,944 / 616k |
+
+  - **Caveats:**
+    - The paper does not publish per-kernel baseline cycles (only trmm, 22,598,401), so this compares ratios, not cycles. The baselines may differ.
+    - Our designs use 3.8k–7.9k DSPs. jacobi-2d uses about 95% of the U280's LUTs. The paper has no per-kernel resources.
+    - Neither side has cosim for these kernels.

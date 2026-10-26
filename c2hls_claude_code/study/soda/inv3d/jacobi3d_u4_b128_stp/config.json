@@ -1,0 +1,37 @@
+{
+ "name": "jacobi3d_u4_b128",
+ "kernel": "jacobi3d",
+ "unroll": 4,
+ "cr": false,
+ "burst": 128,
+ "iterate": 6,
+ "sizes": [
+  128,
+  128,
+  128
+ ],
+ "src": "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/soda_src/soda/tests/src/jacobi3d.soda",
+ "top": "jacobi3d_kernel",
+ "depth": {
+  "t1": 573635,
+  "t0": 573635
+ },
+ "stencil_distance": 197382,
+ "argv": "x 128 128 128",
+ "patched": true,
+ "patch_counts": {
+  "Module0Func": 573634,
+  "Module1Func": 573634,
+  "Module2Func": 573634,
+  "Module3Func": 573634,
+  "Module4Func": 573634,
+  "Module5Func": 573634,
+  "Module6Func": 573634,
+  "Module7Func": 573634,
+  "Module8Func": 573634,
+  "Module9Func": 573634,
+  "Module10Func": 573634,
+  "Module11Func": 573634
+ },
+ "patch_gpp_pass": true
+}

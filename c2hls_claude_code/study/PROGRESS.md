@@ -621,3 +621,8 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - The original design, where Vitis picked FRP for Module6, takes 3,769,974 cycles in cosim. Forcing `style = stp` on that one pipeline makes the design 20% faster in cosim, and LightningSim then matches it exactly.
   - **Conclusion:** LightningSim is exact for stall pipelines. It underestimates designs that contain Vitis free-running pipelines (here −14% to −20%). Flag the 3D LightningSim-only numbers (u16, *_laafd) as such, or rebuild them with stp.
   - **Side result:** for these SODA 3D kernels FRP is slower than stp. The FRP output buffer's credit check plus shallow FIFOs throttle the fork/join.
+- 2026-10-26 **stp rebuild of the other 13 patched 3D designs** (user: "yes, rebuild the 3D ones with stp and rerun lsim").
+  - Script: `study/soda/inv3d/submit_stp_all.sh`. Each design is copied to `inv3d/<d>_stp`, and `style = stp` is appended to every pipeline pragma.
+  - Each design gets a csynth project job and a LightningSim job (afterok). Results go to `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/inv3d/<d>_stp/lsim_v2023.json`.
+  - Job IDs are in `inv3d/submitted.txt` (3973980–3974005). The laafd and u8 designs get 480G, because they ran out of memory at 192G before.
+  - Check every built RTL for `frp_` before using a number.

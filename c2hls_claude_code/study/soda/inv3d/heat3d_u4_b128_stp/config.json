@@ -1,0 +1,37 @@
+{
+ "name": "heat3d_u4_b128",
+ "kernel": "heat3d",
+ "unroll": 4,
+ "cr": false,
+ "burst": 128,
+ "iterate": 5,
+ "sizes": [
+  128,
+  128,
+  128
+ ],
+ "src": "/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/soda_src/soda/tests/src/heat3d.soda",
+ "top": "heat3d_kernel",
+ "depth": {
+  "in": 565411,
+  "out": 565411
+ },
+ "stencil_distance": 164485,
+ "argv": "x 128 128 128",
+ "patched": true,
+ "patch_counts": {
+  "Module0Func": 565410,
+  "Module1Func": 565410,
+  "Module2Func": 565410,
+  "Module3Func": 565410,
+  "Module4Func": 565410,
+  "Module5Func": 565410,
+  "Module6Func": 565410,
+  "Module7Func": 565410,
+  "Module8Func": 565410,
+  "Module9Func": 565410,
+  "Module10Func": 565410,
+  "Module11Func": 565410
+ },
+ "patch_gpp_pass": true
+}

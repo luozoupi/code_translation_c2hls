@@ -661,3 +661,20 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
     - FRP input rule: **3,770,048** → mapped 3,770,100;
     - cosim: 3,769,974, so **+0.003%** (was −20.0%).
   - Validation on the other 9 3D designs with a cosim: jobs 4016478–4016486 (`inv3d/frp/`).
+- 2026-10-26 **FRP input rule validated on all 10 3D cosim pairs.** Mapped LightningSim vs cosim (default Vitis build, patched SODA target):
+
+  | Design | Before | After |
+  |---|---|---|
+  | heat3d_u1 | −20.0% | +0.003% |
+  | heat3d_u2 | −16.0% | +0.007% |
+  | heat3d_u4 | −14.3% | +0.019% |
+  | heat3d_u4_b128 | −14.3% | +0.019% |
+  | heat3d_u8 | −14.2% | +0.038% |
+  | jacobi3d_u1 | −20.0% | +0.004% |
+  | jacobi3d_u2 | −16.0% | +0.008% |
+  | jacobi3d_u4 | −14.3% | +0.023% |
+  | jacobi3d_u4_b128 | −14.3% | +0.024% |
+  | jacobi3d_u8 | −14.2% | +0.047% |
+
+  - The remaining residual is +126 to +324 cycles, always positive, and grows with the number of FRP instances. Probably an FRP start/drain constant; not modelled.
+  - Every FRP input FIFO matched by name, and none has depth ≤2. Results are in `inv3d/frp/*.json`.

@@ -29,6 +29,47 @@ def test_original_c_and_cpp_candidate_use_same_testbench(native_inputs, tmp_path
     assert result['input_hashes']['reference'] == result['input_hashes']['candidate']
 
 
+def test_reference_preflight_accepts_c11_only_source_without_compiling_a_candidate(native_inputs, tmp_path, monkeypatch):
+    from hlsmith_minimal import tools
+    reference, _, testbench, headers = native_inputs
+    reference.write_text('#include "kernel.h"\nunsigned kernel(unsigned x) {return x + _Generic(x, unsigned: 7u, default: 9u);}\n')
+    actual_tool = tools._tool
+    monkeypatch.setattr(tools, '_tool', lambda name: None if name == 'g++' else actual_tool(name))
+    out = tmp_path/'preflight'
+    result = validate_native(reference, testbench=testbench, out=out, include_files=headers,
+                             interface_headers=['kernel.h'])
+    assert result['passed'] and result['status'] == 'passed'
+    assert result['reference']['stdout'] == '12 6\n'
+    assert result['candidate'] == {} and result['comparison'] is None
+    assert 'candidate' not in result['input_hashes']
+    assert 'preflight' in result['qualification'] and 'no candidate comparison' in result['qualification']
+    assert len(result['commands']) == 3
+    assert '-std=c11' in result['commands'][0]['argv']
+    assert '-std=c11' in result['commands'][1]['argv']
+    assert not (out/'candidate').exists() and not (out/'testbench.o').exists()
+    assert not Path(result['reference']['argv'][0]).exists()
+    assert not list(out.rglob('reference.*'))
+
+
+@pytest.mark.parametrize('failure', ['invalid_c', 'nonzero_exit', 'empty_output'])
+def test_reference_preflight_rejects_invalid_original_or_unusable_testbench(native_inputs, tmp_path, failure):
+    reference, _, testbench, headers = native_inputs
+    if failure == 'invalid_c':
+        reference.write_text('not valid C\n')
+    else:
+        testbench.write_text('int main(void) {return ' + ('1' if failure == 'nonzero_exit' else '0') + ';}\n')
+    out = tmp_path/'preflight'
+    result = validate_native(reference, None, testbench, out=out, include_files=headers)
+    assert result['status'] == 'failed' and not result['passed']
+    assert result['candidate'] == {} and result['comparison'] is None
+    assert not (out/'candidate').exists() and not (out/'testbench.o').exists()
+    if failure == 'empty_output':
+        assert result['reference']['status'] == 'passed'
+        assert result['error'] == 'reference output is empty'
+    else:
+        assert result['error'] in ('native compilation or linking failed', 'reference execution failed')
+
+
 def test_wrong_candidate_output_is_rejected(native_inputs, tmp_path):
     reference, candidate, testbench, headers = native_inputs
     candidate.write_text('#include "kernel.h"\nunsigned kernel(unsigned x) {return x+2u;}\n')

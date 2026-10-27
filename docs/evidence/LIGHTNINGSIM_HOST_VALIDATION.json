@@ -1,0 +1,133 @@
+{
+  "schema": 1,
+  "sample_utc": "2026-10-27T21:17:05.188278+00:00",
+  "status": "two_fresh_native_vitis_lightningsim_runs_passed",
+  "execution_context": "Host require_escalated. Sandbox AF_UNIX socketpair send reproducibly raises PermissionError EPERM, suppressing asyncio cross-thread wakeups.",
+  "compatibility_fix": "Execution context only; no project adapter/upstream tool patch or numeric/model modification.",
+  "installed_tool_version": "LightningSim0.2.6 / VitisHLS2023.2",
+  "runtime_manifest": {
+    "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/trace-investigation/runtime-manifest.json",
+    "sha256": "b772c2de3fc955354389c2ae28ec257a1c74accf083d149d3c9cefcb7363dea2"
+  },
+  "fixture_manifest": {
+    "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/trace-investigation/fresh-input-manifest.json",
+    "sha256": "471dea8c4fcaa5947222690674f1c37735da919c4786ec5a0d907d35de6e0620"
+  },
+  "investigation": {
+    "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/trace-investigation/investigation.json",
+    "sha256": "80c647a77bbb1c34d9cd13f1f315e3cc9e6d4639bdf7f0aec4595cbbbdb0e69f"
+  },
+  "execution_log": {
+    "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/trace-investigation/fresh-runs-execution.json",
+    "sha256": "a5847e8f2a91ff0199ad271ba62a8d9ec48972796137faf637d36f51dbd21168"
+  },
+  "runs": [
+    {
+      "kernel": "scalar_mac",
+      "status": "passed",
+      "started_at": "2026-10-27T21:15:53.518851+00:00",
+      "finished_at": "2026-10-27T21:16:05.367853+00:00",
+      "independent_native_passed": true,
+      "candidate_sha256": "b7520816c4f737af58457d8a68bfbd2f046f9d909609a07501c42b8d837ea085",
+      "testbench_sha256": "cbb2b9c7ca74984eae46f503f8cee96a6456ae040817b12e5c58c7e1fe43d47c",
+      "input_manifest": {
+        "kernel.h": {
+          "original_path": "/home/luo00466/hlsmith-minimal/examples/scalar_mac/kernel.h",
+          "sha256": "8c8a56beeada0698c97a4d7d618c997deeac2eeae7eb3f468d3e09f499dae902"
+        },
+        "reference.c": {
+          "original_path": "/home/luo00466/hlsmith-minimal/examples/scalar_mac/reference.c",
+          "sha256": "5c31b0dc85637b315d7f7e7082546a8d5c901e6b6a1c681f0bd58436b58269b7"
+        },
+        "test_vectors.h": {
+          "original_path": "/home/luo00466/hlsmith-minimal/examples/scalar_mac/test_vectors.h",
+          "sha256": "c4352d19b0b97899aa4ded4f2f81774aba1f32c13251573de857aed9f98ce9f3"
+        },
+        "testbench.c": {
+          "original_path": "/home/luo00466/hlsmith-minimal/examples/scalar_mac/testbench.c",
+          "sha256": "cbb2b9c7ca74984eae46f503f8cee96a6456ae040817b12e5c58c7e1fe43d47c"
+        }
+      },
+      "synthesis_input_hashes": {
+        "candidate": "b7520816c4f737af58457d8a68bfbd2f046f9d909609a07501c42b8d837ea085",
+        "include_files": {
+          "kernel.h": "8c8a56beeada0698c97a4d7d618c997deeac2eeae7eb3f468d3e09f499dae902",
+          "test_vectors.h": "c4352d19b0b97899aa4ded4f2f81774aba1f32c13251573de857aed9f98ce9f3"
+        },
+        "tcl": "fa4772739100a57ab8f4e7c07f53f4f779b6456467cb6a520a74587827c21a41",
+        "testbench": "cbb2b9c7ca74984eae46f503f8cee96a6456ae040817b12e5c58c7e1fe43d47c"
+      },
+      "hls_worst_cycles": 3,
+      "lightningsim_version": "0.2.6",
+      "lightningsim_interval": {
+        "cycles": 11,
+        "end": 11,
+        "module": "scalar_mac",
+        "start": 0
+      },
+      "lightningsim_exit_code": 0,
+      "trace_stdout": "[ 0-11] scalar_mac\n",
+      "workspace_manifest_sha256": "94d85d96ffca2bfb95a5b2a0833dd3e17b4db04c382e41b8d98709bb7a05b04f",
+      "source_tb_include_hashes_bound_to_copied_workspace": true,
+      "rtl_cycles": null,
+      "physical_implementation": null,
+      "result_path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/trace-investigation/fresh-scalar_mac/result.json",
+      "result_sha256": "2d86d9fb0472bd306b89c4ce6d2fa59350f927ba03db85476afcbfb5d678efe1",
+      "final_native_receipt_sha256": "9f8710b5d9da0268cdb3edca0ab110bfa10e1453dc6ab3239760f5c503d77aa5"
+    },
+    {
+      "kernel": "array_sum",
+      "status": "passed",
+      "started_at": "2026-10-27T21:16:05.461401+00:00",
+      "finished_at": "2026-10-27T21:16:17.585269+00:00",
+      "independent_native_passed": true,
+      "candidate_sha256": "9930df25dd1c3fc1b104e5db50f16f54784698ed6863d5410f8249f4cc45b332",
+      "testbench_sha256": "ab0af5eb699b6addafa09981b479980a9172ad5dfdb8cf6420623bde519712d8",
+      "input_manifest": {
+        "kernel.h": {
+          "original_path": "/home/luo00466/hlsmith-minimal/examples/array_sum/kernel.h",
+          "sha256": "eebd9fa22e8f38cebe1db91066307f345d1532efa7a5e3628f918f281e2486bc"
+        },
+        "reference.c": {
+          "original_path": "/home/luo00466/hlsmith-minimal/examples/array_sum/reference.c",
+          "sha256": "fa91b52dac040f1c3f969efb850e426ff06f6b413f8e8b544e08823762521d33"
+        },
+        "testbench.c": {
+          "original_path": "/home/luo00466/hlsmith-minimal/examples/array_sum/testbench.c",
+          "sha256": "ab0af5eb699b6addafa09981b479980a9172ad5dfdb8cf6420623bde519712d8"
+        }
+      },
+      "synthesis_input_hashes": {
+        "candidate": "9930df25dd1c3fc1b104e5db50f16f54784698ed6863d5410f8249f4cc45b332",
+        "include_files": {
+          "kernel.h": "eebd9fa22e8f38cebe1db91066307f345d1532efa7a5e3628f918f281e2486bc"
+        },
+        "tcl": "4e3e0c81e2b9de2a611d151a766374d8f7e1239c1cc91f024ebe8e45cb685337",
+        "testbench": "ab0af5eb699b6addafa09981b479980a9172ad5dfdb8cf6420623bde519712d8"
+      },
+      "hls_worst_cycles": 142,
+      "lightningsim_version": "0.2.6",
+      "lightningsim_interval": {
+        "cycles": 163,
+        "end": 163,
+        "module": "array_sum",
+        "start": 0
+      },
+      "lightningsim_exit_code": 0,
+      "trace_stdout": "[  0-163] array_sum\n",
+      "workspace_manifest_sha256": "a90324151480b85ba5c765afab7b11a878e23191f3e8f4290743f197bf9b6042",
+      "source_tb_include_hashes_bound_to_copied_workspace": true,
+      "rtl_cycles": null,
+      "physical_implementation": null,
+      "result_path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/trace-investigation/fresh-array_sum/result.json",
+      "result_sha256": "b4f98c300fd83c16218c8c1346421c860b99c5ea29b4682ce19175e95790023a",
+      "final_native_receipt_sha256": "8569aa49779a53d0b7c77b529da32d6db8243f99f6a8279a68af5bdec5fb5942"
+    }
+  ],
+  "scope": "Illustrative saved responses, not fresh LLM outputs. Native agreement for supplied inputs; real fresh Vitis synthesis and LightningSim first-invocation trace estimates, not executed RTL cycles or physical implementation. Tiny toy plumbing tested; estimator accuracy/general compatibility not calibrated.",
+  "prior_evidence": "All earlier timeout receipts retained unchanged; their compatibility conclusion was confounded by sandbox local-socket restrictions.",
+  "api_calls": 0,
+  "gpu_jobs": 0,
+  "source_edits": [],
+  "all_tool_jobs_finished": true
+}

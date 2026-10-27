@@ -419,3 +419,70 @@ def test_bambu_verilator_preflight_precedes_model_and_output_creation(project, t
     with pytest.raises(ValueError, match='Verilator'):
         core.run(project.path, out, backend='bambu')
     assert not out.exists()
+
+
+def test_plain_c_with_private_supplied_testbench_repairs_and_saves_reusable_inputs(project, tmp_path):
+    out = tmp_path / 'plain'
+    result = core.run(project.root / 'original.c', out, top='kernel',
+        testbench=project.root / 'tb.c', headers=[project.root / 'kernel.h'], backend='native',
+        responses=responses(project, [project.wrong, project.correct]), max_calls=2)
+    assert result['status'] == 'passed' and result['selected']['attempt'] == 1
+    assert result['testbench']['kind'] == 'provided'
+    assert result['testbench']['reference_preflight_passed']
+    assert len(result['api_accounting']['calls']) == 2
+    for messages in captured_messages(out):
+        assert PRIVATE_OUTPUT not in json.dumps(messages)
+        assert 'private_vectors.h' not in json.dumps(messages)
+    for name in ('reference.c', 'testbench.c', 'kernel.h', 'private_vectors.h', 'kernel.json'):
+        assert (out / 'inputs' / name).is_file()
+    prepared = core.load_project(out / 'inputs/kernel.json')
+    assert all(p.is_file() for p in [prepared['source'], prepared['testbench'], *prepared['test_files'].values()])
+    checked = core.validate(out / 'inputs/kernel.json', out / 'selected.cpp', tmp_path / 'rechecked')
+    assert checked['status'] == 'passed'
+
+
+def test_plain_c_generated_harness_observes_real_outputs_and_stays_private(project, tmp_path):
+    out = tmp_path / 'auto'
+    result = core.run(project.root / 'original.c', out, top='kernel', backend='native',
+        responses=responses(project, [project.wrong, project.correct]), max_calls=2)
+    assert result['status'] == 'passed' and result['selected']['attempt'] == 1
+    assert result['testbench']['kind'] == 'generated' and result['testbench']['cases'] == 3
+    assert result['testbench']['reference_preflight_passed']
+    frozen = core.sha(out / 'inputs/testbench.c')
+    assert frozen == result['testbench']['sha256']
+    for messages in captured_messages(out):
+        text = json.dumps(messages)
+        assert 'int main(void)' not in text and '__hlsmith_case' not in text
+    final = json.loads((out / 'final-validation.json').read_text())
+    assert final['input_hashes']['testbench'] == frozen
+    assert final['input_hashes']['include_files']['hlsmith_task.h']
+
+
+def test_plain_c_failed_original_preflight_never_initializes_model(project, tmp_path, monkeypatch):
+    (project.root / 'original.c').write_text('invalid C source\n')
+    def forbidden(*args, **kwargs):
+        raise AssertionError('model initialized before the original C check passed')
+    monkeypatch.setattr(core, 'Model', forbidden)
+    out = tmp_path / 'bad-input'
+    result = core.run(project.root / 'original.c', out, top='kernel', backend='native',
+        testbench=project.root / 'tb.c', headers=[project.root / 'kernel.h'])
+    assert result['status'] == 'blocked_input'
+    assert result['api_accounting']['calls'] == []
+    assert result['api_accounting']['charged_or_reserved_usd'] == 0
+    assert not (out / 'model').exists()
+
+
+def test_generated_harness_bad_buffer_extent_blocks_before_model(tmp_path, monkeypatch):
+    source = tmp_path / 'bounds.c'
+    source.write_text('void kernel(int *output) {output[3]=7;}\n')
+    monkeypatch.setattr(core, 'Model', lambda *args, **kwargs:
+                        pytest.fail('model initialized for an invalid generated testbench domain'))
+    out = tmp_path / 'bad-extent'
+    result = core.run(source, out, top='kernel', sizes=['output=1'], backend='native')
+    assert result['status'] == 'blocked_input' and result['api_accounting']['calls'] == []
+    preflight = json.loads((out / 'reference-check.json').read_text())
+    assert preflight['sanitizers'] == ['address', 'undefined'] and not preflight['passed']
+    assert 'AddressSanitizer' in preflight['reference']['stderr']
+    checked = core.validate(source, source, tmp_path / 'bad-extent-validate',
+                            top='kernel', sizes=['output=1'])
+    assert checked['status'] == 'blocked_input' and not checked['native']['passed']

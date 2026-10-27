@@ -129,25 +129,38 @@ def _sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def validate_native(reference_source, candidate_source, testbench, *, out, include_files=None,
-                    compile_timeout=30, run_timeout=5, atol=0, rtol=0, interface_headers=()):
-    """Use one testbench object; remove oracle files before candidate execution."""
+def validate_native(reference_source, candidate_source=None, testbench=None, *, out, include_files=None,
+                    compile_timeout=30, run_timeout=5, atol=0, rtol=0, interface_headers=(), sanitize=False):
+    """Check the original alone, or compare a candidate using one testbench object."""
+    if testbench is None:
+        raise ValueError('a testbench source is required')
+    if sanitize and candidate_source is not None:
+        raise ValueError('sanitizers apply to reference-only preflight')
     out = _new_output(out)
     gcc, cpp = _tool('gcc'), _tool('g++')
+    tb_cpp = Path(testbench).suffix.lower() in ('.cc', '.cpp', '.cxx')
     result = {'status': 'unavailable', 'passed': False, 'backend': 'native',
               'reference': {}, 'candidate': {}, 'comparison': None, 'commands': [],
               'qualification': 'Original-C output comparison for these inputs; not RTL correctness.'}
-    if not gcc or not cpp:
-        result['error'] = 'gcc and g++ are required'
+    if candidate_source is None:
+        result['qualification'] = 'Reference-only original-C/testbench preflight; no candidate comparison or RTL correctness checked.'
+    if not gcc or ((candidate_source is not None or tb_cpp) and not cpp):
+        result['error'] = 'gcc and g++ are required' if candidate_source is not None or tb_cpp else 'gcc is required'
         return result
-    result['versions'] = {'gcc': _version(gcc, out), 'g++': _version(cpp, out)}
-    result['input_hashes'] = {'reference': _sha(reference_source), 'candidate': _sha(candidate_source),
-                              'testbench': _sha(testbench)}
+    result['versions'] = {'gcc': _version(gcc, out)}
+    if cpp:
+        result['versions']['g++'] = _version(cpp, out)
+    result['input_hashes'] = {'reference': _sha(reference_source)}
+    if candidate_source is not None:
+        result['input_hashes']['candidate'] = _sha(candidate_source)
+    result['input_hashes']['testbench'] = _sha(testbench)
     result['input_hashes']['include_files'] = {str(name): _sha(path) for name, path in (include_files or {}).items()}
     if any(name not in (include_files or {}) for name in interface_headers):
         raise ValueError('interface_headers must name supplied public include files')
     result['interface_headers'] = list(interface_headers)
-    tb_cpp = Path(testbench).suffix.lower() in ('.cc', '.cpp', '.cxx')
+    checks = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer'] if sanitize else []
+    if sanitize:
+        result['sanitizers'] = ['address', 'undefined']
     tb_name = 'testbench.cpp' if tb_cpp else 'testbench.c'
     def compile_one(command, cwd):
         record = run_command(command, cwd=cwd, timeout=compile_timeout)
@@ -163,21 +176,31 @@ def validate_native(reference_source, candidate_source, testbench, *, out, inclu
         shutil.copyfile(reference_source, oracle / 'reference.c')
         shutil.copyfile(testbench, oracle / tb_name)
         commands = [
-            [gcc, '-std=c11', '-O0', '-I', str(oracle),
+            [gcc, '-std=c11', '-O0', *checks, '-I', str(oracle),
              *[item for name in interface_headers for item in ('-include', str(oracle/name))],
              '-c', 'reference.c', '-o', 'reference.o'],
-            [cpp if tb_cpp else gcc, '-std=c++17' if tb_cpp else '-std=c11', '-O0', '-I', str(oracle),
+            [cpp if tb_cpp else gcc, '-std=c++17' if tb_cpp else '-std=c11', '-O0', *checks, '-I', str(oracle),
              '-c', tb_name, '-o', 'testbench.o'],
-            [cpp if tb_cpp else gcc, 'reference.o', 'testbench.o', '-lm', '-o', 'reference.exe'],
+            [cpp if tb_cpp else gcc, *checks, 'reference.o', 'testbench.o', '-lm', '-o', 'reference.exe'],
         ]
         for command in commands:
             if not compile_one(command, oracle):
                 return result
-        result['reference'] = run_command([str(oracle/'reference.exe')], cwd=oracle, timeout=run_timeout)
+        environment = {**os.environ, 'ASAN_OPTIONS': 'detect_leaks=0'} if sanitize else None
+        result['reference'] = run_command([str(oracle/'reference.exe')], cwd=oracle, timeout=run_timeout, env=environment)
         if result['reference']['status'] != 'passed':
             result.update(status=result['reference']['status'], error='reference execution failed')
             return result
-        shutil.copyfile(oracle/'testbench.o', out/'testbench.o')
+        if candidate_source is not None:
+            shutil.copyfile(oracle/'testbench.o', out/'testbench.o')
+    if candidate_source is None:
+        if not result['reference']['stdout'].strip():
+            result.update(status='failed', error='reference output is empty')
+        elif not compare_outputs(result['reference']['stdout'], result['reference']['stdout'])['passed']:
+            result.update(status='failed', error='reference output contains nonfinite values')
+        else:
+            result.update(status='passed', passed=True)
+        return result
     candidate_dir = _copy_inputs(out/'candidate', include_files)
     shutil.copyfile(candidate_source, candidate_dir/'candidate.cpp')
     for command in ([cpp, '-std=c++17', '-O0', '-I', str(candidate_dir),

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import tempfile
 
 from .model import Model, ModelError, now, sha, write_json
 from . import tools
@@ -81,9 +82,38 @@ def snapshot(project, out):
     result['testbench'] = copy(project['testbench'], 'testbench' + project['testbench'].suffix)
     for group in ('headers', 'test_files'):
         result[group] = {name: copy(source, name) for name, source in project[group].items()}
+    config = {**project['data'], 'source': 'reference.c', 'testbench': result['testbench'].name,
+              **{group: {name: name for name in project[group]} for group in ('headers', 'test_files')}}
+    for section in ('bambu', 'vitis', 'lightningsim'):
+        if section in config:
+            settings = config[section] = dict(config[section])
+            for key in ('executable', 'hls_root'):
+                value = settings.get(key)
+                if value and (key == 'hls_root' or '/' in value):
+                    settings[key] = str((project['path'].parent / value).resolve())
+    project_snapshot = 'kernel.json'
+    while (directory / project_snapshot).exists():
+        project_snapshot = '_' + project_snapshot
+    write_json(directory / project_snapshot, config)
     write_json(directory / 'manifest.json', {'project': str(project['path']), 'project_sha256': sha(project['path']),
-                                             'files': identities})
+                                             'project_snapshot': project_snapshot, 'files': identities})
     return result, identities
+
+
+def _interface_headers(project):
+    return sorted(project['headers'], key=lambda name: name != 'hlsmith_task.h')
+
+
+def _reference_check(project, out):
+    provenance = project['data'].get('testbench_provenance')
+    if not provenance:
+        return None
+    checked = tools.validate_native(project['source'], None, project['testbench'], out=out / 'reference-check',
+        include_files={**project['headers'], **project['test_files']},
+        interface_headers=_interface_headers(project), sanitize=provenance['kind'] == 'generated',
+        **project['validation'])
+    write_json(out / 'reference-check.json', checked)
+    return checked
 
 
 def extract_source(text):
@@ -203,7 +233,17 @@ def _bambu_settings(project):
 
 
 def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesize=False, max_api_usd=None,
-        lightningsim=False, backend=None):
+        lightningsim=False, backend=None, top=None, testbench=None, headers=(), sizes=(), values=(), config=None):
+    if Path(project_path).suffix.lower() == '.c':
+        from .task import prepare
+        with tempfile.TemporaryDirectory(prefix='hlsmith_task_') as directory:
+            prepared = prepare(project_path, directory, top=top, testbench=testbench, headers=headers,
+                               sizes=sizes, values=values, config=config)
+            return run(prepared, out, responses=responses, max_calls=max_calls, optimize=optimize,
+                       synthesize=synthesize, max_api_usd=max_api_usd, lightningsim=lightningsim,
+                       backend=backend or ('vitis' if synthesize else 'bambu'))
+    if top is not None or testbench is not None or headers or sizes or values or config is not None:
+        raise ValueError('source options require a .c input; JSON projects contain their own settings')
     project = load_project(project_path)
     if not shutil.which('gcc') or not shutil.which('g++'):
         raise ValueError('native checks require gcc and g++; no model request made')
@@ -247,6 +287,16 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
         'attempts': [], 'selected': None, 'warnings': [], 'hardware': {'rtl_cycles': None,
         'trace_estimate_cycles': None, 'physical_implementation': None}}
     write_json(out / 'result.json', result)
+    preflight = _reference_check(project, out)
+    if preflight is not None:
+        result['testbench'] = {**project['data']['testbench_provenance'],
+            'sha256': sha(project['testbench']), 'reference_preflight_passed': preflight['passed']}
+        if not preflight['passed']:
+            result.update(status='blocked_input', finished_at=now(),
+                          api_accounting={'calls': [], 'charged_or_reserved_usd': 0, 'mode': 'not_started'})
+            result['warnings'].append('Original C/testbench preflight failed; no model request made.')
+            write_json(out / 'result.json', result)
+            return result
     model = Model(out / 'model', responses=responses, config=project['data'].get('provider'),
                   max_calls=max_calls, max_usd=max_api_usd)
     include_files = {**project['headers'], **project['test_files']}
@@ -282,7 +332,7 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
         candidate.write_text(current)
         entry.update(source=str(candidate), source_sha256=sha(candidate))
         native = tools.validate_native(project['source'], candidate, project['testbench'], out=folder / 'native',
-                                       include_files=include_files, interface_headers=list(project['headers']),
+                                       include_files=include_files, interface_headers=_interface_headers(project),
                                        **project['validation'])
         write_json(folder / 'native.json', native)
         entry['native'] = {'passed': native['passed'], 'status': native['status'], 'record': str(folder / 'native.json')}
@@ -344,7 +394,7 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
         selected = out / 'selected.cpp'
         selected.write_bytes(source.read_bytes())
         final = tools.validate_native(project['source'], selected, project['testbench'], out=out / 'final-validation',
-                                      include_files=include_files, interface_headers=list(project['headers']),
+                                      include_files=include_files, interface_headers=_interface_headers(project),
                                       **project['validation'])
         write_json(out / 'final-validation.json', final)
         result['selected'] = {'path': str(selected), 'sha256': sha(selected), 'attempt': best['index'],
@@ -370,7 +420,17 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
 
 
 def validate(project_path, candidate, out, *, rtl_config=None, lightningsim_solution=None, lightningsim_workspace=None,
-             backend='native'):
+             backend='native', top=None, testbench=None, headers=(), sizes=(), values=(), config=None):
+    if Path(project_path).suffix.lower() == '.c':
+        from .task import prepare
+        with tempfile.TemporaryDirectory(prefix='hlsmith_task_') as directory:
+            prepared = prepare(project_path, directory, top=top, testbench=testbench, headers=headers,
+                               sizes=sizes, values=values, config=config)
+            return validate(prepared, candidate, out, rtl_config=rtl_config, backend=backend,
+                            lightningsim_solution=lightningsim_solution,
+                            lightningsim_workspace=lightningsim_workspace)
+    if top is not None or testbench is not None or headers or sizes or values or config is not None:
+        raise ValueError('source options require a .c input; JSON projects contain their own settings')
     if lightningsim_workspace is not None and lightningsim_solution is None:
         raise ValueError('--lightningsim-workspace requires --lightningsim-solution')
     project = load_project(project_path)
@@ -387,13 +447,19 @@ def validate(project_path, candidate, out, *, rtl_config=None, lightningsim_solu
     project, identities = snapshot(project, out)
     source = out / 'candidate.cpp'
     source.write_bytes(candidate.read_bytes())
-    native = tools.validate_native(project['source'], source, project['testbench'], out=out / 'native',
-        include_files={**project['headers'], **project['test_files']}, interface_headers=list(project['headers']),
+    preflight = _reference_check(project, out)
+    native = preflight if preflight is not None and not preflight['passed'] else tools.validate_native(project['source'], source, project['testbench'], out=out / 'native',
+        include_files={**project['headers'], **project['test_files']}, interface_headers=_interface_headers(project),
         **project['validation'])
     record = {'schema': SCHEMA, 'started_at': now(), 'status': 'passed' if native['passed'] else 'failed',
               'backend': backend,
               'scope': 'explicit candidate validation; not paper reproduction',
               'input_manifest': identities, 'candidate_sha256': sha(source), 'native': native, 'rtl': None}
+    if project['data'].get('testbench_provenance'):
+        record['testbench'] = {**project['data']['testbench_provenance'], 'sha256': sha(project['testbench']),
+                               'reference_preflight_passed': preflight['passed']}
+        if not preflight['passed']:
+            record['status'] = 'blocked_input'
     if backend == 'bambu' and native['passed']:
         record['bambu'] = bambu_backend.evaluate(source,project['testbench'],out=out/'bambu',top=project['top'],
             include_files={**project['headers'],**project['test_files']},**bambu_settings)
@@ -448,6 +514,7 @@ def report(path):
             'attempts': len(result.get('attempts', [])),
             'selected_source': selected.get('path'), 'selected_sha256': selected.get('sha256'),
             'objective': selected.get('objective'), 'api_charged_or_reserved_usd': ledger.get('charged_or_reserved_usd'),
+            'testbench': result.get('testbench'),
             'native_passed': selected.get('independent_native_passed', result.get('native', {}).get('passed')),
             'rtl_passed': bambu.get('passed', (result.get('rtl') or {}).get('passed')),
             'rtl_cycles': bambu.get('metrics', {}).get('rtl_cycles', (result.get('rtl') or {}).get('metrics', {}).get('rtl_cycles')),

@@ -1,21 +1,19 @@
 # HLSmith Nano
 
-A small C-to-HLS workbench: translate C to C++, compare its outputs with an
-independent C execution, and optionally compile it to RTL or explore measured
-improvements. Three commands cover the workflow: `run`, `validate`, and `report`.
+Translate a plain C kernel to C++, check it against an independent C execution,
+and optionally compile it to RTL or improve its measured latency. Three commands
+cover the workflow: `run`, `validate`, and `report`.
 
-[`HLSmiths-nano`](https://github.com/luozoupi/code_translation_c2hls/tree/HLSmiths-nano)
-is the lightweight development branch.
-[`v8`](https://github.com/luozoupi/code_translation_c2hls/tree/v8), formerly
-`hlsmith-clean`, retains the full research implementation and old `c2hls` CLI.
-Nano keeps the existing `hlsmith` CLI and `hlsmith-minimal` package version
-`0.3.0`. Its new `minimal-researcher-v1` prompt and results do not reproduce the
-submitted paper's experiments.
+Version 0.4.0 on [`HLSmiths-nano`](https://github.com/luozoupi/code_translation_c2hls/tree/HLSmiths-nano)
+is a standalone package with a new `minimal-researcher-v1` prompt.
+[`v8`](https://github.com/luozoupi/code_translation_c2hls/tree/v8) retains the full
+research implementation. Nano results do not reproduce the paper's experiments.
 
 ## Install
 
-Use Python 3.10 or newer, `gcc`, and `g++`. The Python runtime has no third-party
-dependencies. For a fresh checkout:
+Use Python 3.10+, `gcc`, and `g++`. The Python runtime has no third-party
+dependencies. Bambu RTL checks need Bambu 2024.10, Verilator, and `make`.
+Clang is needed only to generate a testbench or add pointer-extent wrappers.
 
 ```sh
 git clone --branch HLSmiths-nano --single-branch https://github.com/luozoupi/code_translation_c2hls.git hlsmith-nano
@@ -25,91 +23,91 @@ python3 -m venv .venv
 python -m pip install .
 ```
 
-## Start offline
+## Start with your C source
 
-The scalar example includes two illustrative responses and needs no API key:
+With the tools on `PATH` and a model key in your environment, supply a C/C++
+testbench that calls the top function and prints the results to compare:
+
+```sh
+export DEEPSEEK_API_KEY='your-key'
+hlsmith run kernel.c --top kernel --testbench tb.c \
+  --max-api-usd 1 --max-calls 3 --out results/kernel
+hlsmith report results/kernel
+```
+
+Plain C `run` defaults to Bambu: native checking runs first, then Bambu generates
+RTL and checks it with Verilator. Use `--backend native` for software checks or
+`--backend vitis --lightningsim --config target.json` for Vitis/trace estimates.
+Each `--out` directory must be new.
+
+Omit `--testbench` to generate three deterministic input cases. For a kernel
+with array parameter `a` and scalar loop bound `n`, declare its full shape and
+pin the bound to your intended domain:
+
+```sh
+hlsmith run kernel.c --top kernel --size a=8x8 --value n=8 \
+  --max-api-usd 1 --max-calls 3 --out results/generated-tests
+```
+
+Repeat `--size` for every pointer parameter, even when the source declares array
+dimensions. Repeat `--value` to fix scalar inputs, or `--header path.h` for public
+headers. Generated tests support numeric scalars and fixed-size arrays with
+separate buffers. Defaults are small positive values, not inferred application
+preconditions. Aliasing, complex interfaces, and mutable state need your own
+testbench. Supplied testbenches keep their cases; `--size` can add Bambu pointer
+extent registration without changing those cases.
+
+Generated inputs are checked against original C with address/undefined-behavior
+sanitizers before any API request. Tests observe actual return values and all
+array elements, never generated expected answers. The harness is frozen across
+candidates and final checking. This is limited test coverage, not all-input proof.
+Public headers enter prompts; testbench-only files and oracle outputs stay private.
+
+To check an existing candidate without a model call:
+
+```sh
+hlsmith validate kernel.c --top kernel --testbench tb.c \
+  --candidate candidate.cpp --out results/check
+```
+
+`validate` defaults to native; add `--backend bambu` for generated-RTL checks.
+Each run retains a reusable `inputs/kernel.json` and copied, hashed inputs.
+
+## Run offline or use detailed settings
+
+Existing JSON projects remain supported and default to native checking:
 
 ```sh
 hlsmith run examples/scalar_mac/kernel.json \
   --responses examples/scalar_mac/responses.json \
   --max-calls 2 --out results/offline
-hlsmith report results/offline
 ```
 
-The default backend selects the first candidate that passes native checks, then
-independently rechecks the selected source. Each `--out` directory must be new.
-Saved responses are fixtures, not recorded model experiments.
+Saved responses are illustrative fixtures, never an API fallback. For plain C,
+`--config target.json` supplies provider, validation, backend, and private
+`test_files` settings. See [backend configuration](docs/backends.md) and the
+[HLSFactory mini pilots](examples/hlsfactory/README.md).
 
-To check your own candidate:
+## What the results mean
 
-```sh
-hlsmith validate examples/scalar_mac/kernel.json \
-  --candidate examples/scalar_mac/candidate_01.cpp --out results/native
-```
+Bambu/Verilator records checked RTL cycles. Vitis records HLS estimates;
+LightningSim records separate trace estimates, without asserting RTL correctness.
+Host checks with unmodified LightningSim 0.2.6 and Vitis 2023.2 produced scalar
+and array trace estimates of 11 and 163 cycles. Backend estimates have different
+scopes and are not interchangeable. No result establishes physical FPGA fit or
+board performance; [evidence records](docs/evidence/README.md) state their limits.
 
-Paths in `kernel.json` resolve relative to that file. Public `headers` enter
-generation prompts; the testbench, `test_files`, expected outputs, and test
-vectors stay outside generation and repair prompts. Native checks establish
-output agreement on supplied inputs, without a hardware performance claim.
+Live DeepSeek requests require `--max-api-usd`. The default alias is
+`deepseek-flash`, thinking disabled; release metadata does not pin hosted weights.
+Each default request reserves about $0.3244 at configured peak rates, covering
+1,048,576 input and 8,192 output tokens. This is a reservation, not an invoice.
+HTTP retries are off; uncertain usage retains its reservation and stops requests.
 
-## Compile to RTL with Bambu
-
-With [Bambu 2024.10](https://github.com/ferrandi/PandA-bambu/releases/tag/2024.10),
-Verilator, and `make` available, run a small HLSFactory-derived pilot:
-
-```sh
-export PATH="$PWD/.tools/bambu:$PATH"
-hlsmith run examples/hlsfactory/mvt/kernel-bambu.json \
-  --backend bambu --responses examples/hlsfactory/mvt/responses.json \
-  --max-calls 1 --out results/mvt-check
-hlsmith report results/mvt-check
-```
-
-The local optional launcher lives at `.tools/bambu/bambu`; another Bambu
-installation can be selected in the configuration. Original-C/native checking
-runs before Bambu compiles the candidate and checks generated RTL with Verilator.
-
-The three small double-precision pilots passed three checked RTL invocations
-each: MVT 4,626 cycles/call, ATAX 3,492, and Jacobi-1D 3,440. Their responses are
-public-C portability baselines. These are functional plumbing tests, not fresh
-LLM results, paper QoR, or U280 implementation evidence. See the
-[pilot guide](examples/hlsfactory/README.md) and [recorded evidence](docs/evidence/README.md).
-
-## Use DeepSeek
-
-Set the key in your environment, then give live requests an explicit budget:
-
-```sh
-export DEEPSEEK_API_KEY='your-key'
-hlsmith run examples/scalar_mac/kernel.json \
-  --max-api-usd 1 --max-calls 3 --out results/deepseek
-```
-
-The default hosted alias is `deepseek-flash`, with thinking disabled. Recorded
-release metadata does not pin hosted model weights. Each default request reserves
-1,048,576 input tokens plus 8,192 output tokens: about $0.3244 at configured peak
-rates. This is a conservative reservation, not an invoice. HTTP retries are off;
-uncertain usage keeps its reservation and stops further requests. Saved-response
-runs never fall back to the API.
-
-## Optional backends and project layout
-
-[Backend instructions](docs/backends.md) cover supplied RTL, Bambu, Vitis
-synthesis/optimization, and optional LightningSim estimates. Verilator simulates
-RTL; LightningSim uses a Vitis schedule. The current LightningSim setup timed
-out on both toys and is not qualified for latency estimates. No backend here
-establishes physical FPGA fit or board performance.
-
-| Directory | Purpose |
-| --- | --- |
-| `src/hlsmith_minimal/` | Eight Python files and one researcher-facing prompt |
-| `examples/` | Runnable scalar, array, and HLSFactory mini examples |
-| `tests/` | Focused offline correctness and accounting checks |
-| `docs/evidence/` | Preserved validation receipts and their scope |
-
-See [test instructions](tests/README.md) and [example notes](examples/README.md).
-New output belongs in `results/` (ignored by Git). Historical `runs/` and local
-`.tools/` resolve through compatibility links to external storage; see the
-[cleanup record](docs/CLEANUP.md). This package imports no legacy project modules. Toy examples have an [MIT license](examples/LICENSE);
-HLSFactory imports retain their [upstream notices](examples/hlsfactory/UPSTREAM-NOTICE.md).
-A project-wide license has not been selected.
+`src/hlsmith_minimal/` has nine Python files and one prompt. `examples/` holds
+runnable inputs, `tests/` holds six focused modules, and `docs/evidence/` preserves
+receipts. See [test instructions](tests/README.md). New output belongs in ignored
+`results/`; historical `runs/` and optional `.tools/` use external compatibility
+links described in the [cleanup record](docs/CLEANUP.md). Toy examples have an
+[MIT license](examples/LICENSE); HLSFactory imports retain their
+[upstream notices](examples/hlsfactory/UPSTREAM-NOTICE.md). A project-wide license
+has not been selected.

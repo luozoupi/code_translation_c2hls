@@ -9,8 +9,12 @@ The source commits and runtime hashes inside each receipt identify its scope.
 | [VALIDATION.json](VALIDATION.json) | Initial native/Verilator and installed-package checks | `c0d37c3a6328dc6e54825e3387f7e86b1c93067b1456f6261e1cc06c4146b23e` |
 | [LIGHTNINGSIM_VALIDATION.json](LIGHTNINGSIM_VALIDATION.json) | Optional trace integration; two bounded real checks timed out | `bd94014eb7d18726de0c5494cbb44e866440bbe9b5032183af05542a3432011b` |
 | [HLSFACTORY_PILOT.json](HLSFACTORY_PILOT.json) | Three reduced-shape Bambu/Verilator portability pilots and preserved failures | `0677389210d6d962782f166307cd755eb89209b9bce59215ad68c507f67f8661` |
+| [LIGHTNINGSIM_HOST_VALIDATION.json](LIGHTNINGSIM_HOST_VALIDATION.json) | Two fresh native/Vitis/LightningSim checks on the host | `62511f8ea0169cc6db48a99d1ce2db6513e57816c0919af50fee8486cf8003b3` |
 
 Each JSON file moved here from the project root without editing its contents.
+The later host-validation receipt was copied unchanged from its external run
+directory. It identifies the restricted sandbox's socket-send denial as the
+cause of the earlier LightningSim timeouts; the unmodified host runs completed.
 Relative paths recorded inside them still resolve from the original project
 root, not from `docs/evidence/`. Absolute paths retain the original machine
 locations. The pre-cleanup Git snapshot is

@@ -8,12 +8,22 @@ from . import __version__
 from . import core
 
 
+def _source_options(parser):
+    parser.add_argument('--top', help='top function for a plain C input')
+    parser.add_argument('--testbench', type=Path, help='supplied C/C++ testbench; otherwise generate one')
+    parser.add_argument('--header', action='append', type=Path, default=[], help='public header (repeatable)')
+    parser.add_argument('--size', action='append', default=[], metavar='PARAM=8x8', help='full array extent (repeatable)')
+    parser.add_argument('--value', action='append', default=[], metavar='PARAM=8', help='fixed scalar input (repeatable)')
+    parser.add_argument('--config', type=Path, help='provider, validation and backend settings for a C input')
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='hlsmith', description='Translate C to HLS and independently check the result.')
     parser.add_argument('--version', action='version', version=__version__)
     sub = parser.add_subparsers(dest='command', required=True)
     run = sub.add_parser('run', help='translate, repair and optionally optimize one kernel')
-    run.add_argument('project', type=Path, help='kernel.json')
+    run.add_argument('project', type=Path, help='C source or kernel.json; plain C defaults to Bambu')
+    _source_options(run)
     run.add_argument('--out', required=True, type=Path, help='new output directory')
     run.add_argument('--responses', type=Path, help='saved responses; never falls back to the API')
     run.add_argument('--max-calls', type=int, default=3)
@@ -24,6 +34,7 @@ def main(argv=None):
     run.add_argument('--optimize', type=int, default=0, metavar='N', help='bounded improvement attempts; requires synthesis')
     validate = sub.add_parser('validate', help='check an explicit C++ candidate and optional supplied RTL')
     validate.add_argument('project', type=Path)
+    _source_options(validate)
     validate.add_argument('--candidate', required=True, type=Path)
     validate.add_argument('--out', required=True, type=Path)
     validate.add_argument('--backend', choices=('native','bambu'), default='native')
@@ -37,12 +48,16 @@ def main(argv=None):
         if args.command == 'run':
             core.run(args.project, args.out, responses=args.responses, max_calls=args.max_calls,
                      optimize=args.optimize, synthesize=args.synthesize, max_api_usd=args.max_api_usd,
-                     lightningsim=args.lightningsim,backend=args.backend)
+                     lightningsim=args.lightningsim, backend=args.backend, top=args.top,
+                     testbench=args.testbench, headers=args.header, sizes=args.size, values=args.value,
+                     config=args.config)
             summary = core.report(args.out)
         elif args.command == 'validate':
             core.validate(args.project, args.candidate, args.out, rtl_config=args.rtl_config,
                           lightningsim_solution=args.lightningsim_solution,
-                          lightningsim_workspace=args.lightningsim_workspace,backend=args.backend)
+                          lightningsim_workspace=args.lightningsim_workspace, backend=args.backend,
+                          top=args.top, testbench=args.testbench, headers=args.header, sizes=args.size,
+                          values=args.value, config=args.config)
             summary = core.report(args.out)
         else:
             summary = core.report(args.path)

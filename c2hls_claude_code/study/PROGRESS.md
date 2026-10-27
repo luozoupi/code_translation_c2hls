@@ -713,3 +713,10 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
   - **stp is 17–25% faster in cosim than Vitis's default FRP choice.** That is a real design improvement to the SODA target. It must be reported as our change (a pragma edit), not as SODA output.
   - **Failures:** heat3d_u16_stp and jacobi3d_u16_stp fail with the same xelab SIGSEGV as the default build. Their stp LightningSim numbers: 283,421 / 287,660 (mapped 283,473 / 287,712).
   - **Still running:** heat3d/jacobi3d_u4_b128_laafd_stp (4015925, 4015932; 2-day limit). Their LightningSim: 8,717,645 / 8,783,426.
+- 2026-10-27 **Compare CSV regenerated with the FRP-fixed LightningSim numbers** (user: "regenerate the compare CSV with the FRP-fixed numbers"): `study/soda/lsim/lsim_vs_cosim_otus_20261027_frp.csv`, made by the updated `compare_pat_otus.py`. The 2026-10-25 CSV is kept.
+  - New columns: `lsim_source` and `lsim_end_nofrp` (the old end, filled only where it changed). `lsim_source` is one of:
+    - `v2023` (unchanged);
+    - `inv3d_frp_in` (lsim_frp.py on the same trace; the 10 3D pairs);
+    - `lsim_frp` (fork rerun; the 4 3D LightningSim-only designs).
+  - **Only the 14 heat3d/jacobi3d rows change.** The 56 other rows are identical, since no other design has an FRP pipeline.
+  - **All 37 cosim pairs now agree within −0.005% to +0.047% (mapped).**

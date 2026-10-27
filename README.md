@@ -1,8 +1,19 @@
-# HLSmith
+# HLSmith — historical v8
+
+**`v8` is the historical full SIGMETRICS/Vitis research implementation, formerly
+named `hlsmith-clean`.** Its successor is
+[`HLSmiths-nano`](https://github.com/luozoupi/code_translation_c2hls/tree/HLSmiths-nano),
+a separate minimal standalone workflow. The nano branch does not reproduce the
+paper's experiments; use this branch for the full research pipeline and its
+preserved reproduction records.
 
 HLSmith translates C/C++ kernels into FPGA implementations with compiler feedback. It checks functional behavior, synthesizes candidates with Vitis HLS, and searches for lower latency within the target device's resource and timing constraints.
 
-This development branch consolidates the implementation used for the SIGMETRICS submission. The paper's results are preserved as frozen evidence; fresh evaluations are recorded separately. The default prompt profile reproduces the original model inputs.
+This branch consolidates the implementation used for the SIGMETRICS submission.
+The paper's results are preserved as frozen evidence; fresh evaluations are
+recorded separately. The default prompt profile preserves the original model
+inputs. The code before the 2026-10-27 rename documentation is retained at
+`snapshot/20261027/v8` (`3b6081b02ae4daf9022e843cacb46ee850a61314`).
 
 ## Install
 
@@ -70,4 +81,8 @@ Registration and cost estimation run without API credentials or tool jobs. Launc
 
 Implementation lives in `hlsmith/`. Root modules are compatibility entrypoints. Packaged benchmark, skill and configuration files retain their original bytes. Generated results are stored outside the tracked source tree.
 
-`hlsmith-clean` remains a development candidate until the archived hardware and fresh-model validation gates pass. The protected collaborator branch and the separate C-to-CUDA project are preserved unchanged.
+The `v8` rename changes documentation and branch identity, not runtime behavior
+or experimental acceptance. Unresolved hardware comparisons and pending
+fresh-model gates remain qualified in their records; the rename does not
+establish paper-wide equivalence. GitHub's default remains `v1`. The protected
+collaborator branch and the separate C-to-CUDA project are preserved unchanged.

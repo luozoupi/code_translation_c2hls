@@ -62,9 +62,11 @@ def test_timeout_kills_owned_process_group(tmp_path):
     assert result['status'] == 'timeout'
     child = int((tmp_path/'child.pid').read_text())
     path = Path('/proc') / str(child) / 'stat'
-    if path.exists():
+    try:
         body = path.read_text()
-        assert body[body.rfind(')')+2:].split()[0] == 'Z'
+    except (FileNotFoundError, ProcessLookupError):
+        return  # A child reaped between observation and read is terminated.
+    assert body[body.rfind(')')+2:].split()[0] == 'Z'
 
 
 def test_unavailable_tools_return_no_measurement(tmp_path):
@@ -140,3 +142,29 @@ def test_optional_vitis_binds_reported_clock_without_executing_tools(monkeypatch
         assert result['metrics']['hls_estimate']['requested_clock_period_ns'] == 3.33
         assert result['metrics']['hls_estimate']['lut'] is None
         assert result['metrics']['hls_estimate']['ff'] is None
+
+
+@pytest.mark.parametrize('with_trace_inputs', [False, True])
+def test_vitis_registers_trace_testbench_only_when_requested(monkeypatch, tmp_path, with_trace_inputs):
+    from hlsmith_minimal import tools
+    candidate = tmp_path/'source.cpp'; candidate.write_text('void kernel() {}')
+    testbench = tmp_path/'test.c'; testbench.write_text('int main(void) {return 0;}')
+    vectors = tmp_path/'vectors.h'; vectors.write_text('#define PRIVATE_INPUT 7\n')
+    monkeypatch.setattr(tools, '_tool', lambda name: '/fake/vitis_hls')
+    def fake_command(argv, *, cwd, timeout, env=None):
+        if '-f' in argv:
+            report = Path(cwd)/'hls_project/solution/syn/report/kernel_csynth.xml'
+            report.parent.mkdir(parents=True)
+            report.write_text('<Report><UserAssignments><TargetClockPeriod>3.33</TargetClockPeriod>'
+                              '</UserAssignments></Report>')
+        return {'status':'passed','returncode':0,'stdout':'fixture','stderr':'','argv':list(argv)}
+    monkeypatch.setattr(tools, 'run_command', fake_command)
+    extra = {'testbench':testbench,'test_files':{'vectors.h':vectors}} if with_trace_inputs else {}
+    out = tmp_path/'synth'
+    result = synthesize_vitis(candidate,out=out,top='kernel',part='device',clock_ns=3.33,**extra)
+    assert result['passed']
+    assert ('add_files -tb' in (out/'synthesize.tcl').read_text()) == with_trace_inputs
+    assert ('testbench' in result['input_hashes']) == with_trace_inputs
+    assert (out/'vectors.h').exists() == with_trace_inputs
+    assert result['solution_dir'] == str(out/'hls_project/solution')
+    assert result['workspace'] == str(out)

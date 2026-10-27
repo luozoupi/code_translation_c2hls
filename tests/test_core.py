@@ -81,7 +81,8 @@ def synthetic_synthesis(project, monkeypatch, measurements):
                    'requested_clock_period_ns': 3.33, 'estimated_clock_period_ns': 2.5,
                    'dsp': measurement.get('dsp', 4), 'lut': 40, 'ff': 50, 'bram': 0, 'uram': 0}
         return {'passed': True, 'status': 'passed', 'measurement_origin': 'synthetic_test_only',
-                'metrics': {'hls_estimate': metrics}, 'input_hashes': {'candidate': core.sha(candidate)}}
+                'metrics': {'hls_estimate': metrics}, 'input_hashes': {'candidate': core.sha(candidate)},
+                'workspace': str(kwargs['out']), 'solution_dir': str(Path(kwargs['out']) / 'hls_project/solution')}
 
     monkeypatch.setattr(core.tools, 'synthesize_vitis', synthesize)
     return called
@@ -203,3 +204,115 @@ def test_final_independent_check_failure_prevents_success(project, tmp_path, mon
                       responses=responses(project, [project.correct]), max_calls=1)
     assert result['status'] == 'failed_final_validation'
     assert not result['selected']['independent_native_passed']
+
+
+def synthetic_trace(project, monkeypatch, estimates):
+    """Exercise controller integration without importing or executing LightningSim."""
+    project.config['lightningsim'] = {'executable': 'core-test-lightningsim'}
+    project.path.write_text(json.dumps(project.config))
+    actual_which = core.shutil.which
+    monkeypatch.setattr(core.shutil, 'which',
+        lambda name: '/synthetic/lightningsim' if name == 'core-test-lightningsim' else actual_which(name))
+    calls = []
+
+    def estimate(solution, **kwargs):
+        value = estimates[len(calls)]
+        calls.append({'solution': str(solution), **kwargs})
+        return {'backend': 'lightningsim', 'status': 'estimated' if value is not None else 'failed',
+                'estimate_available': value is not None, 'passed': False, 'correctness_checked': False,
+                'measurement_origin': 'trace_estimate', 'metrics': {'trace_estimate_cycles': value},
+                'provenance': kwargs.get('provenance', {})}
+
+    monkeypatch.setattr(core.trace_backend, 'estimate', estimate)
+    return calls
+
+
+def test_trace_is_diagnostic_and_selected_trace_belongs_to_hls_winner(project, tmp_path, monkeypatch):
+    synthesis_calls = synthetic_synthesis(project, monkeypatch, [{'cycles': 100}, {'cycles': 140}])
+    trace_calls = synthetic_trace(project, monkeypatch, [9000, 5])
+    out = tmp_path / 'trace-selection'
+    result = core.run(project.path, out, responses=responses(project,
+                      [project.correct, project.other_correct]), max_calls=2, optimize=1,
+                      synthesize=True, lightningsim=True)
+    assert result['status'] == 'passed'
+    assert len(trace_calls) == len(synthesis_calls) == len(result['api_accounting']['calls']) == 2
+    assert result['selected']['attempt'] == 0
+    assert result['selected']['objective']['value'] == 100
+    assert result['hardware']['trace_estimate_cycles'] == 9000
+    assert result['hardware']['rtl_cycles'] is None
+    assert result['lightningsim']['passed'] is False
+    assert result['lightningsim']['correctness_checked'] is False
+    assert trace_calls[0]['provenance']['candidate_sha256'] == result['selected']['sha256']
+    summary = core.report(out)
+    assert summary['trace_estimate_cycles'] == 9000 and summary['rtl_cycles'] is None
+    for messages in captured_messages(out):
+        text = json.dumps(messages)
+        assert 'trace_estimate_cycles' not in text
+        assert PRIVATE_OUTPUT not in text
+
+
+def test_requested_trace_failure_preserves_native_verdict_but_marks_estimation_incomplete(project, tmp_path, monkeypatch):
+    synthetic_synthesis(project, monkeypatch, [{'cycles': 100}])
+    trace_calls = synthetic_trace(project, monkeypatch, [None])
+    out = tmp_path / 'trace-failure'
+    result = core.run(project.path, out, responses=responses(project, [project.correct]),
+                      max_calls=2, synthesize=True, lightningsim=True)
+    assert len(trace_calls) == len(result['api_accounting']['calls']) == 1
+    assert result['status'] == 'incomplete_estimation'
+    assert result['selected']['independent_native_passed']
+    assert result['lightningsim']['estimate_available'] is False
+    assert result['lightningsim']['passed'] is False
+    assert result['hardware']['trace_estimate_cycles'] is None
+    assert core.report(out)['native_passed'] is True
+
+
+def test_trace_requirements_are_checked_before_model_initialization(project, tmp_path, monkeypatch):
+    def unexpected_model(*args, **kwargs):
+        pytest.fail('preflight failure must precede model initialization')
+
+    monkeypatch.setattr(core, 'Model', unexpected_model)
+    with pytest.raises(ValueError, match='requires --synthesize'):
+        core.run(project.path, tmp_path / 'without-synthesis', lightningsim=True)
+    synthetic_synthesis(project, monkeypatch, [{'cycles': 100}])
+    actual_which = core.shutil.which
+    monkeypatch.setattr(core.shutil, 'which', lambda name: None if name == 'lightningsim' else actual_which(name))
+    with pytest.raises(ValueError, match='LightningSim executable unavailable'):
+        core.run(project.path, tmp_path / 'without-trace-tool', synthesize=True, lightningsim=True)
+    assert not (tmp_path / 'without-synthesis').exists()
+    assert not (tmp_path / 'without-trace-tool').exists()
+
+
+def test_external_solution_estimate_does_not_establish_candidate_rtl_binding(project, tmp_path, monkeypatch):
+    trace_calls = synthetic_trace(project, monkeypatch, [23])
+    candidate = tmp_path / 'candidate.cpp'
+    candidate.write_text(project.correct)
+    out = tmp_path / 'external-trace'
+    result = core.validate(project.path, candidate, out,
+                           lightningsim_solution=tmp_path / 'external/solution',
+                           lightningsim_workspace=tmp_path / 'external')
+    assert result['status'] == 'passed'
+    assert result['native']['passed'] and result['rtl'] is None
+    assert result['lightningsim']['passed'] is False
+    assert result['lightningsim']['correctness_checked'] is False
+    assert trace_calls[0]['provenance']['candidate_binding'] == 'not_established'
+    assert result['lightningsim']['provenance']['candidate_binding'] == 'not_established'
+    assert core.report(out)['trace_estimate_cycles'] == 23
+    assert core.report(out)['rtl_cycles'] is None
+
+
+def test_default_synthesis_does_not_register_private_testbench_or_run_trace(project, tmp_path, monkeypatch):
+    synthetic_synthesis(project, monkeypatch, [{'cycles': 100}])
+    synthesis = core.tools.synthesize_vitis
+    calls = []
+
+    def capture(candidate, **kwargs):
+        calls.append(kwargs)
+        return synthesis(candidate, **kwargs)
+
+    monkeypatch.setattr(core.tools, 'synthesize_vitis', capture)
+    monkeypatch.setattr(core.trace_backend, 'estimate', lambda *args, **kwargs:
+                        pytest.fail('default synthesis must not run LightningSim'))
+    result = core.run(project.path, tmp_path / 'default-synthesis',
+                      responses=responses(project, [project.correct]), max_calls=1, synthesize=True)
+    assert result['status'] == 'passed' and len(calls) == 1
+    assert 'testbench' not in calls[0] and 'test_files' not in calls[0]

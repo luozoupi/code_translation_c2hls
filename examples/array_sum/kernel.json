@@ -1,0 +1,17 @@
+{
+  "name": "array-sum",
+  "source": "reference.c",
+  "testbench": "testbench.c",
+  "headers": {"kernel.h": "kernel.h"},
+  "top": "array_sum",
+  "attempts": 1,
+  "optimize": 0,
+  "validation": {"atol": 0, "rtol": 0},
+  "vitis": {
+    "part": "xcu280-fsvh2892-2L-e",
+    "clock_ns": 3.33,
+    "executable": "vitis_hls",
+    "timeout": 120
+  },
+  "lightningsim": {"executable": "lightningsim", "timeout": 15}
+}

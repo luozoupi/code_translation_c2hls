@@ -3,12 +3,14 @@ import hashlib
 from importlib.resources import files
 import json
 import math
+import os
 from pathlib import Path
 import re
 import shutil
 
 from .model import Model, ModelError, now, sha, write_json
 from . import tools
+from . import lightningsim as trace_backend
 
 SCHEMA = 'hlsmith.minimal.run.v1'
 PROMPT_PROFILE = 'minimal-researcher-v1'
@@ -154,7 +156,29 @@ def qualify_synthesis(synthesis, settings):
             'scope': 'configured resource/clock budgets; not physical implementation or paper eligibility'}
 
 
-def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesize=False, max_api_usd=None):
+def _trace_settings(project):
+    config = dict(project['data'].get('lightningsim', {}))
+    if set(config) - {'executable', 'timeout', 'hls_root'}:
+        raise ValueError('lightningsim settings support executable, timeout and hls_root only')
+    executable = config.get('executable', 'lightningsim')
+    if '/' in executable:
+        executable = str((project['path'].parent / executable).resolve())
+    config['executable'] = executable
+    config.setdefault('timeout', 120)
+    positive(config['timeout'], 'lightningsim.timeout')
+    if config.get('hls_root'):
+        config['hls_root'] = str((project['path'].parent / config['hls_root']).resolve())
+    elif not os.environ.get('XILINX_HLS') and project['data'].get('vitis', {}).get('executable'):
+        compiler = shutil.which(project['data']['vitis']['executable'])
+        if compiler and Path(compiler).name == 'vitis_hls':
+            root = Path(compiler).resolve().parent.parent
+            if (root / 'include/Makefile.sysc.rules').is_file():
+                config['hls_root'] = str(root)
+    return config
+
+
+def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesize=False, max_api_usd=None,
+        lightningsim=False):
     project = load_project(project_path)
     if not shutil.which('gcc') or not shutil.which('g++'):
         raise ValueError('native checks require gcc and g++; no model request made')
@@ -162,6 +186,11 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
         raise ValueError('max_calls must be positive and optimize nonnegative integers')
     if optimize and not synthesize:
         raise ValueError('optimization needs --synthesize; CPU wall time is not an HLS objective')
+    if lightningsim and not synthesize:
+        raise ValueError('--lightningsim requires --synthesize and its Vitis solution')
+    trace_settings = _trace_settings(project) if lightningsim else None
+    if lightningsim and not shutil.which(trace_settings['executable']):
+        raise ValueError('LightningSim executable unavailable; configure lightningsim.executable')
     settings = project['data'].get('vitis', {})
     if synthesize:
         if not project['top'] or not settings.get('part'):
@@ -233,10 +262,18 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
         qualification = None
         eligible = native['passed']
         if eligible and synthesize:
+            extra = {'testbench': project['testbench'], 'test_files': project['test_files']} if lightningsim else {}
             synthesis = tools.synthesize_vitis(candidate, out=folder / 'synthesis', top=project['top'],
                 part=settings['part'], clock_ns=settings['clock_ns'], include_files=project['headers'],
-                executable=settings.get('executable'), timeout=settings.get('timeout', 300))
+                executable=settings.get('executable'), timeout=settings.get('timeout', 300), **extra)
             write_json(folder / 'synthesis.json', synthesis)
+            if lightningsim and synthesis['passed']:
+                entry['lightningsim'] = trace_backend.estimate(synthesis['solution_dir'], out=folder / 'lightningsim',
+                    workspace=synthesis['workspace'], provenance={'candidate_sha256': entry['source_sha256'],
+                    'testbench_sha256': sha(project['testbench'])}, **trace_settings)
+                write_json(folder / 'lightningsim.json', entry['lightningsim'])
+                if not entry['lightningsim'].get('estimate_available'):
+                    result['warnings'].append('LightningSim estimate unavailable for attempt ' + str(index))
             qualification = qualify_synthesis(synthesis, settings)
             entry.update(synthesis=synthesis, eligibility=qualification)
             eligible = qualification['passed']
@@ -264,16 +301,23 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
         write_json(out / 'final-validation.json', final)
         result['selected'] = {'path': str(selected), 'sha256': sha(selected), 'attempt': best['index'],
                               'objective': best['objective'], 'independent_native_passed': final['passed']}
+        if lightningsim:
+            result['lightningsim'] = best.get('lightningsim')
+            result['hardware']['trace_estimate_cycles'] = (best.get('lightningsim') or {}).get('metrics', {}).get('trace_estimate_cycles')
         if sha(selected) != best['source_sha256']:
             raise ValueError('selected source differs from evaluated source')
         result['status'] = 'passed' if final['passed'] else 'failed_final_validation'
+        if lightningsim and final['passed'] and not (best.get('lightningsim') or {}).get('estimate_available'):
+            result['status'] = 'incomplete_estimation'
     result['finished_at'] = now()
     result['api_accounting'] = json.loads((out / 'model/calls.json').read_text())
     write_json(out / 'result.json', result)
     return result
 
 
-def validate(project_path, candidate, out, *, rtl_config=None):
+def validate(project_path, candidate, out, *, rtl_config=None, lightningsim_solution=None, lightningsim_workspace=None):
+    if lightningsim_workspace is not None and lightningsim_solution is None:
+        raise ValueError('--lightningsim-workspace requires --lightningsim-solution')
     project = load_project(project_path)
     candidate = Path(candidate).resolve()
     if not candidate.is_file():
@@ -319,6 +363,11 @@ def validate(project_path, candidate, out, *, rtl_config=None):
         record['rtl']['input_manifest'] = rtl_hashes
         record['rtl_config_sha256'] = sha(path)
         record['status'] = 'passed' if record['rtl']['passed'] else 'failed'
+    if lightningsim_solution is not None and native['passed']:
+        record['lightningsim'] = trace_backend.estimate(lightningsim_solution, out=out / 'lightningsim',
+            workspace=lightningsim_workspace, provenance={'candidate_binding': 'not_established'}, **_trace_settings(project))
+        if record['status'] == 'passed' and not record['lightningsim'].get('estimate_available'):
+            record['status'] = 'incomplete_estimation'
     record['finished_at'] = now()
     write_json(out / 'result.json', record)
     return record
@@ -336,4 +385,6 @@ def report(path):
             'rtl_passed': (result.get('rtl') or {}).get('passed'),
             'rtl_cycles': (result.get('rtl') or {}).get('metrics', {}).get('rtl_cycles'),
             'candidate_rtl_binding': (result.get('rtl') or {}).get('candidate_rtl_binding'),
+            'lightningsim_status': (result.get('lightningsim') or {}).get('status'),
+            'trace_estimate_cycles': (result.get('lightningsim') or {}).get('metrics', {}).get('trace_estimate_cycles'),
             'warnings': result.get('warnings', [])}

@@ -268,7 +268,7 @@ def _tcl(value):
 
 
 def synthesize_vitis(candidate, *, out, top, part, clock_ns, include_files=None,
-                     executable=None, timeout=300):
+                     executable=None, timeout=300, testbench=None, test_files=None):
     """Optional Vitis C-to-RTL synthesis; every reported metric is an estimate."""
     result = {'status': 'unavailable', 'passed': False, 'backend': 'vitis_hls',
               'measurement_origin': 'hls_estimate', 'metrics': {'hls_estimate': {}}, 'rtl_files': []}
@@ -278,18 +278,28 @@ def synthesize_vitis(candidate, *, out, top, part, clock_ns, include_files=None,
         return result
     if not re.fullmatch(r'[A-Za-z_]\w*', top) or not str(part) or not math.isfinite(float(clock_ns)) or clock_ns <= 0:
         raise ValueError('valid top, part and positive finite clock_ns are required')
-    out = _copy_inputs(out, include_files)
+    inputs = {**(include_files or {}), **(test_files or {})}
+    out = _copy_inputs(out, inputs)
     shutil.copyfile(candidate, out / 'candidate.cpp')
+    testbench_file = None
+    if testbench is not None:
+        testbench_file = out / ('testbench' + Path(testbench).suffix)
+        shutil.copyfile(testbench, testbench_file)
     tcl = out / 'synthesize.tcl'
-    tcl.write_text('\n'.join(['open_project hls_project', 'set_top ' + _tcl(top),
-        'add_files ' + _tcl(out / 'candidate.cpp'), 'open_solution solution -flow_target vitis',
+    commands = ['open_project hls_project', 'set_top ' + _tcl(top), 'add_files ' + _tcl(out / 'candidate.cpp')]
+    if testbench_file is not None:
+        commands.append('add_files -tb ' + _tcl(testbench_file))
+    tcl.write_text('\n'.join(commands + ['open_solution solution -flow_target vitis',
         'set_part ' + _tcl(part), 'create_clock -period ' + str(float(clock_ns)) + ' -name default',
         'csynth_design', 'exit', '']))
     is_runner = Path(executable).name == 'vitis-run'
     flags = ['--tcl', '--input_file'] if is_runner else ['-f']
     result['version'] = _version(executable, out, ('--version',) if is_runner else ('-version',))
     result['input_hashes'] = {'candidate': _sha(candidate), 'tcl': _sha(tcl),
-        'include_files': {str(name): _sha(path) for name, path in (include_files or {}).items()}}
+        'include_files': {str(name): _sha(path) for name, path in inputs.items()}}
+    if testbench_file is not None:
+        result['input_hashes']['testbench'] = _sha(testbench_file)
+    result.update(workspace=str(out), solution_dir=str(out / 'hls_project/solution'))
     execution = run_command([executable, *flags, str(tcl)], cwd=out, timeout=timeout)
     result['execution'] = execution
     if execution['status'] != 'passed':

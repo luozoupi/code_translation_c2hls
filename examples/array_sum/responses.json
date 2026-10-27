@@ -1,0 +1,8 @@
+{
+  "origin": "illustrative_fixture",
+  "responses": [
+    {
+      "content": "/* SPDX-License-Identifier: MIT */\n/* Copyright (c) 2026 luozoupi */\n#include \"kernel.h\"\n\nextern \"C\" void array_sum(const uint32_t input[4], uint32_t output[1])\n{\n#ifdef __SYNTHESIS__\n#pragma HLS INTERFACE m_axi port=input offset=slave bundle=gmem0 depth=4\n#pragma HLS INTERFACE m_axi port=output offset=slave bundle=gmem1 depth=1\n#pragma HLS INTERFACE s_axilite port=input bundle=control\n#pragma HLS INTERFACE s_axilite port=output bundle=control\n#pragma HLS INTERFACE s_axilite port=return bundle=control\n#endif\n    output[0] = input[0] + input[1] + input[2] + input[3];\n}\n"
+    }
+  ]
+}

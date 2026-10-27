@@ -316,3 +316,106 @@ def test_default_synthesis_does_not_register_private_testbench_or_run_trace(proj
                       responses=responses(project, [project.correct]), max_calls=1, synthesize=True)
     assert result['status'] == 'passed' and len(calls) == 1
     assert 'testbench' not in calls[0] and 'test_files' not in calls[0]
+
+
+def synthetic_bambu(project, monkeypatch, outcomes):
+    """Only generated-RTL results are mocked; the original-C gate stays real."""
+    project.config['bambu'] = {'executable': 'core-test-bambu', 'timeout': 120, 'clock_ns': 3.33}
+    project.path.write_text(json.dumps(project.config))
+    actual_which = core.shutil.which
+    monkeypatch.setattr(core.shutil, 'which', lambda name:
+        '/synthetic/' + name if name in {'core-test-bambu', 'verilator'} else actual_which(name))
+    for module, name in [(core.tools, 'synthesize_vitis'), (core.tools, 'simulate_verilator'),
+                         (core.trace_backend, 'estimate')]:
+        monkeypatch.setattr(module, name, lambda *args, **kwargs:
+                            pytest.fail('Bambu dispatch must not execute the Vitis, explicit-RTL or LightningSim path'))
+    calls = []
+
+    def evaluate(candidate, testbench, **kwargs):
+        native = json.loads((Path(kwargs['out']).parent / 'native.json').read_text())
+        assert native['passed'], 'original-C comparison must precede generated-RTL work'
+        passed, cycles = outcomes[len(calls)]
+        calls.append({'candidate_sha256': core.sha(candidate),
+                      'testbench_sha256': core.sha(testbench), **kwargs})
+        return {'backend': 'bambu', 'status': 'passed' if passed else 'failed', 'passed': passed,
+                'measurement_origin': 'synthetic_test_only', 'builtin_validation_enabled': passed,
+                'input_hashes': {'candidate.cpp': core.sha(candidate), 'testbench.c': core.sha(testbench)},
+                'requested_clock_ns': kwargs.get('clock_ns'), 'metrics': {'rtl_cycles': cycles},
+                'qualification': 'Synthetic pipeline-test result, not an actual RTL measurement'}
+
+    monkeypatch.setattr(core.bambu_backend, 'evaluate', evaluate)
+    return calls
+
+
+def test_bambu_runs_only_after_original_c_gate_and_does_not_add_model_calls(project, tmp_path, monkeypatch):
+    calls = synthetic_bambu(project, monkeypatch, [(True, 51)])
+    result = core.run(project.path, tmp_path / 'bambu-repair',
+                      responses=responses(project, [project.wrong, project.correct]), max_calls=2, backend='bambu')
+    assert result['status'] == 'passed' and result['backend'] == 'bambu'
+    assert len(calls) == 1 and len(result['api_accounting']['calls']) == 2
+    assert all(row['provider_calls'] == 0 for row in result['api_accounting']['calls'])
+    assert result['selected']['attempt'] == 1
+    assert result['selected']['independent_native_passed'] and result['selected']['generated_rtl_passed']
+    assert calls[0]['candidate_sha256'] == result['selected']['sha256']
+    assert result['bambu']['input_hashes']['candidate.cpp'] == result['selected']['sha256']
+    assert result['hardware']['rtl_cycles'] == 51
+    assert result['hardware']['resource_eligibility'] is None
+    assert result['hardware']['physical_timing_fit'] is None
+    assert result['hardware']['physical_implementation'] is None
+    assert result['bambu']['requested_clock_ns'] == 3.33
+    assert core.report(tmp_path / 'bambu-repair')['candidate_rtl_binding'] == 'bambu_generated_and_cosim_checked'
+    assert 'estimated_clock_period_ns' not in result['bambu']['metrics']
+
+
+def test_bambu_rtl_failure_cannot_select_a_native_passing_candidate(project, tmp_path, monkeypatch):
+    calls = synthetic_bambu(project, monkeypatch, [(False, None)])
+    result = core.run(project.path, tmp_path / 'bambu-failure',
+                      responses=responses(project, [project.correct]), max_calls=1, backend='bambu')
+    assert len(calls) == 1 and result['attempts'][0]['native']['passed']
+    assert result['status'] == 'failed' and result['selected'] is None
+    assert not result['attempts'][0]['bambu']['passed']
+    assert not result['attempts'][0]['eligibility']['passed']
+    assert result['hardware']['rtl_cycles'] is None
+
+
+def test_bambu_failure_and_slower_proposal_keep_winner_and_its_rtl_receipt(project, tmp_path, monkeypatch):
+    calls = synthetic_bambu(project, monkeypatch, [(True, 90), (False, None), (True, 110)])
+    third = project.other_correct + '/* Distinct final proposal. */\n'
+    out = tmp_path / 'bambu-best'
+    result = core.run(project.path, out,
+                      responses=responses(project, [project.correct, project.other_correct, third]),
+                      max_calls=3, optimize=2, backend='bambu')
+    assert len(calls) == len(result['api_accounting']['calls']) == 3
+    assert result['status'] == 'passed'
+    assert result['selected']['attempt'] == 0
+    assert result['selected']['objective'] == {'metric': 'rtl_cosim_total_cycles', 'value': 90}
+    assert result['selected']['sha256'] == calls[0]['candidate_sha256']
+    assert result['bambu']['input_hashes']['candidate.cpp'] == result['selected']['sha256']
+    assert result['bambu']['metrics']['rtl_cycles'] == result['hardware']['rtl_cycles'] == 90
+    assert core.report(out)['resource_eligibility'] is None
+    assert core.report(out)['rtl_passed'] is True
+
+
+def test_bambu_explicit_validation_stops_on_original_native_mismatch(project, tmp_path, monkeypatch):
+    calls = synthetic_bambu(project, monkeypatch, [])
+    monkeypatch.setattr(core, 'Model', lambda *args, **kwargs:
+                        pytest.fail('explicit validation must not initialize a model client'))
+    candidate = tmp_path / 'wrong.cpp'
+    candidate.write_text(project.wrong)
+    result = core.validate(project.path, candidate, tmp_path / 'bambu-native-failure', backend='bambu')
+    assert result['status'] == 'failed' and not result['native']['passed']
+    assert not calls and 'bambu' not in result
+
+
+def test_bambu_verilator_preflight_precedes_model_and_output_creation(project, tmp_path, monkeypatch):
+    project.config['bambu'] = {'executable': 'core-test-bambu'}
+    project.path.write_text(json.dumps(project.config))
+    actual_which = core.shutil.which
+    monkeypatch.setattr(core.shutil, 'which', lambda name:
+        '/synthetic/bambu' if name == 'core-test-bambu' else None if name == 'verilator' else actual_which(name))
+    monkeypatch.setattr(core, 'Model', lambda *args, **kwargs:
+                        pytest.fail('missing co-simulator must be detected before any model request'))
+    out = tmp_path / 'missing-verilator'
+    with pytest.raises(ValueError, match='Verilator'):
+        core.run(project.path, out, backend='bambu')
+    assert not out.exists()

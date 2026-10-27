@@ -1,0 +1,366 @@
+{
+  "schema": "hlsmith.hlsfactory-bambu-pilot.v1",
+  "recorded_at_utc": "2026-10-27T18:39:36.724726+00:00",
+  "package_version": "0.3.0",
+  "status": "passed",
+  "scope": "Reduced-shape double-precision HLSFactory-derived offline portability baselines; not fresh model translation, paper reproduction or FPGA implementation evidence.",
+  "source_collection": "Local frozen C2HLS HLSFactory-labelled public-C exports",
+  "upstream_revision_authenticated": false,
+  "fixture_manifest": {
+    "path": "examples/hlsfactory/manifest.json",
+    "sha256": "c4b8b3ef4cbd752ca6310fac71eab901b5e9c842f41532405f83406537ea57d3",
+    "bytes": 12559
+  },
+  "native_fixture_checks": {
+    "path": "examples/hlsfactory/native-checks.json",
+    "sha256": "99a0c63e0cf7203f136697f9efa037f17eb0c4371502afb2b5bb61414fe2c55f",
+    "bytes": 3624
+  },
+  "native_extent_checks": {
+    "path": "examples/hlsfactory/native-extent-checks.json",
+    "sha256": "8973a62c5f8b9946842eb741e1598681c8441524ad97501318d3b4b623efc92a",
+    "bytes": 1934
+  },
+  "profile": "minimal-researcher-v1",
+  "api": {
+    "mode": "saved_responses",
+    "provider_calls": 0,
+    "charged_or_reserved_usd": 0,
+    "response_origin": "Derived public-C portability baselines, not saved provider generations"
+  },
+  "limits": {
+    "model_fixture_calls_per_run": 1,
+    "optimization_attempts_per_run": 0,
+    "native_compile_seconds": 30,
+    "native_run_seconds": 5,
+    "bambu_seconds_per_run": 120,
+    "max_concurrent_bambu_jobs_observed": 2,
+    "build_threads_per_bambu_job": 1
+  },
+  "tools": {
+    "bambu": {
+      "version": "Version: PandA 2024.10 - Revision c2ba6936ca2ed63137095fea0b630a1c66e20e63-main",
+      "installer_url": "https://release.bambuhls.eu/bambu-2024.10.AppImage",
+      "installer_sha256": "e4f0214496a5d35de1932975b0f41cd95bc33a53a904fc565d6c2cb01df40773",
+      "publisher_checksum_available": false,
+      "launcher": "/home/luo00466/hlsmith-minimal/.tools/bambu/bambu",
+      "component_hashes": {
+        "bambu": "9fe1773946553e242944d66dfb29b9937fdcf16b243e45ca27d653e1453c5386",
+        "squashfs-root/AppRun": "f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f",
+        "squashfs-root/usr/bin/bambu": "9d86d07225585aafc0c72022874b7aa2cedea33c7d3cdad3caa24c2536b6288d",
+        "squashfs-root/usr/bin/tool_select.sh": "d5945e14ad68d846f2c9516156c3a7c24acce5cc96c51df7054e879b453250f0"
+      },
+      "setup_record": {
+        "path": "runs/bambu-setup/setup.json",
+        "sha256": "41db46d0d0610a9917366e144388fb075a90b020b1bbee35f69c49fb0c94ea07",
+        "bytes": 3017
+      }
+    },
+    "verilator": {
+      "version": "Verilator 5.045 devel rev v5.044-96-g30e6cd909",
+      "launcher": {
+        "path": "/usr/local/bin/verilator",
+        "sha256": "39454ddde5c740727f385cd1631285a4b612f68f4a8689c0c470456bfc0f1efb",
+        "bytes": 28520
+      },
+      "binary": {
+        "path": "/usr/local/bin/verilator_bin",
+        "sha256": "7f80a123afae143f11d16f9c88e82796ce8f8aebcf67ddc8227c889ac7e9dc38",
+        "bytes": 17848736
+      },
+      "identity_scope": "Executed-binary identity corroborated by generated Verilator __verFiles.dat files"
+    }
+  },
+  "configuration": {
+    "backend": "bambu",
+    "simulator": "verilator",
+    "abi_bits": 64,
+    "automatic_golden_validation_enabled": true,
+    "cosimulation_max_ulp": 0,
+    "pointer_extent_api": "m_param_alloc in private __BAMBU_SIM__ testbench adapters",
+    "requested_scheduling_clock_ns": 3.33,
+    "resource_eligibility": null,
+    "physical_timing_fit": null,
+    "physical_implementation": null,
+    "vitis_used": false,
+    "lightningsim_used": false
+  },
+  "runtime_source_sha256": {
+    "src/hlsmith_minimal/__init__.py": "2189fbaaa9cd8a8bf0597ed697c7aae299975eb5a33483e6d577b1a50e239ce5",
+    "src/hlsmith_minimal/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "src/hlsmith_minimal/bambu.py": "5c7f077e489c7bf079a5beb36b16478488c6177530a372724a4476366ff56650",
+    "src/hlsmith_minimal/cli.py": "5d2474afd8b642671583220d88f30201463309c659fba13b5d186577e602976e",
+    "src/hlsmith_minimal/core.py": "ed56626f9d18ef93e64955ae69df1bdec35aa005e77d05d3247910b2f33c95dd",
+    "src/hlsmith_minimal/lightningsim.py": "80220293bc12e2fea9aea6e608d87da98748097eb2a3d7360ee4f35cd3fab171",
+    "src/hlsmith_minimal/model.py": "832fc6417461229d6731f6115f0cccd4c1b707eff00ee6cade2f3c01f47d7d3b",
+    "src/hlsmith_minimal/prompt.md": "bb9ec9c43015be62be16dfbcc854ed0b78f8d4c6041544c83cb2948eb0ab6150",
+    "src/hlsmith_minimal/tools.py": "7ab1d245f486203f8038179187233c315530825120edcded95984871987cad40"
+  },
+  "kernels": [
+    {
+      "id": "mvt",
+      "precision": "double",
+      "dimensions": {
+        "N": 8
+      },
+      "test_cases": 3,
+      "status": "passed",
+      "native_passed": true,
+      "native_stdout_exactly_equal": true,
+      "generated_rtl_passed": true,
+      "automatic_checker_enabled": true,
+      "metrics": {
+        "cycle_scope": "sum of all registered testbench top calls",
+        "num_executions": 3,
+        "rtl_cycles": 13878,
+        "rtl_cycles_per_execution": [
+          4626,
+          4626,
+          4626
+        ]
+      },
+      "started_at_utc": "2026-10-27T18:29:36.730647+00:00",
+      "finished_at_utc": "2026-10-27T18:30:03.440738+00:00",
+      "bambu_wall_seconds": 26.27236849302426,
+      "selected_source": {
+        "path": "runs/hlsfactory-bambu-pilot/mvt-r3/selected.cpp",
+        "sha256": "8c0055f3a544422f4100ab8dee1f40eced460c4fa0d85d6acc7d6cb2bd602a59",
+        "bytes": 637
+      },
+      "result": {
+        "path": "runs/hlsfactory-bambu-pilot/mvt-r3/result.json",
+        "sha256": "2b2ff5d1d989eef02cc0c540e7e6a6a05d9fdafaef57c199527883429311b535",
+        "bytes": 49784
+      },
+      "native_result": {
+        "path": "runs/hlsfactory-bambu-pilot/mvt-r3/attempts/000/native.json",
+        "sha256": "7ae43edfcc13eeee7fa32a1ca7a568d2a7820199d418f871c39205c241c9ae8a",
+        "bytes": 6621
+      },
+      "final_native_result": {
+        "path": "runs/hlsfactory-bambu-pilot/mvt-r3/final-validation.json",
+        "sha256": "56d6a89aea33c4927e89e110cd87fd17a6c2005338a43b79419754bb2aefb2b4",
+        "bytes": 6604
+      },
+      "input_hashes": {
+        "candidate.cpp": "8c0055f3a544422f4100ab8dee1f40eced460c4fa0d85d6acc7d6cb2bd602a59",
+        "kernel.h": "af1f683c2cf1cd84c88d9c94e338e8b029a97cfee2d9324f09cc02c672fd0939",
+        "pilot_testbench.inc": "29e6cdd5a6559399723e495f90b0ec9f95ce7f734dc71bff86a034ab68ef05a8",
+        "testbench.c": "63caa10e62b329399f3fa4003cbd555b2d0b9a46fba289c03f0bc2a5fd94d3fc"
+      },
+      "checked_artifact_hashes": {
+        "HLS_output/simulation/bambu_testbench.v": "9b0ab0ba1a730667889ef1f50ca9e890bca7ee3aaf3c398b582e48f515dcbf16",
+        "HLS_output/simulation/mdpi_wrapper.cpp": "4ff540e52075eaa0280fba9969cf0b551e12dd060de28860260646e8f616cef7",
+        "kernel_mvt.v": "37c63416def040c0fc5e41b91b26c6a0bd2c52ca40c4d95c5591b9ba32981a50",
+        "results.txt": "dc3b8530b1bea80ff61488a6db9ed61ccf47f8074e86e8f9b04fd4900bf4f743",
+        "simulate_kernel_mvt.sh": "732888b2e45a87e98b5b7f5bb6c798c9162548f1e21941100e3f51674bba81cc"
+      },
+      "verilator_execution_record": {
+        "path": "runs/hlsfactory-bambu-pilot/mvt-r3/attempts/000/bambu/HLS_output/beh_sim/verilator_obj/Vbambu_testbench__verFiles.dat",
+        "sha256": "d6e8d1f69b6c8a85862130a1190d2de4f2f601e41f25b9bfd8067cdf210f2663",
+        "bytes": 5344
+      },
+      "reproduce_from_project_root": [
+        "export PATH=\"$PWD/.tools/bambu:$PATH\"",
+        ".venv/bin/hlsmith run examples/hlsfactory/mvt/kernel-bambu.json --backend bambu --responses examples/hlsfactory/mvt/responses.json --max-calls 1 --out runs/mvt-fresh-output"
+      ]
+    },
+    {
+      "id": "atax",
+      "precision": "double",
+      "dimensions": {
+        "M": 6,
+        "N": 8
+      },
+      "test_cases": 3,
+      "status": "passed",
+      "native_passed": true,
+      "native_stdout_exactly_equal": true,
+      "generated_rtl_passed": true,
+      "automatic_checker_enabled": true,
+      "metrics": {
+        "cycle_scope": "sum of all registered testbench top calls",
+        "num_executions": 3,
+        "rtl_cycles": 10476,
+        "rtl_cycles_per_execution": [
+          3492,
+          3492,
+          3492
+        ]
+      },
+      "started_at_utc": "2026-10-27T18:29:36.733496+00:00",
+      "finished_at_utc": "2026-10-27T18:30:03.644120+00:00",
+      "bambu_wall_seconds": 26.47184024984017,
+      "selected_source": {
+        "path": "runs/hlsfactory-bambu-pilot/atax-r2/selected.cpp",
+        "sha256": "205b66a365dc91f958fcc7912c8eec5870a56ae485fd093a17461970dcdd21a6",
+        "bytes": 678
+      },
+      "result": {
+        "path": "runs/hlsfactory-bambu-pilot/atax-r2/result.json",
+        "sha256": "c3a29fba5e7710ce157395e809ebee0cd7648635773c07ce8c788f13f05f0c6f",
+        "bytes": 46467
+      },
+      "native_result": {
+        "path": "runs/hlsfactory-bambu-pilot/atax-r2/attempts/000/native.json",
+        "sha256": "ccc91471eb2aa0dae8b677b8a60d8c52f08f4e85d10f89a73ada7951cc0521d6",
+        "bytes": 5801
+      },
+      "final_native_result": {
+        "path": "runs/hlsfactory-bambu-pilot/atax-r2/final-validation.json",
+        "sha256": "f2a875ec2ee07170c28e5c79658e17bb579806a38d01e75c8b8dd7ba96b047c2",
+        "bytes": 5788
+      },
+      "input_hashes": {
+        "candidate.cpp": "205b66a365dc91f958fcc7912c8eec5870a56ae485fd093a17461970dcdd21a6",
+        "kernel.h": "28a80340f812a53591d87ad7a11d1d9428f9b15cde2376ac2f1134ecbd5deb19",
+        "pilot_testbench.inc": "2be47ab422eef4305f7dc899a48b767defbce02882c3c2e8085fb04ae2ae11e8",
+        "testbench.c": "5c04e54ab81b25e7414285e9cfad783fe9a4917455def62a0e084032b940ee05"
+      },
+      "checked_artifact_hashes": {
+        "HLS_output/simulation/bambu_testbench.v": "6857ee4b012f9e7cfc0d8cc3be8542bc72178e9dfc2d1797cd65ba2cb14cd433",
+        "HLS_output/simulation/mdpi_wrapper.cpp": "b95bf2f86827a8942b0b98bc7cf1a2527f49ab3ec6ff55327da59a8ee34f56db",
+        "kernel_atax.v": "c110d54d4db3373713854d880c6a5904d7e70594c79f361e7b00dd1a5bf13a0c",
+        "results.txt": "1bdfa7b0ec8e764f741772882d86707402fa17ebdf1051e880dc652bdd4f4f89",
+        "simulate_kernel_atax.sh": "e21ee91214fd2ac930dd88578e2a274ab2e61e74cb49fd3f56169f8be5eab6bc"
+      },
+      "verilator_execution_record": {
+        "path": "runs/hlsfactory-bambu-pilot/atax-r2/attempts/000/bambu/HLS_output/beh_sim/verilator_obj/Vbambu_testbench__verFiles.dat",
+        "sha256": "b3e6c8bf037868cfa45f851946fcbe75ea2ba88d824024362012144f59d65d3a",
+        "bytes": 5501
+      },
+      "reproduce_from_project_root": [
+        "export PATH=\"$PWD/.tools/bambu:$PATH\"",
+        ".venv/bin/hlsmith run examples/hlsfactory/atax/kernel-bambu.json --backend bambu --responses examples/hlsfactory/atax/responses.json --max-calls 1 --out runs/atax-fresh-output"
+      ]
+    },
+    {
+      "id": "jacobi-1d",
+      "precision": "double",
+      "dimensions": {
+        "N": 10,
+        "TSTEPS": 4
+      },
+      "test_cases": 3,
+      "status": "passed",
+      "native_passed": true,
+      "native_stdout_exactly_equal": true,
+      "generated_rtl_passed": true,
+      "automatic_checker_enabled": true,
+      "metrics": {
+        "cycle_scope": "sum of all registered testbench top calls",
+        "num_executions": 3,
+        "rtl_cycles": 10320,
+        "rtl_cycles_per_execution": [
+          3440,
+          3440,
+          3440
+        ]
+      },
+      "started_at_utc": "2026-10-27T18:32:29.321733+00:00",
+      "finished_at_utc": "2026-10-27T18:33:02.039745+00:00",
+      "bambu_wall_seconds": 32.29377325391397,
+      "selected_source": {
+        "path": "runs/hlsfactory-bambu-pilot/jacobi-1d/selected.cpp",
+        "sha256": "276829a4f4b48e697570d111bcfe8653fcda18885433add2f59a4cfc126e3bb5",
+        "bytes": 634
+      },
+      "result": {
+        "path": "runs/hlsfactory-bambu-pilot/jacobi-1d/result.json",
+        "sha256": "83927aaa9504f4b7464372b5d6fcd6a13df40a36b40fb856d76760124e497011",
+        "bytes": 44125
+      },
+      "native_result": {
+        "path": "runs/hlsfactory-bambu-pilot/jacobi-1d/attempts/000/native.json",
+        "sha256": "90cc96f93b36596de95887243a5a8e9158ae5a00672bea2854de5db6b792bcd0",
+        "bytes": 5770
+      },
+      "final_native_result": {
+        "path": "runs/hlsfactory-bambu-pilot/jacobi-1d/final-validation.json",
+        "sha256": "bc65643e89ac9f08abb3e92030d332953fecb9687dae7b197bc202d196e9d943",
+        "bytes": 5759
+      },
+      "input_hashes": {
+        "candidate.cpp": "276829a4f4b48e697570d111bcfe8653fcda18885433add2f59a4cfc126e3bb5",
+        "kernel.h": "6a5ae70e4b1ca2b01cc2ec000fd750454c6e4172c1f1c938efdc02990e780efb",
+        "pilot_testbench.inc": "c308b98f877f3ba4417e5dfcace761ba5d24185694b09f3af2514a0a6cd78a6c",
+        "testbench.c": "135a7f62e9e8db69aad9119b70b8382e3fad40ea1a2ab35da7221eb1d71c7667"
+      },
+      "checked_artifact_hashes": {
+        "HLS_output/simulation/bambu_testbench.v": "81af386d8dfc2f4f9529a06c83ec7823c627140e3e805f6a7ad65ce1ce689df0",
+        "HLS_output/simulation/mdpi_wrapper.cpp": "6d6b36453db54e4f52db0d0476302bc21cd86ea12e25509787625fd95bc0f43e",
+        "kernel_jacobi_1d.v": "bc1bc91b699cb386d92bd1a2ecf9bf261000d4be0883201a7be78921d2b66843",
+        "results.txt": "09d0026b1875d1315f7718996c1b00ad6dc3b51ae20ed6cbb227ce636b074f7c",
+        "simulate_kernel_jacobi_1d.sh": "b55942dac5490a932a33027d38c443e29f612e16bdfde24de5fae5e765ac63e4"
+      },
+      "verilator_execution_record": {
+        "path": "runs/hlsfactory-bambu-pilot/jacobi-1d/attempts/000/bambu/HLS_output/beh_sim/verilator_obj/Vbambu_testbench__verFiles.dat",
+        "sha256": "0cf9dd7b405087f0fd15026b64a56d276243d540d01f9a45cdaf341159379219",
+        "bytes": 6119
+      },
+      "reproduce_from_project_root": [
+        "export PATH=\"$PWD/.tools/bambu:$PATH\"",
+        ".venv/bin/hlsmith run examples/hlsfactory/jacobi-1d/kernel-bambu.json --backend bambu --responses examples/hlsfactory/jacobi-1d/responses.json --max-calls 1 --out runs/jacobi-1d-fresh-output"
+      ]
+    }
+  ],
+  "preserved_failures": [
+    {
+      "run": "mvt",
+      "status": "failed",
+      "result": {
+        "path": "runs/hlsfactory-bambu-pilot/mvt/result.json",
+        "sha256": "7cfa234168ac23a8f4d11402b7cfe0ed90c0eb0867a62ce77885d9bfe3813995",
+        "bytes": 20766
+      },
+      "cause": "Default 32-bit simulation ABI required unavailable multilib headers. Fixed by explicit -m64; no host include hacks or multilib install.",
+      "kernel_and_numeric_inputs_changed": false,
+      "automatic_checking_disabled": false
+    },
+    {
+      "run": "mvt-r2",
+      "status": "failed",
+      "result": {
+        "path": "runs/hlsfactory-bambu-pilot/mvt-r2/result.json",
+        "sha256": "44f4c12504fc9426c0bd5254023f167666d9db09d08528e960bf75d68459f79c",
+        "bytes": 25846
+      },
+      "cause": "Default pointer extents described only one element/row, causing MDPI unmapped accesses. Fixed by separate full-array extent registration in the testbench.",
+      "kernel_and_numeric_inputs_changed": false,
+      "automatic_checking_disabled": false
+    },
+    {
+      "run": "atax",
+      "status": "failed",
+      "result": {
+        "path": "runs/hlsfactory-bambu-pilot/atax/result.json",
+        "sha256": "34b8a69b6aa986e02fc34b4260b6fd6339c61d77d0011c5cab444749a131286a",
+        "bytes": 24179
+      },
+      "cause": "Default pointer extents described only one element/row, causing MDPI unmapped accesses. Fixed by separate full-array extent registration in the testbench.",
+      "kernel_and_numeric_inputs_changed": false,
+      "automatic_checking_disabled": false
+    }
+  ],
+  "verification": {
+    "source_test_suite": {
+      "tests_passed": 90,
+      "wall_seconds": 19.96,
+      "note": "Before the final report binding label edit; relevant core/backend tests repeated afterwards."
+    },
+    "final_focused_tests": {
+      "tests_passed": 47,
+      "wall_seconds": 5.42
+    },
+    "installed_package": {
+      "status": "pending"
+    }
+  },
+  "limitations": [
+    "Three small kernels and nine registered top invocations; not all HLSFactory benches or paper-size shapes.",
+    "Replay fixtures test the runner and hardware pipeline; they do not assess live-model translation or optimization quality.",
+    "RTL cycle counts describe the fixed testbench top calls; requested clock is not a physical implementation result.",
+    "FPGA resource, clock closure and U280 eligibility remain unmeasured.",
+    "Tool and bulk run directories are local and ignored by Git; retain them with this receipt to preserve all evidence."
+  ]
+}

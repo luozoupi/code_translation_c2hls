@@ -1,0 +1,90 @@
+{
+  "kernel_checks": [
+    {
+      "adapted_body_unchanged": true,
+      "candidate_execution_wall_seconds": 0.0016849711537361145,
+      "candidate_sha256": "2e8fc54edc9eafa38c2b03cf274007c6f258e689bf6a324b9bc5e0954ea282b8",
+      "candidate_stdout_sha256": "6a0eee14f42928b9d2e40a973f994c0609c3e57bb70670b06216701b76a3ecfc",
+      "comparison": {
+        "atol": "1E-9",
+        "passed": true,
+        "reason": "all output tokens match",
+        "rtol": "1E-9",
+        "tokens_compared": 306
+      },
+      "kernel": "mvt",
+      "native_passed": true,
+      "native_status": "passed",
+      "native_validation_wall_seconds": 0.17181284306570888,
+      "reference_execution_wall_seconds": 0.0018227589316666126,
+      "reference_stdout_sha256": "6a0eee14f42928b9d2e40a973f994c0609c3e57bb70670b06216701b76a3ecfc",
+      "source_sha256": "2e8fc54edc9eafa38c2b03cf274007c6f258e689bf6a324b9bc5e0954ea282b8",
+      "versions": {
+        "g++": "g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+        "gcc": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0"
+      },
+      "wrong_candidate_rejected": true,
+      "wrong_status": "failed"
+    },
+    {
+      "adapted_body_unchanged": true,
+      "candidate_execution_wall_seconds": 0.0016707810573279858,
+      "candidate_sha256": "fbc2c26db18ca10ff23bd5da91305a2490efc2eefec2638013885ab5f2f7a087",
+      "candidate_stdout_sha256": "9dd0d33ac4e540f9331dd2f070032d503374886209a830035d3a55ce694e68b8",
+      "comparison": {
+        "atol": "1E-9",
+        "passed": true,
+        "reason": "all output tokens match",
+        "rtol": "1E-9",
+        "tokens_compared": 225
+      },
+      "kernel": "atax",
+      "native_passed": true,
+      "native_status": "passed",
+      "native_validation_wall_seconds": 0.1753576030023396,
+      "reference_execution_wall_seconds": 0.0017269609961658716,
+      "reference_stdout_sha256": "9dd0d33ac4e540f9331dd2f070032d503374886209a830035d3a55ce694e68b8",
+      "source_sha256": "fbc2c26db18ca10ff23bd5da91305a2490efc2eefec2638013885ab5f2f7a087",
+      "versions": {
+        "g++": "g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+        "gcc": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0"
+      },
+      "wrong_candidate_rejected": true,
+      "wrong_status": "failed"
+    },
+    {
+      "adapted_body_unchanged": true,
+      "candidate_execution_wall_seconds": 0.0017521800473332405,
+      "candidate_sha256": "0edec33b7812b0b9db0f9237779fa6a005c4a756dab30d9e9a02981e322fef6e",
+      "candidate_stdout_sha256": "bf0b65af9e9c6773e38854d62ea5d76ca0c59fedccebc41bc0f7b942fe768800",
+      "comparison": {
+        "atol": "1E-9",
+        "passed": true,
+        "reason": "all output tokens match",
+        "rtol": "1E-9",
+        "tokens_compared": 69
+      },
+      "kernel": "jacobi-1d",
+      "native_passed": true,
+      "native_status": "passed",
+      "native_validation_wall_seconds": 0.15244005317799747,
+      "reference_execution_wall_seconds": 0.0016805410850793123,
+      "reference_stdout_sha256": "bf0b65af9e9c6773e38854d62ea5d76ca0c59fedccebc41bc0f7b942fe768800",
+      "source_sha256": "0edec33b7812b0b9db0f9237779fa6a005c4a756dab30d9e9a02981e322fef6e",
+      "versions": {
+        "g++": "g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+        "gcc": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0"
+      },
+      "wrong_candidate_rejected": true,
+      "wrong_status": "failed"
+    }
+  ],
+  "schema": "hlsmith.hlsfactory-pilot-native-checks.v1",
+  "scope": "Native plumbing check only; no model, Bambu, Vitis, RTL or physical implementation jobs",
+  "tool_calls": {
+    "bambu": 0,
+    "gpu": 0,
+    "model": 0,
+    "vitis": 0
+  }
+}

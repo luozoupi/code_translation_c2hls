@@ -1,0 +1,9 @@
+{
+  "origin": "Derived portability baseline from the preserved public C kernel; not a model response; no performance claim",
+  "responses": [
+    {
+      "content": "/* Reduced-shape C11/C++17 adapter of the preserved HLSFactory/PolyBench export.\n * Kernel body and double precision retained; see ../README.md and ../LICENSE.PolyBench.txt.\n * Portability baseline, not an LLM response or an optimized implementation.\n */\n#include \"kernel.h\"\n\n\nvoid kernel_mvt(\n\t\tdouble x1[ N + 0],\n\t\tdouble x2[ N + 0],\n\t\tdouble y_1[ N + 0],\n\t\tdouble y_2[ N + 0],\n\t\tdouble A[ N + 0][N + 0])\n{\n\n\n    const int n = N;\n\n  int i, j;\n\n  for (i = 0; i < n; i++)\n    for (j = 0; j < n; j++)\n      x1[i] = x1[i] + A[i][j] * y_1[j];\n  for (i = 0; i < n; i++)\n    for (j = 0; j < n; j++)\n      x2[i] = x2[i] + A[j][i] * y_2[j];\n\n}",
+      "origin": "portability_baseline_no_llm"
+    }
+  ]
+}

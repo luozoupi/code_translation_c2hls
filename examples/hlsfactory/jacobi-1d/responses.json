@@ -1,0 +1,9 @@
+{
+  "origin": "Derived portability baseline from the preserved public C kernel; not a model response; no performance claim",
+  "responses": [
+    {
+      "content": "/* Reduced-shape C11/C++17 adapter of the preserved HLSFactory/PolyBench export.\n * Kernel body and double precision retained; see ../README.md and ../LICENSE.PolyBench.txt.\n * Portability baseline, not an LLM response or an optimized implementation.\n */\n#include \"kernel.h\"\n\n\nvoid kernel_jacobi_1d(\n\t\t\t    \n\t\t\t    double A[ N + 0],\n\t\t\t    double B[ N + 0])\n{\n\n\n    const int n = N;\n    const int tsteps = TSTEPS;\n\n  int t, i;\n\n  for (t = 0; t < tsteps; t++)\n    {\n      for (i = 1; i < n - 1; i++)\n\tB[i] = 0.33333 * (A[i-1] + A[i] + A[i + 1]);\n      for (i = 1; i < n - 1; i++)\n\tA[i] = 0.33333 * (B[i-1] + B[i] + B[i + 1]);\n    }\n\n}",
+      "origin": "portability_baseline_no_llm"
+    }
+  ]
+}

@@ -1,0 +1,267 @@
+{
+  "created_at_utc": "2026-10-27T18:11:00.545660+00:00",
+  "kernels": [
+    {
+      "adaptations": [
+        "include name changed to kernel.h",
+        "C11-compatible extern-C-conditional header",
+        "explicit smaller shape constants",
+        "new deterministic stdout harness",
+        "same public C kernel body compiled as the baseline C++ candidate"
+      ],
+      "bambu_protocol_variant": {
+        "allocation_sizes": [
+          "sizeof(double[N])",
+          "sizeof(double[N])",
+          "sizeof(double[N])",
+          "sizeof(double[N])",
+          "sizeof(double[N][N])"
+        ],
+        "automatic_golden_verification_disabled": false,
+        "config": "kernel-bambu.json",
+        "files": {
+          "kernel-bambu.json": "c5c056a1ca5244178e2127cfef59bdaae9cfda71b0fc405bc0828d895f01253b",
+          "testbench.bambu.c": "63caa10e62b329399f3fa4003cbd555b2d0b9a46fba289c03f0bc2a5fd94d3fc"
+        },
+        "private_include_alias": {
+          "pilot_testbench.inc": "testbench.c"
+        },
+        "reason": "Explicit full-array MDPI extents after preserved default-inference failure; original numeric cases, kernel source, dtype and shapes unchanged",
+        "testbench": "testbench.bambu.c"
+      },
+      "candidate_origin": "derived portability baseline; not fresh model inference",
+      "historical_dimensions": {
+        "N": 120
+      },
+      "id": "mvt",
+      "original_export_files": {
+        "metadata.json": {
+          "bytes": 523,
+          "path": "vendor/metadata.json",
+          "sha256": "14fb86887c596775af0670ae61025f0ec61fe25b0affd7872307aece439f31e7",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_mvt/metadata.json"
+        },
+        "mvt.h": {
+          "bytes": 300,
+          "path": "vendor/mvt.h",
+          "sha256": "4b6305d070ddac7180cb03a1ba29bdf5a4a298ccfb0d91f60ec06bacba5ba0eb",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_mvt/mvt.h"
+        },
+        "plain.cpp": {
+          "bytes": 378,
+          "path": "vendor/plain.cpp",
+          "sha256": "ffecbddecdda1ef2311261b2af1f974f09c76ae9238d9744394b0ffec58668f3",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_mvt/plain.cpp"
+        },
+        "testbench.cpp": {
+          "bytes": 1472,
+          "path": "vendor/testbench.cpp",
+          "sha256": "6ae39964e7965a272ac4fc5b53381676dd238d6388182bb67fe106af7cc79beb",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_mvt/testbench.cpp"
+        }
+      },
+      "pilot_dimensions": {
+        "N": 8
+      },
+      "pilot_files": {
+        "candidate.cpp": "2e8fc54edc9eafa38c2b03cf274007c6f258e689bf6a324b9bc5e0954ea282b8",
+        "kernel.h": "af1f683c2cf1cd84c88d9c94e338e8b029a97cfee2d9324f09cc02c672fd0939",
+        "kernel.json": "0e4c2a6d83cc3a54a4644edd6bbe19bb75953734c5a4bbf4e87d2f8c31639ea1",
+        "reference.c": "2e8fc54edc9eafa38c2b03cf274007c6f258e689bf6a324b9bc5e0954ea282b8",
+        "responses.json": "ecaf6d5ca6859dc0afc59a49f2952d8bf03d3d76e171b19cce765af35cf79cac",
+        "testbench.c": "29e6cdd5a6559399723e495f90b0ec9f95ce7f734dc71bff86a034ab68ef05a8"
+      },
+      "precision": "double",
+      "test_cases": 3,
+      "test_input_scope": "new deterministic asymmetric/zero/boundary cases; stdout dumps all pointer arrays at %.17g",
+      "top": "kernel_mvt"
+    },
+    {
+      "adaptations": [
+        "include name changed to kernel.h",
+        "C11-compatible extern-C-conditional header",
+        "explicit smaller shape constants",
+        "new deterministic stdout harness",
+        "same public C kernel body compiled as the baseline C++ candidate"
+      ],
+      "bambu_protocol_variant": {
+        "allocation_sizes": [
+          "sizeof(double[M][N])",
+          "sizeof(double[N])",
+          "sizeof(double[N])",
+          "sizeof(double[M])"
+        ],
+        "automatic_golden_verification_disabled": false,
+        "config": "kernel-bambu.json",
+        "files": {
+          "kernel-bambu.json": "684bc5a9280b079a4e18659419c52fd5e922a89340446a3b91e20eaa4ab8252b",
+          "testbench.bambu.c": "5c04e54ab81b25e7414285e9cfad783fe9a4917455def62a0e084032b940ee05"
+        },
+        "private_include_alias": {
+          "pilot_testbench.inc": "testbench.c"
+        },
+        "reason": "Explicit full-array MDPI extents after preserved default-inference failure; original numeric cases, kernel source, dtype and shapes unchanged",
+        "testbench": "testbench.bambu.c"
+      },
+      "candidate_origin": "derived portability baseline; not fresh model inference",
+      "historical_dimensions": {
+        "M": 116,
+        "N": 124
+      },
+      "id": "atax",
+      "original_export_files": {
+        "atax.h": {
+          "bytes": 313,
+          "path": "vendor/atax.h",
+          "sha256": "bae9bf9a342614a92e9062abcc83b51ed43289f9664cbaabbdc04f2c39d660e6",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_atax/atax.h"
+        },
+        "metadata.json": {
+          "bytes": 528,
+          "path": "vendor/metadata.json",
+          "sha256": "fea726ef52fce7ee2599918cf43c7babdedf9c379ad4519b8eaadd743ec4bd53",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_atax/metadata.json"
+        },
+        "plain.cpp": {
+          "bytes": 420,
+          "path": "vendor/plain.cpp",
+          "sha256": "9235ef27d8374ff07ccb7fe227daf406efd4a4240595eec3f31b6e7db767c854",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_atax/plain.cpp"
+        },
+        "testbench.cpp": {
+          "bytes": 1027,
+          "path": "vendor/testbench.cpp",
+          "sha256": "66803681c4e786cf71944650d58ffbddacd7b311772a707007142025098ecddd",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_atax/testbench.cpp"
+        }
+      },
+      "pilot_dimensions": {
+        "M": 6,
+        "N": 8
+      },
+      "pilot_files": {
+        "candidate.cpp": "fbc2c26db18ca10ff23bd5da91305a2490efc2eefec2638013885ab5f2f7a087",
+        "kernel.h": "28a80340f812a53591d87ad7a11d1d9428f9b15cde2376ac2f1134ecbd5deb19",
+        "kernel.json": "3b051a2372554258f4517c2c7360fb5556a92be9e4fe62838f2deb39356643f2",
+        "reference.c": "fbc2c26db18ca10ff23bd5da91305a2490efc2eefec2638013885ab5f2f7a087",
+        "responses.json": "d06005d2e3ff7abf6fb57c0cf0b90ca3ed62bd28f03176479ecd77a38585d463",
+        "testbench.c": "2be47ab422eef4305f7dc899a48b767defbce02882c3c2e8085fb04ae2ae11e8"
+      },
+      "precision": "double",
+      "test_cases": 3,
+      "test_input_scope": "new deterministic asymmetric/zero/boundary cases; stdout dumps all pointer arrays at %.17g",
+      "top": "kernel_atax"
+    },
+    {
+      "adaptations": [
+        "include name changed to kernel.h",
+        "C11-compatible extern-C-conditional header",
+        "explicit smaller shape constants",
+        "new deterministic stdout harness",
+        "same public C kernel body compiled as the baseline C++ candidate"
+      ],
+      "bambu_protocol_variant": {
+        "allocation_sizes": [
+          "sizeof(double[N])",
+          "sizeof(double[N])"
+        ],
+        "automatic_golden_verification_disabled": false,
+        "config": "kernel-bambu.json",
+        "files": {
+          "kernel-bambu.json": "1a1e59fd69d71df920171bf5517aeabd6bb60289e1d72c76d0bc63c05afb787a",
+          "testbench.bambu.c": "135a7f62e9e8db69aad9119b70b8382e3fad40ea1a2ab35da7221eb1d71c7667"
+        },
+        "private_include_alias": {
+          "pilot_testbench.inc": "testbench.c"
+        },
+        "reason": "Explicit full-array MDPI extents after preserved default-inference failure; original numeric cases, kernel source, dtype and shapes unchanged",
+        "testbench": "testbench.bambu.c"
+      },
+      "candidate_origin": "derived portability baseline; not fresh model inference",
+      "historical_dimensions": {
+        "N": 120,
+        "TSTEPS": 40
+      },
+      "id": "jacobi-1d",
+      "original_export_files": {
+        "jacobi-1d.h": {
+          "bytes": 291,
+          "path": "vendor/jacobi-1d.h",
+          "sha256": "d7585b11e4ee43fafe98c067f8e3780ae2fe30c55e83f218ea95df44b6d23fdf",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_jacobi-1d/jacobi-1d.h"
+        },
+        "metadata.json": {
+          "bytes": 553,
+          "path": "vendor/metadata.json",
+          "sha256": "8b9f7a78e17d236c5ab4a0382512329c445f202aea7cf6727080f4572deef347",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_jacobi-1d/metadata.json"
+        },
+        "plain.cpp": {
+          "bytes": 381,
+          "path": "vendor/plain.cpp",
+          "sha256": "a05c754e90b0bb3e33d961148e7ea160586126d7ef884165396709ce91cb8652",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_jacobi-1d/plain.cpp"
+        },
+        "testbench.cpp": {
+          "bytes": 859,
+          "path": "vendor/testbench.cpp",
+          "sha256": "e5cadffbfff53eb7bdef9835f42b04881894c0bd3ac5dc6bbf6281a3b8c83d31",
+          "source_path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/inputs/hlsfactory_jacobi-1d/testbench.cpp"
+        }
+      },
+      "pilot_dimensions": {
+        "N": 10,
+        "TSTEPS": 4
+      },
+      "pilot_files": {
+        "candidate.cpp": "0edec33b7812b0b9db0f9237779fa6a005c4a756dab30d9e9a02981e322fef6e",
+        "kernel.h": "6a5ae70e4b1ca2b01cc2ec000fd750454c6e4172c1f1c938efdc02990e780efb",
+        "kernel.json": "3bffc82ae358a096e6d98aa5e4850072eec772455ca6d1ff202212c49881a61a",
+        "reference.c": "0edec33b7812b0b9db0f9237779fa6a005c4a756dab30d9e9a02981e322fef6e",
+        "responses.json": "ad542164ed28096a3f34b70aaf148362347ebe7e767ed9b7f682d3de6caafc94",
+        "testbench.c": "c308b98f877f3ba4417e5dfcace761ba5d24185694b09f3af2514a0a6cd78a6c"
+      },
+      "precision": "double",
+      "test_cases": 3,
+      "test_input_scope": "new deterministic asymmetric/zero/boundary cases; stdout dumps all pointer arrays at %.17g",
+      "top": "kernel_jacobi_1d"
+    }
+  ],
+  "licenses": {
+    "LICENSE.HLSFactory-data.txt": {
+      "bytes": 20138,
+      "sha256": "187442db4df3afd21f2f0525739fd4beac28a62daaba3ee8d3533f60e7c33ec7",
+      "url": "https://raw.githubusercontent.com/sharc-lab/HLSFactory/main/LICENSE.data"
+    },
+    "LICENSE.PolyBench.txt": {
+      "bytes": 2747,
+      "sha256": "051cd26bce2f040209767780e375fb048efb14eb97001b24259f532f54917a4f",
+      "url": "https://raw.githubusercontent.com/MatthiasJReisinger/PolyBenchC-4.2.1/master/LICENSE.txt"
+    }
+  },
+  "native_check_receipt": {
+    "path": "native-checks.json",
+    "sha256": "99a0c63e0cf7203f136697f9efa037f17eb0c4371502afb2b5bb61414fe2c55f"
+  },
+  "native_extent_check_receipt": {
+    "path": "native-extent-checks.json",
+    "sha256": "8973a62c5f8b9946842eb741e1598681c8441524ad97501318d3b4b623efc92a"
+  },
+  "notices": {
+    "LICENSE.HLSFactory-data.txt": "187442db4df3afd21f2f0525739fd4beac28a62daaba3ee8d3533f60e7c33ec7",
+    "LICENSE.PolyBench.txt": "051cd26bce2f040209767780e375fb048efb14eb97001b24259f532f54917a4f",
+    "README.md": "4bd1b8fb1f282a213052282978060ce77787d85acdbdc3d77fe685e6bb24c70f",
+    "UPSTREAM-NOTICE.md": "9d92fd9ab1c7a3b0c38d0b0cfb5373ccb15221685a9ed86c8da439edd52aea6a"
+  },
+  "schema": "hlsmith.hlsfactory-pilot.v1",
+  "scope": "New reduced-shape double-precision portability pilot; not paper reproduction or fresh model performance",
+  "source_campaign_manifest": {
+    "path": "/mnt/data1/luo00466/c2hls_runs_20261018/cleanup-comparison-20261018-r2/manifest.json",
+    "sha256": "748f1c22c6ffa5420fb7d55d951e171ec861218296819ddc57c69c21419cc94d"
+  },
+  "source_collection": "Local frozen C2HLS HLSFactory-labelled public-C exports",
+  "upstream_license_policy": "https://github.com/sharc-lab/HLSFactory#design-collections",
+  "upstream_repository": "https://github.com/sharc-lab/HLSFactory",
+  "upstream_revision_authenticated": false,
+  "upstream_revision_limit": "The preserved local HLSFactory-labelled exports do not record an exact upstream Git revision; no byte identity with current upstream source is claimed."
+}

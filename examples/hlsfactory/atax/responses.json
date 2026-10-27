@@ -1,0 +1,9 @@
+{
+  "origin": "Derived portability baseline from the preserved public C kernel; not a model response; no performance claim",
+  "responses": [
+    {
+      "content": "/* Reduced-shape C11/C++17 adapter of the preserved HLSFactory/PolyBench export.\n * Kernel body and double precision retained; see ../README.md and ../LICENSE.PolyBench.txt.\n * Portability baseline, not an LLM response or an optimized implementation.\n */\n#include \"kernel.h\"\n\n\nvoid kernel_atax( \n\t\t double A[ M + 0][N + 0],\n\t\t double x[ N + 0],\n\t\t double y[ N + 0],\n\t\t double tmp[ M + 0])\n{\n\n\n    const int m = M;\n    const int n = N;\n\n  int i, j;\n\n  for (i = 0; i < n; i++)\n    y[i] = 0;\n  for (i = 0; i < m; i++)\n    {\n      tmp[i] = 0.0;\n      for (j = 0; j < n; j++)\n\ttmp[i] = tmp[i] + A[i][j] * x[j];\n      for (j = 0; j < n; j++)\n\ty[j] = y[j] + A[i][j] * tmp[i];\n    }\n\n}",
+      "origin": "portability_baseline_no_llm"
+    }
+  ]
+}

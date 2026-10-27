@@ -11,6 +11,7 @@ import shutil
 from .model import Model, ModelError, now, sha, write_json
 from . import tools
 from . import lightningsim as trace_backend
+from . import bambu as bambu_backend
 
 SCHEMA = 'hlsmith.minimal.run.v1'
 PROMPT_PROFILE = 'minimal-researcher-v1'
@@ -96,12 +97,14 @@ def extract_source(text):
     return text.strip() + '\n'
 
 
-def _messages(project, prompt, current=None, feedback=None, improve=False):
+def _messages(project, prompt, current=None, feedback=None, improve=False, backend='native'):
     public = '\n\n'.join('Interface file ' + name + ':\n' + path.read_text()
                           for name, path in project['headers'].items())
     content = 'Original C kernel:\n' + project['source'].read_text() + '\n\n' + public
     settings = project['data'].get('vitis', {})
-    if settings:
+    if backend == 'bambu':
+        content += '\n\nCompiler backend: Bambu. Use portable C++ and the supplied public interface. RTL is checked with Verilator.'
+    elif settings:
         content += '\n\nHardware settings:\n' + json.dumps({
             'top': project['top'], **{k: settings[k] for k in ('part', 'clock_ns', 'resource_limits') if k in settings}}, sort_keys=True)
     if current is not None:
@@ -109,7 +112,8 @@ def _messages(project, prompt, current=None, feedback=None, improve=False):
     if feedback:
         content += '\n\nCompiler/check feedback:\n' + feedback
     if improve:
-        content += '\n\nReduce the recorded HLS latency while meeting the configured clock and resource budgets.'
+        content += ('\n\nReduce executed RTL cycles for the same fixed testbench. Resource usage and physical timing are not measured in this backend.'
+                    if backend == 'bambu' else '\n\nReduce the recorded HLS latency while meeting the configured clock and resource budgets.')
     return [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': content}]
 
 
@@ -177,20 +181,48 @@ def _trace_settings(project):
     return config
 
 
+def _bambu_settings(project):
+    config = dict(project['data'].get('bambu', {}))
+    if set(config) - {'executable', 'timeout', 'clock_ns'}:
+        raise ValueError('bambu settings support executable, timeout and clock_ns only')
+    executable = config.get('executable', 'bambu')
+    if '/' in executable:
+        executable = str((project['path'].parent / executable).resolve())
+    config['executable'] = executable
+    config.setdefault('timeout', 120)
+    positive(config['timeout'], 'bambu.timeout')
+    if config.get('clock_ns') is not None:
+        positive(config['clock_ns'], 'bambu.clock_ns')
+    if not project['top']:
+        raise ValueError('Bambu requires a top function in kernel.json')
+    if not shutil.which(executable):
+        raise ValueError('Bambu executable unavailable; configure bambu.executable')
+    if not shutil.which('verilator'):
+        raise ValueError('Bambu co-simulation requires Verilator; no model request made')
+    return config
+
+
 def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesize=False, max_api_usd=None,
-        lightningsim=False):
+        lightningsim=False, backend=None):
     project = load_project(project_path)
     if not shutil.which('gcc') or not shutil.which('g++'):
         raise ValueError('native checks require gcc and g++; no model request made')
     if type(optimize) is not int or optimize < 0 or type(max_calls) is not int or max_calls < 1:
         raise ValueError('max_calls must be positive and optimize nonnegative integers')
-    if optimize and not synthesize:
+    backend = backend or ('vitis' if synthesize else 'native')
+    if backend not in {'native', 'vitis', 'bambu'}:
+        raise ValueError('backend must be native, vitis or bambu')
+    if synthesize and backend != 'vitis':
+        raise ValueError('--synthesize selects Vitis; use --backend bambu without that flag')
+    synthesize = backend == 'vitis'
+    if optimize and backend == 'native':
         raise ValueError('optimization needs --synthesize; CPU wall time is not an HLS objective')
     if lightningsim and not synthesize:
         raise ValueError('--lightningsim requires --synthesize and its Vitis solution')
     trace_settings = _trace_settings(project) if lightningsim else None
     if lightningsim and not shutil.which(trace_settings['executable']):
         raise ValueError('LightningSim executable unavailable; configure lightningsim.executable')
+    bambu_settings = _bambu_settings(project) if backend == 'bambu' else None
     settings = project['data'].get('vitis', {})
     if synthesize:
         if not project['top'] or not settings.get('part'):
@@ -208,7 +240,8 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
     out.mkdir(parents=True, exist_ok=False)
     project, identities = snapshot(project, out)
     prompt = files('hlsmith_minimal').joinpath('prompt.md').read_text()
-    result = {'schema': SCHEMA, 'started_at': now(), 'status': 'failed', 'scope': 'new minimal runner; not paper reproduction',
+    result = {'schema': SCHEMA, 'started_at': now(), 'status': 'failed', 'backend': backend,
+        'scope': 'new minimal runner; not paper reproduction',
         'prompt': {'profile': PROMPT_PROFILE, 'sha256': hashlib.sha256(prompt.encode()).hexdigest()},
         'input_manifest': identities, 'limits': {'max_calls': max_calls, 'optimization_attempts': optimize},
         'attempts': [], 'selected': None, 'warnings': [], 'hardware': {'rtl_cycles': None,
@@ -234,7 +267,7 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
                  'status': 'failed', 'source': None, 'source_sha256': None}
         result['attempts'].append(entry)
         try:
-            response = model.complete(_messages(project, prompt, current, feedback, improve))
+            response = model.complete(_messages(project, prompt, current, feedback, improve, backend))
         except ModelError as error:
             entry.update(status='stopped', reason=str(error))
             result['warnings'].append(str(error))
@@ -259,8 +292,17 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
             result['warnings'].append('original C oracle unavailable; no additional model requests')
             break
         synthesis = None
+        rtl_check = None
         qualification = None
         eligible = native['passed']
+        if eligible and backend == 'bambu':
+            rtl_check = bambu_backend.evaluate(candidate, project['testbench'], out=folder / 'bambu',
+                top=project['top'], include_files=include_files, **bambu_settings)
+            write_json(folder / 'bambu.json', rtl_check)
+            eligible = rtl_check['passed']
+            entry['bambu'] = rtl_check
+            entry['eligibility'] = {'passed': eligible, 'resource_eligibility': None,
+                'physical_timing_fit': None, 'scope': 'native and generated-RTL correctness for supplied inputs only'}
         if eligible and synthesize:
             extra = {'testbench': project['testbench'], 'test_files': project['test_files']} if lightningsim else {}
             synthesis = tools.synthesize_vitis(candidate, out=folder / 'synthesis', top=project['top'],
@@ -277,15 +319,21 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
             qualification = qualify_synthesis(synthesis, settings)
             entry.update(synthesis=synthesis, eligibility=qualification)
             eligible = qualification['passed']
-        feedback = _feedback(native, synthesis, qualification)
+        feedback = (json.dumps({'backend':'bambu','rtl_cosim_status':rtl_check['status'],
+            'rtl_cycles':rtl_check.get('metrics', {}).get('rtl_cycles'),
+            'scope':'fixed-testbench cycles; FPGA resource/timing eligibility not established'},sort_keys=True)
+            if rtl_check else _feedback(native, synthesis, qualification))
         entry['feedback'] = feedback
         if eligible:
             entry['status'] = 'passed'
-            score = synthesis['metrics']['hls_estimate']['latency_cycles_worst'] if synthesize else None
-            entry['objective'] = {'metric': 'hls_estimated_worst_cycles' if synthesize else None, 'value': score}
-            if best is None or (synthesize and score < best['objective']['value']):
+            score = (rtl_check['metrics']['rtl_cycles'] if rtl_check else
+                     synthesis['metrics']['hls_estimate']['latency_cycles_worst'] if synthesize else None)
+            entry['objective'] = {'metric': 'rtl_cosim_total_cycles' if rtl_check else
+                                  'hls_estimated_worst_cycles' if synthesize else None, 'value': score}
+            if best is None or (backend != 'native' and score < best['objective']['value']):
                 best = entry
-        elif native['status'] == 'unavailable' or (synthesis and synthesis['status'] == 'unavailable'):
+        elif (native['status'] == 'unavailable' or (synthesis and synthesis['status'] == 'unavailable')
+              or (rtl_check and rtl_check['status'] == 'unavailable')):
             result['warnings'].append('required tool unavailable; no further model requests')
             break
         write_json(out / 'result.json', result)
@@ -301,6 +349,12 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
         write_json(out / 'final-validation.json', final)
         result['selected'] = {'path': str(selected), 'sha256': sha(selected), 'attempt': best['index'],
                               'objective': best['objective'], 'independent_native_passed': final['passed']}
+        if backend == 'bambu':
+            result['bambu'] = best['bambu']
+            result['selected']['generated_rtl_passed'] = best['bambu']['passed']
+            result['hardware'].update(rtl_cycles=best['bambu']['metrics']['rtl_cycles'],
+                cycle_scope='total for fixed testbench invocations', resource_eligibility=None,
+                physical_timing_fit=None)
         if lightningsim:
             result['lightningsim'] = best.get('lightningsim')
             result['hardware']['trace_estimate_cycles'] = (best.get('lightningsim') or {}).get('metrics', {}).get('trace_estimate_cycles')
@@ -315,10 +369,16 @@ def run(project_path, out, *, responses=None, max_calls=3, optimize=0, synthesiz
     return result
 
 
-def validate(project_path, candidate, out, *, rtl_config=None, lightningsim_solution=None, lightningsim_workspace=None):
+def validate(project_path, candidate, out, *, rtl_config=None, lightningsim_solution=None, lightningsim_workspace=None,
+             backend='native'):
     if lightningsim_workspace is not None and lightningsim_solution is None:
         raise ValueError('--lightningsim-workspace requires --lightningsim-solution')
     project = load_project(project_path)
+    if backend not in {'native','bambu'}:
+        raise ValueError('validation backend must be native or bambu')
+    if backend == 'bambu' and (rtl_config is not None or lightningsim_solution is not None):
+        raise ValueError('Bambu generates and checks its own RTL; supplied-RTL/LightningSim options use the native backend')
+    bambu_settings = _bambu_settings(project) if backend == 'bambu' else None
     candidate = Path(candidate).resolve()
     if not candidate.is_file():
         raise ValueError('candidate source missing')
@@ -331,8 +391,13 @@ def validate(project_path, candidate, out, *, rtl_config=None, lightningsim_solu
         include_files={**project['headers'], **project['test_files']}, interface_headers=list(project['headers']),
         **project['validation'])
     record = {'schema': SCHEMA, 'started_at': now(), 'status': 'passed' if native['passed'] else 'failed',
+              'backend': backend,
               'scope': 'explicit candidate validation; not paper reproduction',
               'input_manifest': identities, 'candidate_sha256': sha(source), 'native': native, 'rtl': None}
+    if backend == 'bambu' and native['passed']:
+        record['bambu'] = bambu_backend.evaluate(source,project['testbench'],out=out/'bambu',top=project['top'],
+            include_files={**project['headers'],**project['test_files']},**bambu_settings)
+        record['status'] = 'passed' if record['bambu']['passed'] else 'failed_rtl_validation'
     if rtl_config is not None and native['passed']:
         path = Path(rtl_config).resolve()
         rtl = json.loads(path.read_text())
@@ -378,13 +443,17 @@ def report(path):
     result = json.loads((path / 'result.json' if path.is_dir() else path).read_text())
     selected = result.get('selected') or {}
     ledger = result.get('api_accounting') or {}
-    return {'status': result['status'], 'scope': result['scope'], 'attempts': len(result.get('attempts', [])),
+    bambu = result.get('bambu') or {}
+    return {'status': result['status'], 'scope': result['scope'], 'backend': result.get('backend'),
+            'attempts': len(result.get('attempts', [])),
             'selected_source': selected.get('path'), 'selected_sha256': selected.get('sha256'),
             'objective': selected.get('objective'), 'api_charged_or_reserved_usd': ledger.get('charged_or_reserved_usd'),
             'native_passed': selected.get('independent_native_passed', result.get('native', {}).get('passed')),
-            'rtl_passed': (result.get('rtl') or {}).get('passed'),
-            'rtl_cycles': (result.get('rtl') or {}).get('metrics', {}).get('rtl_cycles'),
-            'candidate_rtl_binding': (result.get('rtl') or {}).get('candidate_rtl_binding'),
+            'rtl_passed': bambu.get('passed', (result.get('rtl') or {}).get('passed')),
+            'rtl_cycles': bambu.get('metrics', {}).get('rtl_cycles', (result.get('rtl') or {}).get('metrics', {}).get('rtl_cycles')),
+            'resource_eligibility': None if bambu else (result.get('hardware') or {}).get('resource_eligibility'),
+            'candidate_rtl_binding': ('bambu_generated_and_cosim_checked' if bambu.get('passed') else
+                                      (result.get('rtl') or {}).get('candidate_rtl_binding')),
             'lightningsim_status': (result.get('lightningsim') or {}).get('status'),
             'trace_estimate_cycles': (result.get('lightningsim') or {}).get('metrics', {}).get('trace_estimate_cycles'),
             'warnings': result.get('warnings', [])}

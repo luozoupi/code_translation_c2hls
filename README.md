@@ -3,6 +3,8 @@
 A small C-to-HLS workbench: translate a C kernel to C++, check it against an
 independent C execution, and optionally explore measured HLS improvements.
 One CLI provides `run`, `validate`, and `report`.
+Version 0.3 adds `run --backend native|vitis|bambu`; native is the default.
+`--synthesize` remains the Vitis alias. Explicit `validate` supports native or Bambu.
 
 The default prompt profile is **`minimal-researcher-v1`**, a new profile for this
 package. Results from it do not reproduce the submitted paper's experiments.
@@ -69,6 +71,40 @@ hlsmith validate examples/scalar_mac/kernel.json \
   --rtl-config examples/scalar_mac/rtl-wrong.json --out runs/rtl-wrong
 ```
 
+## Compile C++ to RTL with Bambu
+
+The optional [Bambu 2024.10](https://github.com/ferrandi/PandA-bambu/releases/tag/2024.10)
+installation is isolated at `.tools/bambu/bambu`.
+Its launcher sets the extracted AppImage environment without FUSE. Bambu compiles
+the candidate to Verilog and runs generated C/RTL checks through Verilator;
+independent original-C/native validation still runs first.
+
+From this project directory, use the same CLI with an HLSFactory mini pilot:
+
+```sh
+export PATH="$PWD/.tools/bambu:$PATH"
+.venv/bin/hlsmith run examples/hlsfactory/mvt/kernel-bambu.json \
+  --backend bambu --responses examples/hlsfactory/mvt/responses.json \
+  --max-calls 1 --out runs/mvt-check
+.venv/bin/hlsmith report runs/mvt-check
+```
+
+The three double-precision pilots are MVT (`N=8`), ATAX (`6 x 8`), and
+Jacobi-1D (`N=10`, `T=4`). Their baseline responses are replay fixtures, not fresh
+LLM results or evidence of paper QoR. All three passed native checks and three
+checked RTL invocations each: MVT 4,626 cycles/call, ATAX 3,492, and Jacobi-1D
+3,440. The [pilot receipt](HLSFACTORY_PILOT.json) preserves results and setup
+failures; these are reduced-shape functional tests, not U280 implementation results.
+[Source hashes and upstream licenses](examples/hlsfactory/README.md) accompany
+the imported fixtures under `examples/hlsfactory/`.
+
+The adapter uses a 64-bit ABI and sets `OMP_NUM_THREADS=1`. Conditional testbench
+`m_param_alloc` hooks declare actual pointer extents. Automatic C/RTL value
+checking stays enabled at zero ULP; neither `--tb-param-size` nor
+`CUSTOM_VERIFICATION` is used. Cycles describe the fixed testbench invocations;
+FPGA resource eligibility and physical timing are unmeasured. Bambu optimization
+ranks those executed cycles, while Vitis optimization uses its HLS estimates.
+
 ## Use DeepSeek
 
 Set the key in your shell environment; keep it out of configuration and source:
@@ -95,13 +131,14 @@ and ledgers. No API calls were spent building or testing this project.
 | --- | --- |
 | Native C/C++ | Compare candidate outputs with independent original-C outputs. |
 | Verilator | Execute supplied RTL and measure its harness-defined cycles. |
+| External Bambu + Verilator | Compile candidate C++ to RTL and co-simulate it. |
 | External Vitis HLS | Produce HLS latency, clock, and resource estimates. |
 | Optional LightningSim | Estimate dynamic trace latency using a Vitis HLS schedule. |
 
 Verilator does not translate C to RTL. These checks do not establish physical
 U280 implementation. LightningSim is an optional external tool, described below.
 
-Optimization requires `--synthesize`, an available Vitis executable, and explicit
+Vitis optimization requires `--backend vitis` (or `--synthesize`), its executable, and
 `vitis.part`, `vitis.clock_ns`, and `vitis.resource_limits` in `kernel.json`.
 Merge this section into your configuration, then set the part and study budgets:
 
@@ -190,13 +227,16 @@ and no LightningSim latency, accuracy, or speedup result is claimed.
 
 ## Small by design
 
-`src/hlsmith_minimal/` has seven Python files: `cli.py` for commands, `core.py` for
+`src/hlsmith_minimal/` has eight Python files: `cli.py` for commands, `core.py` for
 the run/check/select loop, `model.py` for requests and accounting, `tools.py` for
-native/RTL/synthesis tools, `lightningsim.py` for optional trace estimates, and
+native/RTL/synthesis tools, `bambu.py` for generated-RTL checks, `lightningsim.py`
+for optional trace estimates, and
 `__init__.py`/`__main__.py` for package entry points. One
 `prompt.md` holds the researcher-facing instructions.
 
 This separate package imports no legacy project modules and changes no existing
 campaigns. Validation covers executed test outputs, not all possible inputs or
-paper-wide performance equivalence. The [examples](examples/README.md) have their
-own [MIT license](examples/LICENSE); a project-wide license has not been selected.
+paper-wide performance equivalence. Original toy fixtures have their own
+[MIT license](examples/LICENSE); HLSFactory imports retain their
+[upstream notices](examples/hlsfactory/UPSTREAM-NOTICE.md).
+A project-wide license has not been selected.

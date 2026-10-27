@@ -1,0 +1,21 @@
+{
+  "bambu": {
+    "clock_ns": 3.33,
+    "executable": "bambu",
+    "timeout": 120
+  },
+  "headers": {
+    "kernel.h": "kernel.h"
+  },
+  "name": "hlsfactory-jacobi-1d-mini-double-pilot",
+  "source": "reference.c",
+  "test_files": {},
+  "testbench": "testbench.c",
+  "top": "kernel_jacobi_1d",
+  "validation": {
+    "atol": 1e-09,
+    "compile_timeout": 30,
+    "rtol": 1e-09,
+    "run_timeout": 5
+  }
+}

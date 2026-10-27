@@ -1,0 +1,59 @@
+{
+  "kernel_checks": [
+    {
+      "kernel": "mvt",
+      "mock_mdpi_bytes_per_argument": [
+        64,
+        64,
+        64,
+        64,
+        512
+      ],
+      "mock_mdpi_hook_branch_passed": true,
+      "mock_mdpi_registration_calls": 15,
+      "native_passed": true,
+      "real_bambu_jobs": 0,
+      "real_mdpi_runtime_tested": false,
+      "stdout_matches_original_pilot_exactly": true,
+      "stdout_sha256": "6a0eee14f42928b9d2e40a973f994c0609c3e57bb70670b06216701b76a3ecfc",
+      "top_calls": 3,
+      "variant_testbench_sha256": "63caa10e62b329399f3fa4003cbd555b2d0b9a46fba289c03f0bc2a5fd94d3fc"
+    },
+    {
+      "kernel": "atax",
+      "mock_mdpi_bytes_per_argument": [
+        384,
+        64,
+        64,
+        48
+      ],
+      "mock_mdpi_hook_branch_passed": true,
+      "mock_mdpi_registration_calls": 12,
+      "native_passed": true,
+      "real_bambu_jobs": 0,
+      "real_mdpi_runtime_tested": false,
+      "stdout_matches_original_pilot_exactly": true,
+      "stdout_sha256": "9dd0d33ac4e540f9331dd2f070032d503374886209a830035d3a55ce694e68b8",
+      "top_calls": 3,
+      "variant_testbench_sha256": "5c04e54ab81b25e7414285e9cfad783fe9a4917455def62a0e084032b940ee05"
+    },
+    {
+      "kernel": "jacobi-1d",
+      "mock_mdpi_bytes_per_argument": [
+        80,
+        80
+      ],
+      "mock_mdpi_hook_branch_passed": true,
+      "mock_mdpi_registration_calls": 6,
+      "native_passed": true,
+      "real_bambu_jobs": 0,
+      "real_mdpi_runtime_tested": false,
+      "stdout_matches_original_pilot_exactly": true,
+      "stdout_sha256": "bf0b65af9e9c6773e38854d62ea5d76ca0c59fedccebc41bc0f7b942fe768800",
+      "top_calls": 3,
+      "variant_testbench_sha256": "135a7f62e9e8db69aad9119b70b8382e3fad40ea1a2ab35da7221eb1d71c7667"
+    }
+  ],
+  "schema": "hlsmith.hlsfactory-pilot-mdpi-native-checks.v1",
+  "scope": "C11 native equivalence and stubbed MDPI hook extent checks; no actual Bambu/RTL jobs"
+}

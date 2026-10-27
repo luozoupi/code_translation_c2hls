@@ -1,18 +1,25 @@
-# HLSmith Minimal
+# HLSmith Nano
 
 A small C-to-HLS workbench: translate C to C++, compare its outputs with an
 independent C execution, and optionally compile it to RTL or explore measured
 improvements. Three commands cover the workflow: `run`, `validate`, and `report`.
 
-The `minimal-researcher-v1` prompt is new to this standalone package. Its results
-do not reproduce the submitted paper's experiments.
+[`HLSmiths-nano`](https://github.com/luozoupi/code_translation_c2hls/tree/HLSmiths-nano)
+is the lightweight development branch.
+[`v8`](https://github.com/luozoupi/code_translation_c2hls/tree/v8), formerly
+`hlsmith-clean`, retains the full research implementation and old `c2hls` CLI.
+Nano keeps the existing `hlsmith` CLI and `hlsmith-minimal` package version
+`0.3.0`. Its new `minimal-researcher-v1` prompt and results do not reproduce the
+submitted paper's experiments.
 
 ## Install
 
 Use Python 3.10 or newer, `gcc`, and `g++`. The Python runtime has no third-party
-dependencies. From this project directory:
+dependencies. For a fresh checkout:
 
 ```sh
+git clone --branch HLSmiths-nano --single-branch https://github.com/luozoupi/code_translation_c2hls.git hlsmith-nano
+cd hlsmith-nano
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install .

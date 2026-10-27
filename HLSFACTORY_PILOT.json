@@ -1,6 +1,6 @@
 {
   "schema": "hlsmith.hlsfactory-bambu-pilot.v1",
-  "recorded_at_utc": "2026-10-27T18:39:36.724726+00:00",
+  "recorded_at_utc": "2026-10-27T18:41:51.346343+00:00",
   "package_version": "0.3.0",
   "status": "passed",
   "scope": "Reduced-shape double-precision HLSFactory-derived offline portability baselines; not fresh model translation, paper reproduction or FPGA implementation evidence.",
@@ -353,7 +353,113 @@
       "wall_seconds": 5.42
     },
     "installed_package": {
-      "status": "pending"
+      "status": "passed",
+      "clean_export_installation": {
+        "status": "passed",
+        "recorded_at_utc": "2026-10-27T18:40:24.689927+00:00",
+        "source_commit": "491ea656731fb422ac92b6a80841931fa0498a70",
+        "build_origin": "git archive HEAD in temporary directory",
+        "network_used": false,
+        "wheel": "dist/clean-export/hlsmith_minimal-0.3.0-py3-none-any.whl",
+        "wheel_sha256": "5f6eb2c3eb178c2bfc9f9be50ef5f673f529bd3a58fdb4d7cf2fc2af8b1753a2",
+        "package_files": [
+          "hlsmith_minimal/__init__.py",
+          "hlsmith_minimal/__main__.py",
+          "hlsmith_minimal/bambu.py",
+          "hlsmith_minimal/cli.py",
+          "hlsmith_minimal/core.py",
+          "hlsmith_minimal/lightningsim.py",
+          "hlsmith_minimal/model.py",
+          "hlsmith_minimal/prompt.md",
+          "hlsmith_minimal/tools.py"
+        ],
+        "all_package_bytes_match_source_and_installation": true,
+        "installed": {
+          "version": "0.3.0",
+          "module": "/home/luo00466/hlsmith-minimal/.venv/lib/python3.13/site-packages/hlsmith_minimal/__init__.py"
+        },
+        "build_log": "runs/hlsfactory-bambu-pilot/package-checks/build.log",
+        "install_log": "runs/hlsfactory-bambu-pilot/package-checks/install.log"
+      },
+      "installation_receipt": {
+        "path": "runs/hlsfactory-bambu-pilot/package-checks/installation.json",
+        "bytes": 1073,
+        "sha256": "3a61890984ec01839b20e1cba2a8b0b5ae581472d5f935cf8466b4bed5eafc27"
+      },
+      "test_receipt": {
+        "path": "runs/hlsfactory-bambu-pilot/package-checks/installed-tests.json",
+        "bytes": 577,
+        "sha256": "5c8a9a4906489eaa4adb9d11fa98d6284716f4d5b6736f423477d69b6fb53a19"
+      },
+      "tests_passed": 90,
+      "test_interpreter": "Python 3.10 test environment",
+      "test_wall_seconds": 12.067,
+      "test_output": "TESTED_INSTALLED_PACKAGE=/home/luo00466/hlsmith-minimal/.venv/lib/python3.13/site-packages/hlsmith_minimal/__init__.py\n........................................................................ [ 80%]\n..................                                                       [100%]\n90 passed in 11.42s\n",
+      "installed_cli_smoke": {
+        "status": "passed",
+        "returncode": 0,
+        "command": [
+          "/home/luo00466/hlsmith-minimal/.venv/bin/hlsmith",
+          "run",
+          "/home/luo00466/hlsmith-minimal/runs/hlsfactory-bambu-pilot/mvt-extent-project.json",
+          "--responses",
+          "/home/luo00466/hlsmith-minimal/examples/hlsfactory/mvt/responses.json",
+          "--backend",
+          "bambu",
+          "--max-calls",
+          "1",
+          "--out",
+          "/home/luo00466/hlsmith-minimal/runs/hlsfactory-bambu-pilot/installed-mvt"
+        ],
+        "cwd": "/tmp",
+        "pythonpath_unset": true,
+        "api_key_environment_removed": true,
+        "wall_seconds": 25.367,
+        "metrics": {
+          "cycle_scope": "sum of all registered testbench top calls",
+          "num_executions": 3,
+          "rtl_cycles": 13878,
+          "rtl_cycles_per_execution": [
+            4626,
+            4626,
+            4626
+          ]
+        },
+        "report": {
+          "status": "passed",
+          "scope": "new minimal runner; not paper reproduction",
+          "backend": "bambu",
+          "attempts": 1,
+          "selected_source": "/home/luo00466/hlsmith-minimal/runs/hlsfactory-bambu-pilot/installed-mvt/selected.cpp",
+          "selected_sha256": "8c0055f3a544422f4100ab8dee1f40eced460c4fa0d85d6acc7d6cb2bd602a59",
+          "objective": {
+            "metric": "rtl_cosim_total_cycles",
+            "value": 13878
+          },
+          "api_charged_or_reserved_usd": 0,
+          "native_passed": true,
+          "rtl_passed": true,
+          "rtl_cycles": 13878,
+          "resource_eligibility": null,
+          "candidate_rtl_binding": "bambu_generated_and_cosim_checked",
+          "lightningsim_status": null,
+          "trace_estimate_cycles": null,
+          "warnings": []
+        },
+        "result_sha256": "755616648a2ef7222c44e2b1d4e4a8db291adffed3ae34a2b5b67c669b383d04"
+      },
+      "smoke_receipt": {
+        "path": "runs/hlsfactory-bambu-pilot/package-checks/installed-smoke.json",
+        "bytes": 1611,
+        "sha256": "8899ebc02a87c725640e0a9dc3eab8f6c7d8f30f6240786424cf0461ca992358"
+      },
+      "smoke_artifact_hashes_reverified": true
+    },
+    "independent_audit": {
+      "status": "passed",
+      "kernels": 3,
+      "registered_rtl_calls": 9,
+      "scope": "Read-only cross-check of native/source/input/artifact hashes, exact stdout, automatic zero-ULP argument checking, cycle conversion and unmeasured FPGA fit fields"
     }
   },
   "limitations": [
@@ -362,5 +468,6 @@
     "RTL cycle counts describe the fixed testbench top calls; requested clock is not a physical implementation result.",
     "FPGA resource, clock closure and U280 eligibility remain unmeasured.",
     "Tool and bulk run directories are local and ignored by Git; retain them with this receipt to preserve all evidence."
-  ]
+  ],
+  "implementation_commit": "491ea656731fb422ac92b6a80841931fa0498a70"
 }

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hlsmith-minimal"
+version = "0.1.0"
+description = "A small C-to-HLS runner with independent correctness checks"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+hlsmith = "hlsmith_minimal.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hlsmith_minimal = ["prompt.md"]

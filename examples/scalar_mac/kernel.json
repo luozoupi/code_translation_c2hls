@@ -1,0 +1,12 @@
+{
+  "name": "scalar-mac",
+  "source": "reference.c",
+  "testbench": "testbench.c",
+  "headers": {"kernel.h": "kernel.h"},
+  "test_files": {"test_vectors.h": "test_vectors.h"},
+  "top": "scalar_mac",
+  "attempts": 2,
+  "optimize": 0,
+  "validation": {"atol": 0, "rtol": 0},
+  "vitis": {"part": "xcu280-fsvh2892-2L-e", "clock_ns": 3.33}
+}

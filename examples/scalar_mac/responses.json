@@ -1,0 +1,11 @@
+{
+  "origin": "illustrative_fixture",
+  "responses": [
+    {
+      "content": "/* SPDX-License-Identifier: MIT */\n/* Copyright (c) 2026 luozoupi */\n#include \"kernel.h\"\n\nextern \"C\" uint32_t scalar_mac(uint32_t x, uint32_t y, uint32_t bias)\n{\n    uint32_t product = 0;\n    for (uint32_t index = 0; index < y; ++index) {\n        product += x;\n    }\n    return product + bias;\n}\n"
+    },
+    {
+      "content": "/* SPDX-License-Identifier: MIT */\n/* Copyright (c) 2026 luozoupi */\n#include \"kernel.h\"\n\nextern \"C\" uint32_t scalar_mac(uint32_t x, uint32_t y, uint32_t bias)\n{\n    const uint64_t product = static_cast<uint64_t>(x) * static_cast<uint64_t>(y);\n    return static_cast<uint32_t>(product + static_cast<uint64_t>(bias));\n}\n"
+    }
+  ]
+}

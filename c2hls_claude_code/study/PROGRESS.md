@@ -759,3 +759,26 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
     - the FRP rule is checked only on heat3d/jacobi3d;
     - Fir lacks 0004 until `cosim/lsim/otus/apply_frp_fir.sh` is run;
     - real DRAM/HBM timing is out of scope; the reference is cosim's fixed-latency memory.
+- 2026-10-27 **LightningSim: fixing the 3 open items** (user: "we need to fix these absolutely": non-blocking reads, the FRP residual, FRP checked on one kernel family only). Work in `study/lsim_fix/`.
+  - **Non-blocking reads, step 0** (in the fork, not committed yet):
+    - Change: `_autotb_FifoCanRead_iN` is defined (Vitis lowers `empty()` to `_ssdm_op_NbReadReq.ap_fifo`). `src/fifo.cpp` has `__hlslitesim_fifo_can_read`, `fifo.ll.jinja` the wrapper, and the runner regex matches CanRead. The runtime library was rebuilt into `env/share/lightningsim/templates` (old copy: `tools/lightningsim/tmp/templates_backup_pre_nb_20261027`).
+    - The C trace runs the dataflow processes in order. A g++ count on small heat3d shows no poll fails, so the trace has no idle polls.
+    - Result on the 19 unpatched SODA designs with a cosim (job 4029719, TAG=nb0):
+      - blur and sobel2d (8 designs) are exact or within −9 cycles;
+      - erosion and xcorr deadlock in LightningSim (6 designs) or are +8% to +225% (5 designs).
+  - **FRP rule is not general.** On a new microbenchmark (`f_k3_l_frp`: 3 inputs, depth 2, FRP reads at stage 3), the +1 rule gives +30%.
+    - The waveform shows the real rule: the FRP pipeline issues an iteration only once the item is in the FIFO, which is *r* cycles before the read at stage *r*.
+    - Vitis grew those FIFOs from depth 2 to 5 to keep II=1, so LightningSim must use the RTL depth.
+    - In SODA's Module6, *r* = 1 and the depths are unchanged, which is why +1 worked there.
+    - New rule v2 = +*r* plus RTL FIFO depths. It is exact on `f_k3_l_frp`, where v1 is +768 cycles and *r* without RTL depths is +2,816.
+    - RTL parsing: `study/lsim_fix/frp_rtl.py`. Variant driver: `frp_eval.py`.
+  - **Test benches:**
+    - `fx_gen.py`: 30 microbenchmarks, FRP vs stp in 11 shapes plus 8 polled-loop shapes. Job `fx_job.sh` (csim + csynth + cosim with a full VCD + LightningSim).
+    - `gen_small.py`: 25 small SODA designs, 64² / 16³, as generated, patched and stp. Job `soda_small_job.sh`.
+    - SODA venv for Otus: /scratch/hpc-prf-llmfpga/asa582/projects/packages/soda-venv-otus (same pinned versions as Fir's; reproduces designs/blur_u8 byte for byte).
+  - **First microbenchmark results** (job 4029857, effectively stock LightningSim because the v1 rule matched no names):
+    - polled loops: 8 of 8 exact or −8 cycles (one mapping step);
+    - FRP shapes: most exact or −8, but chain2 is +752 and cond deadlocks in LightningSim (cosim passes);
+    - the stp cond variant deadlocks in RTL too.
+  - **Small unpatched heat3d:** Vitis leaves Module6 unpipelined (about 49 cycles/element), so its LightningSim 327K is plausible. The cosim will check it.
+  - **Running:** small SODA cosim + VCD + LightningSim (4029871; my 4029858 was cancelled because of a wrong TB include path, all its cosims failed), and the v2 evaluation on the 30 microbenchmarks (4029869).

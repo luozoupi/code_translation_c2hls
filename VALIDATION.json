@@ -1,0 +1,88 @@
+{
+  "checked_at": "2026-10-27T02:42:21.916963+00:00",
+  "clean_git_export": {
+    "all_wheel_package_bytes_match_source": true,
+    "installed_from_clean_export": true,
+    "native_result": "passed",
+    "network_installation": false,
+    "required_files_verified": 14,
+    "wheel_sha256": "ff393eb59f1cb02e03a869c5821c1f1f5e85a201b5f9f9d160966b7fb9c24f17",
+    "working_directory": "outside source tree, PYTHONPATH unset"
+  },
+  "gpu_jobs": 0,
+  "installed_smoke_cases": [
+    {
+      "expected_returncode": 0,
+      "name": "installed-native",
+      "returncode": 0,
+      "rtl_cycles": null,
+      "status": "passed"
+    },
+    {
+      "expected_returncode": 0,
+      "name": "installed-verilator",
+      "returncode": 0,
+      "rtl_cycles": 12,
+      "status": "passed"
+    },
+    {
+      "expected_returncode": 1,
+      "name": "installed-wrong-native",
+      "returncode": 1,
+      "rtl_cycles": null,
+      "status": "failed"
+    },
+    {
+      "expected_returncode": 1,
+      "name": "installed-wrong-rtl",
+      "returncode": 1,
+      "rtl_cycles": 12,
+      "status": "failed"
+    }
+  ],
+  "legacy_runtime_imports": false,
+  "limitations": [
+    "New minimal runner, not paper reproduction or performance equivalence.",
+    "Verilator fixture is hand-authored; its cycles are not attributed to generated C++.",
+    "Native validation covers supplied inputs, not all possible inputs.",
+    "Vitis wrapper/report parser tested with fixtures only, not a live synthesis job.",
+    "LightningSim is not included; physical implementation is not measured."
+  ],
+  "offline_tests": {
+    "command": "PYTHONPATH=src python -m pytest -q",
+    "coverage": [
+      "independent oracle and ABI checks",
+      "large integer and nonfinite output checks",
+      "wrong candidate and RTL rejection",
+      "oracle isolation from generation and repair prompts",
+      "bounded selection and winner retention",
+      "clock/resource qualification",
+      "request reservations and missing usage",
+      "real Verilator compile and simulation",
+      "timeouts and fresh output directories"
+    ],
+    "passed": 28
+  },
+  "provider_calls": 0,
+  "python_runtime_dependencies": [],
+  "report_command_passed": true,
+  "runtime_files": {
+    "src/hlsmith_minimal/__init__.py": "597f0e2ea2e3346d8752b9b7f8ab411946ae8f75ec2e6688f2b6d0d91ca353f2",
+    "src/hlsmith_minimal/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "src/hlsmith_minimal/cli.py": "1dae3b5a89421ac86a21a2f1350eae4b6ec1cf599042f3a30c5c81f3445624c4",
+    "src/hlsmith_minimal/core.py": "f5b1c2c5b6c927c1d93a3216082d966e39c3c26b2a741975d875dbcd9ee8d38d",
+    "src/hlsmith_minimal/model.py": "832fc6417461229d6731f6115f0cccd4c1b707eff00ee6cade2f3c01f47d7d3b",
+    "src/hlsmith_minimal/prompt.md": "bb9ec9c43015be62be16dfbcc854ed0b78f8d4c6041544c83cb2948eb0ab6150",
+    "src/hlsmith_minimal/tools.py": "8693c9db72c1120cda33593e9b97d83723cf5cc4dc4be4298d3a3130e8568c35"
+  },
+  "runtime_python_files": 6,
+  "runtime_python_lines": 901,
+  "schema": "hlsmith.minimal.validation.v1",
+  "source_commit": "3d83a10934342ece864db434d45cbdd689b8dad2",
+  "tools": {
+    "g++": "g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "gcc": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "verilator": "Verilator 5.045 devel rev v5.044-96-g30e6cd909"
+  },
+  "vitis_jobs": 0
+}

@@ -48,7 +48,10 @@ P, K = 6 + nptr, 27 + 12 * nptr
 
 def run(extra=None, depths=None):
     q = dataclasses.replace(p, fifo_raw_extra=extra or {}, fifo_depths={**p.fifo_depths, **(depths or {})})
-    e = trace.compiled.execute(q).top_module.end
+    try:
+        e = trace.compiled.execute(q).top_module.end
+    except Exception as x:   # e.g. "deadlock detected" with one variant's depths
+        return {"end": None, "mapped": None, "diff": None, "error": str(x)[:200]}
     mp = P * math.ceil((e - 14) / P) + K
     return {"end": e, "mapped": mp, "diff": mp - cosim if cosim else None}
 
@@ -63,5 +66,5 @@ res["v2"] = run(frp, dep)
 res["v2_nodep"] = run(frp)
 res["dep"] = run(None, dep)
 out.write_text(json.dumps(res, indent=1) + "\n")
-print(out.name, {k: res[k]["diff"] if cosim else res[k]["end"] for k in ("base", "v1", "v2", "v2_nodep", "dep")},
+print(out.name, {k: res[k].get("error") or (res[k]["diff"] if cosim else res[k]["end"]) for k in ("base", "v1", "v2", "v2_nodep", "dep")},
       "frp", len(frp), "depth changed", len(res["depth_changed"]), "unmatched", len(unmatched))

@@ -1,0 +1,492 @@
+From dd242cbe37127b8c41248d3b25ade8a34072a9c1 Mon Sep 17 00:00:00 2001
+From: ahmadsb101 <ahmadsb101@users.noreply.github.com>
+Date: Tue, 27 Oct 2026 13:45:17 +0100
+Subject: [PATCH 6/7] frp: free-running pipelines time each write from its own
+ iteration; read stage and RTL depths
+
+Replaces the read-after-write +1 rule. From Vitis 2023.2 cosim waveforms:
+- issue: an FRP pipeline issues only when each input FIFO holds the reads it
+  has requested plus this one, so an item read at stage r must be there r
+  cycles earlier (read-after-write + r, r from the RTL read condition);
+- depths: Vitis can enlarge FIFOs (pragma 2 -> RTL 5); the RTL depth is used;
+- no freeze: a missing input only holds back the next issue. The fifo write
+  carries anchor_delta (write stage - the iteration's last read stage) and goes
+  on its own node, timed from that read's stage, with its write-after-read stall
+  on that node only; the module ends after its last FRP writes.
+
+30 microbenchmarks (1/3/7 inputs, depth 2/16, slow producer/consumer, II 2,
+two FRP stages, conditional reads) and the small SODA set: 0 or one mapping
+step (-8/-9 cycles) against cosim; heat3d/jacobi3d residual +126..+153 -> 0.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ backend/lightningsim-core/builder/event.rs |   8 +-
+ backend/lightningsim-core/builder/frame.rs |  25 +++-
+ backend/lightningsim-core/builder/mod.rs   |  57 ++++++++-
+ backend/lightningsim/_core.pyi             |   2 +-
+ backend/lightningsim/frp.py                | 132 +++++++++++++++++----
+ backend/lightningsim/runner.py             |   9 +-
+ backend/lightningsim/trace_file.py         |  21 ++++
+ 7 files changed, 224 insertions(+), 30 deletions(-)
+
+diff --git a/backend/lightningsim-core/builder/event.rs b/backend/lightningsim-core/builder/event.rs
+index d6436e292..c2dd17db2 100644
+--- a/backend/lightningsim-core/builder/event.rs
++++ b/backend/lightningsim-core/builder/event.rs
+@@ -1,6 +1,6 @@
+ use smallvec::SmallVec;
+ 
+-use crate::{axi_interface::AxiInterface, fifo::Fifo};
++use crate::{axi_interface::AxiInterface, fifo::Fifo, SimulationStage};
+ 
+ use super::{
+     axi_builder::{FirstReadData, WriteStall},
+@@ -54,6 +54,12 @@ pub enum Event {
+         fifo: Fifo,
+         index: usize,
+ 
++        /// Vitis free-running pipeline (FRP): stages between the last FIFO read of this write's iteration and the
++        /// write, 0 otherwise. An FRP pipeline never freezes in-flight iterations (an input that is not there only
++        /// holds back the next issue), so such a write is timed from its own iteration's read node, on a node of its
++        /// own, instead of from the module's stage chain.
++        anchor_delta: SimulationStage,
++
+         /// The key of the [FifoRaw] edge within [EdgeBuilder::incomplete_edges]
+         /// whose source should be this write.
+         ///
+diff --git a/backend/lightningsim-core/builder/frame.rs b/backend/lightningsim-core/builder/frame.rs
+index 05448a55c..76dc6a11f 100644
+--- a/backend/lightningsim-core/builder/frame.rs
++++ b/backend/lightningsim-core/builder/frame.rs
+@@ -1,6 +1,8 @@
+ use std::collections::VecDeque;
+ 
+-use crate::SimulationStage;
++use rustc_hash::FxHashMap;
++
++use crate::{fifo::Fifo, node::NodeIndex, SimulationStage};
+ 
+ use super::{
+     edge_builder::IncompleteEdgeKey,
+@@ -32,8 +34,18 @@ pub struct StackFrame {
+     /// static stage of the latest dynamic stage encountered, as any nodes
+     /// earlier than that can be committed.
+     pub window: VecDeque<UncommittedNode>,
++    /// Time of the most recent committed dynamic stages (stage, time), kept only for FRP writes to find their
++    /// iteration's read node (see [Event::FifoWrite]).
++    ///
++    /// [Event::FifoWrite]: super::event::Event::FifoWrite
++    pub stage_times: VecDeque<(SimulationStage, NodeTime)>,
++    /// Last off-chain FRP write node per FIFO; the module ends no earlier than these.
++    pub frp_writes: FxHashMap<Fifo, NodeIndex>,
+ }
+ 
++/// How many committed stages [StackFrame::stage_times] keeps (more than any FRP pipeline depth).
++pub const STAGE_TIMES_KEPT: usize = 4096;
++
+ impl StackFrame {
+     pub fn new(key: ModuleKey, parent_end: SimulationStage, start_edge: IncompleteEdgeKey) -> Self {
+         Self {
+@@ -43,6 +55,17 @@ impl StackFrame {
+             current_time: NodeTime::RelativeToStart(0),
+             offset: 0,
+             window: VecDeque::new(),
++            stage_times: VecDeque::new(),
++            frp_writes: FxHashMap::default(),
++        }
++    }
++
++    pub fn stage_time(&self, stage: SimulationStage) -> Option<NodeTime> {
++        let (first, _) = *self.stage_times.front()?;
++        let i: usize = stage.checked_sub(first)?.try_into().ok()?;
++        match self.stage_times.get(i) {
++            Some(&(s, t)) if s == stage => Some(t),
++            _ => self.stage_times.iter().find(|(s, _)| *s == stage).map(|&(_, t)| t),
+         }
+     }
+ 
+diff --git a/backend/lightningsim-core/builder/mod.rs b/backend/lightningsim-core/builder/mod.rs
+index 06b9f1411..b6cd97a24 100644
+--- a/backend/lightningsim-core/builder/mod.rs
++++ b/backend/lightningsim-core/builder/mod.rs
+@@ -18,12 +18,13 @@ use axi_rctl::AxiRctl;
+ use edge_builder::{EdgeBuilder, IncompleteEdgeType};
+ use event::Event;
+ use fifo_builder::{FifoBuilder, InsertedFifoRead, InsertedFifoWrite};
+-use frame::StackFrame;
++use frame::{StackFrame, STAGE_TIMES_KEPT};
+ use module_builder::ModuleBuilder;
+ use node::{NodeTime, UncommittedNode};
+ 
+ use pyo3::{exceptions::PyValueError, prelude::*};
+ use rustc_hash::FxHashMap;
++use smallvec::SmallVec;
+ 
+ use crate::{
+     axi_interface::{
+@@ -107,16 +108,20 @@ impl SimulationBuilder {
+         }
+     }
+ 
++    /// `anchor_delta` > 0 marks a write of a Vitis free-running pipeline: stages from its iteration's last FIFO read
++    /// to the write (see [Event::FifoWrite]).
++    #[pyo3(signature = (safe_offset, stage, fifo_id, anchor_delta=0))]
+     pub fn add_fifo_write(
+         &mut self,
+         safe_offset: SimulationStage,
+         stage: SimulationStage,
+         fifo_id: FifoId,
++        anchor_delta: SimulationStage,
+     ) {
+         if let Some(frame) = self.stack.last_mut() {
+             let fifo = Fifo { id: fifo_id };
+             self.builders
+-                .add_fifo_write(frame, safe_offset, stage, fifo);
++                .add_fifo_write(frame, safe_offset, stage, fifo, anchor_delta);
+         }
+     }
+ 
+@@ -281,6 +286,7 @@ impl SimulationComponentBuilders {
+         safe_offset: SimulationStage,
+         stage: SimulationStage,
+         fifo: Fifo,
++        anchor_delta: SimulationStage,
+     ) {
+         let InsertedFifoWrite { index, raw_edge } =
+             self.fifos.entry(fifo).or_default().insert_write();
+@@ -297,6 +303,7 @@ impl SimulationComponentBuilders {
+                 fifo,
+                 index,
+                 raw_edge,
++                anchor_delta,
+             },
+         );
+     }
+@@ -532,6 +539,21 @@ impl SimulationComponentBuilders {
+             frame.current_time += remaining_delay;
+             self.edges.add_delay(frame.current_edge, remaining_delay);
+         }
++        if !frame.frp_writes.is_empty() {
++            // an FRP module is done once its output buffers have drained
++            self.flush_axi_aw_nodes();
++            let node = self.edges.insert_node();
++            self.edges.push_destination(frame.current_edge);
++            let mut tails: Vec<NodeIndex> = mem::take(&mut frame.frp_writes).into_values().collect();
++            tails.sort_unstable();
++            for tail in tails {
++                self.edges.push_edge(Edge::ControlFlow(NodeWithDelay { node: tail, delay: 1 }));
++            }
++            let node_with_delay = NodeWithDelay { node, delay: 0 };
++            frame.current_edge = self.edges.insert_edge(IncompleteEdgeType::ControlFlow);
++            frame.current_time = NodeTime::Absolute(node_with_delay);
++            self.edges.update_source(frame.current_edge, node_with_delay);
++        }
+ 
+         self.modules.update_module_name(frame.key, module_name);
+         self.modules
+@@ -695,6 +717,7 @@ impl SimulationComponentBuilders {
+                 fifo,
+                 index,
+                 raw_edge,
++                ..
+             } => {
+                 self.fifos.get_mut(&fifo).unwrap().update_write(index, node);
+                 self.edges.update_source(raw_edge, node);
+@@ -813,6 +836,7 @@ impl SimulationComponentBuilders {
+         uncommitted_node: UncommittedNode,
+         advance_by: SimulationStage,
+     ) {
++        let stage = frame.offset;
+         frame.offset += advance_by;
+         let delay = advance_by.into();
+         let unstalled_time = frame.current_time;
+@@ -831,12 +855,28 @@ impl SimulationComponentBuilders {
+             frame.current_time += delay;
+             unstalled_time
+         };
++        frame.stage_times.push_back((stage, stalled_time));
++        if frame.stage_times.len() > STAGE_TIMES_KEPT {
++            frame.stage_times.pop_front();
++        }
++        // FRP writes go on nodes of their own after this stage's other events, whose in-edges belong to the chain node.
++        let mut frp_writes: SmallVec<[(Event, NodeWithDelay); 2]> = SmallVec::new();
+         for event in uncommitted_node.events {
+             let event_time = if event.is_stalled() {
+                 stalled_time
+             } else {
+                 unstalled_time
+             };
++            if let Event::FifoWrite { anchor_delta, .. } = event {
++                if anchor_delta > 0 {
++                    if let Some(NodeTime::Absolute(anchor)) =
++                        stage.checked_sub(anchor_delta).and_then(|s| frame.stage_time(s))
++                    {
++                        frp_writes.push((event, anchor + ClockCycle::from(anchor_delta)));
++                        continue;
++                    }
++                }
++            }
+             self.finalize_event(frame, &event);
+             match event_time {
+                 NodeTime::Absolute(node) => self.commit_event(event, node),
+@@ -845,6 +885,19 @@ impl SimulationComponentBuilders {
+                 }
+             }
+         }
++        for (event, anchor) in frp_writes {
++            let Event::FifoWrite { fifo, .. } = event else { unreachable!() };
++            self.flush_axi_aw_nodes();
++            let node = self.edges.insert_node();
++            self.edges.push_edge(Edge::ControlFlow(anchor));
++            if let Some(&previous) = frame.frp_writes.get(&fifo) {
++                // one write per cycle per FIFO, in order
++                self.edges.push_edge(Edge::ControlFlow(NodeWithDelay { node: previous, delay: 1 }));
++            }
++            frame.frp_writes.insert(fifo, node);
++            self.finalize_event(frame, &event);
++            self.commit_event(event, NodeWithDelay { node, delay: 0 });
++        }
+     }
+ 
+     fn commit_until(&mut self, frame: &mut StackFrame, stage: SimulationStage) {
+diff --git a/backend/lightningsim/_core.pyi b/backend/lightningsim/_core.pyi
+index c5a1a17dd..561cbcd7c 100644
+--- a/backend/lightningsim/_core.pyi
++++ b/backend/lightningsim/_core.pyi
+@@ -2,7 +2,7 @@ from .trace_file import AXIRequestMetadata, SimulationParameters
+ 
+ class SimulationBuilder:
+     def __init__(self): ...
+-    def add_fifo_write(self, safe_offset: int, stage: int, fifo_id: int): ...
++    def add_fifo_write(self, safe_offset: int, stage: int, fifo_id: int, anchor_delta: int = 0): ...
+     def add_fifo_read(self, safe_offset: int, stage: int, fifo_id: int): ...
+     def add_axi_readreq(
+         self,
+diff --git a/backend/lightningsim/frp.py b/backend/lightningsim/frp.py
+index f134d5279..17fb29934 100644
+--- a/backend/lightningsim/frp.py
++++ b/backend/lightningsim/frp.py
+@@ -1,35 +1,123 @@
+ """Vitis HLS free-running pipelines (FRP, `frp_pipeline_valid` + `frp_fifoout` in the RTL).
+ 
+-An FRP pipeline issues an iteration only when every input FIFO's num_data_valid covers the reads it has already
+-requested (`ap_frp_data_req_<fifo>`) plus this one, and it reads one cycle later (stage 1). An item therefore has to be
+-in the FIFO one cycle earlier than for a stall pipeline: read-after-write delay + 1 on every FIFO an FRP pipeline reads.
+-Checked against Vitis 2023.2 cosim on the SODA heat3d/jacobi3d designs (10 designs, +0.003% to +0.047%).
+-LSIM_FRP=0 turns it off.
++Three differences from a stall pipeline, read from sol/syn/verilog and checked against Vitis 2023.2 cosim waveforms:
++
++1. Issue: an FRP pipeline issues an iteration only when every input FIFO's num_data_valid covers the reads it has
++   requested and not done yet plus this one (`ap_frp_data_req_<fifo>`), so the item read at stage r has to be in the
++   FIFO r cycles before the read: read-after-write delay + r on that FIFO (r from `<port>_read = 1'b1` under
++   `valid_out[r]` or `ap_enable_reg_pp0_iter<r>`).
++2. Depths: Vitis may enlarge FIFOs (an FRP input with depth pragma 2 became depth 5 to keep II=1); the RTL depth, in
++   the instance's module name `<top>_fifo_w<W>_d<D>_S|A`, is the one cosim runs with.
++3. No freeze: an input that is not there holds back the next issue and leaves the iterations in flight alone, whose
++   results go through an output buffer (frp_fifoout). A write is therefore timed from its own iteration's last read
++   (anchor_delta = write stage - that read's stage, see the builder's Event::FifoWrite), not from the module's stage
++   chain, which every later read stall would push back.
++
++LSIM_FRP=0 turns all three off.
+ """
+ 
+ import os
+ import re
+ import sys
++from functools import lru_cache
+ from pathlib import Path
+-from typing import Dict, Iterable
++from typing import Dict, Iterable, Set, Tuple
++
++_FIFO_INST = re.compile(r"^\s*\w+_fifo_w(\d+)_d(\d+)_([SA])\s+(\w+)_U\s*\(", re.M)
++_INST = re.compile(r"^\s*(\w+)\s+(\w+)\s*\((.*?)\);", re.M | re.S)
++_CONN = re.compile(r"\.(\w+)\s*\(\s*([\w\[\]:']*)\s*\)")
++_READ = re.compile(r"^\s*if \(([^\n]*)\) begin\s*\n\s*(\w+)_read = 1'b1;", re.M)
++_STAGE = (re.compile(r"valid_out\[\d+'d(\d+)\]"), re.compile(r"ap_enable_reg_pp0_iter(\d+)\b"))
++
++
++def enabled() -> bool:
++    return os.environ.get("LSIM_FRP", "1") != "0"
++
++
++@lru_cache(maxsize=8)
++def analyse(solution_dir: Path):
++    """{"fifos": {RTL FIFO instance: depth}, "frp_reads": {RTL FIFO instance: r}, "frp_modules": [RTL module]}"""
++    src = {p.stem: p.read_text(errors="replace") for p in (Path(solution_dir) / "syn" / "verilog").glob("*.v")}
++    fifos = {}
++    for text in src.values():
++        for _w, d, _t, name in _FIFO_INST.findall(text):
++            fifos[name] = int(d)
++    frp_ports: Dict[str, Dict[str, int]] = {}
++    for mod, text in src.items():
++        if "frp_pipeline_valid_U" not in text:
++            continue
++        ports = {}
++        for cond, port in _READ.findall(text):
++            for rx in _STAGE:
++                m = rx.search(cond)
++                if m:
++                    ports[port] = int(m.group(1))
++                    break
++        frp_ports[mod] = ports
++    frp_reads: Dict[str, int] = {}
++    for text in src.values():
++        insts = _INST.findall(text)
++        by_read_net = {net: iname[:-2] for mtype, iname, body in insts
++                       if iname.endswith("_U") and "_fifo_w" in mtype
++                       for port, net in _CONN.findall(body) if port == "if_read"}
++        for mtype, _iname, body in insts:
++            if mtype in frp_ports:
++                conns = dict(_CONN.findall(body))
++                for port, r in frp_ports[mtype].items():
++                    net = conns.get(f"{port}_read")
++                    if net in by_read_net:
++                        frp_reads[by_read_net[net]] = r
++    return {"fifos": fifos, "frp_reads": frp_reads, "frp_modules": sorted(frp_ports)}
++
++
++def _match(lsim_name: str, rtl_names) -> str | None:
++    n = lsim_name.replace(".", "_")
++    if n in rtl_names:
++        return n
++    hits = [x for x in rtl_names if n.endswith("_" + x) or x.endswith("_" + n)]
++    return max(hits, key=len) if hits else None
++
++
++def frp_functions(solution_dir: Path) -> Set[str]:
++    """RTL module names of the FRP functions (an LSIM function f is one when a name ends with '_' + f, '.' -> '_')."""
++    if not enabled():
++        return set()
++    return set(analyse(Path(solution_dir))["frp_modules"])
++
+ 
+-_REQ = re.compile(r"reg\s+\[\d+:0\]\s+ap_frp_data_req_(\w+?)(?<!_op\d)(?<!_op\d\d)(?<!_op\d\d\d);")
++def is_frp_function(name: str, modules: Set[str]) -> bool:
++    n = "_" + name.replace(".", "_")
++    return any(m.endswith(n) for m in modules)
+ 
+ 
+-def frp_input_fifos(solution_dir: Path) -> set[str]:
+-    names: set[str] = set()
+-    for v in (solution_dir / "syn" / "verilog").glob("*.v"):
+-        names |= set(_REQ.findall(v.read_text(errors="replace")))
+-    return names
++def frp_params(solution_dir: Path, fifos: Iterable) -> Tuple[Dict[int, int], Dict[int, int]]:
++    """(read-after-write extra per FIFO id, RTL depth per FIFO id where it differs from the trace)"""
++    if not enabled():
++        return {}, {}
++    rtl = analyse(Path(solution_dir))
++    extra, depths, unmatched = {}, {}, 0
++    for f in fifos:
++        m = _match(f.name, rtl["fifos"])
++        if m is None:
++            unmatched += 1
++            continue
++        depths[f.id] = rtl["fifos"][m]
++        if m in rtl["frp_reads"] and rtl["frp_reads"][m] > 0:
++            extra[f.id] = rtl["frp_reads"][m]
++    if rtl["frp_modules"] or unmatched:
++        print(f"[lsim-frp] {len(rtl['frp_modules'])} free-running pipelines, {len(extra)} FIFOs they read "
++              f"(read-after-write + read stage), {len(depths)} RTL depths, {unmatched} FIFOs without an RTL match",
++              file=sys.stderr)
++    return extra, depths
+ 
+ 
+-def frp_raw_extra(solution_dir: Path, fifos: Iterable) -> Dict[int, int]:
+-    if os.environ.get("LSIM_FRP", "1") == "0":
+-        return {}
+-    rtl = frp_input_fifos(Path(solution_dir))
+-    if not rtl:
+-        return {}
+-    extra = {f.id: 1 for f in fifos if any(f.name == n or f.name.endswith(n) for n in rtl)}
+-    print(f"[lsim-frp] {len(extra)} FIFOs read by free-running pipelines (RTL names {len(rtl)}): read-after-write +1",
+-          file=sys.stderr)
+-    return extra
++def fifo_read_end(function, pipeline) -> int:
++    """Latest static stage at which `function` reads a FIFO inside `pipeline` (the FRP issue anchor)."""
++    best = -1
++    for bb in function.ordered_basic_blocks:
++        if bb.pipeline != pipeline:
++            continue
++        for ins in bb.events:
++            if ins.opcode == "read" and any(".ap_fifo" in (op.name or "") for op in ins.llvm.operands):
++                best = max(best, ins.latency.end)
++    return best
+diff --git a/backend/lightningsim/runner.py b/backend/lightningsim/runner.py
+index 38229e053..4ae88cda0 100644
+--- a/backend/lightningsim/runner.py
++++ b/backend/lightningsim/runner.py
+@@ -35,7 +35,7 @@ from typing import (
+     TypeVar,
+ )
+ from .model import Solution, ProjectFile
+-from .frp import frp_raw_extra
++from .frp import frp_functions, frp_params
+ from .trace_file import ResolvedTrace, await_trace_functions, read_trace, resolve_trace
+ 
+ CONDA_PREFIX = Path(r"""/opt/anaconda1anaconda2anaconda3""")
+@@ -606,8 +606,11 @@ class Runner:
+             trace = await await_trace_functions(read_trace_result)
+ 
+         with self.steps[RunnerStep.RESOLVING_TRACE] as step:
+-            trace = await resolve_trace(trace, progress_callback=step.set_progress)
+-            trace.params.fifo_raw_extra = frp_raw_extra(self.solution.path, trace.fifos)
++            trace = await resolve_trace(trace, progress_callback=step.set_progress,
++                                        frp_modules=frp_functions(self.solution.path))
++            extra, rtl_depths = frp_params(self.solution.path, trace.fifos)
++            trace.params.fifo_raw_extra = extra
++            trace.params.fifo_depths = {**trace.params.fifo_depths, **rtl_depths}
+             self.trace = trace
+ 
+         return trace
+diff --git a/backend/lightningsim/trace_file.py b/backend/lightningsim/trace_file.py
+index e8c0a70ed..289fcf583 100644
+--- a/backend/lightningsim/trace_file.py
++++ b/backend/lightningsim/trace_file.py
+@@ -6,6 +6,7 @@ from time import time
+ from typing import Callable, Dict, List, Mapping, Set, Tuple, TypeAlias, Union
+ from ._core import SimulationBuilder, CompiledSimulation
+ from .model import BasicBlock, CDFGRegion, Instruction, Function, Solution
++from .frp import fifo_read_end, is_frp_function
+ 
+ SYNC_WORK_BATCH_DURATION = 1.0
+ 
+@@ -365,8 +366,27 @@ def _apply_axi_config(builder: SimulationBuilder, interfaces) -> None:
+ async def resolve_trace(
+     trace: UnresolvedTrace,
+     progress_callback: Callable[[float], None] = lambda progress: None,
++    frp_modules: Set[str] = frozenset(),
+ ):
++    """frp_modules: RTL module names of Vitis free-running pipelines (frp.frp_functions); their FIFO writes are timed
++    from their own iteration's last read (see frp.py)."""
+     builder = SimulationBuilder()
++    frp_anchor: Dict[Tuple[str, int], int | None] = {}
++
++    def anchor_delta(basic_block: BasicBlock, instruction: Instruction) -> int:
++        pipeline = basic_block.pipeline
++        if not frp_modules or pipeline is None:
++            return 0
++        function = basic_block.parent
++        key = (function.name, id(pipeline))
++        if key not in frp_anchor:
++            frp_anchor[key] = (fifo_read_end(function, pipeline)
++                               if is_frp_function(function.name, frp_modules) else None)
++        read_end = frp_anchor[key]
++        if read_end is None or read_end < 0:
++            return 0
++        return max(0, instruction.latency.end - read_end)
++
+     _apply_axi_config(builder, trace.axi_latencies.keys())
+     top_frame = StackFrame()
+     stack: List[StackFrame] = [top_frame]
+@@ -458,6 +478,7 @@ async def resolve_trace(
+                             safe_offset,
+                             end_stage,
+                             entry.metadata.fifo.id,
++                            anchor_delta(basic_block, event_instruction),
+                         )
+                     elif entry.type == "axi_readreq":
+                         assert isinstance(entry.metadata, AXIRequestMetadata)
+-- 
+2.52.0
+

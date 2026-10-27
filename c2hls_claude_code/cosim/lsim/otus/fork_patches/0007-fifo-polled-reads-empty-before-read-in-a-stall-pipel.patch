@@ -1,0 +1,252 @@
+From 9949356bc8ea4b8f31a083e4d3550f4fb507efcd Mon Sep 17 00:00:00 2001
+From: ahmadsb101 <ahmadsb101@users.noreply.github.com>
+Date: Tue, 27 Oct 2026 13:54:48 +0100
+Subject: [PATCH 7/7] fifo: polled reads (empty() before read) in a stall
+ pipeline do not freeze it
+
+The read of 'if (!s.empty()) s.read()' is predicated on the poll, so an empty
+input issues a bubble and the iterations in flight go on; only a full output
+freezes the pipeline. The C trace never sees a failed poll, so the read was
+treated as blocking, and every pipelined polling stage froze until its next
+inputs came. SODA's forwarding chains then needed more items in flight than
+its exactly sized FIFOs hold (LightningSim deadlocks on 5 of 11 as-generated
+small designs, up to +185% on others).
+
+Writes of such pipelines are anchored to their iteration's read like FRP
+writes (anchor_delta), and a stalled one holds back the next stage of the
+chain (anchor_freeze). LSIM_POLL=0 turns it off.
+
+Small SODA set (11 as generated, 14 patched) and 30 microbenchmarks: all 0
+or one mapping step (-8/-9 cycles) against cosim.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ backend/lightningsim-core/builder/event.rs |  5 ++++
+ backend/lightningsim-core/builder/frame.rs |  3 +++
+ backend/lightningsim-core/builder/mod.rs   | 19 +++++++++++---
+ backend/lightningsim/_core.pyi             |  2 +-
+ backend/lightningsim/frp.py                | 13 ++++++++++
+ backend/lightningsim/trace_file.py         | 29 +++++++++++++---------
+ 6 files changed, 54 insertions(+), 17 deletions(-)
+
+diff --git a/backend/lightningsim-core/builder/event.rs b/backend/lightningsim-core/builder/event.rs
+index c2dd17db2..5ad54733e 100644
+--- a/backend/lightningsim-core/builder/event.rs
++++ b/backend/lightningsim-core/builder/event.rs
+@@ -60,6 +60,11 @@ pub enum Event {
+         /// own, instead of from the module's stage chain.
+         anchor_delta: SimulationStage,
+ 
++        /// With anchor_delta > 0: whether a stalled write freezes the pipeline (a stall pipeline whose reads are
++        /// polled with empty(): an empty input issues a bubble, a full output stops every stage). An FRP pipeline's
++        /// writes go to an output buffer instead.
++        anchor_freeze: bool,
++
+         /// The key of the [FifoRaw] edge within [EdgeBuilder::incomplete_edges]
+         /// whose source should be this write.
+         ///
+diff --git a/backend/lightningsim-core/builder/frame.rs b/backend/lightningsim-core/builder/frame.rs
+index 76dc6a11f..3f08eaa46 100644
+--- a/backend/lightningsim-core/builder/frame.rs
++++ b/backend/lightningsim-core/builder/frame.rs
+@@ -41,6 +41,8 @@ pub struct StackFrame {
+     pub stage_times: VecDeque<(SimulationStage, NodeTime)>,
+     /// Last off-chain FRP write node per FIFO; the module ends no earlier than these.
+     pub frp_writes: FxHashMap<Fifo, NodeIndex>,
++    /// Anchored writes whose stall must hold back the next stage of the chain (anchor_freeze).
++    pub freeze_writes: Vec<NodeIndex>,
+ }
+ 
+ /// How many committed stages [StackFrame::stage_times] keeps (more than any FRP pipeline depth).
+@@ -57,6 +59,7 @@ impl StackFrame {
+             window: VecDeque::new(),
+             stage_times: VecDeque::new(),
+             frp_writes: FxHashMap::default(),
++            freeze_writes: Vec::new(),
+         }
+     }
+ 
+diff --git a/backend/lightningsim-core/builder/mod.rs b/backend/lightningsim-core/builder/mod.rs
+index b6cd97a24..d829181af 100644
+--- a/backend/lightningsim-core/builder/mod.rs
++++ b/backend/lightningsim-core/builder/mod.rs
+@@ -110,18 +110,20 @@ impl SimulationBuilder {
+ 
+     /// `anchor_delta` > 0 marks a write of a Vitis free-running pipeline: stages from its iteration's last FIFO read
+     /// to the write (see [Event::FifoWrite]).
+-    #[pyo3(signature = (safe_offset, stage, fifo_id, anchor_delta=0))]
++    /// `anchor_freeze`: a stall of that write freezes the pipeline (polled reads in a stall pipeline).
++    #[pyo3(signature = (safe_offset, stage, fifo_id, anchor_delta=0, anchor_freeze=false))]
+     pub fn add_fifo_write(
+         &mut self,
+         safe_offset: SimulationStage,
+         stage: SimulationStage,
+         fifo_id: FifoId,
+         anchor_delta: SimulationStage,
++        anchor_freeze: bool,
+     ) {
+         if let Some(frame) = self.stack.last_mut() {
+             let fifo = Fifo { id: fifo_id };
+             self.builders
+-                .add_fifo_write(frame, safe_offset, stage, fifo, anchor_delta);
++                .add_fifo_write(frame, safe_offset, stage, fifo, anchor_delta, anchor_freeze);
+         }
+     }
+ 
+@@ -287,6 +289,7 @@ impl SimulationComponentBuilders {
+         stage: SimulationStage,
+         fifo: Fifo,
+         anchor_delta: SimulationStage,
++        anchor_freeze: bool,
+     ) {
+         let InsertedFifoWrite { index, raw_edge } =
+             self.fifos.entry(fifo).or_default().insert_write();
+@@ -304,6 +307,7 @@ impl SimulationComponentBuilders {
+                 index,
+                 raw_edge,
+                 anchor_delta,
++                anchor_freeze,
+             },
+         );
+     }
+@@ -840,10 +844,14 @@ impl SimulationComponentBuilders {
+         frame.offset += advance_by;
+         let delay = advance_by.into();
+         let unstalled_time = frame.current_time;
+-        let stalled_time = if uncommitted_node.is_own_node() {
++        let stalled_time = if uncommitted_node.is_own_node() || !frame.freeze_writes.is_empty() {
+             self.flush_axi_aw_nodes();
+             let node = self.edges.insert_node();
+             self.edges.push_destination(frame.current_edge);
++            for write in mem::take(&mut frame.freeze_writes) {
++                // a full output froze the pipeline: this stage comes after that write
++                self.edges.push_edge(Edge::ControlFlow(NodeWithDelay { node: write, delay: 1 }));
++            }
+             let node_with_delay = NodeWithDelay { node, delay };
+             frame.current_edge = self.edges.insert_edge(IncompleteEdgeType::ControlFlow);
+             frame.current_time = NodeTime::Absolute(node_with_delay);
+@@ -886,7 +894,7 @@ impl SimulationComponentBuilders {
+             }
+         }
+         for (event, anchor) in frp_writes {
+-            let Event::FifoWrite { fifo, .. } = event else { unreachable!() };
++            let Event::FifoWrite { fifo, anchor_freeze, .. } = event else { unreachable!() };
+             self.flush_axi_aw_nodes();
+             let node = self.edges.insert_node();
+             self.edges.push_edge(Edge::ControlFlow(anchor));
+@@ -895,6 +903,9 @@ impl SimulationComponentBuilders {
+                 self.edges.push_edge(Edge::ControlFlow(NodeWithDelay { node: previous, delay: 1 }));
+             }
+             frame.frp_writes.insert(fifo, node);
++            if anchor_freeze {
++                frame.freeze_writes.push(node);
++            }
+             self.finalize_event(frame, &event);
+             self.commit_event(event, NodeWithDelay { node, delay: 0 });
+         }
+diff --git a/backend/lightningsim/_core.pyi b/backend/lightningsim/_core.pyi
+index 561cbcd7c..6cd11e002 100644
+--- a/backend/lightningsim/_core.pyi
++++ b/backend/lightningsim/_core.pyi
+@@ -2,7 +2,7 @@ from .trace_file import AXIRequestMetadata, SimulationParameters
+ 
+ class SimulationBuilder:
+     def __init__(self): ...
+-    def add_fifo_write(self, safe_offset: int, stage: int, fifo_id: int, anchor_delta: int = 0): ...
++    def add_fifo_write(self, safe_offset: int, stage: int, fifo_id: int, anchor_delta: int = 0, anchor_freeze: bool = False): ...
+     def add_fifo_read(self, safe_offset: int, stage: int, fifo_id: int): ...
+     def add_axi_readreq(
+         self,
+diff --git a/backend/lightningsim/frp.py b/backend/lightningsim/frp.py
+index 17fb29934..706b150b2 100644
+--- a/backend/lightningsim/frp.py
++++ b/backend/lightningsim/frp.py
+@@ -14,6 +14,11 @@ Three differences from a stall pipeline, read from sol/syn/verilog and checked a
+    chain, which every later read stall would push back.
+ 
+ LSIM_FRP=0 turns all three off.
++
++Polled reads (`if (!s.empty()) s.read()`, nbreadreq) in a stall pipeline behave like 3 on the input side: the read is
++predicated on the poll, so an empty input issues a bubble and the iterations in flight go on (the C trace never sees a
++failed poll, so LightningSim would otherwise treat the read as blocking and freeze them). A full output still freezes
++the whole pipeline, so those writes are anchored with anchor_freeze. LSIM_POLL=0 turns this off.
+ """
+ 
+ import os
+@@ -111,6 +116,14 @@ def frp_params(solution_dir: Path, fifos: Iterable) -> Tuple[Dict[int, int], Dic
+     return extra, depths
+ 
+ 
++def pipeline_polls(function, pipeline) -> bool:
++    """Whether `pipeline` checks a FIFO with empty() (nbreadreq) before reading it."""
++    if os.environ.get("LSIM_POLL", "1") == "0":
++        return False
++    return any(ins.opcode == "nbreadreq" for bb in function.ordered_basic_blocks if bb.pipeline == pipeline
++               for ins in bb)
++
++
+ def fifo_read_end(function, pipeline) -> int:
+     """Latest static stage at which `function` reads a FIFO inside `pipeline` (the FRP issue anchor)."""
+     best = -1
+diff --git a/backend/lightningsim/trace_file.py b/backend/lightningsim/trace_file.py
+index 289fcf583..726dc8dc8 100644
+--- a/backend/lightningsim/trace_file.py
++++ b/backend/lightningsim/trace_file.py
+@@ -6,7 +6,7 @@ from time import time
+ from typing import Callable, Dict, List, Mapping, Set, Tuple, TypeAlias, Union
+ from ._core import SimulationBuilder, CompiledSimulation
+ from .model import BasicBlock, CDFGRegion, Instruction, Function, Solution
+-from .frp import fifo_read_end, is_frp_function
++from .frp import fifo_read_end, is_frp_function, pipeline_polls
+ 
+ SYNC_WORK_BATCH_DURATION = 1.0
+ 
+@@ -371,21 +371,26 @@ async def resolve_trace(
+     """frp_modules: RTL module names of Vitis free-running pipelines (frp.frp_functions); their FIFO writes are timed
+     from their own iteration's last read (see frp.py)."""
+     builder = SimulationBuilder()
+-    frp_anchor: Dict[Tuple[str, int], int | None] = {}
++    frp_anchor: Dict[Tuple[str, int], Tuple[int, bool] | None] = {}
+ 
+-    def anchor_delta(basic_block: BasicBlock, instruction: Instruction) -> int:
++    def anchor(basic_block: BasicBlock, instruction: Instruction) -> Tuple[int, bool]:
++        """(anchor_delta, anchor_freeze) of a FIFO write: FRP pipelines and stall pipelines with polled reads"""
+         pipeline = basic_block.pipeline
+-        if not frp_modules or pipeline is None:
+-            return 0
++        if pipeline is None:
++            return 0, False
+         function = basic_block.parent
+         key = (function.name, id(pipeline))
+         if key not in frp_anchor:
+-            frp_anchor[key] = (fifo_read_end(function, pipeline)
+-                               if is_frp_function(function.name, frp_modules) else None)
+-        read_end = frp_anchor[key]
+-        if read_end is None or read_end < 0:
+-            return 0
+-        return max(0, instruction.latency.end - read_end)
++            if frp_modules and is_frp_function(function.name, frp_modules):
++                frp_anchor[key] = (fifo_read_end(function, pipeline), False)
++            elif pipeline_polls(function, pipeline):
++                frp_anchor[key] = (fifo_read_end(function, pipeline), True)
++            else:
++                frp_anchor[key] = None
++        if frp_anchor[key] is None or frp_anchor[key][0] < 0:
++            return 0, False
++        read_end, freeze = frp_anchor[key]
++        return max(0, instruction.latency.end - read_end), freeze
+ 
+     _apply_axi_config(builder, trace.axi_latencies.keys())
+     top_frame = StackFrame()
+@@ -478,7 +483,7 @@ async def resolve_trace(
+                             safe_offset,
+                             end_stage,
+                             entry.metadata.fifo.id,
+-                            anchor_delta(basic_block, event_instruction),
++                            *anchor(basic_block, event_instruction),
+                         )
+                     elif entry.type == "axi_readreq":
+                         assert isinstance(entry.metadata, AXIRequestMetadata)
+-- 
+2.52.0
+

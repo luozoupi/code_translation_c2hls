@@ -3,8 +3,9 @@
 # Run once on a login node (needs internet: micromamba, conda-forge, sharc-lab channel, GitHub, crates.io).
 #   LSIM_T=<install dir> bash setup_lsim_otus.sh      (default /scratch/hpc-prf-llmfpga/asa582/projects/tools/lightningsim)
 # Same layout as Fir's /scratch/asa582/tools/lightningsim: bin/micromamba, env (exact package list from Fir),
-# rustenv (rust 1.85), src (upstream clone + the 4 fork commits: 3 m_axi + 0004 FRP), cargo. Checks the source tree against fork_tree.txt
-# (Fir's install has only the 3 m_axi commits, so its tree and results for designs with FRP pipelines differ).
+# rustenv (rust 1.85), src (upstream clone + the 7 fork commits: 3 m_axi, 0004 FRP +1 (superseded by 0006), 0005 empty() in the
+# testbench runtime, 0006 FRP issue/depth/no-freeze, 0007 polled reads), cargo. Checks the source tree against fork_tree.txt
+# (Fir's install has only the 3 m_axi commits unless apply_frp_fir.sh was run there; its tree and results then differ).
 # No llvm-project submodule (119K files): the conda lightningsim package ships its LLVM; only the Rust core is rebuilt.
 set -euo pipefail
 HERE=$(dirname "$(readlink -f "$0")")
@@ -22,7 +23,7 @@ if [ ! -d "$T/src/.git" ]; then
 fi
 TREE=$(git -C "$T/src" rev-parse 'HEAD^{tree}')
 [ "$TREE" = "$(cat "$HERE/fork_tree.txt")" ] || { echo "fork tree $TREE differs from Fir's $(cat "$HERE/fork_tree.txt")"; exit 1; }
-echo "fork source matches Fir (tree $TREE)"
+echo "fork source matches fork_tree.txt (tree $TREE)"
 # build_lsim.sh with T and the cargo target dir moved under $T
 export PATH="$T/rustenv/bin:$T/env/bin:$PATH"
 export CARGO_HOME="$T/cargo" CARGO_TARGET_DIR="$T/cargo-target" TMPDIR="$T/tmp"
@@ -31,4 +32,8 @@ cd "$T/src/backend"
 sed -i "s#^CONDA_PREFIX = Path(r\"\"\"[^\"]*\"\"\")#CONDA_PREFIX = Path(r\"\"\"$T/env\"\"\")#" lightningsim/runner.py
 "$T/env/bin/python" -m pip install --no-deps --no-build-isolation --ignore-installed . 2>&1 | tail -n 3
 sed -i "s#^CONDA_PREFIX = Path(r\"\"\"$T/env\"\"\")#CONDA_PREFIX = Path(r\"\"\"/opt/anaconda1anaconda2anaconda3\"\"\")#" lightningsim/runner.py
+# testbench runtime (0005: _autotb_FifoCanRead for empty()): liblightningsimrt.a and the .ll templates into the env
+mkdir -p "$T/tmp/templates_build"
+make -s -C "$T/src" CXX=x86_64-conda-linux-gnu-g++ AR=x86_64-conda-linux-gnu-ar DESTDIR="$T/tmp/templates_build"
+cp "$T/tmp/templates_build"/{liblightningsimrt.a,fifo.ll.jinja,m_axi.ll.jinja} "$T/env/share/lightningsim/templates/"
 cd / && "$T/env/bin/python" -c "import lightningsim._core as c, lightningsim.runner as r; print('installed', c.__file__, r.CONDA_PREFIX)"

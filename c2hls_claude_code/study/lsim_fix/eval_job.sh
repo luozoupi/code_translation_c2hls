@@ -1,6 +1,7 @@
 #!/bin/bash
 # eval_job.sh : frp_eval.py (FRP rule variants) on finished projects, one node.
 #   sbatch --export=ALL,DIRS=<dir>:<dir>...,TAG=<lsim json tag holding the cosim>,PAR=8 eval_job.sh
+#   PYSCRIPT=fifo_cmp.py OUTNAME=fifo_cmp.json runs the per-FIFO LSIM-vs-VCD comparison instead (same argv).
 # Each DIR holds proj.tar.gz (+ tb.cpp/kernel.cpp for fx_gen designs) and lsim_TAG.json with "cosim"; the result is
 # DIR/frp_eval.json. NPTR: 2 for fx_gen designs, else counted from kernel.cpp's s_axilite pragmas (SODA).
 #SBATCH --job-name=lsim_eval
@@ -20,7 +21,7 @@ set +u; source /scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_
 L=${SLURM_TMPDIR:-/tmp/$USER/$SLURM_JOB_ID}
 W="$L/ev"; mkdir -p "$W"
 [ -n "${SLURM_TMPDIR:-}" ] || trap 'rm -rf "$L"' EXIT
-export W HERE LS T TAG=${TAG:?} OUTNAME=${OUTNAME:-frp_eval.json}
+export PYSCRIPT=${PYSCRIPT:-frp_eval.py} W HERE LS T TAG=${TAG:?} OUTNAME=${OUTNAME:-frp_eval.json}
 tr ':' '\n' <<< "${DIRS:?}" > "$W/dirs.txt"
 one() {
   local o=$1 d="$W/$(basename "$1")"
@@ -33,7 +34,7 @@ one() {
   python3 "$LS/axi_cfg.py" "$d/hls_proj/sol1" "$d/tmp/axi.json" > /dev/null 2>&1
   ( cd / && env -u LD_LIBRARY_PATH -u PYTHONPATH PATH="$T/env/bin:$PATH" TMPDIR="$d/tmp" LSIM_AXI_MODEL=v2023 \
       LSIM_AXI_IFCFG="$d/tmp/axi.json" LDFLAGS="-Wl,-rpath,$T/env/lib" \
-      "$T/env/bin/python" "$HERE/frp_eval.py" "$d/hls_proj/sol1" "$o/$OUTNAME" "$nptr" "$cos" ) > "$o/${OUTNAME%.json}.log" 2>&1
+      "$T/env/bin/python" "$HERE/${PYSCRIPT:-frp_eval.py}" "$d/hls_proj/sol1" "$o/$OUTNAME" "$nptr" "$cos" ) > "$o/${OUTNAME%.json}.log" 2>&1
   tail -n 1 "$o/${OUTNAME%.json}.log"
   rm -rf "$d"
 }

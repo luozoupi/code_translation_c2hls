@@ -1,0 +1,73 @@
+From 477a9971b9107f9ed1edae5d23a800aeda876866 Mon Sep 17 00:00:00 2001
+From: ahmadsb101 <ahmadsb101@users.noreply.github.com>
+Date: Tue, 27 Oct 2026 13:37:09 +0100
+Subject: [PATCH 5/7] fifo: non-blocking empty() checks (Vitis
+ _autotb_FifoCanRead_iN) in the traced testbench
+
+Vitis lowers hls::stream::empty() to _ssdm_op_NbReadReq.ap_fifo, which the
+autotb build calls as _autotb_FifoCanRead_iN. The runtime answers it from
+the C model FIFO; the check is not a timing event (the dataflow processes
+run one after another in the trace, so a poll never fails there).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ backend/lightningsim/runner.py | 2 +-
+ src/fifo.cpp                   | 8 ++++++++
+ src/fifo.ll.jinja              | 9 +++++++++
+ 3 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/backend/lightningsim/runner.py b/backend/lightningsim/runner.py
+index cb9757097..38229e053 100644
+--- a/backend/lightningsim/runner.py
++++ b/backend/lightningsim/runner.py
+@@ -77,7 +77,7 @@ class FunctionTemplate:
+ 
+ FUNCTION_TEMPLATES = [
+     FunctionTemplate(
+-        input=re.compile(r"_autotb_Fifo(Read|Write)_i(?P<N>\d+)"),
++        input=re.compile(r"_autotb_Fifo(Read|Write|CanRead)_i(?P<N>\d+)"),
+         output="fifo_{T}.ll",
+         mapper=lambda groupdict: {
+             "N": int(groupdict["N"]),
+diff --git a/src/fifo.cpp b/src/fifo.cpp
+index b5513e914..3cb8326f2 100644
+--- a/src/fifo.cpp
++++ b/src/fifo.cpp
+@@ -44,6 +44,14 @@ extern "C"
+         return val;
+     }
+ 
++    // hls::stream::empty() (Vitis _ssdm_op_NbReadReq -> _autotb_FifoCanRead_iN). The trace runs the dataflow
++    // processes one after another, so a polling loop sees its producer's data already there; timing comes from the
++    // blocking read that follows.
++    uint8_t __hlslitesim_fifo_can_read(void* fifo)
++    {
++        return map[fifo].empty() ? 0 : 1;
++    }
++
+     void __hlslitesim_fifo_write(void* fifo, const uint64_t* val, uint32_t size)
+     {
+         auto& q = map[fifo];
+diff --git a/src/fifo.ll.jinja b/src/fifo.ll.jinja
+index 2d91d0f73..b07c7b73e 100644
+--- a/src/fifo.ll.jinja
++++ b/src/fifo.ll.jinja
+@@ -6,6 +6,15 @@ declare i64 @__hlslitesim_fifo_read_i64(i8* %fifo)
+ declare void @__hlslitesim_fifo_write_i64(i8* %fifo, i64 %value)
+ declare void @__hlslitesim_fifo_read(i8* %fifo, i64* %buffer, i32 %count)
+ declare void @__hlslitesim_fifo_write(i8* %fifo, i64* %buffer, i32 %count)
++declare i8 @__hlslitesim_fifo_can_read(i8* %fifo)
++
++define i1 @_autotb_FifoCanRead_{{T}}({{T}}* %fifo) willreturn {
++entry:
++  %fifo_i8 = bitcast {{T}}* %fifo to i8*
++  %r = call i8 @__hlslitesim_fifo_can_read(i8* %fifo_i8)
++  %b = icmp ne i8 %r, 0
++  ret i1 %b
++}
+ 
+ define {{T}} @_autotb_FifoRead_{{T}}({{T}}* %fifo) willreturn {
+ entry:
+-- 
+2.52.0
+

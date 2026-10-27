@@ -729,3 +729,33 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
     - submits one validation job (pat_heat3d_u1 → 3,770,048, pat_seidel2d_u1 → 1,067,879; TAG=frpfir).
   - **Tested here:** the embedded patch is byte-identical to 0004 and applies on the pre-FRP tree to give 6c1cbd54.
   - **Not run on Fir yet.**
+- 2026-10-27 **Summary: LightningSim patches and fixes** (user: "list the patches and fixes to lighteningsim. why it was incorrect and how it has fixed and how is the results?"). The fork is upstream v0.2.6 plus 4 patches in `cosim/lsim/otus/fork_patches/`. All errors below are against Vitis 2023.2 cosim.
+  - **0001, v2023 m_axi model** (`LSIM_AXI_MODEL=v2023`; the default v2021 is bit-identical to upstream).
+    - *Why it was wrong:* stock LightningSim models Vitis 2021.1 memory timing. Reads split only at 4 KB; the write response comes at latency+7 after the last write; writes have no throttle and no credit. Vitis 2023.2 splits reads at the maximum burst length, gates each write burst (address request, credit, throttle FIFO, write buffer), and sends the write response after the last burst.
+    - *Fix:* a per-interface adapter model, configured from the RTL (`axi_cfg.py`). The constants were read off the cosim VCDs per event; a free fit was rejected because it drove r0 to 0.
+  - **0002, write response wb=3:** one constant, matched per event to cosim.
+  - **0003, write-credit floor wc2=11 for short bursts:** AW(j+N) ≥ B(j) + max(wc+len, wc2).
+  - **0004, free-running pipelines** (`LSIM_FRP=0` turns it off).
+    - *Why it was wrong:* every pipeline was simulated as a stall pipeline. A Vitis FRP pipeline issues only when each input FIFO's count covers outstanding requests + 1, and it reads at stage 1, so its input FIFOs need data one cycle earlier.
+    - *Fix:* `lightningsim/frp.py` finds the FIFOs from `ap_frp_data_req_*` in the RTL and adds 1 to their read-after-write delay (`fifo_raw_extra`, `edge.rs`).
+
+  | Test set | Stock (v2021 timing) | Fork |
+  |---|---|---|
+  | T1: 70 m_axi microbenchmarks | mean 9.4%, max 81% | mean 0.46%, max 3.8%; 58/70 within 1% |
+  | T2: 2 self-tests | mean 1.65% | 0.01% |
+  | T3: 11 MM designs at n=256 | mean 15.2%, max 31%; 0/11 within 1% | mean 0.34%, max 0.87%; 11/11 within 1% |
+  | T4: MM n=1024, 1 cosim pair | −16.5% | +0.22% |
+  | SODA 1D/2D, 27 pairs (no FRP), patched SODA target | — | −0.005% to 0.000% |
+  | SODA 3D, 10 pairs, default build (FRP) | −14% to −20% before 0004 | +0.003% to +0.047% |
+  | SODA 3D, 10 pairs, `style = stp` | — | cycle-exact (10/10) |
+
+  - **Fixes outside the fork:**
+    - the cosim-report mapping in `compare.py`, `P·ceil((E−14)/P)+K`;
+    - the SODA include-path rewrite in `job_proj.sh`;
+    - the Otus testbench libstdc++/rpath fixes.
+  - **Still open:**
+    - non-blocking stream reads (`fifo.empty()`) are unsupported, so SODA as generated cannot run; only the patched SODA target can;
+    - an FRP residual of +126 to +324 cycles, not modelled;
+    - the FRP rule is checked only on heat3d/jacobi3d;
+    - Fir lacks 0004 until `cosim/lsim/otus/apply_frp_fir.sh` is run;
+    - real DRAM/HBM timing is out of scope; the reference is cosim's fixed-latency memory.

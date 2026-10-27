@@ -720,3 +720,12 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
     - `lsim_frp` (fork rerun; the 4 3D LightningSim-only designs).
   - **Only the 14 heat3d/jacobi3d rows change.** The 56 other rows are identical, since no other design has an FRP pipeline.
   - **All 37 cosim pairs now agree within −0.005% to +0.047% (mapped).**
+- 2026-10-27 **FRP fix for Fir, prepared** (user: "apply the patch on fir too"). Fir needs MFA, so ssh from here fails (`Permission denied (publickey,keyboard-interactive)`); the user runs it.
+  - **Script:** `cosim/lsim/otus/apply_frp_fir.sh`, self-contained with patch 0004 embedded. It:
+    - stops if a LightningSim job is running or the fork is not the clean pre-FRP tree da0dae7f;
+    - backs up the installed package;
+    - runs git am, checks for tree 6c1cbd54, rebuilds and reinstalls;
+    - checks that the Rust core has `fifo_raw_extra`;
+    - submits one validation job (pat_heat3d_u1 → 3,770,048, pat_seidel2d_u1 → 1,067,879; TAG=frpfir).
+  - **Tested here:** the embedded patch is byte-identical to 0004 and applies on the pre-FRP tree to give 6c1cbd54.
+  - **Not run on Fir yet.**

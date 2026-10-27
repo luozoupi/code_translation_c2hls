@@ -1,0 +1,93 @@
+{
+  "app_version": "0.2.0",
+  "checked_at_utc": "2026-10-27T05:13:40.424869+00:00",
+  "clean_export_installation": {
+    "all_wheel_package_bytes_match_source": true,
+    "default_native_passed": true,
+    "flag_without_synthesis_rejected_before_output": true,
+    "installed_without_network": true,
+    "lightningsim_cli_flag_present": true,
+    "package_members": [
+      "hlsmith_minimal/__init__.py",
+      "hlsmith_minimal/__main__.py",
+      "hlsmith_minimal/cli.py",
+      "hlsmith_minimal/core.py",
+      "hlsmith_minimal/lightningsim.py",
+      "hlsmith_minimal/model.py",
+      "hlsmith_minimal/prompt.md",
+      "hlsmith_minimal/tools.py"
+    ],
+    "provider_calls": 0,
+    "source_commit": "e119161cb38ec8ec8a1ffa1302af73c05c0ac77d",
+    "vitis_jobs": 0,
+    "wheel": "/home/luo00466/hlsmith-minimal/dist/clean-export/hlsmith_minimal-0.2.0-py3-none-any.whl",
+    "wheel_sha256": "74802f56aa9ea9466c95faa8b6dbc2d0019525d2f3798783b7d8530e69408a03",
+    "working_directory": "outside source tree; PYTHONPATH unset"
+  },
+  "client_date": "2026-10-27",
+  "compatibility_status": "not_validated; both bounded real checks timed out resolving trace schedules",
+  "default_selection_changed": false,
+  "functional_correctness_checked_by_lightningsim": false,
+  "live_checks": [
+    {
+      "evidence": "runs/lightningsim-smoke/receipt.json",
+      "kernel": "scalar_mac",
+      "lightningsim_status": "timeout",
+      "synthesis_seconds": 10.438098318874836,
+      "synthesis_status": "passed",
+      "trace_estimate_cycles": null,
+      "trace_seconds": 60.017033078940585,
+      "vitis_version": "2023.2"
+    },
+    {
+      "evidence": "runs/array-sum-lightningsim/result.json",
+      "hls_estimated_worst_cycles": 142,
+      "kernel": "array_sum",
+      "lightningsim_status": "timeout",
+      "provider_calls": 0,
+      "synthesis_seconds": 10.83851750404574,
+      "synthesis_status": "passed",
+      "trace_estimate_cycles": null,
+      "trace_seconds": 15.017076823161915,
+      "vitis_version": "2023.2",
+      "workflow_status": "incomplete_estimation"
+    }
+  ],
+  "live_estimates_completed": 0,
+  "native_validation_passed": true,
+  "offline_tests": {
+    "command": "PYTHONPATH=src python -m pytest -q",
+    "passed": 56,
+    "scope": "includes mock CLI interval parsing/provenance and selection tests; not 56 live LightningSim runs"
+  },
+  "provider_calls": 0,
+  "runtime_python_dependencies": [],
+  "runtime_python_files": 7,
+  "runtime_source_sha256": {
+    "src/hlsmith_minimal/__init__.py": "4836bf80b56fbba987a7813f6f9a550679126ff707b5992e76d0ce65d36d9275",
+    "src/hlsmith_minimal/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "src/hlsmith_minimal/cli.py": "b647c0948f8fe39001da3179875ad6cc1857a22a44c091560cdb500eb499a2f4",
+    "src/hlsmith_minimal/core.py": "8600984160181a270384f59e74722142ddbf61c0110a300f73944dbd05371492",
+    "src/hlsmith_minimal/lightningsim.py": "80220293bc12e2fea9aea6e608d87da98748097eb2a3d7360ee4f35cd3fab171",
+    "src/hlsmith_minimal/model.py": "832fc6417461229d6731f6115f0cccd4c1b707eff00ee6cade2f3c01f47d7d3b",
+    "src/hlsmith_minimal/prompt.md": "bb9ec9c43015be62be16dfbcc854ed0b78f8d4c6041544c83cb2948eb0ab6150",
+    "src/hlsmith_minimal/tools.py": "7ab1d245f486203f8038179187233c315530825120edcded95984871987cad40"
+  },
+  "schema": "hlsmith.minimal.lightningsim-validation.v1",
+  "scope": "Optional diagnostic integration is implemented; current Vitis 2023.2 / LightningSim 0.2.6 setup is not qualified for latency estimates or selection.",
+  "source_commit": "e119161cb38ec8ec8a1ffa1302af73c05c0ac77d",
+  "tool": {
+    "build": "py310h3fd9d12_1",
+    "build_number": 1,
+    "md5": "39f30b0371632b6dd7083a2df48e7bad",
+    "metadata_path": "/home/luo00466/hlsmith-minimal/.tools/lightningsim/conda-meta/lightningsim-0.2.6-py310h3fd9d12_1.json",
+    "metadata_sha256": "9b2d4d57b3bb3ea49e3ebda4a9d49fe9e3a0485769608e76923f4590273dea19",
+    "name": "lightningsim",
+    "sha256": "5fba1c6de03f6d02233706145fb752ef707c377efb1e219a7e88652f6e4c332c",
+    "subdir": "linux-64",
+    "version": "0.2.6"
+  },
+  "upstream_source_patched": false,
+  "vitis_hls_root": "/mnt/data/luo00466/Xilinx/Vitis_HLS/2023.2",
+  "vitis_synthesis_jobs": 2
+}

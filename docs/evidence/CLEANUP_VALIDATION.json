@@ -1,0 +1,162 @@
+{
+  "schema": "hlsmith.minimal-cleanup-validation.v1",
+  "at_utc": "2026-10-27T19:24:24.749562+00:00",
+  "status": "passed",
+  "scope": "Documentation, redundant demo and generated-artifact cleanup; runtime and prompt bytes unchanged. No new model-quality, paper-QoR or FPGA-fit claim.",
+  "snapshot_tag": "snapshots/minimal-before-cleanup-20261027",
+  "pre_cleanup_commit": "951d6f12748656a50927500a678082f9eefb7ec2",
+  "runtime_and_prompt_sha256": {
+    "src/hlsmith_minimal/__init__.py": "2189fbaaa9cd8a8bf0597ed697c7aae299975eb5a33483e6d577b1a50e239ce5",
+    "src/hlsmith_minimal/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "src/hlsmith_minimal/bambu.py": "5c7f077e489c7bf079a5beb36b16478488c6177530a372724a4476366ff56650",
+    "src/hlsmith_minimal/cli.py": "5d2474afd8b642671583220d88f30201463309c659fba13b5d186577e602976e",
+    "src/hlsmith_minimal/core.py": "ed56626f9d18ef93e64955ae69df1bdec35aa005e77d05d3247910b2f33c95dd",
+    "src/hlsmith_minimal/lightningsim.py": "80220293bc12e2fea9aea6e608d87da98748097eb2a3d7360ee4f35cd3fab171",
+    "src/hlsmith_minimal/model.py": "832fc6417461229d6731f6115f0cccd4c1b707eff00ee6cade2f3c01f47d7d3b",
+    "src/hlsmith_minimal/prompt.md": "bb9ec9c43015be62be16dfbcc854ed0b78f8d4c6041544c83cb2948eb0ab6150",
+    "src/hlsmith_minimal/tools.py": "7ab1d245f486203f8038179187233c315530825120edcded95984871987cad40"
+  },
+  "runtime_and_prompt_bytes_unchanged": true,
+  "hlsfactory_fixture_bytes_unchanged": true,
+  "hlsfactory_manifest_sha256": "c4b8b3ef4cbd752ca6310fac71eab901b5e9c842f41532405f83406537ea57d3",
+  "moved_historical_receipt_sha256": {
+    "docs/evidence/VALIDATION.json": "c0d37c3a6328dc6e54825e3387f7e86b1c93067b1456f6261e1cc06c4146b23e",
+    "docs/evidence/LIGHTNINGSIM_VALIDATION.json": "bd94014eb7d18726de0c5494cbb44e866440bbe9b5032183af05542a3432011b",
+    "docs/evidence/HLSFACTORY_PILOT.json": "0677389210d6d962782f166307cd755eb89209b9bce59215ad68c507f67f8661"
+  },
+  "removed_demo_files": [
+    "examples/scalar_mac/candidate_02.cpp",
+    "examples/scalar_mac/candidate_wrong.cpp",
+    "examples/scalar_mac/rtl-wrong.json",
+    "examples/scalar_mac/scalar_mac_wrong.v"
+  ],
+  "storage": {
+    "status": "retired_after_verified_archive",
+    "at_utc": "2026-10-27T19:22:36.123459+00:00",
+    "archive_summary": {
+      "status": "verified",
+      "archive": "/mnt/data1/luo00466/hlsmith_minimal_archive_20261027",
+      "manifest_sha256": "056b4b8953d62a713e2da3586445791d6c7e3b9df455b5bd246236137fbdc353",
+      "entries": 6677,
+      "regular_files": 5757,
+      "regular_bytes": 8569069124,
+      "restore_checks": {
+        "status": "passed",
+        "git_clone_and_snapshot_checkout": true,
+        "runtime_source_hash_matched": true,
+        "raw_files_restored_and_hashed": [
+          "runs/hlsfactory-bambu-pilot/mvt-r3/result.json",
+          "runs/hlsfactory-bambu-pilot/mvt-r3/selected.cpp",
+          "runs/hlsfactory-bambu-pilot/mvt-r3/attempts/000/bambu/kernel_mvt.v"
+        ]
+      },
+      "pre_cleanup_commit": "951d6f12748656a50927500a678082f9eefb7ec2",
+      "git_bundle_sha256": "35337f089ed88025c2ce4d4959bf728888606c6f87b25f731c70a7c5bf82a167"
+    },
+    "compatibility_links": {
+      "runs": "/mnt/data1/luo00466/hlsmith_minimal_archive_20261027/runs",
+      ".tools": "/home/luo00466/.local/share/hlsmith-minimal/tools",
+      ".tools/bambu/bambu-2024.10.AppImage": "/mnt/data1/luo00466/hlsmith_minimal_archive_20261027/installers/bambu-2024.10.AppImage"
+    },
+    "archived_path_mapping": {
+      "dist": "/mnt/data1/luo00466/hlsmith_minimal_archive_20261027/build-artifacts/dist",
+      "build": "/mnt/data1/luo00466/hlsmith_minimal_archive_20261027/build-artifacts/build"
+    },
+    "removed_generated_directories": [
+      "build",
+      "dist",
+      ".pytest_cache",
+      "src/hlsmith_minimal.egg-info",
+      "src/hlsmith_minimal/__pycache__",
+      "tests/__pycache__"
+    ],
+    "active_jobs_audit": {
+      "at_utc": "2026-10-27T19:15:32+00:00",
+      "result": "No owned project jobs or path dependencies found; archival process completed before retiring sources."
+    }
+  },
+  "tests": {
+    "status": "passed",
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -q -p no:cacheprovider tests",
+    "interpreter": "/home/luo00466/.conda/envs/py310_2/bin/python",
+    "passed": 90,
+    "wall_seconds": 11.87
+  },
+  "tool_entrypoints": [
+    {
+      "tool": ".tools/bambu/bambu",
+      "argument": "--version",
+      "returncode": 0
+    },
+    {
+      "tool": ".tools/lightningsim/bin/lightningsim",
+      "argument": "--help",
+      "returncode": 0
+    }
+  ],
+  "post_migration_mvt": {
+    "status": "passed",
+    "at_utc": "2026-10-27T19:23:33.912332+00:00",
+    "command": [
+      "/home/luo00466/hlsmith-minimal/.venv/bin/hlsmith",
+      "run",
+      "/home/luo00466/hlsmith-minimal/runs/hlsfactory-bambu-pilot/mvt-extent-project.json",
+      "--responses",
+      "/home/luo00466/hlsmith-minimal/examples/hlsfactory/mvt/responses.json",
+      "--backend",
+      "bambu",
+      "--max-calls",
+      "1",
+      "--out",
+      "/home/luo00466/.local/share/hlsmith-minimal/checks/cleanup-20261027/mvt"
+    ],
+    "cwd": "/tmp",
+    "wall_seconds": 25.022,
+    "provider_calls": 0,
+    "api_usd": 0,
+    "native_passed": true,
+    "generated_rtl_passed": true,
+    "max_ulp": 0,
+    "metrics": {
+      "cycle_scope": "sum of all registered testbench top calls",
+      "num_executions": 3,
+      "rtl_cycles": 13878,
+      "rtl_cycles_per_execution": [
+        4626,
+        4626,
+        4626
+      ]
+    },
+    "result_path": "/home/luo00466/.local/share/hlsmith-minimal/checks/cleanup-20261027/mvt/result.json",
+    "result_sha256": "42a5fc769bf4e8c076bfd73302701bc2a4f0f784aba76ce997c451bf17f8ccc1",
+    "selected_sha256": "8c0055f3a544422f4100ab8dee1f40eced460c4fa0d85d6acc7d6cb2bd602a59",
+    "artifact_hashes_reverified": true,
+    "report": {
+      "status": "passed",
+      "scope": "new minimal runner; not paper reproduction",
+      "backend": "bambu",
+      "attempts": 1,
+      "selected_source": "/home/luo00466/.local/share/hlsmith-minimal/checks/cleanup-20261027/mvt/selected.cpp",
+      "selected_sha256": "8c0055f3a544422f4100ab8dee1f40eced460c4fa0d85d6acc7d6cb2bd602a59",
+      "objective": {
+        "metric": "rtl_cosim_total_cycles",
+        "value": 13878
+      },
+      "api_charged_or_reserved_usd": 0,
+      "native_passed": true,
+      "rtl_passed": true,
+      "rtl_cycles": 13878,
+      "resource_eligibility": null,
+      "candidate_rtl_binding": "bambu_generated_and_cosim_checked",
+      "lightningsim_status": null,
+      "trace_estimate_cycles": null,
+      "warnings": []
+    }
+  },
+  "api_provider_calls": 0,
+  "api_usd": 0,
+  "canonical_research_checkout_modified": false,
+  "allocated_checkout_bytes_after_cleanup_before_closeout": 14925824,
+  "allocated_checkout_bytes_before_cleanup": 14519087104,
+  "space_scope": "Directory allocation excludes symlink targets; tool payloads remain on home storage, while generated runs and installer moved to NAS."
+}

@@ -1,5 +1,4 @@
 """Short local compiler/simulator tests; never require Vitis or hosted models."""
-import os
 from pathlib import Path
 import shutil
 import sys

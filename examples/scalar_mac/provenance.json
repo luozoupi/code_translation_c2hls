@@ -5,12 +5,20 @@
   "license_file": "../LICENSE",
   "origin": "original_example",
   "legacy_dataset_imported": false,
-  "reference": {"source": "reference.c", "language": "C", "interface": "kernel.h"},
+  "reference": {
+    "source": "reference.c",
+    "language": "C",
+    "interface": "kernel.h"
+  },
   "saved_responses": {
     "origin": "illustrative_fixture",
-    "files": ["candidate_01.cpp", "candidate_02.cpp"],
+    "files": [
+      "candidate_01.cpp"
+    ],
     "provider_outputs": false,
-    "measured_optimization_claim": false
+    "measured_optimization_claim": false,
+    "embedded_responses": 2,
+    "source_note": "Both baseline source responses are embedded in responses.json; only the first is also supplied as a standalone candidate."
   },
   "rtl": {
     "origin": "hand_authored_fixture",
@@ -18,6 +26,5 @@
     "harness": "sim_main.cpp",
     "candidate_source_binding_established": false,
     "qualification": "Shared arithmetic and test vectors demonstrate the RTL backend. These cycles cannot be attributed to a translated C++ candidate."
-  },
-  "negative_fixtures": ["candidate_wrong.cpp", "scalar_mac_wrong.v", "rtl-wrong.json"]
+  }
 }

@@ -13,9 +13,10 @@ the ABI identical.
 Only the reference source and `kernel.h` belong in generation prompts.
 `testbench.c` and `test_vectors.h` are validation fixtures.
 
-`responses.json` contains two illustrative saved responses. The first translates
-the loop to C++; the second replaces the loop with multiplication. They are
-fixtures, not recorded provider outputs or measured optimization results. The
+`responses.json` embeds both illustrative source fixtures. The first translates
+the loop to C++; the second replaces the loop with multiplication.
+`candidate_01.cpp` also keeps the first source available for explicit validation.
+These are not recorded provider outputs or measured optimization results. The
 default configuration uses native validation only and selects a passing
 candidate. The second response can support a later measured optimization demo.
 
@@ -32,6 +33,10 @@ from `HLSMITH_CYCLES:<integer>`. Each transaction has an eight-cycle wait limit.
 There are no vendor IP blocks, simulator delays, or SystemC dependencies.
 
 Both native and RTL harnesses print one deterministic `HLSMITH_RESULT` line.
-The RTL harness also prints the separate cycle marker. `candidate_wrong.cpp`
-and `rtl-wrong.json` are intentional failures: they compile and run, but add one
-to every answer. They demonstrate why tool success alone cannot qualify a result.
+The RTL harness also prints the separate cycle marker. Tests generate incorrect
+candidates and reports in temporary directories to check rejection paths.
+
+`array_sum/` is a separate small memory-interface example used for optional
+LightningSim compatibility checks. The [HLSFactory mini pilots](hlsfactory/README.md)
+exercise Bambu-generated RTL. See [backend instructions](../docs/backends.md)
+for the tool-specific workflows and measured limitations.

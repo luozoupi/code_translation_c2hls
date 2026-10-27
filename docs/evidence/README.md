@@ -4,6 +4,12 @@ These receipts preserve the validation performed during development. They are
 historical records, not a claim that each result applies to every later change.
 The source commits and runtime hashes inside each receipt identify its scope.
 
+[USER_TASK_VALIDATION.json](USER_TASK_VALIDATION.json) records v0.4.0: 125
+installed-package tests, six raw-C/installed-CLI checks with supplied or generated
+testbenches, checked Bambu RTL and successful Vitis/LightningSim estimation.
+The same candidate and generated array testbench were checked through both
+backends. These runs used saved responses and made no provider requests.
+
 | Receipt | Recorded scope | SHA-256 of unchanged bytes |
 | --- | --- | --- |
 | [VALIDATION.json](VALIDATION.json) | Initial native/Verilator and installed-package checks | `c0d37c3a6328dc6e54825e3387f7e86b1c93067b1456f6261e1cc06c4146b23e` |
@@ -11,7 +17,8 @@ The source commits and runtime hashes inside each receipt identify its scope.
 | [HLSFACTORY_PILOT.json](HLSFACTORY_PILOT.json) | Three reduced-shape Bambu/Verilator portability pilots and preserved failures | `0677389210d6d962782f166307cd755eb89209b9bce59215ad68c507f67f8661` |
 | [LIGHTNINGSIM_HOST_VALIDATION.json](LIGHTNINGSIM_HOST_VALIDATION.json) | Two fresh native/Vitis/LightningSim checks on the host | `62511f8ea0169cc6db48a99d1ce2db6513e57816c0919af50fee8486cf8003b3` |
 
-Each JSON file moved here from the project root without editing its contents.
+The three original receipts moved here from the project root without editing
+their contents.
 The later host-validation receipt was copied unchanged from its external run
 directory. It identifies the restricted sandbox's socket-send denial as the
 cause of the earlier LightningSim timeouts; the unmodified host runs completed.

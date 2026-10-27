@@ -1,0 +1,328 @@
+{
+  "schema": "hlsmith.user-task-validation.v1",
+  "recorded_at_utc": "2026-10-27T21:32:16.032496+00:00",
+  "status": "passed",
+  "app_version": "0.4.0",
+  "implementation_commit": "24454570f6a599b51e3f2197481840a852dccadd",
+  "scope": "Plain-C supplied/generated testbench workflow and bounded compiler/simulator smoke checks using saved illustrative responses; not fresh LLM quality or paper reproduction.",
+  "runtime_python_files": 9,
+  "runtime_python_dependencies": [],
+  "cli_commands": [
+    "run",
+    "validate",
+    "report"
+  ],
+  "testbench_generation": "Deterministic compiler-derived numeric/fixed-array harness; no model request; explicit pointer shapes and optional fixed scalar inputs.",
+  "installation": {
+    "status": "passed",
+    "source_commit": "24454570f6a599b51e3f2197481840a852dccadd",
+    "origin": "clean git archive in temporary directory",
+    "network_used": false,
+    "wheel": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/package-checks/hlsmith_minimal-0.4.0-py3-none-any.whl",
+    "wheel_sha256": "78b6504ecf7122c681fb9e7155d5e161c77241173763ce763b38adc4882e66f2",
+    "package_files": [
+      "hlsmith_minimal/__init__.py",
+      "hlsmith_minimal/__main__.py",
+      "hlsmith_minimal/bambu.py",
+      "hlsmith_minimal/cli.py",
+      "hlsmith_minimal/core.py",
+      "hlsmith_minimal/lightningsim.py",
+      "hlsmith_minimal/model.py",
+      "hlsmith_minimal/prompt.md",
+      "hlsmith_minimal/task.py",
+      "hlsmith_minimal/tools.py"
+    ],
+    "package_bytes_match_source_and_installation": true,
+    "installed": {
+      "version": "0.4.0",
+      "module": "/home/luo00466/hlsmith-minimal/.venv/lib/python3.13/site-packages/hlsmith_minimal/__init__.py"
+    }
+  },
+  "installed_tests": {
+    "status": "passed",
+    "passed": 125,
+    "wall_seconds": 19.596,
+    "log": {
+      "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/package-checks/tests.log",
+      "sha256": "d640b3fb0389536a77f188c9faa62bfb6b19ab3cd0907840d28c727a0dd97e5b"
+    }
+  },
+  "runs": [
+    {
+      "name": "raw-array-bambu",
+      "status": "passed",
+      "started_at": "2026-10-27T21:25:29.725467+00:00",
+      "finished_at": "2026-10-27T21:25:40.406274+00:00",
+      "result": {
+        "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/raw-array-bambu/result.json",
+        "sha256": "d4d6a4b336546f9bee52b155b167fa3b0403643d57ae703885fd20ee162f8b18"
+      },
+      "backend": "bambu",
+      "testbench_kind": "generated",
+      "testbench_sha256": "eeea6d1068dce3af71edfaa9a35ceb192520f51aaa5b8c86cc859ecb71f2faa5",
+      "cases": 3,
+      "original_preflight_passed": true,
+      "preflight_sanitizers": [
+        "address",
+        "undefined"
+      ],
+      "independent_native_passed": true,
+      "selected_sha256": "9930df25dd1c3fc1b104e5db50f16f54784698ed6863d5410f8249f4cc45b332",
+      "input_and_artifact_hashes_reverified": true,
+      "physical_implementation": null,
+      "api_usd": 0,
+      "rtl_passed": true,
+      "rtl_metrics": {
+        "cycle_scope": "sum of all registered testbench top calls",
+        "num_executions": 3,
+        "rtl_cycles": 21,
+        "rtl_cycles_per_execution": [
+          7,
+          7,
+          7
+        ]
+      },
+      "resource_eligibility": null,
+      "physical_timing_fit": null
+    },
+    {
+      "name": "raw-array-vitis-trace",
+      "status": "passed",
+      "started_at": "2026-10-27T21:25:40.580447+00:00",
+      "finished_at": "2026-10-27T21:25:53.109167+00:00",
+      "result": {
+        "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/raw-array-vitis-trace/result.json",
+        "sha256": "80c18aabdd341e52921ac919cbf7f8d384dca17b818634a2dfa9c79252a5a668"
+      },
+      "backend": "vitis",
+      "testbench_kind": "generated",
+      "testbench_sha256": "eeea6d1068dce3af71edfaa9a35ceb192520f51aaa5b8c86cc859ecb71f2faa5",
+      "cases": 3,
+      "original_preflight_passed": true,
+      "preflight_sanitizers": [
+        "address",
+        "undefined"
+      ],
+      "independent_native_passed": true,
+      "selected_sha256": "9930df25dd1c3fc1b104e5db50f16f54784698ed6863d5410f8249f4cc45b332",
+      "input_and_artifact_hashes_reverified": true,
+      "physical_implementation": null,
+      "api_usd": 0,
+      "vitis_passed": true,
+      "hls_metrics": {
+        "bram": 10,
+        "dsp": 0,
+        "estimated_clock_period_ns": 2.431,
+        "ff": 2484,
+        "latency_cycles_worst": 142,
+        "lut": 3053,
+        "requested_clock_period_ns": 3.33,
+        "uram": 0
+      },
+      "trace_metrics": {
+        "trace_estimate_cycles": 163
+      },
+      "trace_scope": "top module interval from the registered trace; upstream may analyze only the first top-level call",
+      "trace_correctness_checked": false,
+      "lightningsim_version": "0.2.6",
+      "synthesis_workspace_hashes_reverified": 186,
+      "trace_copied_source_hashes_reverified": true
+    },
+    {
+      "name": "installed-scalar-provided",
+      "status": "passed",
+      "started_at": "2026-10-27T21:29:49.003131+00:00",
+      "finished_at": "2026-10-27T21:29:59.476952+00:00",
+      "result": {
+        "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/installed-scalar-provided/result.json",
+        "sha256": "5afcc86f09be68316a85f425e2ffaccb137afdee87be0dfa72ca8fbdc55e8de5"
+      },
+      "backend": "bambu",
+      "testbench_kind": "provided",
+      "testbench_sha256": "cbb2b9c7ca74984eae46f503f8cee96a6456ae040817b12e5c58c7e1fe43d47c",
+      "cases": null,
+      "original_preflight_passed": true,
+      "preflight_sanitizers": [],
+      "independent_native_passed": true,
+      "selected_sha256": "b7520816c4f737af58457d8a68bfbd2f046f9d909609a07501c42b8d837ea085",
+      "input_and_artifact_hashes_reverified": true,
+      "physical_implementation": null,
+      "api_usd": 0,
+      "rtl_passed": true,
+      "rtl_metrics": {
+        "cycle_scope": "sum of all registered testbench top calls",
+        "num_executions": 12,
+        "rtl_cycles": 96,
+        "rtl_cycles_per_execution": [
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8
+        ]
+      },
+      "resource_eligibility": null,
+      "physical_timing_fit": null
+    },
+    {
+      "name": "installed-array-provided",
+      "status": "passed",
+      "started_at": "2026-10-27T21:29:49.099800+00:00",
+      "finished_at": "2026-10-27T21:30:00.319995+00:00",
+      "result": {
+        "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/installed-array-provided/result.json",
+        "sha256": "35f954e0ea54abdbaced9934115bf9f62bc1c1ec71ca1d97348581881869199f"
+      },
+      "backend": "bambu",
+      "testbench_kind": "provided_with_extents",
+      "testbench_sha256": "0bb72d6171eba1fa2b9ce772a3c5b6049cc1c6c4d2c4e215afd578bb9792f64b",
+      "cases": null,
+      "original_preflight_passed": true,
+      "preflight_sanitizers": [],
+      "independent_native_passed": true,
+      "selected_sha256": "9930df25dd1c3fc1b104e5db50f16f54784698ed6863d5410f8249f4cc45b332",
+      "input_and_artifact_hashes_reverified": true,
+      "physical_implementation": null,
+      "api_usd": 0,
+      "rtl_passed": true,
+      "rtl_metrics": {
+        "cycle_scope": "sum of all registered testbench top calls",
+        "num_executions": 1,
+        "rtl_cycles": 7,
+        "rtl_cycles_per_execution": [
+          7
+        ]
+      },
+      "resource_eligibility": null,
+      "physical_timing_fit": null
+    },
+    {
+      "name": "installed-mvt-auto",
+      "status": "passed",
+      "started_at": "2026-10-27T21:29:59.621647+00:00",
+      "finished_at": "2026-10-27T21:30:22.669414+00:00",
+      "result": {
+        "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/installed-mvt-auto/result.json",
+        "sha256": "2f7df9049691802575f6ed4c08de258b5a01af0745dd2ce1756fbf3506606417"
+      },
+      "backend": "bambu",
+      "testbench_kind": "generated",
+      "testbench_sha256": "71550716c00dc8126d235fc3c8b016ef5c45166accf14d6dcd3828ed655d570d",
+      "cases": 3,
+      "original_preflight_passed": true,
+      "preflight_sanitizers": [
+        "address",
+        "undefined"
+      ],
+      "independent_native_passed": true,
+      "selected_sha256": "8c0055f3a544422f4100ab8dee1f40eced460c4fa0d85d6acc7d6cb2bd602a59",
+      "input_and_artifact_hashes_reverified": true,
+      "physical_implementation": null,
+      "api_usd": 0,
+      "rtl_passed": true,
+      "rtl_metrics": {
+        "cycle_scope": "sum of all registered testbench top calls",
+        "num_executions": 3,
+        "rtl_cycles": 13878,
+        "rtl_cycles_per_execution": [
+          4626,
+          4626,
+          4626
+        ]
+      },
+      "resource_eligibility": null,
+      "physical_timing_fit": null
+    },
+    {
+      "name": "installed-array-trace",
+      "status": "passed",
+      "started_at": "2026-10-27T21:30:00.488125+00:00",
+      "finished_at": "2026-10-27T21:30:13.075122+00:00",
+      "result": {
+        "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/installed-array-trace/result.json",
+        "sha256": "6f563297d5282030dab528f64c44efb33a3027ecc00f34678fa97891e85e9f44"
+      },
+      "backend": "vitis",
+      "testbench_kind": "generated",
+      "testbench_sha256": "eeea6d1068dce3af71edfaa9a35ceb192520f51aaa5b8c86cc859ecb71f2faa5",
+      "cases": 3,
+      "original_preflight_passed": true,
+      "preflight_sanitizers": [
+        "address",
+        "undefined"
+      ],
+      "independent_native_passed": true,
+      "selected_sha256": "9930df25dd1c3fc1b104e5db50f16f54784698ed6863d5410f8249f4cc45b332",
+      "input_and_artifact_hashes_reverified": true,
+      "physical_implementation": null,
+      "api_usd": 0,
+      "vitis_passed": true,
+      "hls_metrics": {
+        "bram": 10,
+        "dsp": 0,
+        "estimated_clock_period_ns": 2.431,
+        "ff": 2484,
+        "latency_cycles_worst": 142,
+        "lut": 3053,
+        "requested_clock_period_ns": 3.33,
+        "uram": 0
+      },
+      "trace_metrics": {
+        "trace_estimate_cycles": 163
+      },
+      "trace_scope": "top module interval from the registered trace; upstream may analyze only the first top-level call",
+      "trace_correctness_checked": false,
+      "lightningsim_version": "0.2.6",
+      "synthesis_workspace_hashes_reverified": 186,
+      "trace_copied_source_hashes_reverified": true
+    }
+  ],
+  "same_candidate_and_generated_testbench_across_bambu_and_vitis_trace": true,
+  "cycles_comparable_across_backends": false,
+  "lightningsim_host_receipt": {
+    "path": "/home/luo00466/hlsmith-minimal/docs/evidence/LIGHTNINGSIM_HOST_VALIDATION.json",
+    "sha256": "62511f8ea0169cc6db48a99d1ce2db6513e57816c0919af50fee8486cf8003b3"
+  },
+  "execution_context": "Real hardware-tool checks on host; original restricted sandbox denied AF_UNIX sends and blocked asyncio notifications. Installed upstream LightningSim and project adapter were not patched.",
+  "runtime_source_sha256": {
+    "src/hlsmith_minimal/__init__.py": "9c81806546dfb919f862d52a2c88205018a64ad497fe0e2476f31ab6cede4880",
+    "src/hlsmith_minimal/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "src/hlsmith_minimal/bambu.py": "5c7f077e489c7bf079a5beb36b16478488c6177530a372724a4476366ff56650",
+    "src/hlsmith_minimal/cli.py": "5a774cd99aac64d4d2881d0272aaad78671174e04bc6dceaa9489c3ef0476ce7",
+    "src/hlsmith_minimal/core.py": "f82e231c785572091fc53a8a787f204e17e0cd80a4e8fa6ce8aae588f6b8fb54",
+    "src/hlsmith_minimal/lightningsim.py": "80220293bc12e2fea9aea6e608d87da98748097eb2a3d7360ee4f35cd3fab171",
+    "src/hlsmith_minimal/model.py": "832fc6417461229d6731f6115f0cccd4c1b707eff00ee6cade2f3c01f47d7d3b",
+    "src/hlsmith_minimal/prompt.md": "bb9ec9c43015be62be16dfbcc854ed0b78f8d4c6041544c83cb2948eb0ab6150",
+    "src/hlsmith_minimal/task.py": "91ccd482baa7efb64e3a8589c0da0aad23125b8e76b6812f6c7ede59c969c872",
+    "src/hlsmith_minimal/tools.py": "44a2e1182cb680b8599b390df7f238367b51cc00f95f3fcfa291c813b78b0112"
+  },
+  "provider_calls": 0,
+  "api_usd": 0,
+  "gpu_jobs": 0,
+  "limitations": [
+    "Auto harnesses cover numeric scalars and bounded fixed arrays; advanced interfaces and mutable state require supplied tests.",
+    "Explicit shapes and scalar values do not prove all application preconditions; sanitizers only check executed cases.",
+    "Supplied testbench observations and coverage remain user controlled.",
+    "LightningSim estimates trace latency (upstream may analyze only the first top call); it is not an RTL-correctness check.",
+    "Bambu and Vitis compile different architectures; their cycles do not establish cross-backend QoR equivalence.",
+    "No physical FPGA resource/timing or board implementation claim; historical v8 and paper evidence are unchanged."
+  ],
+  "max_concurrent_hls_workflow_jobs": 2,
+  "saved_inputs_replay": {
+    "status": "passed",
+    "result": {
+      "path": "/home/luo00466/.local/share/hlsmith-minimal/checks/userflow-20261027/installed-replay-validation/result.json",
+      "sha256": "8779ea1db29026ca70a75903a8f9439841ebbab2d30d35cc64ffe5b464d8f010"
+    },
+    "cwd": "/tmp",
+    "temporary_preparation_directory_absent": true,
+    "provider_calls": 0
+  }
+}

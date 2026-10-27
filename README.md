@@ -75,15 +75,18 @@ Each run retains a reusable `inputs/kernel.json` and copied, hashed inputs.
 
 ## Run offline or use detailed settings
 
-Existing JSON projects remain supported and default to native checking:
+Try the generated-testbench path without an API key:
 
 ```sh
-hlsmith run examples/scalar_mac/kernel.json \
-  --responses examples/scalar_mac/responses.json \
-  --max-calls 2 --out results/offline
+hlsmith run examples/array_sum/reference.c --top array_sum \
+  --size input=4 --size output=1 \
+  --responses examples/array_sum/responses.json \
+  --max-calls 1 --out results/offline
 ```
 
-Saved responses are illustrative fixtures, never an API fallback. For plain C,
+This exercises generated tests and Bambu RTL. Existing `kernel.json` projects
+remain supported and default to native checking. Saved responses are illustrative
+fixtures, never an API fallback. For plain C,
 `--config target.json` supplies provider, validation, backend, and private
 `test_files` settings. See [backend configuration](docs/backends.md) and the
 [HLSFactory mini pilots](examples/hlsfactory/README.md).
@@ -95,7 +98,8 @@ LightningSim records separate trace estimates, without asserting RTL correctness
 Host checks with unmodified LightningSim 0.2.6 and Vitis 2023.2 produced scalar
 and array trace estimates of 11 and 163 cycles. Backend estimates have different
 scopes and are not interchangeable. No result establishes physical FPGA fit or
-board performance; [evidence records](docs/evidence/README.md) state their limits.
+board performance; [validation](docs/evidence/USER_TASK_VALIDATION.json) records
+125 installed-package tests and the supplied/generated-testbench hardware checks.
 
 Live DeepSeek requests require `--max-api-usd`. The default alias is
 `deepseek-flash`, thinking disabled; release metadata does not pin hosted weights.

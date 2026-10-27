@@ -694,3 +694,22 @@ Root: `/scratch/hpc-prf-llmfpga/asa582/projects/workspaces/c2hls_claude_code/stu
 
   - No cosim exists for these (u16: xelab SIGSEGV; laafd: too long), so these are the numbers to report, with the caveat that the rule was validated on the 10 cosim pairs at +0.003% to +0.047%.
   - Results: `/scratch/hpc-prf-llmfpga/asa582/projects/tmp/c2hls/lsim/soda/<design>/lsim_frp.json`; the old ones stay in `lsim_v2023.json`.
+- 2026-10-27 **stp cosims: 10 pass, 2 fail, 2 still running** (jobs 4015922–4015934). Each design has its pipelines forced to `style = stp` (`study/soda/inv3d/<d>_stp`). LightningSim is the stock run, no FRP rule needed; mapped = 9·ceil((end−14)/9)+63. Patched SODA target:
+
+  | Design | LightningSim end | Mapped | stp cosim | Error | Default-build cosim (FRP) | Default / stp |
+  |---|---|---|---|---|---|---|
+  | heat3d_u1 | 3,016,091 | 3,016,143 | 3,016,143 | 0 | 3,769,974 | 1.250× |
+  | heat3d_u2 | 1,583,723 | 1,583,775 | 1,583,775 | 0 | 1,885,266 | 1.190× |
+  | heat3d_u4 | 1,131,527 | 1,131,579 | 1,131,579 | 0 | 1,319,877 | 1.166× |
+  | heat3d_u4_b128 | 1,131,536 | 1,131,588 | 1,131,588 | 0 | 1,319,877 | 1.166× |
+  | heat3d_u8 | 566,120 | 566,172 | 566,172 | 0 | 660,231 | 1.166× |
+  | jacobi3d_u1 | 3,060,038 | 3,060,090 | 3,060,090 | 0 | 3,824,883 | 1.250× |
+  | jacobi3d_u2 | 1,606,844 | 1,606,896 | 1,606,896 | 0 | 1,912,752 | 1.190× |
+  | jacobi3d_u4 | 1,148,096 | 1,148,148 | 1,148,148 | 0 | 1,339,146 | 1.166× |
+  | jacobi3d_u4_b128 | 1,148,096 | 1,148,148 | 1,148,148 | 0 | 1,339,137 | 1.166× |
+  | jacobi3d_u8 | 574,472 | 574,524 | 574,524 | 0 | 669,915 | 1.166× |
+
+  - **LightningSim is cycle-exact on all 10 stp designs.** This confirms the FRP read rule was the whole 3D gap.
+  - **stp is 17–25% faster in cosim than Vitis's default FRP choice.** That is a real design improvement to the SODA target. It must be reported as our change (a pragma edit), not as SODA output.
+  - **Failures:** heat3d_u16_stp and jacobi3d_u16_stp fail with the same xelab SIGSEGV as the default build. Their stp LightningSim numbers: 283,421 / 287,660 (mapped 283,473 / 287,712).
+  - **Still running:** heat3d/jacobi3d_u4_b128_laafd_stp (4015925, 4015932; 2-day limit). Their LightningSim: 8,717,645 / 8,783,426.
